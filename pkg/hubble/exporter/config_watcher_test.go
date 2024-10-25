@@ -137,15 +137,17 @@ func TestReloadNotificationReceived(t *testing.T) {
 	configReceived := false
 
 	// when
-	reloadInterval = 1 * time.Millisecond
-	sut := NewConfigWatcher(fileName, func(_ context.Context, _ uint64, config DynamicExportersConfig) {
+	sut := NewConfigWatcher(fileName, func(_ uint64, config DynamicExportersConfig) {
 		configReceived = true
 	})
-	defer sut.Stop()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go sut.watch(ctx, 1*time.Millisecond)
 
 	// then
 	assert.Eventually(t, func() bool {
 		return configReceived
 	}, 1*time.Second, 1*time.Millisecond)
-
 }

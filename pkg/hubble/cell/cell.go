@@ -15,6 +15,8 @@ import (
 	"github.com/cilium/cilium/api/v1/models"
 	"github.com/cilium/cilium/pkg/cgroups/manager"
 	"github.com/cilium/cilium/pkg/endpointmanager"
+	"github.com/cilium/cilium/pkg/hubble/exporter"
+	exportercell "github.com/cilium/cilium/pkg/hubble/exporter/cell"
 	identitycell "github.com/cilium/cilium/pkg/identity/cache/cell"
 	"github.com/cilium/cilium/pkg/ipcache"
 	k8sClient "github.com/cilium/cilium/pkg/k8s/client"
@@ -36,6 +38,12 @@ var Cell = cell.Module(
 
 	cell.Provide(newHubbleIntegration),
 	cell.Config(defaultConfig),
+
+	// Provide Hubble flow log exporters
+	cell.ProvidePrivate(exportercell.NewValidatedConfig),
+	cell.ProvidePrivate(exportercell.NewHubbleStaticExporter),
+	cell.ProvidePrivate(exportercell.NewHubbleDynamicExporter),
+	cell.Config(exportercell.DefaultConfig),
 )
 
 type hubbleParams struct {
@@ -54,6 +62,8 @@ type hubbleParams struct {
 	NodeLocalStore    *node.LocalNodeStore
 	MonitorAgent      monitorAgent.Agent
 	Recorder          *recorder.Recorder
+
+	Exporters []exporter.FlowLogExporter `group:"hubble-flow-log-exporters"`
 
 	// NOTE: we still need DaemonConfig for the shared EnableRecorder flag.
 	AgentConfig *option.DaemonConfig
@@ -80,6 +90,7 @@ func newHubbleIntegration(params hubbleParams) (HubbleIntegration, error) {
 		params.NodeLocalStore,
 		params.MonitorAgent,
 		params.Recorder,
+		params.Exporters,
 		params.AgentConfig,
 		params.Config,
 		params.Logger,

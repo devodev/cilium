@@ -17,7 +17,6 @@ import (
 	flowpb "github.com/cilium/cilium/api/v1/flow"
 	observerpb "github.com/cilium/cilium/api/v1/observer"
 	v1 "github.com/cilium/cilium/pkg/hubble/api/v1"
-	"github.com/cilium/cilium/pkg/hubble/exporter/exporteroption"
 	nodeTypes "github.com/cilium/cilium/pkg/node/types"
 )
 
@@ -51,13 +50,18 @@ func TestExporter(t *testing.T) {
 	buf := &bytesWriteCloser{bytes.Buffer{}}
 	log := logrus.New()
 	log.SetOutput(io.Discard)
-	exporter, err := newExporter(context.Background(), log, buf, exporteroption.Default)
+
+	opts := DefaultOptions
+	opts.NewWriterFunc = func() (io.WriteCloser, error) {
+		return buf, nil
+	}
+
+	exporter, err := newExporter(log, opts)
 	assert.NoError(t, err)
 
 	ctx := context.Background()
 	for _, ev := range events {
-		stop, err := exporter.OnDecodedEvent(ctx, ev)
-		assert.False(t, stop)
+		err := exporter.Export(ctx, ev)
 		assert.NoError(t, err)
 
 	}
@@ -118,29 +122,38 @@ func TestExporterWithFilters(t *testing.T) {
 	log := logrus.New()
 	log.SetOutput(io.Discard)
 
-	opts := exporteroption.Default
-	for _, opt := range []exporteroption.Option{
-		exporteroption.WithAllowList(log, []*flowpb.FlowFilter{allowFilterPod}),
-		exporteroption.WithDenyList(log, []*flowpb.FlowFilter{denyFilterPod, denyFilterNamespace}),
+	opts := DefaultOptions
+	opts.NewWriterFunc = func() (io.WriteCloser, error) {
+		return buf, nil
+	}
+
+	for _, opt := range []Option{
+		WithAllowList(log, []*flowpb.FlowFilter{allowFilterPod}),
+		WithDenyList(log, []*flowpb.FlowFilter{denyFilterPod, denyFilterNamespace}),
 	} {
 		err := opt(&opts)
 		assert.NoError(t, err)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	exporter, err := newExporter(ctx, log, buf, opts)
+	exporter, err := newExporter(log, opts)
 	assert.NoError(t, err)
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	cancelled := false
 	for i, ev := range events {
 		// Check if processing stops (shouldn't write the last event)
 		if i == len(events)-1 {
 			cancel()
+			cancelled = true
 		}
-		stop, err := exporter.OnDecodedEvent(ctx, ev)
-		assert.False(t, stop)
-		assert.NoError(t, err)
-
+		err := exporter.Export(ctx, ev)
+		if cancelled {
+			assert.ErrorIs(t, err, context.Canceled)
+		} else {
+			assert.NoError(t, err)
+		}
 	}
 	assert.Equal(t,
 		`{"flow":{"time":"1970-01-01T00:00:13Z","source":{"namespace":"namespace-a","pod_name":"x"}},"time":"1970-01-01T00:00:13Z"}
@@ -159,9 +172,13 @@ func TestEventToExportEvent(t *testing.T) {
 	buf := &bytesWriteCloser{bytes.Buffer{}}
 	log := logrus.New()
 	log.SetOutput(io.Discard)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	exporter, err := newExporter(ctx, log, buf, exporteroption.Default)
+
+	opts := DefaultOptions
+	opts.NewWriterFunc = func() (io.WriteCloser, error) {
+		return buf, nil
+	}
+
+	exporter, err := newExporter(log, opts)
 	assert.NoError(t, err)
 
 	// flow
@@ -239,27 +256,117 @@ func TestExporterWithFieldMask(t *testing.T) {
 	log := logrus.New()
 	log.SetOutput(io.Discard)
 
-	opts := exporteroption.Default
-	for _, opt := range []exporteroption.Option{
-		exporteroption.WithFieldMask([]string{"source"}),
+	opts := DefaultOptions
+	opts.NewWriterFunc = func() (io.WriteCloser, error) {
+		return buf, nil
+	}
+	for _, opt := range []Option{
+		WithFieldMask([]string{"source"}),
 	} {
 		err := opt(&opts)
 		assert.NoError(t, err)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	exporter, err := newExporter(ctx, log, buf, opts)
+	exporter, err := newExporter(log, opts)
 	assert.NoError(t, err)
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	for _, ev := range events {
-		stop, err := exporter.OnDecodedEvent(ctx, ev)
-		assert.False(t, stop)
+		err := exporter.Export(ctx, ev)
 		assert.NoError(t, err)
 	}
 
 	assert.Equal(t, `{"flow":{"source":{"namespace":"nsA","pod_name":"podA"}}}
 {"flow":{}}
+`, buf.String())
+}
+
+type boolOnExportEvent bool
+
+func (e *boolOnExportEvent) OnExportEvent(ctx context.Context, ev *v1.Event, encoder Encoder) (stop bool, err error) {
+	*e = true
+	return false, nil
+}
+
+func TestExporterOnExportEvent(t *testing.T) {
+	// override node name for unit test.
+	nodeName := nodeTypes.GetName()
+	newNodeName := "my-node"
+	nodeTypes.SetName(newNodeName)
+	defer func() {
+		nodeTypes.SetName(nodeName)
+	}()
+
+	events := []*v1.Event{
+		{
+			Event: &observerpb.Flow{
+				NodeName: newNodeName,
+				Time:     &timestamp.Timestamp{Seconds: 1},
+			},
+		},
+		{Timestamp: &timestamp.Timestamp{Seconds: 2}, Event: &observerpb.DebugEvent{}},
+	}
+
+	var hookStruct boolOnExportEvent
+	var hookNoOpFuncCalled bool
+	var hookNoOpFuncCalledAfterAbort bool
+
+	var agentEventExported bool
+	var abortRequested bool
+
+	buf := &bytesWriteCloser{bytes.Buffer{}}
+	log := logrus.New()
+	log.SetOutput(io.Discard)
+
+	opts := DefaultOptions
+	opts.NewWriterFunc = func() (io.WriteCloser, error) {
+		return buf, nil
+	}
+	for _, opt := range []Option{
+		WithOnExportEvent(&hookStruct),
+		WithOnExportEventFunc(func(ctx context.Context, ev *v1.Event, encoder Encoder) (stop bool, err error) {
+			hookNoOpFuncCalled = true
+			return false, nil
+		}),
+		WithOnExportEventFunc(func(ctx context.Context, ev *v1.Event, encoder Encoder) (stop bool, err error) {
+			if agentEventExported {
+				abortRequested = true
+				return true, nil
+			}
+			agentEventExported = true
+			agentEvent := &v1.Event{Timestamp: &timestamp.Timestamp{Seconds: 3}, Event: &observerpb.AgentEvent{}}
+			return false, encoder.Encode(agentEvent)
+		}),
+		WithOnExportEventFunc(func(ctx context.Context, ev *v1.Event, encoder Encoder) (stop bool, err error) {
+			if abortRequested {
+				// not reachable
+				hookNoOpFuncCalledAfterAbort = true
+			}
+			return false, nil
+		}),
+	} {
+		err := opt(&opts)
+		assert.NoError(t, err)
+	}
+
+	exporter, err := newExporter(log, opts)
+	assert.NoError(t, err)
+
+	ctx := context.Background()
+	for _, ev := range events {
+		err := exporter.Export(ctx, ev)
+		assert.NoError(t, err)
+	}
+
+	assert.Truef(t, bool(hookStruct), "hook struct not called")
+	assert.Truef(t, hookNoOpFuncCalled, "hook no-op func not called")
+	assert.Falsef(t, hookNoOpFuncCalledAfterAbort, "hook no-op func was called after abort requested by previous hook")
+
+	// ensure that aborting OnExportEvent hook processing works (debug_event should not be exported)
+	assert.Equal(t, `{"Timestamp":{"seconds":3},"Event":{}}
+{"flow":{"time":"1970-01-01T00:00:01Z","node_name":"my-node"},"node_name":"my-node","time":"1970-01-01T00:00:01Z"}
 `, buf.String())
 }
 
@@ -333,14 +440,17 @@ func BenchmarkExporter(b *testing.B) {
 	log := logrus.New()
 	log.SetOutput(io.Discard)
 
-	opts := exporteroption.Default
-	for _, opt := range []exporteroption.Option{
-		exporteroption.WithFieldMask([]string{"time", "node_name", "source"}),
-		exporteroption.WithAllowList(log, []*flowpb.FlowFilter{
+	opts := DefaultOptions
+	opts.NewWriterFunc = func() (io.WriteCloser, error) {
+		return buf, nil
+	}
+	for _, opt := range []Option{
+		WithFieldMask([]string{"time", "node_name", "source"}),
+		WithAllowList(log, []*flowpb.FlowFilter{
 			{SourcePod: []string{"no-matches-for-this-one"}},
 			{SourcePod: []string{allowNS + "/"}},
 		}),
-		exporteroption.WithDenyList(log, []*flowpb.FlowFilter{
+		WithDenyList(log, []*flowpb.FlowFilter{
 			{DestinationPod: []string{"no-matches-for-this-one"}},
 			{DestinationPod: []string{denyNS + "/"}},
 		}),
@@ -349,10 +459,11 @@ func BenchmarkExporter(b *testing.B) {
 		assert.NoError(b, err)
 	}
 
+	exporter, err := newExporter(log, opts)
+	assert.NoError(b, err)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	exporter, err := newExporter(ctx, log, buf, opts)
-	assert.NoError(b, err)
 
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
@@ -363,8 +474,7 @@ func BenchmarkExporter(b *testing.B) {
 		if i%10 == 1 { // 10% matches deny filter
 			event = &denyEvent
 		}
-		stop, err := exporter.OnDecodedEvent(ctx, event)
-		assert.False(b, stop)
+		err := exporter.Export(ctx, event)
 		assert.NoError(b, err)
 	}
 }
