@@ -102,6 +102,7 @@ require (
 	github.com/tidwall/sjson v1.2.5
 	github.com/vishvananda/netlink v1.3.2-0.20260404173425-c822ed716ea1
 	github.com/vishvananda/netns v0.0.5
+	github.com/vmware/govmomi v0.53.0
 	go.etcd.io/etcd/api/v3 v3.6.10
 	go.etcd.io/etcd/client/pkg/v3 v3.6.10
 	go.etcd.io/etcd/client/v3 v3.6.10
