@@ -312,6 +312,15 @@ private-networks-webhook-inventory-bearer-token-file: "/var/lib/cilium/privnet/w
 {{- if .Values.enterprise.privateNetworks.webhook.vms.inventory.caBundle.configMap.name }}
 private-networks-webhook-inventory-ca-bundle-file: "/var/lib/cilium/privnet/webhook/forklift-inventory/ca.crt"
 {{- end }}
+
+{{- if .Values.enterprise.privateNetworks.autoExternalEndpoints }}
+{{- if .Values.enterprise.privateNetworks.autoExternalEndpoints.enabled }}
+private-networks-auto-external-endpoints-enabled: "true"
+{{- with .Values.enterprise.privateNetworks.autoExternalEndpoints.secretsNamespace }}
+private-networks-auto-external-endpoints-secrets-namespace: {{ .name | quote }}
+{{- end }}
+{{- end }}
+{{- end }}
 {{- end }}
 
 # Passive inspection for pod traffic

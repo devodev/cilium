@@ -100,6 +100,16 @@ Allow packagers to add extra volumes to cilium-operator.
         - key: token
           path: token
 {{- end }}
+{{- if and
+    .Values.enterprise.privateNetworks.enabled
+    .Values.enterprise.privateNetworks.autoExternalEndpoints
+    .Values.enterprise.privateNetworks.autoExternalEndpoints.enabled
+    .Values.enterprise.privateNetworks.autoExternalEndpoints.providers
+}}
+- name:  private-network-auto-external-endpoints
+  configMap:
+    name: cilium-private-networks-auto-external-endpoints-providers
+{{- end }}
 {{- end }}
 
 {{- define "cilium-operator.volumeMounts.extra" }}
@@ -112,6 +122,16 @@ Allow packagers to add extra volumes to cilium-operator.
   readOnly: true
 - mountPath: /var/lib/cilium/privnet/webhook/forklift-inventory
   name: privnet-webhook-inventory
+  readOnly: true
+{{- end }}
+{{- if and
+    .Values.enterprise.privateNetworks.enabled
+    .Values.enterprise.privateNetworks.autoExternalEndpoints
+    .Values.enterprise.privateNetworks.autoExternalEndpoints.enabled
+    .Values.enterprise.privateNetworks.autoExternalEndpoints.providers
+}}
+- mountPath: /var/lib/cilium/privnet/auto-external-endpoints-config
+  name: private-network-auto-external-endpoints
   readOnly: true
 {{- end }}
 {{- end }}

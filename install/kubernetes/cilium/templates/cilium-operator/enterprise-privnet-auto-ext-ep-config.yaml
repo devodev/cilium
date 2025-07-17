@@ -1,0 +1,22 @@
+{{- if and
+    .Values.enterprise.privateNetworks.enabled
+    .Values.enterprise.privateNetworks.autoExternalEndpoints
+    .Values.enterprise.privateNetworks.autoExternalEndpoints.enabled
+    .Values.enterprise.privateNetworks.autoExternalEndpoints.providers
+}}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cilium-private-networks-auto-external-endpoints-providers
+  namespace: {{ include "cilium.namespace" . }}
+  {{- with .Values.commonLabels }}
+  labels:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+data:
+{{- range $index, $provider := .Values.enterprise.privateNetworks.autoExternalEndpoints.providers }}
+  provider-{{ printf "%04d" $index }}.yaml: |
+    {{- $provider | toYaml | nindent 4 }}
+{{- end }}
+{{- end }}

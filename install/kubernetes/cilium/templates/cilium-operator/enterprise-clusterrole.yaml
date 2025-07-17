@@ -473,5 +473,23 @@ rules:
     - watch
     - get
 {{- end }}
+{{- if and .Values.enterprise.privateNetworks.autoExternalEndpoints .Values.enterprise.privateNetworks.autoExternalEndpoints.enabled }}
+- apiGroups:
+    - isovalent.com
+  resources:
+    - privatenetworkexternalendpoints
+  verbs:
+    - create
+    - list
+    - get
+    - update
+    - delete
+- apiGroups:
+    - ""
+  resources:
+    - namespaces
+  verbs:
+    - create
+{{- end }}
 {{- end }}
 {{- end }}
