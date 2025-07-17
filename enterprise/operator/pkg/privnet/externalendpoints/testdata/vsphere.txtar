@@ -1,0 +1,152 @@
+#! --private-networks-enabled=true --private-networks-auto-external-endpoints-enabled=true --private-networks-auto-external-endpoints-config-dir=$WORK/providers --private-networks-auto-external-endpoints-secrets-namespace=secrets
+
+# Create the ICPN CRD to satisfy the existence check. We do this before starting
+# the hive to prevent unnecessary delay due to retries.
+k8s/add icpn-crd.yaml
+
+# Start the simulated vCenter
+vcsim/start
+
+# Inject credentials of simulated vCenter into K8s secret
+vcsim/setenv
+replace <URL> $VCSIM_URL <USER> $VCSIM_USER <PASSWORD> $VCSIM_PASSWORD vsphere-secret.yaml
+
+# The vsphere provider requires a secret
+k8s/add vsphere-secret.yaml
+
+# Create three external endpoints - one user-managed and two cilium-managed
+k8s/add user-managed-ep.yaml stale-vm-ep1.yaml stale-vm-ep2.yaml
+
+# Check that the third endpoint exists
+k8s/summary actual-k8s.txt
+* grep -q 'isovalent.com.v1alpha1.privatenetworkexternalendpoints: 3' actual-k8s.txt
+
+# Configure two of the built-in VMs with IP addresses
+vcsim/vm-power --on=false DC0_H0_VM0
+vcsim/vm-power --on=false DC0_H0_VM1
+vcsim/vm-customize --ip 10.20.0.1 DC0_H0_VM0
+vcsim/vm-customize --ip 10.20.0.2 DC0_H0_VM1
+vcsim/vm-power --on=true DC0_H0_VM0
+vcsim/vm-power --on=true DC0_H0_VM1
+
+# Create the private network resource.
+k8s/add icpn-blue.yaml
+
+# Start hive. This will read the providers/ config files and start each provider
+hive/start
+
+# Wait for provider to be ready
+db/initialized privnet-external-endpoints
+
+# Check that the two VMs are now inserted
+* k8s/get isovalent.com.v1alpha1.privatenetworkexternalendpoints my-vsphere/vm-62-000c29636561 -o actual-vm0.yaml
+grep -q 'privatenetworks.isovalent.com/vm-name: DC0_H0_VM0' actual-vm0.yaml
+grep -q 'ipv4: 10.20.0.1' actual-vm0.yaml
+grep -q 'mac: 00:0c:29:63:65:61' actual-vm0.yaml
+grep -q 'network: blue' actual-vm0.yaml
+
+# Check other VM
+* k8s/get isovalent.com.v1alpha1.privatenetworkexternalendpoints my-vsphere/vm-65-000c29393237 -o actual-vm1.yaml
+grep -q 'privatenetworks.isovalent.com/vm-name: DC0_H0_VM1' actual-vm1.yaml
+grep -q 'ipv4: 10.20.0.2' actual-vm1.yaml
+grep -q 'mac: 00:0c:29:39:32:37' actual-vm1.yaml
+grep -q 'network: blue' actual-vm1.yaml
+
+# Ensure user-managed endpoint has not been pruned
+k8s/get isovalent.com.v1alpha1.privatenetworkexternalendpoints default/custom-vm -o actual-custom-vm.yaml
+
+# Ensure these are the only three external endpoints
+k8s/summary actual-k8s.txt
+* grep -q 'isovalent.com.v1alpha1.privatenetworkexternalendpoints: 3' actual-k8s.txt
+
+# Turn off VM1
+vcsim/vm-power --on=false DC0_H0_VM1
+
+# Wait for corresponding endpoint to disappear
+!* k8s/get isovalent.com.v1alpha1.privatenetworkexternalendpoints my-vsphere/vm-65-000c29393237 -o actual-vm1.yaml
+
+-- providers/vsphere.yaml --
+type: vsphere
+name: my-vsphere
+config:
+    credentials-secret-name: vsphere-creds
+    data-center: DC0
+    # rapid polling in tests
+    poll-interval: 100ms
+
+-- vsphere-secret.yaml --
+apiVersion: v1
+kind: Secret
+metadata:
+  name: vsphere-creds
+  namespace: secrets
+type: Opaque
+data:
+  url: <URL>
+  user: <USER>
+  password: <PASSWORD>
+
+-- user-managed-ep.yaml --
+apiVersion: isovalent.com/v1alpha1
+kind: PrivateNetworkExternalEndpoint
+metadata:
+  labels:
+    privatenetworks.isovalent.com/vm-name: custom-vm
+  name: custom-vm
+  namespace: default
+spec:
+  interface:
+    network: network-b
+    addressing:
+      ipv4: "192.168.178.1"
+    mac: "25:24:f9:1e:98:d6"
+
+-- stale-vm-ep1.yaml --
+apiVersion: isovalent.com/v1alpha1
+kind: PrivateNetworkExternalEndpoint
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: cilium
+    privatenetworks.isovalent.com/vm-name: stale-vm1
+  name: vm1
+  namespace: my-vsphere
+spec:
+  interface:
+    network: network-b
+    addressing:
+      ipv4: "192.168.0.1"
+    mac: "dc:e0:32:83:33:ac"
+
+-- stale-vm-ep2.yaml --
+apiVersion: isovalent.com/v1alpha1
+kind: PrivateNetworkExternalEndpoint
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: cilium
+    privatenetworks.isovalent.com/vm-name: stale-vm2
+  name: vm2
+  namespace: old-vsphere
+spec:
+  interface:
+    network: network-b
+    addressing:
+      ipv4: "192.168.0.2"
+    mac: "a8:f8:ed:96:7b:33"
+
+-- icpn-crd.yaml --
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: clusterwideprivatenetworks.isovalent.com
+status:
+  conditions:
+  - type: "Established"
+    status: "True"
+
+-- icpn-blue.yaml --
+apiVersion: isovalent.com/v1alpha1
+kind: ClusterwidePrivateNetwork
+metadata:
+  name: blue
+  annotations:
+    vsphere.privnet.isovalent.com/port-group-name: "DC0_DVPG0"
