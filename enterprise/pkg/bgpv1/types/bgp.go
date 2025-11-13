@@ -14,7 +14,7 @@ import (
 	"bytes"
 	"encoding/binary"
 
-	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
+	bgp "github.com/osrg/gobgp/v4/pkg/packet/bgp"
 )
 
 const (

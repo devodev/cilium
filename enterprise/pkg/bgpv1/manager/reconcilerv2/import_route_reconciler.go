@@ -21,8 +21,7 @@ import (
 
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/statedb"
-	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
-	"go4.org/netipx"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
@@ -373,9 +372,8 @@ func (r *importRouteReconciler) parseV4Path(p *types.ExtendedPath) (*path, error
 			return nil, err
 		}
 	} else {
-		var ok bool
-		nexthop, ok = netipx.FromStdIP(nexthopAttr.Value)
-		if !ok {
+		nexthop = nexthopAttr.Value
+		if !nexthop.IsValid() {
 			return nil, errMalformedNexthop
 		}
 		if !nexthop.Is4() {
@@ -427,9 +425,9 @@ func (r *importRouteReconciler) parseMPReachNLRINexthop(mpReachNLRIAttr *bgp.Pat
 		globalNexthop    netip.Addr
 	)
 
-	if len(mpReachNLRIAttr.LinkLocalNexthop) > 0 {
-		nh, ok := netipx.FromStdIP(mpReachNLRIAttr.LinkLocalNexthop)
-		if !ok {
+	if mpReachNLRIAttr.LinkLocalNexthop.IsValid() {
+		nh := mpReachNLRIAttr.LinkLocalNexthop
+		if !nh.IsValid() {
 			return netip.Addr{}, errMalformedNexthop
 		}
 		if !nh.IsLinkLocalUnicast() {
@@ -438,9 +436,9 @@ func (r *importRouteReconciler) parseMPReachNLRINexthop(mpReachNLRIAttr *bgp.Pat
 		linkLocalNexthop = nh
 	}
 
-	if len(mpReachNLRIAttr.Nexthop) > 0 {
-		nh, ok := netipx.FromStdIP(mpReachNLRIAttr.Nexthop)
-		if !ok {
+	if mpReachNLRIAttr.Nexthop.IsValid() {
+		nh := mpReachNLRIAttr.Nexthop
+		if !nh.IsValid() {
 			return netip.Addr{}, errMalformedNexthop
 		}
 		globalNexthop = nh // This can be link-local (possible with BGP Unnumbered) or global

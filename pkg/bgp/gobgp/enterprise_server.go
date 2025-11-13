@@ -16,22 +16,25 @@ import (
 	"fmt"
 	"log/slog"
 
-	gobgp "github.com/osrg/gobgp/v3/api"
-	"github.com/osrg/gobgp/v3/pkg/server"
+	gobgp "github.com/osrg/gobgp/v4/api"
+	"github.com/osrg/gobgp/v4/pkg/apiutil"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v4/pkg/server"
 
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
 	ossTypes "github.com/cilium/cilium/pkg/bgp/types"
+	"github.com/cilium/cilium/pkg/logging/logfields"
+	"github.com/cilium/cilium/pkg/time"
 )
 
 // NewEnterpriseGoBGPServer returns instance of go bgp router wrapper.
 func NewEnterpriseGoBGPServer(ctx context.Context, log *slog.Logger, params ossTypes.ServerParameters) (ossTypes.Router, error) {
-	logger := NewServerLogger(log, LogParams{
-		AS:        params.Global.ASN,
-		Component: "gobgp.BgpServerInstance",
-		SubSys:    "bgp-control-plane",
-	})
+	logger := log.With(
+		logfields.Component, "gobgp-server",
+		ossTypes.LocalASNLogField, params.Global.ASN,
+	)
 
-	s := server.NewBgpServer(server.LoggerOption(logger))
+	s := server.NewBgpServer(server.LoggerOption(logger, nil))
 	go s.Serve()
 
 	startReq := &gobgp.StartBgpRequest{
@@ -72,8 +75,8 @@ func NewEnterpriseGoBGPServer(ctx context.Context, log *slog.Logger, params ossT
 	err := gobgpSrv.server.SetPolicyAssignment(ctx, &gobgp.SetPolicyAssignmentRequest{
 		Assignment: &gobgp.PolicyAssignment{
 			Name:          globalPolicyAssignmentName,
-			Direction:     gobgp.PolicyDirection_IMPORT,
-			DefaultAction: gobgp.RouteAction_REJECT,
+			Direction:     gobgp.PolicyDirection_POLICY_DIRECTION_IMPORT,
+			DefaultAction: gobgp.RouteAction_ROUTE_ACTION_REJECT,
 			Policies:      []*gobgp.Policy{allowLocalPolicy},
 		},
 	})
@@ -82,39 +85,10 @@ func NewEnterpriseGoBGPServer(ctx context.Context, log *slog.Logger, params ossT
 	}
 
 	// send state notifications upon peer changes
-	watchPeerRequest := &gobgp.WatchEventRequest{
-		Peer: &gobgp.WatchEventRequest_Peer{},
-	}
-	err = s.WatchEvent(ctx, watchPeerRequest, func(r *gobgp.WatchEventResponse) {
-		if p := r.GetPeer(); p != nil && p.Type == gobgp.WatchEventResponse_PeerEvent_STATE {
-			gobgpSrv.stopMutex.Lock()
-			defer gobgpSrv.stopMutex.Unlock()
-
-			if gobgpSrv.stopping {
-				return
-			}
-			// do not block when channel is nil (e.g. in tests)
-			select {
-			case params.StateNotification <- struct{}{}:
-			default:
-			}
+	peerCallback := func(p *apiutil.WatchEventMessage_PeerEvent, _ time.Time) {
+		if p.Type != apiutil.PEER_EVENT_STATE {
+			return
 		}
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to configure peer watching for virtual router with local-asn %v: %w", startReq.Global.Asn, err)
-	}
-
-	// send state notifications upon table changes
-	watchTableRequest := &gobgp.WatchEventRequest{
-		Table: &gobgp.WatchEventRequest_Table{
-			Filters: []*gobgp.WatchEventRequest_Table_Filter{
-				{
-					Type: gobgp.WatchEventRequest_Table_Filter_BEST,
-				},
-			},
-		},
-	}
-	err = s.WatchEvent(ctx, watchTableRequest, func(_ *gobgp.WatchEventResponse) {
 		gobgpSrv.stopMutex.Lock()
 		defer gobgpSrv.stopMutex.Unlock()
 
@@ -126,9 +100,31 @@ func NewEnterpriseGoBGPServer(ctx context.Context, log *slog.Logger, params ossT
 		case params.StateNotification <- struct{}{}:
 		default:
 		}
-	})
+	}
+	// send state notifications upon table changes
+	routeCallback := func(_ []*apiutil.Path, _ time.Time) {
+		gobgpSrv.stopMutex.Lock()
+		defer gobgpSrv.stopMutex.Unlock()
+
+		if gobgpSrv.stopping {
+			return
+		}
+		// do not block when channel is nil (e.g. in tests)
+		select {
+		case params.StateNotification <- struct{}{}:
+		default:
+		}
+	}
+	err = s.WatchEvent(ctx,
+		server.WatchEventMessageCallbacks{
+			OnPeerUpdate: peerCallback,
+			OnBestPath:   routeCallback,
+		},
+		server.WatchPeer(),
+		server.WatchBestPath(true),
+	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to configure table watching for virtual router with local-asn %v: %w", startReq.Global.Asn, err)
+		return nil, fmt.Errorf("failed to configure event watching for virtual router with local-asn %v: %w", startReq.Global.Asn, err)
 	}
 
 	// trigger initial state reconciliation
@@ -150,17 +146,14 @@ func (g *GoBGPServer) GetRoutesExtended(ctx context.Context, r *types.GetRoutesE
 		return nil, fmt.Errorf("invalid table type: %w", err)
 	}
 
-	family := &gobgp.Family{
-		Afi:  gobgp.Family_Afi(r.Family.Afi),
-		Safi: gobgp.Family_Safi(r.Family.Safi),
-	}
+	family := bgp.NewFamily(uint16(r.Family.Afi), uint8(r.Family.Safi))
 
 	var neighbor string
 	if r.Neighbor.IsValid() {
 		neighbor = r.Neighbor.String()
 	}
 
-	req := &gobgp.ListPathRequest{
+	req := apiutil.ListPathRequest{
 		TableType: tt,
 		Family:    family,
 		Name:      neighbor,
@@ -168,14 +161,14 @@ func (g *GoBGPServer) GetRoutesExtended(ctx context.Context, r *types.GetRoutesE
 
 	var errs error
 
-	err = g.server.ListPath(ctx, req, func(destination *gobgp.Destination) {
-		paths, err := ToAgentPathsExtended(destination.Paths)
+	err = g.server.ListPath(req, func(prefix bgp.NLRI, listedPaths []*apiutil.Path) {
+		paths, err := ToAgentPathsExtended(listedPaths)
 		if err != nil {
 			errs = errors.Join(errs, err)
 			return
 		}
 		routes = append(routes, &types.ExtendedRoute{
-			Prefix: destination.Prefix,
+			Prefix: prefix.String(),
 			Paths:  paths,
 		})
 	})
@@ -253,28 +246,28 @@ func (g *GoBGPServer) RemoveRoutePolicyExtended(ctx context.Context, r types.Rou
 func (g *GoBGPServer) GetRoutePoliciesExtended(ctx context.Context) (*types.GetRoutePoliciesExtendedResponse, error) {
 	// list defined sets into a map for later use
 	definedSets := make(map[string]*gobgp.DefinedSet)
-	err := g.server.ListDefinedSet(ctx, &gobgp.ListDefinedSetRequest{DefinedType: gobgp.DefinedType_NEIGHBOR}, func(ds *gobgp.DefinedSet) {
+	err := g.server.ListDefinedSet(ctx, &gobgp.ListDefinedSetRequest{DefinedType: gobgp.DefinedType_DEFINED_TYPE_NEIGHBOR}, func(ds *gobgp.DefinedSet) {
 		definedSets[ds.Name] = ds
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed listing neighbor defined sets: %w", err)
 	}
 
-	err = g.server.ListDefinedSet(ctx, &gobgp.ListDefinedSetRequest{DefinedType: gobgp.DefinedType_PREFIX}, func(ds *gobgp.DefinedSet) {
+	err = g.server.ListDefinedSet(ctx, &gobgp.ListDefinedSetRequest{DefinedType: gobgp.DefinedType_DEFINED_TYPE_PREFIX}, func(ds *gobgp.DefinedSet) {
 		definedSets[ds.Name] = ds
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed listing prefix defined sets: %w", err)
 	}
 
-	err = g.server.ListDefinedSet(ctx, &gobgp.ListDefinedSetRequest{DefinedType: gobgp.DefinedType_COMMUNITY}, func(ds *gobgp.DefinedSet) {
+	err = g.server.ListDefinedSet(ctx, &gobgp.ListDefinedSetRequest{DefinedType: gobgp.DefinedType_DEFINED_TYPE_COMMUNITY}, func(ds *gobgp.DefinedSet) {
 		definedSets[ds.Name] = ds
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed listing community defined sets: %w", err)
 	}
 
-	err = g.server.ListDefinedSet(ctx, &gobgp.ListDefinedSetRequest{DefinedType: gobgp.DefinedType_LARGE_COMMUNITY}, func(ds *gobgp.DefinedSet) {
+	err = g.server.ListDefinedSet(ctx, &gobgp.ListDefinedSetRequest{DefinedType: gobgp.DefinedType_DEFINED_TYPE_LARGE_COMMUNITY}, func(ds *gobgp.DefinedSet) {
 		definedSets[ds.Name] = ds
 	})
 	if err != nil {
@@ -349,7 +342,7 @@ func (g *GoBGPServer) UpdateNeighborExtended(ctx context.Context, n *types.Enter
 		}
 		if !needsHardReset {
 			resetReq.Soft = true
-			resetReq.Direction = gobgp.ResetPeerRequest_IN
+			resetReq.Direction = gobgp.ResetPeerRequest_DIRECTION_IN
 		}
 		if err = g.server.ResetPeer(ctx, resetReq); err != nil {
 			return fmt.Errorf("failed while resetting peer %v:%v in ASN %v: %w", oldPeer.Conf.NeighborAddress, oldPeer.Transport.RemotePort, oldPeer.Conf.PeerAsn, err)

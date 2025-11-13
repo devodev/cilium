@@ -15,7 +15,7 @@ import (
 	"testing"
 
 	"github.com/cilium/hive/hivetest"
-	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"

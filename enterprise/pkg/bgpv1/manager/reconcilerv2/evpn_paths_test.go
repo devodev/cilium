@@ -20,7 +20,7 @@ import (
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/hive/hivetest"
 	"github.com/cilium/statedb"
-	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/stretchr/testify/require"
 
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
@@ -291,7 +291,7 @@ func TestEVPNPathsType5(t *testing.T) {
 			type5 := nlri.RouteTypeData.(*bgp.EVPNIPPrefixRoute)
 			require.Equal(t, test.vrfInfo.RD, type5.RD.String())
 			require.Equal(t, test.vrfInfo.VNI.AsUint32(), type5.Label)
-			if type5.IPPrefix.To4() != nil {
+			if type5.IPPrefix.Is4() {
 				require.Equal(t, "0.0.0.0", type5.GWIPAddress.String())
 			} else {
 				require.Equal(t, "::", type5.GWIPAddress.String())

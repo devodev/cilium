@@ -22,7 +22,8 @@ import (
 	"github.com/YutaroHayakawa/bgplay/pkg/replayer"
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/hive/hivetest"
-	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
+	bgpv3 "github.com/osrg/gobgp/v3/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -58,15 +59,14 @@ func TestParseMPReachNLRI(t *testing.T) {
 	}{
 		{
 			name: "VPNv4 NLRI",
-			attr: bgp.NewPathAttributeMpReachNLRI(
+			attr: mustPathAttributeMpReachNLRI(
+				bgp.NewFamily(bgp.AFI_IP, bgp.SAFI_MPLS_VPN),
 				"fd00::1",
-				[]bgp.AddrPrefixInterface{
-					bgp.NewLabeledVPNIPAddrPrefix(
-						24, "10.0.0.0",
-						bgp.MPLSLabelStack{Labels: []uint32{0x12345}},
-						bgp.NewRouteDistinguisherTwoOctetAS(65000, 1),
-					),
-				},
+				mustLabeledVPNIPAddrPrefix(
+					netip.MustParsePrefix("10.0.0.0/24"),
+					bgp.MPLSLabelStack{Labels: []uint32{0x12345}},
+					bgp.NewRouteDistinguisherTwoOctetAS(65000, 1),
+				),
 			),
 			expectedPrefix: netip.MustParsePrefix("10.0.0.0/24"),
 			expectedLabel:  0x12345,
@@ -74,20 +74,19 @@ func TestParseMPReachNLRI(t *testing.T) {
 		},
 		{
 			name: "More than one NLRI",
-			attr: bgp.NewPathAttributeMpReachNLRI(
+			attr: mustPathAttributeMpReachNLRI(
+				bgp.NewFamily(bgp.AFI_IP, bgp.SAFI_MPLS_VPN),
 				"fd00::1",
-				[]bgp.AddrPrefixInterface{
-					bgp.NewLabeledVPNIPAddrPrefix(
-						24, "10.0.0.0",
-						bgp.MPLSLabelStack{Labels: []uint32{0x12345}},
-						bgp.NewRouteDistinguisherTwoOctetAS(65000, 1),
-					),
-					bgp.NewLabeledVPNIPAddrPrefix(
-						24, "20.0.0.0",
-						bgp.MPLSLabelStack{Labels: []uint32{0x12345}},
-						bgp.NewRouteDistinguisherTwoOctetAS(65000, 1),
-					),
-				},
+				mustLabeledVPNIPAddrPrefix(
+					netip.MustParsePrefix("10.0.0.0/24"),
+					bgp.MPLSLabelStack{Labels: []uint32{0x12345}},
+					bgp.NewRouteDistinguisherTwoOctetAS(65000, 1),
+				),
+				mustLabeledVPNIPAddrPrefix(
+					netip.MustParsePrefix("20.0.0.0/24"),
+					bgp.MPLSLabelStack{Labels: []uint32{0x12345}},
+					bgp.NewRouteDistinguisherTwoOctetAS(65000, 1),
+				),
 			),
 			expectedPrefix: netip.Prefix{},
 			expectedLabel:  0,
@@ -95,11 +94,10 @@ func TestParseMPReachNLRI(t *testing.T) {
 		},
 		{
 			name: "Non-IPv4 AFI",
-			attr: bgp.NewPathAttributeMpReachNLRI(
+			attr: mustPathAttributeMpReachNLRI(
+				bgp.NewFamily(bgp.AFI_IP6, bgp.SAFI_UNICAST),
 				"fd00::1",
-				[]bgp.AddrPrefixInterface{
-					bgp.NewIPv6AddrPrefix(64, "fd00::"),
-				},
+				mustIPAddrPrefixNLRI("fd00::/64"),
 			),
 			expectedPrefix: netip.Prefix{},
 			expectedLabel:  0,
@@ -107,11 +105,10 @@ func TestParseMPReachNLRI(t *testing.T) {
 		},
 		{
 			name: "Non-Labeled-VPN SAFI",
-			attr: bgp.NewPathAttributeMpReachNLRI(
+			attr: mustPathAttributeMpReachNLRI(
+				bgp.NewFamily(bgp.AFI_IP, bgp.SAFI_UNICAST),
 				"fd00::1",
-				[]bgp.AddrPrefixInterface{
-					bgp.NewIPAddrPrefix(24, "10.0.0.0"),
-				},
+				mustIPAddrPrefixNLRI("10.0.0.0/24"),
 			),
 			expectedPrefix: netip.Prefix{},
 			expectedLabel:  0,
@@ -119,15 +116,14 @@ func TestParseMPReachNLRI(t *testing.T) {
 		},
 		{
 			name: "Self-originated route v4",
-			attr: bgp.NewPathAttributeMpReachNLRI(
+			attr: mustPathAttributeMpReachNLRI(
+				bgp.NewFamily(bgp.AFI_IP, bgp.SAFI_MPLS_VPN),
 				"0.0.0.0",
-				[]bgp.AddrPrefixInterface{
-					bgp.NewLabeledVPNIPAddrPrefix(
-						24, "10.0.0.0",
-						bgp.MPLSLabelStack{Labels: []uint32{0x12345}},
-						bgp.NewRouteDistinguisherTwoOctetAS(65000, 1),
-					),
-				},
+				mustLabeledVPNIPAddrPrefix(
+					netip.MustParsePrefix("10.0.0.0/24"),
+					bgp.MPLSLabelStack{Labels: []uint32{0x12345}},
+					bgp.NewRouteDistinguisherTwoOctetAS(65000, 1),
+				),
 			),
 			expectedPrefix: netip.Prefix{},
 			expectedLabel:  0,
@@ -135,15 +131,14 @@ func TestParseMPReachNLRI(t *testing.T) {
 		},
 		{
 			name: "Self-originated route v6",
-			attr: bgp.NewPathAttributeMpReachNLRI(
+			attr: mustPathAttributeMpReachNLRI(
+				bgp.NewFamily(bgp.AFI_IP, bgp.SAFI_MPLS_VPN),
 				"::",
-				[]bgp.AddrPrefixInterface{
-					bgp.NewLabeledVPNIPAddrPrefix(
-						24, "10.0.0.0",
-						bgp.MPLSLabelStack{Labels: []uint32{0x12345}},
-						bgp.NewRouteDistinguisherTwoOctetAS(65000, 1),
-					),
-				},
+				mustLabeledVPNIPAddrPrefix(
+					netip.MustParsePrefix("10.0.0.0/24"),
+					bgp.MPLSLabelStack{Labels: []uint32{0x12345}},
+					bgp.NewRouteDistinguisherTwoOctetAS(65000, 1),
+				),
 			),
 			expectedPrefix: netip.Prefix{},
 			expectedLabel:  0,
@@ -151,15 +146,14 @@ func TestParseMPReachNLRI(t *testing.T) {
 		},
 		{
 			name: "More than one label",
-			attr: bgp.NewPathAttributeMpReachNLRI(
+			attr: mustPathAttributeMpReachNLRI(
+				bgp.NewFamily(bgp.AFI_IP, bgp.SAFI_MPLS_VPN),
 				"fd00::1",
-				[]bgp.AddrPrefixInterface{
-					bgp.NewLabeledVPNIPAddrPrefix(
-						24, "10.0.0.0",
-						bgp.MPLSLabelStack{Labels: []uint32{0x12345, 0x56789}},
-						bgp.NewRouteDistinguisherTwoOctetAS(65000, 1),
-					),
-				},
+				mustLabeledVPNIPAddrPrefix(
+					netip.MustParsePrefix("10.0.0.0/24"),
+					bgp.MPLSLabelStack{Labels: []uint32{0x12345, 0x54321}},
+					bgp.NewRouteDistinguisherTwoOctetAS(65000, 1),
+				),
 			),
 			expectedPrefix: netip.Prefix{},
 			expectedLabel:  0,
@@ -418,7 +412,8 @@ func TestSRv6RouteImport(t *testing.T) {
 
 			openMsg, err := file.Read()
 			require.NoError(t, err)
-			require.IsType(t, &bgp.BGPOpen{}, openMsg.Body,
+
+			require.IsType(t, &bgpv3.BGPOpen{}, openMsg.Body,
 				"The first message should be an OPEN message")
 
 			d := replayer.Dialer{

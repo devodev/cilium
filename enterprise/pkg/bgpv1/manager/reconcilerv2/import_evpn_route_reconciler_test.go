@@ -23,7 +23,8 @@ import (
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/hive/hivetest"
 	"github.com/cilium/statedb"
-	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
+	bgpv3 "github.com/osrg/gobgp/v3/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/utils/ptr"
@@ -73,88 +74,78 @@ func TestEVPNParseMPReachNLRI(t *testing.T) {
 		},
 		{
 			name: "Unsupported ESI",
-			mpReachNLRI: bgp.NewPathAttributeMpReachNLRI(
+			mpReachNLRI: mustPathAttributeMpReachNLRI(
+				bgp.NewFamily(bgp.AFI_L2VPN, bgp.SAFI_EVPN),
 				"10.0.0.1",
-				[]bgp.AddrPrefixInterface{
-					bgp.NewEVPNIPPrefixRoute(
-						bgp.NewRouteDistinguisherFourOctetAS(65000, 100), // RD
-						bgp.EthernetSegmentIdentifier{
-							Type: bgp.ESI_AS,
-						}, // ESI
-						0,          // ETag
-						24,         // IP prefix length
-						"10.0.0.0", // IP prefix
-						"",         // GatewayIP
-						100,        // VNI (Label)
-					),
-				},
+				mustEVPNIPPrefixRoute(
+					bgp.NewRouteDistinguisherFourOctetAS(65000, 100), // RD
+					bgp.EthernetSegmentIdentifier{Type: bgp.ESI_AS},  // ESI
+					0,          // ETag
+					24,         // IP prefix length
+					"10.0.0.0", // IP prefix
+					"",         // GatewayIP
+					100,        // VNI (Label)
+				),
 			),
 			expectedError: errUnsupportedESI,
 		},
 		{
 			name: "Unexpected number of NLRI",
-			mpReachNLRI: bgp.NewPathAttributeMpReachNLRI(
+			mpReachNLRI: mustPathAttributeMpReachNLRI(
+				bgp.NewFamily(bgp.AFI_L2VPN, bgp.SAFI_EVPN),
 				"10.0.0.1",
-				[]bgp.AddrPrefixInterface{
-					bgp.NewEVPNIPPrefixRoute(
-						bgp.NewRouteDistinguisherFourOctetAS(65000, 100), // RD
-						bgp.EthernetSegmentIdentifier{
-							Type: bgp.ESI_ARBITRARY,
-						}, // ESI
-						0,          // ETag
-						24,         // IP prefix length
-						"10.0.0.0", // IP prefix
-						"",         // GatewayIP
-						100,        // VNI (Label)
-					),
-					bgp.NewEVPNIPPrefixRoute(
-						bgp.NewRouteDistinguisherFourOctetAS(65000, 200), // RD
-						bgp.EthernetSegmentIdentifier{
-							Type: bgp.ESI_ARBITRARY,
-						}, // ESI
-						0,          // ETag
-						24,         // IP prefix length
-						"10.0.0.0", // IP prefix
-						"",         // GatewayIP
-						200,        // VNI (Label)
-					),
-				},
+				mustEVPNIPPrefixRoute(
+					bgp.NewRouteDistinguisherFourOctetAS(65000, 100),       // RD
+					bgp.EthernetSegmentIdentifier{Type: bgp.ESI_ARBITRARY}, // ESI
+					0,          // ETag
+					24,         // IP prefix length
+					"10.0.0.0", // IP prefix
+					"",         // GatewayIP
+					100,        // VNI (Label)
+				),
+				mustEVPNIPPrefixRoute(
+					bgp.NewRouteDistinguisherFourOctetAS(65000, 200),       // RD
+					bgp.EthernetSegmentIdentifier{Type: bgp.ESI_ARBITRARY}, // ESI
+					0,          // ETag
+					24,         // IP prefix length
+					"10.0.0.0", // IP prefix
+					"",         // GatewayIP
+					200,        // VNI (Label)
+				),
 			),
 			expectedError: errUnexpectedNumberOfNLRI,
 		},
 		{
 			name: "Self-originated route (zero nexthop v4)",
-			mpReachNLRI: bgp.NewPathAttributeMpReachNLRI(
+			mpReachNLRI: mustPathAttributeMpReachNLRI(
+				bgp.NewFamily(bgp.AFI_L2VPN, bgp.SAFI_EVPN),
 				"0.0.0.0",
-				[]bgp.AddrPrefixInterface{
-					bgp.NewEVPNIPPrefixRoute(
-						bgp.NewRouteDistinguisherFourOctetAS(65000, 100),
-						bgp.EthernetSegmentIdentifier{Type: bgp.ESI_ARBITRARY},
-						0,
-						32,
-						"10.0.0.1",
-						"",
-						100,
-					),
-				},
+				mustEVPNIPPrefixRoute(
+					bgp.NewRouteDistinguisherFourOctetAS(65000, 100),
+					bgp.EthernetSegmentIdentifier{Type: bgp.ESI_ARBITRARY},
+					0,
+					32,
+					"10.0.0.1",
+					"",
+					100,
+				),
 			),
 			expectedError: errSelfOriginatedRoute,
 		},
 		{
 			name: "Self-originated route (zero nexthop v6)",
-			mpReachNLRI: bgp.NewPathAttributeMpReachNLRI(
+			mpReachNLRI: mustPathAttributeMpReachNLRI(
+				bgp.NewFamily(bgp.AFI_L2VPN, bgp.SAFI_EVPN),
 				"::",
-				[]bgp.AddrPrefixInterface{
-					bgp.NewEVPNIPPrefixRoute(
-						bgp.NewRouteDistinguisherFourOctetAS(65000, 100),
-						bgp.EthernetSegmentIdentifier{Type: bgp.ESI_ARBITRARY},
-						0,
-						128,
-						"2001:db8::1",
-						"",
-						100,
-					),
-				},
+				mustEVPNIPPrefixRoute(
+					bgp.NewRouteDistinguisherFourOctetAS(65000, 100),
+					bgp.EthernetSegmentIdentifier{Type: bgp.ESI_ARBITRARY},
+					0,
+					128,
+					"2001:db8::1",
+					"",
+					100,
+				),
 			),
 			expectedError: errSelfOriginatedRoute,
 		},
@@ -163,99 +154,94 @@ func TestEVPNParseMPReachNLRI(t *testing.T) {
 			mpReachNLRI: &bgp.PathAttributeMpReachNLRI{
 				AFI:     bgp.AFI_L2VPN,
 				SAFI:    bgp.SAFI_EVPN,
-				Nexthop: net.ParseIP("10.0.0.1"),
-				Value: []bgp.AddrPrefixInterface{
-					bgp.NewIPAddrPrefix(24, "10.0.0.0"), // Not an EVPN NLRI
+				Nexthop: netip.MustParseAddr("10.0.0.1"),
+				Value: []bgp.PathNLRI{
+					{NLRI: mustIPAddrPrefixNLRI("10.0.0.0/24")}, // Not an EVPN NLRI
 				},
 			},
 			expectedError: errMalformedPath,
 		},
 		{
 			name: "Unsupported EVPN route type",
-			mpReachNLRI: bgp.NewPathAttributeMpReachNLRI(
+			mpReachNLRI: mustPathAttributeMpReachNLRI(
+				bgp.NewFamily(bgp.AFI_L2VPN, bgp.SAFI_EVPN),
 				"10.0.0.1",
-				[]bgp.AddrPrefixInterface{
-					bgp.NewEVPNMacIPAdvertisementRoute(
-						bgp.NewRouteDistinguisherFourOctetAS(65000, 100),
-						bgp.EthernetSegmentIdentifier{Type: bgp.ESI_ARBITRARY},
-						0,
-						"aa:bb:cc:dd:ee:ff",
-						"10.0.0.2",
-						[]uint32{100},
-					),
-				},
+				mustEVPNMacIPAdvertisementRoute(
+					bgp.NewRouteDistinguisherFourOctetAS(65000, 100),
+					bgp.EthernetSegmentIdentifier{Type: bgp.ESI_ARBITRARY},
+					0,
+					"aa:bb:cc:dd:ee:ff",
+					"10.0.0.2",
+					[]uint32{100},
+				),
 			),
 			expectedError: errUnsupportedEVPNRouteType,
 		},
 		{
 			name: "Unsupported ETag (non-zero)",
-			mpReachNLRI: bgp.NewPathAttributeMpReachNLRI(
+			mpReachNLRI: mustPathAttributeMpReachNLRI(
+				bgp.NewFamily(bgp.AFI_L2VPN, bgp.SAFI_EVPN),
 				"10.0.0.1",
-				[]bgp.AddrPrefixInterface{
-					bgp.NewEVPNIPPrefixRoute(
-						bgp.NewRouteDistinguisherFourOctetAS(65000, 100),
-						bgp.EthernetSegmentIdentifier{Type: bgp.ESI_ARBITRARY},
-						1, // non-zero ETag
-						24,
-						"10.0.0.0",
-						"",
-						100,
-					),
-				},
+				mustEVPNIPPrefixRoute(
+					bgp.NewRouteDistinguisherFourOctetAS(65000, 100),
+					bgp.EthernetSegmentIdentifier{Type: bgp.ESI_ARBITRARY},
+					1, // non-zero ETag
+					24,
+					"10.0.0.0",
+					"",
+					100,
+				),
 			),
 			expectedError: errUnsupportedETag,
 		},
 		{
 			name: "Unsupported Gateway IP (non-zero IPv4)",
-			mpReachNLRI: bgp.NewPathAttributeMpReachNLRI(
+			mpReachNLRI: mustPathAttributeMpReachNLRI(
+				bgp.NewFamily(bgp.AFI_L2VPN, bgp.SAFI_EVPN),
 				"10.0.0.1",
-				[]bgp.AddrPrefixInterface{
-					bgp.NewEVPNIPPrefixRoute(
-						bgp.NewRouteDistinguisherFourOctetAS(65000, 100),
-						bgp.EthernetSegmentIdentifier{Type: bgp.ESI_ARBITRARY},
-						0,
-						24,
-						"10.0.0.0",
-						"1.1.1.1", // non-zero GW IP
-						100,
-					),
-				},
+				mustEVPNIPPrefixRoute(
+					bgp.NewRouteDistinguisherFourOctetAS(65000, 100),
+					bgp.EthernetSegmentIdentifier{Type: bgp.ESI_ARBITRARY},
+					0,
+					24,
+					"10.0.0.0",
+					"1.1.1.1", // non-zero GW IP
+					100,
+				),
 			),
 			expectedError: errUnsupportedGatewayIP,
 		},
 		{
 			name: "Unsupported Gateway IP (non-zero IPv6)",
-			mpReachNLRI: bgp.NewPathAttributeMpReachNLRI(
+			mpReachNLRI: mustPathAttributeMpReachNLRI(
+				bgp.NewFamily(bgp.AFI_L2VPN, bgp.SAFI_EVPN),
 				"2001:db8::1",
-				[]bgp.AddrPrefixInterface{
-					bgp.NewEVPNIPPrefixRoute(
-						bgp.NewRouteDistinguisherFourOctetAS(65000, 100),
-						bgp.EthernetSegmentIdentifier{Type: bgp.ESI_ARBITRARY},
-						0,
-						128,
-						"2001:db8::100",
-						"2001:db8::2", // non-zero GW IP
-						100,
-					),
-				},
+				mustEVPNIPPrefixRoute(
+					bgp.NewRouteDistinguisherFourOctetAS(65000, 100),
+					bgp.EthernetSegmentIdentifier{Type: bgp.ESI_ARBITRARY},
+					0,
+					128,
+					"2001:db8::100",
+					"2001:db8::2", // non-zero GW IP
+					100,
+				),
 			),
 			expectedError: errUnsupportedGatewayIP,
 		},
 		{
 			name: "Valid IPv4 prefix IPv4 VTEP IP",
-			mpReachNLRI: bgp.NewPathAttributeMpReachNLRI(
+			mpReachNLRI: mustPathAttributeMpReachNLRI(
+				bgp.NewFamily(bgp.AFI_L2VPN, bgp.SAFI_EVPN),
 				"100.64.0.1",
-				[]bgp.AddrPrefixInterface{
-					bgp.NewEVPNIPPrefixRoute(
-						bgp.NewRouteDistinguisherFourOctetAS(65000, 100),
-						bgp.EthernetSegmentIdentifier{Type: bgp.ESI_ARBITRARY},
-						0,
-						24,
-						"10.0.0.0",
-						"",
-						100,
-					),
-				},
+				mustEVPNIPPrefixRoute(
+					bgp.NewRouteDistinguisherFourOctetAS(65000, 100),
+					bgp.EthernetSegmentIdentifier{Type: bgp.ESI_ARBITRARY},
+					0,
+					24,
+					"10.0.0.0",
+					"",
+					100,
+				),
 			),
 			expectedPrefix: netip.MustParsePrefix("10.0.0.0/24"),
 			expectedVNI:    vni.MustFromUint32(100),
@@ -263,19 +249,18 @@ func TestEVPNParseMPReachNLRI(t *testing.T) {
 		},
 		{
 			name: "Valid IPv6 prefix IPv4 VTEP IP",
-			mpReachNLRI: bgp.NewPathAttributeMpReachNLRI(
+			mpReachNLRI: mustPathAttributeMpReachNLRI(
+				bgp.NewFamily(bgp.AFI_L2VPN, bgp.SAFI_EVPN),
 				"100.64.0.1",
-				[]bgp.AddrPrefixInterface{
-					bgp.NewEVPNIPPrefixRoute(
-						bgp.NewRouteDistinguisherFourOctetAS(65000, 100),
-						bgp.EthernetSegmentIdentifier{Type: bgp.ESI_ARBITRARY},
-						0,
-						120,
-						"2001:db8::",
-						"",
-						100,
-					),
-				},
+				mustEVPNIPPrefixRoute(
+					bgp.NewRouteDistinguisherFourOctetAS(65000, 100),
+					bgp.EthernetSegmentIdentifier{Type: bgp.ESI_ARBITRARY},
+					0,
+					120,
+					"2001:db8::",
+					"",
+					100,
+				),
 			),
 			expectedPrefix: netip.MustParsePrefix("2001:db8::/120"),
 			expectedVNI:    vni.MustFromUint32(100),
@@ -283,19 +268,18 @@ func TestEVPNParseMPReachNLRI(t *testing.T) {
 		},
 		{
 			name: "Valid IPv4 prefix IPv6 VTEP IP",
-			mpReachNLRI: bgp.NewPathAttributeMpReachNLRI(
+			mpReachNLRI: mustPathAttributeMpReachNLRI(
+				bgp.NewFamily(bgp.AFI_L2VPN, bgp.SAFI_EVPN),
 				"fd00::1",
-				[]bgp.AddrPrefixInterface{
-					bgp.NewEVPNIPPrefixRoute(
-						bgp.NewRouteDistinguisherFourOctetAS(65000, 100),
-						bgp.EthernetSegmentIdentifier{Type: bgp.ESI_ARBITRARY},
-						0,
-						24,
-						"10.0.0.0",
-						"",
-						100,
-					),
-				},
+				mustEVPNIPPrefixRoute(
+					bgp.NewRouteDistinguisherFourOctetAS(65000, 100),
+					bgp.EthernetSegmentIdentifier{Type: bgp.ESI_ARBITRARY},
+					0,
+					24,
+					"10.0.0.0",
+					"",
+					100,
+				),
 			),
 			expectedPrefix: netip.MustParsePrefix("10.0.0.0/24"),
 			expectedVNI:    vni.MustFromUint32(100),
@@ -303,19 +287,18 @@ func TestEVPNParseMPReachNLRI(t *testing.T) {
 		},
 		{
 			name: "Valid IPv6 prefix IPv4 VTEP IP",
-			mpReachNLRI: bgp.NewPathAttributeMpReachNLRI(
+			mpReachNLRI: mustPathAttributeMpReachNLRI(
+				bgp.NewFamily(bgp.AFI_L2VPN, bgp.SAFI_EVPN),
 				"fd00::1",
-				[]bgp.AddrPrefixInterface{
-					bgp.NewEVPNIPPrefixRoute(
-						bgp.NewRouteDistinguisherFourOctetAS(65000, 100),
-						bgp.EthernetSegmentIdentifier{Type: bgp.ESI_ARBITRARY},
-						0,
-						120,
-						"2001:db8::",
-						"",
-						100,
-					),
-				},
+				mustEVPNIPPrefixRoute(
+					bgp.NewRouteDistinguisherFourOctetAS(65000, 100),
+					bgp.EthernetSegmentIdentifier{Type: bgp.ESI_ARBITRARY},
+					0,
+					120,
+					"2001:db8::",
+					"",
+					100,
+				),
 			),
 			expectedPrefix: netip.MustParsePrefix("2001:db8::/120"),
 			expectedVNI:    vni.MustFromUint32(100),
@@ -670,7 +653,7 @@ func TestEVPNRouteImport(t *testing.T) {
 
 			openMsg, err := file.Read()
 			require.NoError(t, err)
-			require.IsType(t, &bgp.BGPOpen{}, openMsg.Body,
+			require.IsType(t, &bgpv3.BGPOpen{}, openMsg.Body,
 				"The first message should be an OPEN message")
 
 			d := replayer.Dialer{

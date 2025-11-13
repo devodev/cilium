@@ -13,7 +13,6 @@ package test
 import (
 	"context"
 	"fmt"
-	"net"
 	"net/netip"
 	"sort"
 	"strconv"
@@ -22,9 +21,9 @@ import (
 
 	"github.com/cilium/hive"
 	"github.com/cilium/hive/script"
-	gobgpapi "github.com/osrg/gobgp/v3/api"
-	"github.com/osrg/gobgp/v3/pkg/apiutil"
-	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
+	gobgpapi "github.com/osrg/gobgp/v4/api"
+	"github.com/osrg/gobgp/v4/pkg/apiutil"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/spf13/pflag"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -365,7 +364,7 @@ func nextParam(s string) (string, int, error) {
 // parseEVPNRT5Prefix parses the EVPN RT5 prefix
 // [RD][ESI][ETag][Prefix][GWIP][VNI] and returns it as a
 // bgp.AddrPrefixInterface.
-func parseEVPNRT5Prefix(s string) (bgp.AddrPrefixInterface, error) {
+func parseEVPNRT5Prefix(s string) (*bgp.EVPNNLRI, error) {
 	param, n, err := nextParam(s)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract RD string: %w", err)
@@ -440,19 +439,16 @@ func parseEVPNRT5Prefix(s string) (bgp.AddrPrefixInterface, error) {
 		esi,
 		uint32(eTag),
 		uint8(prefix.Bits()),
-		prefix.Addr().String(),
-		gwip.String(),
+		prefix.Addr(),
+		gwip,
 		uint32(vni),
-	), nil
+	)
 }
 
-func parsePrefix(s string) (bgp.AddrPrefixInterface, error) {
+func parsePrefix(s string) (bgp.NLRI, error) {
 	// First try to interpret as an IPv4 or IPv6 prefix
 	if prefix, err := netip.ParsePrefix(s); err == nil {
-		if prefix.Addr().Is4() {
-			return bgp.NewIPAddrPrefix(uint8(prefix.Bits()), prefix.Addr().String()), nil
-		}
-		return bgp.NewIPv6AddrPrefix(uint8(prefix.Bits()), prefix.Addr().String()), nil
+		return bgp.NewIPAddrPrefix(prefix)
 	}
 
 	if strings.HasPrefix(s, "EVPN") {
@@ -547,64 +543,33 @@ func AddRoute(cmdCtx *commands.GoBGPCmdContext) script.Cmd {
 
 				originAttr := bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP)
 
-				var path *gobgpapi.Path
+				var path *apiutil.Path
 				switch {
 				case len(args) == 1:
-					// Defaulting case. Keep the
-					// compatibility with the existing
-					// behavior.
-					var p *types.Path
-					switch nlri := nlri.(type) {
-					case *bgp.IPAddrPrefix:
-						p = &types.Path{
-							NLRI: nlri,
-							PathAttributes: []bgp.PathAttributeInterface{
-								originAttr,
-								bgp.NewPathAttributeNextHop("0.0.0.0"),
-							},
-						}
-					case *bgp.IPv6AddrPrefix:
-						p = &types.Path{
-							NLRI: nlri,
-							PathAttributes: []bgp.PathAttributeInterface{
-								originAttr,
-								bgp.NewPathAttributeMpReachNLRI("::", []bgp.AddrPrefixInterface{nlri}),
-							},
-						}
-					case *bgp.EVPNNLRI:
-						p = &types.Path{
-							NLRI: nlri,
-							PathAttributes: []bgp.PathAttributeInterface{
-								originAttr,
-							},
-						}
-						rt5 := nlri.RouteTypeData.(*bgp.EVPNIPPrefixRoute)
-						if rt5.IPPrefix.To4() != nil {
-							p.PathAttributes = append(
-								p.PathAttributes,
-								bgp.NewPathAttributeMpReachNLRI("0.0.0.0", []bgp.AddrPrefixInterface{nlri}),
-							)
-						} else {
-							p.PathAttributes = append(
-								p.PathAttributes,
-								bgp.NewPathAttributeMpReachNLRI("::", []bgp.AddrPrefixInterface{nlri}),
-							)
-						}
-					default:
-						return "", "", fmt.Errorf("unsupported NLRI type: %T", nlri)
+					p, err := defaultPathForNLRI(nlri)
+					if err != nil {
+						return "", "", fmt.Errorf("failed to create default path: %w", err)
 					}
 					path, err = gobgp.ToGoBGPPath(p)
 					if err != nil {
-						return "", "", fmt.Errorf("failed to convert prefix to GoBGP path: %w", err)
+						return "", "", fmt.Errorf("failed to convert default path to GoBGP path: %w", err)
 					}
 				case len(args) == 2:
-					if nlri.AFI() == bgp.AFI_IP && nexthop.Is4() {
+					family, goBGPFamily, err := pathFamilyForNLRI(nlri)
+					if err != nil {
+						return "", "", err
+					}
+					if family.Afi == types.AfiIPv4 && nexthop.Is4() {
 						// v4 prefix with v4 nexthop.
 						// Use regular NEXTHOP
 						// attribute.
-						nextHopAttr := bgp.NewPathAttributeNextHop(nexthop.String())
+						nextHopAttr, err := bgp.NewPathAttributeNextHop(nexthop)
+						if err != nil {
+							return "", "", fmt.Errorf("failed to create next-hop attribute: %w", err)
+						}
 						path, err = gobgp.ToGoBGPPath(&types.Path{
-							NLRI: nlri,
+							Family: family,
+							NLRI:   nlri,
 							PathAttributes: []bgp.PathAttributeInterface{
 								originAttr,
 								nextHopAttr,
@@ -618,9 +583,13 @@ func AddRoute(cmdCtx *commands.GoBGPCmdContext) script.Cmd {
 						// v6 nexthop, v6 prefix with v6
 						// nexthop) are encoded using
 						// MP_REACH_NLRI attribute.
-						mpReachNLRIAttr := bgp.NewPathAttributeMpReachNLRI(nexthop.String(), []bgp.AddrPrefixInterface{nlri})
+						mpReachNLRIAttr, err := bgp.NewPathAttributeMpReachNLRI(goBGPFamily, []bgp.PathNLRI{{NLRI: nlri}}, nexthop)
+						if err != nil {
+							return "", "", fmt.Errorf("failed to create MP_REACH_NLRI attribute: %w", err)
+						}
 						path, err = gobgp.ToGoBGPPath(&types.Path{
-							NLRI: nlri,
+							Family: family,
+							NLRI:   nlri,
 							PathAttributes: []bgp.PathAttributeInterface{
 								originAttr,
 								mpReachNLRIAttr,
@@ -631,12 +600,19 @@ func AddRoute(cmdCtx *commands.GoBGPCmdContext) script.Cmd {
 						}
 					}
 				case len(args) >= 3:
+					family, goBGPFamily, err := pathFamilyForNLRI(nlri)
+					if err != nil {
+						return "", "", err
+					}
 					// Link-local nexthop is only usable
 					// with MP_REACH_NLRI attribute.
-					mpReachNLRIAttr := bgp.NewPathAttributeMpReachNLRI(nexthop.String(), []bgp.AddrPrefixInterface{nlri})
-					mpReachNLRIAttr.LinkLocalNexthop = net.ParseIP(llnexthop.String())
+					mpReachNLRIAttr, err := bgp.NewPathAttributeMpReachNLRI(goBGPFamily, []bgp.PathNLRI{{NLRI: nlri}}, nexthop, llnexthop)
+					if err != nil {
+						return "", "", fmt.Errorf("failed to create MP_REACH_NLRI attribute: %w", err)
+					}
 					path, err = gobgp.ToGoBGPPath(&types.Path{
-						NLRI: nlri,
+						Family: family,
+						NLRI:   nlri,
 						PathAttributes: []bgp.PathAttributeInterface{
 							originAttr,
 							mpReachNLRIAttr,
@@ -710,18 +686,12 @@ func AddRoute(cmdCtx *commands.GoBGPCmdContext) script.Cmd {
 					if len(extendedCommunities) > 0 {
 						pathAttrs = append(pathAttrs, bgp.NewPathAttributeExtendedCommunities(extendedCommunities))
 					}
-					pattrs, err := apiutil.MarshalPathAttributes(pathAttrs)
-					if err != nil {
-						return "", "", fmt.Errorf("failed to convert PathAttribute: %w", err)
-					}
-					path.Pattrs = append(path.Pattrs, pattrs...)
+					path.Attrs = append(path.Attrs, pathAttrs...)
 				}
 
 				if _, err := goBGPServer.AddPath(
-					s.Context(),
-					&gobgpapi.AddPathRequest{
-						TableType: gobgpapi.TableType_LOCAL,
-						Path:      path,
+					apiutil.AddPathRequest{
+						Paths: []*apiutil.Path{path},
 					},
 				); err != nil {
 					return "", "", fmt.Errorf("failed to add path: %w", err)
@@ -767,22 +737,18 @@ func DeleteRoute(cmdCtx *commands.GoBGPCmdContext) script.Cmd {
 					return "", "", fmt.Errorf("failed to get GoBGP server: %w", err)
 				}
 
-				path, err := gobgp.ToGoBGPPath(&types.Path{
-					NLRI: nlri,
-					PathAttributes: []bgp.PathAttributeInterface{
-						bgp.NewPathAttributeMpReachNLRI("::", []bgp.AddrPrefixInterface{nlri}),
-					},
-				})
+				defaultPath, err := defaultPathForNLRI(nlri)
+				if err != nil {
+					return "", "", fmt.Errorf("failed to create default path: %w", err)
+				}
+				path, err := gobgp.ToGoBGPPath(defaultPath)
 				if err != nil {
 					return "", "", fmt.Errorf("failed to convert prefix to GoBGP path: %w", err)
 				}
 
 				if err := goBGPServer.DeletePath(
-					s.Context(),
-					&gobgpapi.DeletePathRequest{
-						TableType: gobgpapi.TableType_LOCAL,
-						Path:      path,
-						Family:    path.Family,
+					apiutil.DeletePathRequest{
+						Paths: []*apiutil.Path{path},
 					},
 				); err != nil {
 					return "", "", fmt.Errorf("failed to delete path: %w", err)
@@ -826,30 +792,31 @@ func GoBGPRoutesCmd(cmdCtx *commands.GoBGPCmdContext) script.Cmd {
 					defer f.Close()
 				}
 
-				req := &gobgpapi.ListPathRequest{
-					TableType: gobgpapi.TableType_GLOBAL,
-					Family: &gobgpapi.Family{
-						Afi:  gobgpapi.Family_AFI_IP,
-						Safi: gobgpapi.Family_SAFI_UNICAST,
-					},
+				req := apiutil.ListPathRequest{
+					TableType: gobgpapi.TableType_TABLE_TYPE_GLOBAL,
+					Family:    bgp.NewFamily(bgp.AFI_IP, bgp.SAFI_UNICAST),
 				}
 				if len(args) > 0 && args[0] != "" {
-					req.Family.Afi = gobgpapi.Family_Afi(types.ParseAfi(args[0]))
+					req.Family = bgp.NewFamily(uint16(types.ParseAfi(args[0])), req.Family.Safi())
 				}
 				if len(args) > 1 && args[1] != "" {
-					req.Family.Safi = gobgpapi.Family_Safi(types.ParseSafi(args[1]))
+					req.Family = bgp.NewFamily(req.Family.Afi(), uint8(types.ParseSafi(args[1])))
 				}
-				var paths []*gobgpapi.Destination
-				err = gobgpServer.ListPath(s.Context(), req, func(dst *gobgpapi.Destination) {
-					paths = append(paths, dst)
+				type pathSet struct {
+					prefix bgp.NLRI
+					paths  []*apiutil.Path
+				}
+				var paths []pathSet
+				err = gobgpServer.ListPath(req, func(prefix bgp.NLRI, listedPaths []*apiutil.Path) {
+					paths = append(paths, pathSet{prefix: prefix, paths: listedPaths})
 				})
 				sort.Slice(paths, func(i, j int) bool {
-					return paths[i].String() < paths[j].String()
+					return paths[i].prefix.String() < paths[j].prefix.String()
 				})
 
 				printPathHeader(tw)
 				for _, path := range paths {
-					printPath(tw, path)
+					printPath(tw, path.prefix, path.paths)
 				}
 				tw.Flush()
 				return buf.String(), "", err
@@ -862,12 +829,73 @@ func printPathHeader(w *tabwriter.Writer) {
 	fmt.Fprintln(w, "Prefix\tNextHop\tAttrs")
 }
 
-func printPath(w *tabwriter.Writer, dst *gobgpapi.Destination) {
-	aPaths, _ := gobgp.ToAgentPaths(dst.Paths)
+func printPath(w *tabwriter.Writer, prefix bgp.NLRI, paths []*apiutil.Path) {
+	aPaths, _ := gobgp.ToAgentPaths(paths)
 	sort.Slice(aPaths, func(i, j int) bool {
 		return fmt.Sprint(aPaths[i].PathAttributes) < fmt.Sprint(aPaths[j].PathAttributes)
 	})
 	for _, path := range aPaths {
-		fmt.Fprintf(w, "%s\t%s\t%s\n", dst.Prefix, api.NextHopFromPathAttributes(path.PathAttributes), ceeCommands.FormatPathAttributes(path.PathAttributes))
+		fmt.Fprintf(w, "%s\t%s\t%s\n", prefix.String(), api.NextHopFromPathAttributes(path.PathAttributes), ceeCommands.FormatPathAttributes(path.PathAttributes))
+	}
+}
+
+func pathFamilyForNLRI(nlri bgp.NLRI) (types.Family, bgp.Family, error) {
+	switch nlri := nlri.(type) {
+	case *bgp.IPAddrPrefix:
+		if nlri.Prefix.Addr().Is4() {
+			return types.Family{Afi: types.AfiIPv4, Safi: types.SafiUnicast}, bgp.NewFamily(bgp.AFI_IP, bgp.SAFI_UNICAST), nil
+		}
+		return types.Family{Afi: types.AfiIPv6, Safi: types.SafiUnicast}, bgp.NewFamily(bgp.AFI_IP6, bgp.SAFI_UNICAST), nil
+	case *bgp.EVPNNLRI:
+		return types.Family{Afi: types.AfiL2VPN, Safi: types.SafiEvpn}, bgp.NewFamily(bgp.AFI_L2VPN, bgp.SAFI_EVPN), nil
+	default:
+		return types.Family{}, 0, fmt.Errorf("unsupported NLRI type: %T", nlri)
+	}
+}
+
+func defaultPathForNLRI(nlri bgp.NLRI) (*types.Path, error) {
+	family, goBGPFamily, err := pathFamilyForNLRI(nlri)
+	if err != nil {
+		return nil, err
+	}
+	originAttr := bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_IGP)
+	path := &types.Path{
+		Family: family,
+		NLRI:   nlri,
+		PathAttributes: []bgp.PathAttributeInterface{
+			originAttr,
+		},
+	}
+	switch nlri := nlri.(type) {
+	case *bgp.IPAddrPrefix:
+		if nlri.Prefix.Addr().Is4() {
+			nextHop, err := bgp.NewPathAttributeNextHop(netip.IPv4Unspecified())
+			if err != nil {
+				return nil, fmt.Errorf("failed to create IPv4 next-hop attribute: %w", err)
+			}
+			path.PathAttributes = append(path.PathAttributes, nextHop)
+			return path, nil
+		}
+
+		mpReach, err := bgp.NewPathAttributeMpReachNLRI(goBGPFamily, []bgp.PathNLRI{{NLRI: nlri}}, netip.IPv6Unspecified())
+		if err != nil {
+			return nil, fmt.Errorf("failed to create IPv6 MP_REACH_NLRI attribute: %w", err)
+		}
+		path.PathAttributes = append(path.PathAttributes, mpReach)
+		return path, nil
+	case *bgp.EVPNNLRI:
+		rt5 := nlri.RouteTypeData.(*bgp.EVPNIPPrefixRoute)
+		nextHop := netip.IPv6Unspecified()
+		if rt5.IPPrefix.Is4() {
+			nextHop = netip.IPv4Unspecified()
+		}
+		mpReach, err := bgp.NewPathAttributeMpReachNLRI(goBGPFamily, []bgp.PathNLRI{{NLRI: nlri}}, nextHop)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create EVPN MP_REACH_NLRI attribute: %w", err)
+		}
+		path.PathAttributes = append(path.PathAttributes, mpReach)
+		return path, nil
+	default:
+		return nil, fmt.Errorf("unsupported NLRI type: %T", nlri)
 	}
 }

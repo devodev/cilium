@@ -14,11 +14,10 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"log/slog"
-	"net"
 	"net/netip"
 
 	"github.com/cilium/hive/cell"
-	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	k8sTypes "k8s.io/apimachinery/pkg/types"
 
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
@@ -154,18 +153,24 @@ func (s *srv6Paths) GetSRv6VPNPath(prefix netip.Prefix, bgpVRF v1.IsovalentBGPNo
 		},
 	}
 
-	labeledPrefix := bgp.NewLabeledVPNIPAddrPrefix(uint8(prefix.Bits()), prefix.Addr().String(), *bgp.NewMPLSLabelStack(label), RD)
+	labeledPrefix, err := bgp.NewLabeledVPNIPAddrPrefix(prefix, *bgp.NewMPLSLabelStack(label), RD)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to generate LabeledVPNIPAddrPrefix: %w", err)
+	}
 
 	MpReachAttr := &bgp.PathAttributeMpReachNLRI{
 		AFI:     bgp.AFI_IP,
 		SAFI:    bgp.SAFI_MPLS_VPN,
-		Nexthop: net.ParseIP("0.0.0.0"),
-		Value:   []bgp.AddrPrefixInterface{labeledPrefix}, // single labeled prefix is added to MP reachable attrs
+		Nexthop: netip.IPv4Unspecified(),
+		Value:   []bgp.PathNLRI{{NLRI: labeledPrefix}}, // single labeled prefix is added to MP reachable attrs
 	}
 
 	// Mandatory Attributes, ASPATH will be set by GoBGP directly.
 	origin := bgp.NewPathAttributeOrigin(bgp.BGP_ORIGIN_ATTR_TYPE_INCOMPLETE)
-	nextHop := bgp.NewPathAttributeNextHop("0.0.0.0")
+	nextHop, err := bgp.NewPathAttributeNextHop(netip.IPv4Unspecified())
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to generate PathAttributeNextHop: %w", err)
+	}
 
 	attrs := []bgp.PathAttributeInterface{
 		origin,

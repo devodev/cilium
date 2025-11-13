@@ -22,7 +22,7 @@ import (
 	"strconv"
 
 	"github.com/cilium/hive/cell"
-	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sTypes "k8s.io/apimachinery/pkg/types"
@@ -366,13 +366,10 @@ func (r *legacyImportVPNRouteReconciler) mapSRv6PathToEgressPolicy(l *slog.Logge
 
 	var labels []uint32
 	for _, prefix := range mpReach.Value {
-		switch v := prefix.(type) {
+		switch v := prefix.NLRI.(type) {
 		case *bgp.LabeledVPNIPAddrPrefix:
 			labels = v.Labels.Labels
-			addr, ok := netip.AddrFromSlice(v.Prefix)
-			if ok {
-				prefixes = append(prefixes, netip.PrefixFrom(addr, int(v.IPPrefixLen())))
-			}
+			prefixes = append(prefixes, netip.PrefixFrom(v.Prefix.Addr(), int(v.IPPrefixLen())))
 		}
 	}
 	if len(prefixes) == 0 {

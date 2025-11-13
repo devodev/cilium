@@ -18,7 +18,7 @@ import (
 
 	"github.com/cilium/hive/hivetest"
 	"github.com/cilium/statedb"
-	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
@@ -271,16 +271,16 @@ func TestPrivateNetworkReconciler(t *testing.T) {
 
 	vrf1RD, err := bgp.ParseRouteDistinguisher(testRouterID + ":1")
 	require.NoError(t, err)
-	vrf1EP1NLRI := bgp.NewEVPNIPPrefixRoute(vrf1RD, bgp.EthernetSegmentIdentifier{}, 0, 32, privNet1EP1.Interface.Addressing.IPv4, "0.0.0.0", privNet1.VNI.AsUint32())
-	vrf1EP1NLRIVNI500 := bgp.NewEVPNIPPrefixRoute(vrf1RD, bgp.EthernetSegmentIdentifier{}, 0, 32, privNet1EP1.Interface.Addressing.IPv4, "0.0.0.0", privNet1ModifiedVNI.VNI.AsUint32())
-	vrf1EP2IPv4NLRI := bgp.NewEVPNIPPrefixRoute(vrf1RD, bgp.EthernetSegmentIdentifier{}, 0, 32, privNet1EP2.Interface.Addressing.IPv4, "0.0.0.0", privNet1.VNI.AsUint32())
-	vrf1EP2IPv4NLRIVNI500 := bgp.NewEVPNIPPrefixRoute(vrf1RD, bgp.EthernetSegmentIdentifier{}, 0, 32, privNet1EP2.Interface.Addressing.IPv4, "0.0.0.0", privNet1ModifiedVNI.VNI.AsUint32())
-	vrf1EP2IPv6NLRI := bgp.NewEVPNIPPrefixRoute(vrf1RD, bgp.EthernetSegmentIdentifier{}, 0, 128, privNet1EP2.Interface.Addressing.IPv6, "0.0.0.0", privNet1.VNI.AsUint32())
+	vrf1EP1NLRI := mustEVPNIPPrefixRoute(vrf1RD, bgp.EthernetSegmentIdentifier{}, 0, 32, privNet1EP1.Interface.Addressing.IPv4, "", privNet1.VNI.AsUint32())
+	vrf1EP1NLRIVNI500 := mustEVPNIPPrefixRoute(vrf1RD, bgp.EthernetSegmentIdentifier{}, 0, 32, privNet1EP1.Interface.Addressing.IPv4, "", privNet1ModifiedVNI.VNI.AsUint32())
+	vrf1EP2IPv4NLRI := mustEVPNIPPrefixRoute(vrf1RD, bgp.EthernetSegmentIdentifier{}, 0, 32, privNet1EP2.Interface.Addressing.IPv4, "", privNet1.VNI.AsUint32())
+	vrf1EP2IPv4NLRIVNI500 := mustEVPNIPPrefixRoute(vrf1RD, bgp.EthernetSegmentIdentifier{}, 0, 32, privNet1EP2.Interface.Addressing.IPv4, "", privNet1ModifiedVNI.VNI.AsUint32())
+	vrf1EP2IPv6NLRI := mustEVPNIPPrefixRoute(vrf1RD, bgp.EthernetSegmentIdentifier{}, 0, 128, privNet1EP2.Interface.Addressing.IPv6, "", privNet1.VNI.AsUint32())
 
 	vrf2RD, err := bgp.ParseRouteDistinguisher(testRouterID + ":2")
 	require.NoError(t, err)
-	vrf2EP1NLRI := bgp.NewEVPNIPPrefixRoute(vrf2RD, bgp.EthernetSegmentIdentifier{}, 0, 32, privNet2EP1.Interface.Addressing.IPv4, "0.0.0.0", privNet2.VNI.AsUint32())
-	vrf2EP2NLRI := bgp.NewEVPNIPPrefixRoute(vrf2RD, bgp.EthernetSegmentIdentifier{}, 0, 32, privNet2EP2.Interface.Addressing.IPv4, "0.0.0.0", privNet2.VNI.AsUint32())
+	vrf2EP1NLRI := mustEVPNIPPrefixRoute(vrf2RD, bgp.EthernetSegmentIdentifier{}, 0, 32, privNet2EP1.Interface.Addressing.IPv4, "", privNet2.VNI.AsUint32())
+	vrf2EP2NLRI := mustEVPNIPPrefixRoute(vrf2RD, bgp.EthernetSegmentIdentifier{}, 0, 32, privNet2EP2.Interface.Addressing.IPv4, "", privNet2.VNI.AsUint32())
 
 	testCommunity1, _ := ceeTypes.ParseCommunity(testCommunity1Str)
 	testCommunity2, _ := ceeTypes.ParseCommunity(testCommunity2Str)

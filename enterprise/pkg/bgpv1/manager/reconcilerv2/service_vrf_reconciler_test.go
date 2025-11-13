@@ -18,7 +18,7 @@ import (
 
 	"github.com/cilium/hive/hivetest"
 	"github.com/cilium/statedb"
-	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
@@ -250,10 +250,10 @@ func TestServiceVRFFullReconciler(t *testing.T) {
 		t.Fatalf("failed to parse RD: %v", err)
 	}
 
-	vrf1LBIngressIPNLRI := bgp.NewLabeledVPNIPAddrPrefix(uint8(vrf1LBIngressIP.BitLen()), vrf1LBIngressIP.String(), dummyLabel, vrf1RD)
-	vrf1LBIngressIPNLRIUpdated := bgp.NewLabeledVPNIPAddrPrefix(uint8(vrf1LBIngressIP.BitLen()), vrf1LBIngressIP.String(), dummyLabel, vrf1RDUpdated)
-	vrf2LBIngressIPNLRI := bgp.NewLabeledVPNIPAddrPrefix(uint8(vrf2LBIngressIP.BitLen()), vrf2LBIngressIP.String(), dummyLabel, vrf2RD)
-	vrf2LBIngressIPNLRIUpdated := bgp.NewLabeledVPNIPAddrPrefix(uint8(vrf2LBIngressIP.BitLen()), vrf2LBIngressIP.String(), dummyLabel, vrf2RDUpdated)
+	vrf1LBIngressIPNLRI := mustLabeledVPNIPAddrPrefix(netip.PrefixFrom(vrf1LBIngressIP, vrf1LBIngressIP.BitLen()), dummyLabel, vrf1RD)
+	vrf1LBIngressIPNLRIUpdated := mustLabeledVPNIPAddrPrefix(netip.PrefixFrom(vrf1LBIngressIP, vrf1LBIngressIP.BitLen()), dummyLabel, vrf1RDUpdated)
+	vrf2LBIngressIPNLRI := mustLabeledVPNIPAddrPrefix(netip.PrefixFrom(vrf2LBIngressIP, vrf2LBIngressIP.BitLen()), dummyLabel, vrf2RD)
+	vrf2LBIngressIPNLRIUpdated := mustLabeledVPNIPAddrPrefix(netip.PrefixFrom(vrf2LBIngressIP, vrf2LBIngressIP.BitLen()), dummyLabel, vrf2RDUpdated)
 
 	testAllocator, err := sidmanager.NewStructuredSIDAllocator(locator, structure, types.BehaviorTypeBase)
 	if err != nil {
@@ -683,8 +683,8 @@ func TestServiceVRFPartialReconcile(t *testing.T) {
 		t.Fatalf("failed to parse RD: %v", err)
 	}
 
-	vrf1LBIngressIPNLRI := bgp.NewLabeledVPNIPAddrPrefix(uint8(vrf1LBIngressIP.BitLen()), vrf1LBIngressIP.String(), dummyLabel, vrf1RD)
-	vrf2LBIngressIPNLRI := bgp.NewLabeledVPNIPAddrPrefix(uint8(vrf2LBIngressIP.BitLen()), vrf2LBIngressIP.String(), dummyLabel, vrf2RD)
+	vrf1LBIngressIPNLRI := mustLabeledVPNIPAddrPrefix(netip.PrefixFrom(vrf1LBIngressIP, vrf1LBIngressIP.BitLen()), dummyLabel, vrf1RD)
+	vrf2LBIngressIPNLRI := mustLabeledVPNIPAddrPrefix(netip.PrefixFrom(vrf2LBIngressIP, vrf2LBIngressIP.BitLen()), dummyLabel, vrf2RD)
 
 	testAllocator, err := sidmanager.NewStructuredSIDAllocator(locator, structure, types.BehaviorTypeBase)
 	if err != nil {

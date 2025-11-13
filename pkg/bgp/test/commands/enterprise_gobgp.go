@@ -12,7 +12,7 @@ package commands
 
 import (
 	"github.com/cilium/hive/script"
-	"github.com/osrg/gobgp/v3/pkg/server"
+	"github.com/osrg/gobgp/v4/pkg/server"
 )
 
 const (

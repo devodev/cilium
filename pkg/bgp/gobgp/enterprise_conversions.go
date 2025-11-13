@@ -12,15 +12,15 @@ package gobgp
 
 import (
 	"errors"
-	"net/netip"
 
-	gobgp "github.com/osrg/gobgp/v3/api"
+	gobgp "github.com/osrg/gobgp/v4/api"
+	"github.com/osrg/gobgp/v4/pkg/apiutil"
 
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
 	ossTypes "github.com/cilium/cilium/pkg/bgp/types"
 )
 
-func ToAgentPathsExtended(paths []*gobgp.Path) ([]*types.ExtendedPath, error) {
+func ToAgentPathsExtended(paths []*apiutil.Path) ([]*types.ExtendedPath, error) {
 	var errs error
 
 	ps := []*types.ExtendedPath{}
@@ -37,26 +37,15 @@ func ToAgentPathsExtended(paths []*gobgp.Path) ([]*types.ExtendedPath, error) {
 	return ps, errs
 }
 
-func ToAgentPathExtended(p *gobgp.Path) (*types.ExtendedPath, error) {
+func ToAgentPathExtended(p *apiutil.Path) (*types.ExtendedPath, error) {
 	ossPath, err := ToAgentPath(p)
 	if err != nil {
 		return nil, err
 	}
 
-	// We need to handle "invalid IP" case as GoBGP has a bug where it
-	// returns string "invalid IP" instead of an empty string for unset
-	// neighbor IPs (most likely in case of locally originated paths).
-	var neighborAddr netip.Addr
-	if p.NeighborIp != "" && p.NeighborIp != "invalid IP" {
-		neighborAddr, err = netip.ParseAddr(p.NeighborIp)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	return &types.ExtendedPath{
 		Path:         *ossPath,
-		NeighborAddr: neighborAddr,
+		NeighborAddr: p.PeerAddress,
 	}, nil
 }
 
@@ -90,7 +79,7 @@ func toGoBGPPolicyStatementExtended(apiStatement *types.ExtendedRoutePolicyState
 	// defined sets to match communities
 	if apiStatement.Conditions.MatchCommunities != nil && len(apiStatement.Conditions.MatchCommunities.Communities) > 0 {
 		ds := &gobgp.DefinedSet{
-			DefinedType: gobgp.DefinedType_COMMUNITY,
+			DefinedType: gobgp.DefinedType_DEFINED_TYPE_COMMUNITY,
 			Name:        policyCommunityDefinedSetName(name),
 			List:        apiStatement.Conditions.MatchCommunities.Communities,
 		}
@@ -104,7 +93,7 @@ func toGoBGPPolicyStatementExtended(apiStatement *types.ExtendedRoutePolicyState
 	// defined sets to match large communities
 	if apiStatement.Conditions.MatchLargeCommunities != nil && len(apiStatement.Conditions.MatchLargeCommunities.Communities) > 0 {
 		ds := &gobgp.DefinedSet{
-			DefinedType: gobgp.DefinedType_LARGE_COMMUNITY,
+			DefinedType: gobgp.DefinedType_DEFINED_TYPE_LARGE_COMMUNITY,
 			Name:        policyLargeCommunityDefinedSetName(name),
 			List:        apiStatement.Conditions.MatchLargeCommunities.Communities,
 		}

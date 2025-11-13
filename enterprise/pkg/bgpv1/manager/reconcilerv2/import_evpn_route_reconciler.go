@@ -20,8 +20,7 @@ import (
 
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/statedb"
-	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
-	"go4.org/netipx"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
@@ -323,7 +322,7 @@ func (r *importEVPNRouteReconciler) parseMPReachNLRI(p *bgp.PathAttributeMpReach
 	// reconciler set the NextHop to zero address when it creates the
 	// route. We should fix this by exposing route origin information of
 	// GoBGP Path to our agent Path struct.
-	if p.Nexthop.Equal(net.IPv4zero) || p.Nexthop.Equal(net.IPv6zero) {
+	if p.Nexthop == netip.IPv4Unspecified() || p.Nexthop == netip.IPv6Unspecified() {
 		return netip.Prefix{}, vni.VNI{}, netip.Addr{}, errSelfOriginatedRoute
 	}
 
@@ -339,7 +338,7 @@ func (r *importEVPNRouteReconciler) parseMPReachNLRI(p *bgp.PathAttributeMpReach
 
 	// It is safe to deref Value[0] here because we already checked the
 	// length of mpReachNLRIAttr.Value above.
-	nlri, ok := p.Value[0].(*bgp.EVPNNLRI)
+	nlri, ok := p.Value[0].NLRI.(*bgp.EVPNNLRI)
 	if !ok {
 		// AFI/SAFI and type is mismatched. This is maybe a GoBGP's bug.
 		return netip.Prefix{}, vni.VNI{}, netip.Addr{}, errMalformedPath
@@ -362,20 +361,20 @@ func (r *importEVPNRouteReconciler) parseMPReachNLRI(p *bgp.PathAttributeMpReach
 		return netip.Prefix{}, vni.VNI{}, netip.Addr{}, errUnsupportedETag
 	}
 
-	addr, ok := netipx.FromStdIP(rt5.IPPrefix)
-	if !ok {
-		// Failed to convert net.IP => netip.Addr, maybe GoBGP's bug
+	addr := rt5.IPPrefix
+	if !addr.IsValid() {
+		// Invalid netip.Addr, maybe GoBGP's bug
 		return netip.Prefix{}, vni.VNI{}, netip.Addr{}, errMalformedPath
 	}
 
-	if (addr.Is4() && !rt5.GWIPAddress.To4().IsUnspecified()) || (addr.Is6() && !rt5.GWIPAddress.To16().IsUnspecified()) {
+	if rt5.GWIPAddress.IsValid() && !rt5.GWIPAddress.IsUnspecified() {
 		// We don't support non-zero gateway IP address
 		return netip.Prefix{}, vni.VNI{}, netip.Addr{}, errUnsupportedGatewayIP
 	}
 
-	vtepIP, ok := netipx.FromStdIP(p.Nexthop)
-	if !ok {
-		// Failed to convert net.IP => netip.Addr, maybe GoBGP's bug
+	vtepIP := p.Nexthop
+	if !vtepIP.IsValid() {
+		// Invalid netip.Addr, maybe GoBGP's bug
 		return netip.Prefix{}, vni.VNI{}, netip.Addr{}, errMalformedPath
 	}
 

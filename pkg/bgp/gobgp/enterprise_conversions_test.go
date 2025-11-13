@@ -13,11 +13,10 @@ package gobgp
 import (
 	"net/netip"
 	"testing"
-	"time"
 
-	gobgp "github.com/osrg/gobgp/v3/api"
-	"github.com/osrg/gobgp/v3/pkg/apiutil"
-	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
+	gobgp "github.com/osrg/gobgp/v4/api"
+	"github.com/osrg/gobgp/v4/pkg/apiutil"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/stretchr/testify/require"
 
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
@@ -25,24 +24,32 @@ import (
 )
 
 func TestToAgentPathsExtended(t *testing.T) {
-	validPath, err := apiutil.NewPath(
-		bgp.NewIPAddrPrefix(24, "10.0.0.0"),
-		false,
-		[]bgp.PathAttributeInterface{
-			bgp.NewPathAttributeNextHop("192.168.0.1"),
-		},
-		time.Time{},
-	)
+	nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
 	require.NoError(t, err)
+	nextHop, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.168.0.1"))
+	require.NoError(t, err)
+	validPath := &apiutil.Path{
+		Family: bgp.NewFamily(bgp.AFI_IP, bgp.SAFI_UNICAST),
+		Nlri:   nlri,
+		Attrs:  []bgp.PathAttributeInterface{nextHop},
+	}
 
-	invalidPath, err := apiutil.NewPath(
-		bgp.NewIPAddrPrefix(24, "10.0.0.0"),
-		false,
-		[]bgp.PathAttributeInterface{},
-		time.Time{},
-	)
-	require.NoError(t, err)
+	invalidPath := &apiutil.Path{
+		Family: bgp.NewFamily(bgp.AFI_IP, bgp.SAFI_UNICAST),
+		Nlri:   nlri,
+	}
 	invalidPath.Nlri = nil // Force an invalid NLRI
+
+	expectedInvalidPath := &types.ExtendedPath{
+		Path: ossTypes.Path{
+			Family: ossTypes.Family{
+				Afi:  ossTypes.AfiIPv4,
+				Safi: ossTypes.SafiUnicast,
+			},
+			NLRI:      nil,
+			SourceASN: 0,
+		},
+	}
 
 	p, err := ToAgentPath(validPath)
 	require.NoError(t, err)
@@ -53,13 +60,13 @@ func TestToAgentPathsExtended(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		paths   []*gobgp.Path
+		paths   []*apiutil.Path
 		want    []*types.ExtendedPath
 		wantErr bool
 	}{
 		{
 			name: "Complete Result",
-			paths: []*gobgp.Path{
+			paths: []*apiutil.Path{
 				validPath,
 			},
 			want: []*types.ExtendedPath{
@@ -68,15 +75,16 @@ func TestToAgentPathsExtended(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "Partial Result with Error",
-			paths: []*gobgp.Path{
+			name: "Nil NLRI is passed through",
+			paths: []*apiutil.Path{
 				invalidPath,
 				validPath,
 			},
 			want: []*types.ExtendedPath{
+				expectedInvalidPath,
 				expectedPath,
 			},
-			wantErr: true,
+			wantErr: false,
 		},
 	}
 	for _, tt := range tests {
@@ -99,18 +107,18 @@ func TestToAgentPathsExtended(t *testing.T) {
 func TestToAgentPathExtended(t *testing.T) {
 	tests := []struct {
 		name           string
-		extendInput    func(*gobgp.Path)
+		extendInput    func(*apiutil.Path)
 		extendExpected func(*types.ExtendedPath)
 	}{
 		{
 			name:           "No extension",
-			extendInput:    func(p *gobgp.Path) {},
+			extendInput:    func(p *apiutil.Path) {},
 			extendExpected: func(p *types.ExtendedPath) {},
 		},
 		{
 			name: "NeighborIp extension",
-			extendInput: func(p *gobgp.Path) {
-				p.NeighborIp = "fe80::1%eth0"
+			extendInput: func(p *apiutil.Path) {
+				p.PeerAddress = netip.MustParseAddr("fe80::1%eth0")
 			},
 			extendExpected: func(p *types.ExtendedPath) {
 				p.NeighborAddr = netip.MustParseAddr("fe80::1%eth0")
@@ -119,15 +127,15 @@ func TestToAgentPathExtended(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			validPath, err := apiutil.NewPath(
-				bgp.NewIPAddrPrefix(24, "10.0.0.0"),
-				false,
-				[]bgp.PathAttributeInterface{
-					bgp.NewPathAttributeNextHop("192.168.0.1"),
-				},
-				time.Time{},
-			)
+			nlri, err := bgp.NewIPAddrPrefix(netip.MustParsePrefix("10.0.0.0/24"))
 			require.NoError(t, err)
+			nextHop, err := bgp.NewPathAttributeNextHop(netip.MustParseAddr("192.168.0.1"))
+			require.NoError(t, err)
+			validPath := &apiutil.Path{
+				Family: bgp.NewFamily(bgp.AFI_IP, bgp.SAFI_UNICAST),
+				Nlri:   nlri,
+				Attrs:  []bgp.PathAttributeInterface{nextHop},
+			}
 
 			p, err := ToAgentPath(validPath)
 			require.NoError(t, err)
@@ -267,11 +275,11 @@ func TestToGoBGPPolicyStatementExtended(t *testing.T) {
 				Conditions: &gobgp.Conditions{
 					CommunitySet: &gobgp.MatchSet{
 						Name: "test-statement-community",
-						Type: gobgp.MatchSet_ANY,
+						Type: gobgp.MatchSet_TYPE_ANY,
 					},
 					LargeCommunitySet: &gobgp.MatchSet{
 						Name: "test-statement-large-community",
-						Type: gobgp.MatchSet_ALL,
+						Type: gobgp.MatchSet_TYPE_ALL,
 					},
 				},
 				Actions: &gobgp.Actions{
@@ -283,12 +291,12 @@ func TestToGoBGPPolicyStatementExtended(t *testing.T) {
 			},
 			wantDefSets: []*gobgp.DefinedSet{
 				{
-					DefinedType: gobgp.DefinedType_COMMUNITY,
+					DefinedType: gobgp.DefinedType_DEFINED_TYPE_COMMUNITY,
 					Name:        "test-statement-community",
 					List:        []string{"65000:100", "65000:200"},
 				},
 				{
-					DefinedType: gobgp.DefinedType_LARGE_COMMUNITY,
+					DefinedType: gobgp.DefinedType_DEFINED_TYPE_LARGE_COMMUNITY,
 					Name:        "test-statement-large-community",
 					List:        []string{"65000:100:1", "65000:200:2"},
 				},
@@ -317,11 +325,11 @@ func TestToAgentRoutePolicyExtended(t *testing.T) {
 				Conditions: &gobgp.Conditions{
 					CommunitySet: &gobgp.MatchSet{
 						Name: "test-statement-community",
-						Type: gobgp.MatchSet_ANY,
+						Type: gobgp.MatchSet_TYPE_ANY,
 					},
 					LargeCommunitySet: &gobgp.MatchSet{
 						Name: "test-statement-large-community",
-						Type: gobgp.MatchSet_ALL,
+						Type: gobgp.MatchSet_TYPE_ALL,
 					},
 				},
 				Actions: &gobgp.Actions{
@@ -354,12 +362,12 @@ func TestToAgentRoutePolicyExtended(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got := toAgentPolicyStatementExtended(tt.stmt, map[string]*gobgp.DefinedSet{
 				"test-statement-community": {
-					DefinedType: gobgp.DefinedType_COMMUNITY,
+					DefinedType: gobgp.DefinedType_DEFINED_TYPE_COMMUNITY,
 					Name:        "test-statement-community",
 					List:        []string{"65000:100", "65000:200"},
 				},
 				"test-statement-large-community": {
-					DefinedType: gobgp.DefinedType_LARGE_COMMUNITY,
+					DefinedType: gobgp.DefinedType_DEFINED_TYPE_LARGE_COMMUNITY,
 					Name:        "test-statement-large-community",
 					List:        []string{"65000:100:1", "65000:200:2"},
 				},

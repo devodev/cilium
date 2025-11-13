@@ -11,12 +11,11 @@
 package reconcilerv2
 
 import (
-	"net"
 	"net/netip"
 	"testing"
 
 	"github.com/cilium/statedb"
-	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v3"
 
@@ -27,46 +26,19 @@ import (
 )
 
 func TestRouteImportReconcilerParseV4Path(t *testing.T) {
-	nlri := bgp.NewIPAddrPrefix(24, "10.0.0.0")
-	linkLocalNexthop := net.ParseIP("fe80::1")
+	nlri := mustIPAddrPrefixNLRI("10.0.0.0/24")
+	linkLocalNexthop := netip.MustParseAddr("fe80::1")
 	neighborAddrWithZone := netip.MustParseAddr("fe80::1%if0")
 
-	mpReachNLRI_G := bgp.NewPathAttributeMpReachNLRI(
-		"fd00::1",
-		[]bgp.AddrPrefixInterface{
-			nlri,
-		},
-	)
-
-	mpReachNLRI_L := bgp.NewPathAttributeMpReachNLRI(
-		"fe80::1",
-		[]bgp.AddrPrefixInterface{
-			nlri,
-		},
-	)
-
-	mpReachNLRI_GL := bgp.NewPathAttributeMpReachNLRI(
-		"fd00::1",
-		[]bgp.AddrPrefixInterface{
-			nlri,
-		},
-	)
+	mpReachNLRI_G := mustPathAttributeMpReachNLRI(bgp.NewFamily(bgp.AFI_IP, bgp.SAFI_UNICAST), "fd00::1", nlri)
+	mpReachNLRI_L := mustPathAttributeMpReachNLRI(bgp.NewFamily(bgp.AFI_IP, bgp.SAFI_UNICAST), "fe80::1", nlri)
+	mpReachNLRI_GL := mustPathAttributeMpReachNLRI(bgp.NewFamily(bgp.AFI_IP, bgp.SAFI_UNICAST), "fd00::1", nlri)
 	mpReachNLRI_GL.LinkLocalNexthop = linkLocalNexthop
 
-	mpReachNLRI_ZL := bgp.NewPathAttributeMpReachNLRI(
-		"::",
-		[]bgp.AddrPrefixInterface{
-			nlri,
-		},
-	)
+	mpReachNLRI_ZL := mustPathAttributeMpReachNLRI(bgp.NewFamily(bgp.AFI_IP, bgp.SAFI_UNICAST), "::", nlri)
 	mpReachNLRI_ZL.LinkLocalNexthop = linkLocalNexthop
 
-	mpReachNLRI_LL := bgp.NewPathAttributeMpReachNLRI(
-		"fe80::1",
-		[]bgp.AddrPrefixInterface{
-			nlri,
-		},
-	)
+	mpReachNLRI_LL := mustPathAttributeMpReachNLRI(bgp.NewFamily(bgp.AFI_IP, bgp.SAFI_UNICAST), "fe80::1", nlri)
 	mpReachNLRI_LL.LinkLocalNexthop = linkLocalNexthop
 
 	tests := []struct {
@@ -81,7 +53,7 @@ func TestRouteImportReconcilerParseV4Path(t *testing.T) {
 				Path: ossTypes.Path{
 					NLRI: nlri,
 					PathAttributes: []bgp.PathAttributeInterface{
-						bgp.NewPathAttributeNextHop("192.168.0.1"),
+						mustPathAttributeNextHop("192.168.0.1"),
 					},
 					Family: ossTypes.Family{
 						Afi:  ossTypes.AfiIPv4,
@@ -100,7 +72,7 @@ func TestRouteImportReconcilerParseV4Path(t *testing.T) {
 				Path: ossTypes.Path{
 					NLRI: nlri,
 					PathAttributes: []bgp.PathAttributeInterface{
-						bgp.NewPathAttributeNextHop("0.0.0.0"),
+						mustPathAttributeNextHop("0.0.0.0"),
 					},
 					Family: ossTypes.Family{
 						Afi:  ossTypes.AfiIPv4,
@@ -117,12 +89,7 @@ func TestRouteImportReconcilerParseV4Path(t *testing.T) {
 				Path: ossTypes.Path{
 					NLRI: nlri,
 					PathAttributes: []bgp.PathAttributeInterface{
-						bgp.NewPathAttributeMpReachNLRI(
-							"192.168.0.1",
-							[]bgp.AddrPrefixInterface{
-								nlri,
-							},
-						),
+						mustPathAttributeMpReachNLRI(bgp.NewFamily(bgp.AFI_IP, bgp.SAFI_UNICAST), "192.168.0.1", nlri),
 					},
 					Family: ossTypes.Family{
 						Afi:  ossTypes.AfiIPv4,
@@ -141,12 +108,7 @@ func TestRouteImportReconcilerParseV4Path(t *testing.T) {
 				Path: ossTypes.Path{
 					NLRI: nlri,
 					PathAttributes: []bgp.PathAttributeInterface{
-						bgp.NewPathAttributeMpReachNLRI(
-							"0.0.0.0",
-							[]bgp.AddrPrefixInterface{
-								nlri,
-							},
-						),
+						mustPathAttributeMpReachNLRI(bgp.NewFamily(bgp.AFI_IP, bgp.SAFI_UNICAST), "0.0.0.0", nlri),
 					},
 					Family: ossTypes.Family{
 						Afi:  ossTypes.AfiIPv4,
@@ -178,7 +140,7 @@ func TestRouteImportReconcilerParseV4Path(t *testing.T) {
 				Path: ossTypes.Path{
 					NLRI: nlri,
 					PathAttributes: []bgp.PathAttributeInterface{
-						bgp.NewPathAttributeNextHop("fd00::1"),
+						mustPathAttributeNextHop("fd00::1"),
 					},
 					Family: ossTypes.Family{
 						Afi:  ossTypes.AfiIPv4,
@@ -385,53 +347,20 @@ func TestRouteImportReconcilerParseV4Path(t *testing.T) {
 }
 
 func TestRouteImportReconcilerParseV6Path(t *testing.T) {
-	nlri := bgp.NewIPv6AddrPrefix(64, "2001:db8::")
-	linkLocalNexthop := net.ParseIP("fe80::1")
+	nlri := mustIPAddrPrefixNLRI("2001:db8::/64")
+	linkLocalNexthop := netip.MustParseAddr("fe80::1")
 	neighborAddrWithZone := netip.MustParseAddr("fe80::1%if0")
 
-	mpReachNLRI_G := bgp.NewPathAttributeMpReachNLRI(
-		"fd00::1",
-		[]bgp.AddrPrefixInterface{
-			nlri,
-		},
-	)
-
-	mpReachNLRI_G_SelfOriginated := bgp.NewPathAttributeMpReachNLRI(
-		"::",
-		[]bgp.AddrPrefixInterface{
-			nlri,
-		},
-	)
-
-	mpReachNLRI_L := bgp.NewPathAttributeMpReachNLRI(
-		"fe80::1",
-		[]bgp.AddrPrefixInterface{
-			nlri,
-		},
-	)
-
-	mpReachNLRI_GL := bgp.NewPathAttributeMpReachNLRI(
-		"fd00::1",
-		[]bgp.AddrPrefixInterface{
-			nlri,
-		},
-	)
+	mpReachNLRI_G := mustPathAttributeMpReachNLRI(bgp.NewFamily(bgp.AFI_IP6, bgp.SAFI_UNICAST), "fd00::1", nlri)
+	mpReachNLRI_G_SelfOriginated := mustPathAttributeMpReachNLRI(bgp.NewFamily(bgp.AFI_IP6, bgp.SAFI_UNICAST), "::", nlri)
+	mpReachNLRI_L := mustPathAttributeMpReachNLRI(bgp.NewFamily(bgp.AFI_IP6, bgp.SAFI_UNICAST), "fe80::1", nlri)
+	mpReachNLRI_GL := mustPathAttributeMpReachNLRI(bgp.NewFamily(bgp.AFI_IP6, bgp.SAFI_UNICAST), "fd00::1", nlri)
 	mpReachNLRI_GL.LinkLocalNexthop = linkLocalNexthop
 
-	mpReachNLRI_ZL := bgp.NewPathAttributeMpReachNLRI(
-		"::",
-		[]bgp.AddrPrefixInterface{
-			nlri,
-		},
-	)
+	mpReachNLRI_ZL := mustPathAttributeMpReachNLRI(bgp.NewFamily(bgp.AFI_IP6, bgp.SAFI_UNICAST), "::", nlri)
 	mpReachNLRI_ZL.LinkLocalNexthop = linkLocalNexthop
 
-	mpReachNLRI_LL := bgp.NewPathAttributeMpReachNLRI(
-		"fe80::1",
-		[]bgp.AddrPrefixInterface{
-			nlri,
-		},
-	)
+	mpReachNLRI_LL := mustPathAttributeMpReachNLRI(bgp.NewFamily(bgp.AFI_IP6, bgp.SAFI_UNICAST), "fe80::1", nlri)
 	mpReachNLRI_LL.LinkLocalNexthop = linkLocalNexthop
 
 	tests := []struct {
@@ -658,12 +587,7 @@ func TestRouteImportReconcilerParseV6Path(t *testing.T) {
 				Path: ossTypes.Path{
 					NLRI: nlri,
 					PathAttributes: []bgp.PathAttributeInterface{
-						bgp.NewPathAttributeMpReachNLRI(
-							"10.0.0.1",
-							[]bgp.AddrPrefixInterface{
-								nlri,
-							},
-						),
+						mustPathAttributeMpReachNLRI(bgp.NewFamily(bgp.AFI_IP6, bgp.SAFI_UNICAST), "10.0.0.1", nlri),
 					},
 					Family: ossTypes.Family{
 						Afi:  ossTypes.AfiIPv6,

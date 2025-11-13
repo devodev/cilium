@@ -15,14 +15,12 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net"
 	"net/netip"
 	"sync/atomic"
 
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/hive/job"
-	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
-	"go4.org/netipx"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
 	"github.com/cilium/cilium/enterprise/pkg/rib"
@@ -317,13 +315,13 @@ func (r *importVPNRouteReconciler) parseMPReachNLRI(p *bgp.PathAttributeMpReachN
 	// reconciler set the NextHop to zero address when it creates the
 	// route. We should fix this by exposing route origin information of
 	// GoBGP Path to our agent Path struct.
-	if p.Nexthop.Equal(net.IPv4zero) || p.Nexthop.Equal(net.IPv6zero) {
+	if p.Nexthop.IsUnspecified() {
 		return netip.Prefix{}, 0, errSelfOriginatedRoute
 	}
 
 	// It is safe to deref Value[0] here because we already checked the
 	// length of mpReachNLRIAttr.Value above.
-	prefix, ok := p.Value[0].(*bgp.LabeledVPNIPAddrPrefix)
+	prefix, ok := p.Value[0].NLRI.(*bgp.LabeledVPNIPAddrPrefix)
 	if !ok {
 		// AFI/SAFI and type is mismatched. This is maybe a GoBGP's bug.
 		return netip.Prefix{}, 0, fmt.Errorf("type mismatch between AFI/SAFI and NLRI type")
@@ -344,18 +342,13 @@ func (r *importVPNRouteReconciler) parseMPReachNLRI(p *bgp.PathAttributeMpReachN
 		label = prefix.Labels.Labels[0]
 	}
 
-	addr, ok := netipx.FromStdIP(prefix.Prefix)
-	if !ok {
-		return netip.Prefix{}, 0, fmt.Errorf("failed to convert prefix to netip.Addr")
-	}
-
-	return netip.PrefixFrom(addr, int(prefix.IPPrefixLen())), label, nil
+	return netip.PrefixFrom(prefix.Prefix.Addr(), int(prefix.IPPrefixLen())), label, nil
 }
 
 func (r *importVPNRouteReconciler) parsePrefixSID(p *bgp.PathAttributePrefixSID) ([]byte, uint8, uint8, error) {
-	var l3Srv *bgp.SRv6L3ServiceAttribute
+	var l3Srv *bgp.SRv6ServiceTLV
 	for _, tlv := range p.TLVs {
-		v, ok := tlv.(*bgp.SRv6L3ServiceAttribute)
+		v, ok := tlv.(*bgp.SRv6ServiceTLV)
 		if ok {
 			l3Srv = v
 			break

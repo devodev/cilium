@@ -21,7 +21,7 @@ import (
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/hive/job"
 	"github.com/cilium/statedb"
-	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
+	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
 	ceeTypes "github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
@@ -148,18 +148,28 @@ func (p *evpnPaths) GetEvpnRT5Path(prefix netip.Prefix, vrfInfo *EvpnVRFInfo, se
 		return nil, "", fmt.Errorf("failed to parse Route Distinguisher %v: %w", vrfInfo.RD, err)
 	}
 	esi := bgp.EthernetSegmentIdentifier{Type: bgp.ESI_ARBITRARY, Value: nil}
-	gw := "0.0.0.0"
+	gw := netip.IPv4Unspecified()
 	if prefix.Addr().Is6() {
-		gw = "::"
+		gw = netip.IPv6Unspecified()
 	}
-	nlri := bgp.NewEVPNIPPrefixRoute(rd, esi, 0, uint8(prefix.Bits()), prefix.Addr().String(), gw, vrfInfo.VNI.AsUint32())
+	nlri, err := bgp.NewEVPNIPPrefixRoute(rd, esi, 0, uint8(prefix.Bits()), prefix.Addr(), gw, vrfInfo.VNI.AsUint32())
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to build EVPN NLRI for prefix %s: %w", prefix, err)
+	}
 
 	// Next Hop: let GoBGP resolve it automatically
-	nextHop := "0.0.0.0"
+	nextHop := netip.IPv4Unspecified()
 	if prefix.Addr().Is6() {
-		nextHop = "::"
+		nextHop = netip.IPv6Unspecified()
 	}
-	mpReachNLRI := bgp.NewPathAttributeMpReachNLRI(nextHop, []bgp.AddrPrefixInterface{nlri})
+	mpReachNLRI, err := bgp.NewPathAttributeMpReachNLRI(
+		bgp.NewFamily(bgp.AFI_L2VPN, bgp.SAFI_EVPN),
+		[]bgp.PathNLRI{{NLRI: nlri}},
+		nextHop,
+	)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to build EVPN MP_REACH_NLRI for prefix %s: %w", prefix, err)
+	}
 	pathAttrs = append(pathAttrs, mpReachNLRI)
 
 	// Extended Communities:
