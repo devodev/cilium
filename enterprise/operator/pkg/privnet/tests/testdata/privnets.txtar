@@ -13,13 +13,17 @@ k8s/add icpn-1.yaml icpn-2.yaml
 # Ensure that they are correctly propagated into the table
 db/cmp private-networks privnet.v1.table
 
+# Update one ClusterwidePrivateNetwork, and assert that the update is propagated
+k8s/update icpn-2.v2.yaml
+db/cmp private-networks privnet.v2.table
+
 # Delete one ClusterwidePrivateNetwork, and assert that the deletion is propagated
 k8s/delete icpn-1.yaml
-db/cmp private-networks privnet.v2.table
+db/cmp private-networks privnet.v3.table
 
 # Add it back, and assert that it is present again
 k8s/add icpn-1.yaml
-db/cmp private-networks privnet.v1.table
+db/cmp private-networks privnet.v2.table
 
 -- icpn-crd.yaml --
 apiVersion: apiextensions.k8s.io/v1
@@ -42,6 +46,21 @@ apiVersion: isovalent.com/v1alpha1
 kind: ClusterwidePrivateNetwork
 metadata:
   name: united-firefly
+  annotations:
+    vsphere.privnet.isovalent.com/port-group-name: "firefly port group?"
+spec:
+  subnets:
+  - name: uf-1
+  - name: uf-2
+  - name: uf-3
+
+-- icpn-2.v2.yaml --
+apiVersion: isovalent.com/v1alpha1
+kind: ClusterwidePrivateNetwork
+metadata:
+  name: united-firefly
+  annotations:
+    vsphere.privnet.isovalent.com/port-group-name: "firefly-united"
 spec:
   subnets:
   - name: uf-1
@@ -49,10 +68,15 @@ spec:
   - name: uf-3
 
 -- privnet.v1.table --
-Name              Subnets
-direct-maggot     0
-united-firefly    3
+Name              Subnets  PortGroup
+direct-maggot     0        direct-maggot
+united-firefly    3        firefly port group?
 
 -- privnet.v2.table --
-Name              Subnets
-united-firefly    3
+Name              Subnets  PortGroup
+direct-maggot     0        direct-maggot
+united-firefly    3        firefly-united
+
+-- privnet.v3.table --
+Name             Subnets   PortGroup
+united-firefly   3         firefly-united

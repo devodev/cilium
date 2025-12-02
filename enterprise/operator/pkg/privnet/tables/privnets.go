@@ -19,6 +19,7 @@ import (
 	"github.com/cilium/cilium/enterprise/pkg/privnet/tables"
 	"github.com/cilium/cilium/enterprise/pkg/vni"
 	"github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
+	cslices "github.com/cilium/cilium/pkg/slices"
 )
 
 type (
@@ -31,6 +32,14 @@ type (
 	// Selector wraps a [labels.Selector] so that it can be pretty-printed when
 	// outputting the statedb table in json/yaml format.
 	Selector = tables.Selector
+
+	// ProviderName is the name of a provider hosting VMs.
+	ProviderName string
+)
+
+const (
+	// ProviderNameVSphere is the name of the vSphere provider.
+	ProviderNameVSphere = "vsphere"
 )
 
 // PrivateNetwork represents a private network instance.
@@ -49,6 +58,27 @@ type PrivateNetwork struct {
 
 	// Keeping the copy of the original resource for async UpdateStatus call.
 	OrigResource *v1alpha1.ClusterwidePrivateNetwork
+
+	// Mappings maps the private network to the identifier in each provider.
+	Mappings []PrivateNetworkMapping
+}
+
+// PrivateNetworkMapping maps a given private network to the corresponding
+// identifier in the target provider.
+type PrivateNetworkMapping struct {
+	// Provider identifies the target provider.
+	Provider ProviderName
+
+	// ID identifies the private network in the target provider.
+	ID string
+}
+
+func (pnm PrivateNetworkMapping) String() string {
+	return string(pnm.Provider) + ":" + pnm.ID
+}
+
+func (pnm PrivateNetworkMapping) key() index.Key {
+	return newPrivateNetworkMappingKey(pnm.Provider, pnm.ID).Key()
 }
 
 // PrivateNetworkSubnet is a subnet configured on the private network.
@@ -70,16 +100,35 @@ type PrivateNetworkNADs struct {
 var _ statedb.TableWritable = &PrivateNetwork{}
 
 func (pn PrivateNetwork) TableHeader() []string {
-	return []string{"Name", "Subnets", "RequestedVNI", "NADsNamespaceSelector"}
+	return []string{"Name", "Subnets", "PortGroup", "RequestedVNI", "NADsNamespaceSelector"}
 }
 
 func (pn PrivateNetwork) TableRow() []string {
+	var pg = "N/A"
+	for _, mapping := range pn.Mappings {
+		if mapping.Provider == ProviderNameVSphere {
+			pg = mapping.ID
+		}
+	}
+
 	return []string{
 		string(pn.Name),
 		strconv.FormatInt(int64(len(pn.Subnets)), 10),
+		pg,
 		pn.RequestedVNI.String(),
 		pn.NADs.NamespaceSelector.String(),
 	}
+}
+
+// privateNetworkMappingKey is <provider>|<id>
+type privateNetworkMappingKey string
+
+func (key privateNetworkMappingKey) Key() index.Key {
+	return index.String(string(key))
+}
+
+func newPrivateNetworkMappingKey(provider ProviderName, id string) privateNetworkMappingKey {
+	return privateNetworkMappingKey(provider) + indexDelimiter + privateNetworkMappingKey(id)
 }
 
 var (
@@ -109,6 +158,15 @@ var (
 			return vni.StateDBKey(got), err
 		},
 	}
+
+	privateNetworksMappingsIndex = statedb.Index[PrivateNetwork, privateNetworkMappingKey]{
+		Name: "mappings",
+		FromObject: func(obj PrivateNetwork) index.KeySet {
+			return index.NewKeySet(cslices.Map(obj.Mappings, PrivateNetworkMapping.key)...)
+		},
+		FromKey:    privateNetworkMappingKey.Key,
+		FromString: index.FromString,
+	}
 )
 
 // PrivateNetworkByName queries the private networks table by name.
@@ -121,11 +179,17 @@ func PrivateNetworksByRequestedVNI(vni vni.VNI) statedb.Query[PrivateNetwork] {
 	return privateNetworksRequestedVNIIndex.Query(vni)
 }
 
+// PrivateNetworksByProviderAndID queries the private networks table by provider and ID.
+func PrivateNetworksByProviderAndID(provider ProviderName, id string) statedb.Query[PrivateNetwork] {
+	return privateNetworksMappingsIndex.Query(newPrivateNetworkMappingKey(provider, id))
+}
+
 func NewPrivateNetworksTable(db *statedb.DB) (statedb.RWTable[PrivateNetwork], error) {
 	return statedb.NewTable(
 		db,
 		"private-networks",
 		privateNetworksNameIndex,
 		privateNetworksRequestedVNIIndex,
+		privateNetworksMappingsIndex,
 	)
 }

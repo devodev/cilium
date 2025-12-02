@@ -11,6 +11,7 @@
 package reconcilers
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -26,6 +27,7 @@ import (
 
 	"github.com/cilium/cilium/enterprise/operator/pkg/privnet/config"
 	"github.com/cilium/cilium/enterprise/operator/pkg/privnet/tables"
+	"github.com/cilium/cilium/enterprise/pkg/privnet/types"
 	"github.com/cilium/cilium/enterprise/pkg/vni"
 	"github.com/cilium/cilium/pkg/k8s"
 	iso_v1alpha1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
@@ -135,6 +137,7 @@ func (pn *PrivateNetworks) registerK8sReflector() error {
 				RequestedVNI: pn.extractRequestedVNI(privnet),
 				NADs:         pn.extractNADs(privnet),
 				OrigResource: privnet.DeepCopy(),
+				Mappings:     pn.extractMappings(privnet),
 			}, true
 		},
 	})
@@ -215,4 +218,20 @@ func (pn *PrivateNetworks) newCRDSyncPromise() promise.Promise[synced.CRDSync] {
 	)
 
 	return promise
+}
+
+var privnetMappingAnnotations = map[tables.ProviderName]string{
+	tables.ProviderNameVSphere: tables.ProviderNameVSphere + "." + types.PrivateNetworkAnnotationPrefix + "/port-group-name",
+}
+
+func (pn *PrivateNetworks) extractMappings(privnet *iso_v1alpha1.ClusterwidePrivateNetwork) []tables.PrivateNetworkMapping {
+	mappings := make([]tables.PrivateNetworkMapping, 0, len(privnetMappingAnnotations))
+	for provider, key := range privnetMappingAnnotations {
+		mappings = append(mappings, tables.PrivateNetworkMapping{
+			Provider: provider,
+			// Default to the resource name if no explicit mapping is provided.
+			ID: cmp.Or(privnet.Annotations[key], privnet.Name),
+		})
+	}
+	return mappings
 }
