@@ -9,6 +9,45 @@ import (
 	"strings"
 )
 
+type writer interface {
+	Print(a ...any)
+	Printf(format string, a ...any)
+	Err() error
+}
+
+type writerBuilder interface {
+	NewWriter(w io.Writer) writer
+}
+
+type dummyWriterBuilder struct{}
+
+func (d *dummyWriterBuilder) NewWriter(w io.Writer) writer {
+	return &dummyWriter{w: w}
+}
+
+type dummyWriter struct {
+	w   io.Writer
+	err error
+}
+
+func (dw *dummyWriter) Print(a ...any) {
+	if dw.err != nil {
+		return
+	}
+	_, dw.err = fmt.Fprint(dw.w, a...)
+}
+
+func (dw *dummyWriter) Printf(format string, a ...any) {
+	if dw.err != nil {
+		return
+	}
+	_, dw.err = fmt.Fprintf(dw.w, format, a...)
+}
+
+func (dw *dummyWriter) Err() error {
+	return dw.err
+}
+
 type terminalEscaperBuilder struct {
 	replacer *strings.Replacer
 }
@@ -24,7 +63,7 @@ func newTerminalEscaperBuilder(allowed []string) *terminalEscaperBuilder {
 	return &terminalEscaperBuilder{replacer: strings.NewReplacer(oldnew...)}
 }
 
-func (teb *terminalEscaperBuilder) NewWriter(w io.Writer) *terminalEscaperWriter {
+func (teb *terminalEscaperBuilder) NewWriter(w io.Writer) writer {
 	return &terminalEscaperWriter{w: w, replacer: teb.replacer}
 }
 
@@ -38,16 +77,20 @@ type terminalEscaperWriter struct {
 	err      error
 }
 
-func (tew *terminalEscaperWriter) print(a ...any) {
+func (tew *terminalEscaperWriter) Print(a ...any) {
 	if tew.err != nil {
 		return
 	}
 	_, tew.err = tew.replacer.WriteString(tew.w, fmt.Sprint(a...))
 }
 
-func (tew *terminalEscaperWriter) printf(format string, a ...any) {
+func (tew *terminalEscaperWriter) Printf(format string, a ...any) {
 	if tew.err != nil {
 		return
 	}
 	_, tew.err = tew.replacer.WriteString(tew.w, fmt.Sprintf(format, a...))
+}
+
+func (tew *terminalEscaperWriter) Err() error {
+	return tew.err
 }

@@ -43,7 +43,7 @@ type Printer struct {
 	tw            *tabwriter.Writer
 	jsonEncoder   *json.Encoder
 	color         *colorer
-	writerBuilder *terminalEscaperBuilder
+	writerBuilder writerBuilder
 }
 
 // New Printer.
@@ -317,11 +317,11 @@ func (p *Printer) WriteProtoFlow(res *observerpb.GetFlowsResponse) error {
 		src, dst := p.GetHostNames(f)
 
 		if p.line == 0 {
-			w.print("TIMESTAMP", tab)
+			w.Print("TIMESTAMP", tab)
 			if p.opts.nodeName {
-				w.print("NODE", tab)
+				w.Print("NODE", tab)
 			}
-			w.print(
+			w.Print(
 				"SOURCE", tab,
 				"DESTINATION", tab,
 				"TYPE", tab,
@@ -329,19 +329,19 @@ func (p *Printer) WriteProtoFlow(res *observerpb.GetFlowsResponse) error {
 				"SUMMARY", newline,
 			)
 		}
-		w.print(fmtTimestamp(p.opts.timeFormat, f.GetTime()), tab)
+		w.Print(fmtTimestamp(p.opts.timeFormat, f.GetTime()), tab)
 		if p.opts.nodeName {
-			w.print(f.GetNodeName(), tab)
+			w.Print(f.GetNodeName(), tab)
 		}
-		w.print(
+		w.Print(
 			src, tab,
 			dst, tab,
 			GetFlowType(f), tab,
 			p.getVerdict(f), tab,
 			p.getSummary(f), newline,
 		)
-		if w.err != nil {
-			return fmt.Errorf("failed to write out packet: %w", w.err)
+		if w.Err() != nil {
+			return fmt.Errorf("failed to write out packet: %w", w.Err())
 		}
 	case DictOutput:
 		w := p.createStdoutWriter()
@@ -349,24 +349,24 @@ func (p *Printer) WriteProtoFlow(res *observerpb.GetFlowsResponse) error {
 
 		if p.line != 0 {
 			// TODO: line length?
-			w.print(dictSeparator, newline)
+			w.Print(dictSeparator, newline)
 		}
 
 		// this is a little crude, but will do for now. should probably find the
 		// longest header and auto-format the keys
-		w.print("  TIMESTAMP: ", fmtTimestamp(p.opts.timeFormat, f.GetTime()), newline)
+		w.Print("  TIMESTAMP: ", fmtTimestamp(p.opts.timeFormat, f.GetTime()), newline)
 		if p.opts.nodeName {
-			w.print("       NODE: ", f.GetNodeName(), newline)
+			w.Print("       NODE: ", f.GetNodeName(), newline)
 		}
-		w.print(
+		w.Print(
 			"     SOURCE: ", src, newline,
 			"DESTINATION: ", dst, newline,
 			"       TYPE: ", GetFlowType(f), newline,
 			"    VERDICT: ", p.getVerdict(f), newline,
 			"    SUMMARY: ", p.getSummary(f), newline,
 		)
-		if w.err != nil {
-			return fmt.Errorf("failed to write out packet: %w", w.err)
+		if w.Err() != nil {
+			return fmt.Errorf("failed to write out packet: %w", w.Err())
 		}
 	case CompactOutput:
 		w := p.createStdoutWriter()
@@ -387,7 +387,7 @@ func (p *Printer) WriteProtoFlow(res *observerpb.GetFlowsResponse) error {
 			srcIdentity, dstIdentity = dstIdentity, srcIdentity
 			arrow = "<-"
 		}
-		w.printf(
+		w.Printf(
 			"%s%s: %s %s %s %s %s %s %s (%s)\n",
 			fmtTimestamp(p.opts.timeFormat, f.GetTime()),
 			node,
@@ -399,8 +399,8 @@ func (p *Printer) WriteProtoFlow(res *observerpb.GetFlowsResponse) error {
 			GetFlowType(f),
 			p.getVerdict(f),
 			p.getSummary(f))
-		if w.err != nil {
-			return fmt.Errorf("failed to write out packet: %w", w.err)
+		if w.Err() != nil {
+			return fmt.Errorf("failed to write out packet: %w", w.Err())
 		}
 	case JSONLegacyOutput:
 		return p.jsonEncoder.Encode(f)
@@ -462,7 +462,7 @@ func (p *Printer) WriteProtoNodeStatusEvent(r *observerpb.GetFlowsResponse) erro
 		// we want to make sure the separators are still printed to clearly
 		// separate flows from node events.
 		if p.line != 0 {
-			w.print(dictSeparator + "\n")
+			w.Print(dictSeparator + "\n")
 		} else {
 			p.line++
 		}
@@ -471,14 +471,14 @@ func (p *Printer) WriteProtoNodeStatusEvent(r *observerpb.GetFlowsResponse) erro
 		if m := s.GetMessage(); len(m) != 0 {
 			message = strconv.Quote(m)
 		}
-		w.print(
+		w.Print(
 			"  TIMESTAMP: ", fmtTimestamp(p.opts.timeFormat, r.GetTime()), newline,
 			"      STATE: ", s.GetStateChange().String(), newline,
 			"      NODES: ", nodeNames, newline,
 			"    MESSAGE: ", message, newline,
 		)
-		if w.err != nil {
-			return fmt.Errorf("failed to write out node status: %w", w.err)
+		if w.Err() != nil {
+			return fmt.Errorf("failed to write out node status: %w", w.Err())
 		}
 	case TabOutput, CompactOutput:
 		w := p.createStderrWriter()
@@ -496,9 +496,9 @@ func (p *Printer) WriteProtoNodeStatusEvent(r *observerpb.GetFlowsResponse) erro
 		case relaypb.NodeState_NODE_ERROR:
 			msg = fmt.Sprintf("%s: Error %q on %d nodes: %s", prefix, s.GetMessage(), numNodes, nodeNames)
 		}
-		w.print(msg + "\n")
-		if w.err != nil {
-			return fmt.Errorf("failed to write out node status: %w", w.err)
+		w.Print(msg + "\n")
+		if w.Err() != nil {
+			return fmt.Errorf("failed to write out node status: %w", w.Err())
 		}
 	}
 
@@ -613,42 +613,42 @@ func (p *Printer) WriteProtoAgentEvent(r *observerpb.GetAgentEventsResponse) err
 		w := p.createStdoutWriter()
 
 		if p.line != 0 {
-			w.print(dictSeparator)
+			w.Print(dictSeparator)
 		}
 
-		w.print("  TIMESTAMP: ", fmtTimestamp(p.opts.timeFormat, r.GetTime()), newline)
+		w.Print("  TIMESTAMP: ", fmtTimestamp(p.opts.timeFormat, r.GetTime()), newline)
 		if p.opts.nodeName {
-			w.print("       NODE: ", r.GetNodeName(), newline)
+			w.Print("       NODE: ", r.GetNodeName(), newline)
 		}
-		w.print(
+		w.Print(
 			"       TYPE: ", e.GetType(), newline,
 			"    DETAILS: ", getAgentEventDetails(e, p.opts.timeFormat), newline,
 		)
-		if w.err != nil {
-			return fmt.Errorf("failed to write out agent event: %w", w.err)
+		if w.Err() != nil {
+			return fmt.Errorf("failed to write out agent event: %w", w.Err())
 		}
 	case TabOutput:
 		w := p.createTabWriter()
 		if p.line == 0 {
-			w.print("TIMESTAMP", tab)
+			w.Print("TIMESTAMP", tab)
 			if p.opts.nodeName {
-				w.print("NODE", tab)
+				w.Print("NODE", tab)
 			}
-			w.print(
+			w.Print(
 				"TYPE", tab,
 				"DETAILS", newline,
 			)
 		}
-		w.print(fmtTimestamp(p.opts.timeFormat, r.GetTime()), tab)
+		w.Print(fmtTimestamp(p.opts.timeFormat, r.GetTime()), tab)
 		if p.opts.nodeName {
-			w.print(r.GetNodeName(), tab)
+			w.Print(r.GetNodeName(), tab)
 		}
-		w.print(
+		w.Print(
 			e.GetType(), tab,
 			getAgentEventDetails(e, p.opts.timeFormat), newline,
 		)
-		if w.err != nil {
-			return fmt.Errorf("failed to write out agent event: %w", w.err)
+		if w.Err() != nil {
+			return fmt.Errorf("failed to write out agent event: %w", w.Err())
 		}
 	case CompactOutput:
 		w := p.createStdoutWriter()
@@ -657,14 +657,14 @@ func (p *Printer) WriteProtoAgentEvent(r *observerpb.GetAgentEventsResponse) err
 		if p.opts.nodeName {
 			node = fmt.Sprintf(" [%s]", r.GetNodeName())
 		}
-		w.printf("%s%s: %s (%s)\n",
+		w.Printf("%s%s: %s (%s)\n",
 			fmtTimestamp(p.opts.timeFormat, r.GetTime()),
 			node,
 			e.GetType(),
 			getAgentEventDetails(e, p.opts.timeFormat),
 		)
-		if w.err != nil {
-			return fmt.Errorf("failed to write out agent event: %w", w.err)
+		if w.Err() != nil {
+			return fmt.Errorf("failed to write out agent event: %w", w.Err())
 		}
 	}
 	p.line++
@@ -716,14 +716,14 @@ func (p *Printer) WriteProtoDebugEvent(r *observerpb.GetDebugEventsResponse) err
 		w := p.createStdoutWriter()
 
 		if p.line != 0 {
-			w.print(dictSeparator)
+			w.Print(dictSeparator)
 		}
 
-		w.print("  TIMESTAMP: ", fmtTimestamp(p.opts.timeFormat, r.GetTime()), newline)
+		w.Print("  TIMESTAMP: ", fmtTimestamp(p.opts.timeFormat, r.GetTime()), newline)
 		if p.opts.nodeName {
-			w.print("       NODE: ", r.GetNodeName(), newline)
+			w.Print("       NODE: ", r.GetNodeName(), newline)
 		}
-		w.print(
+		w.Print(
 			"",
 			"       TYPE: ", e.GetType(), newline,
 			"       FROM: ", fmtEndpointShort(e.GetSource()), newline,
@@ -731,35 +731,35 @@ func (p *Printer) WriteProtoDebugEvent(r *observerpb.GetDebugEventsResponse) err
 			"        CPU: ", fmtCPU(e.GetCpu()), newline,
 			"    MESSAGE: ", e.GetMessage(), newline,
 		)
-		if w.err != nil {
-			return fmt.Errorf("failed to write out debug event: %w", w.err)
+		if w.Err() != nil {
+			return fmt.Errorf("failed to write out debug event: %w", w.Err())
 		}
 	case TabOutput:
 		w := p.createTabWriter()
 		if p.line == 0 {
-			w.print("TIMESTAMP", tab)
+			w.Print("TIMESTAMP", tab)
 			if p.opts.nodeName {
-				w.print("NODE", tab)
+				w.Print("NODE", tab)
 			}
-			w.print(
+			w.Print(
 				"FROM", tab, tab,
 				"TYPE", tab,
 				"CPU/MARK", tab,
 				"MESSAGE", newline,
 			)
 		}
-		w.print(fmtTimestamp(p.opts.timeFormat, r.GetTime()), tab)
+		w.Print(fmtTimestamp(p.opts.timeFormat, r.GetTime()), tab)
 		if p.opts.nodeName {
-			w.print(r.GetNodeName(), tab)
+			w.Print(r.GetNodeName(), tab)
 		}
-		w.print(
+		w.Print(
 			fmtEndpointShort(e.GetSource()), tab, tab,
 			e.GetType(), tab,
 			fmtCPU(e.GetCpu()), space, fmtHexUint32(e.GetHash()), tab,
 			e.GetMessage(), newline,
 		)
-		if w.err != nil {
-			return fmt.Errorf("failed to write out debug event: %w", w.err)
+		if w.Err() != nil {
+			return fmt.Errorf("failed to write out debug event: %w", w.Err())
 		}
 	case CompactOutput:
 		w := p.createStdoutWriter()
@@ -767,7 +767,7 @@ func (p *Printer) WriteProtoDebugEvent(r *observerpb.GetDebugEventsResponse) err
 		if p.opts.nodeName {
 			node = fmt.Sprintf(" [%s]", r.GetNodeName())
 		}
-		w.printf("%s%s: %s %s MARK: %s CPU: %s (%s)\n",
+		w.Printf("%s%s: %s %s MARK: %s CPU: %s (%s)\n",
 			fmtTimestamp(p.opts.timeFormat, r.GetTime()),
 			node,
 			fmtEndpointShort(e.GetSource()),
@@ -776,8 +776,8 @@ func (p *Printer) WriteProtoDebugEvent(r *observerpb.GetDebugEventsResponse) err
 			fmtCPU(e.GetCpu()),
 			e.GetMessage(),
 		)
-		if w.err != nil {
-			return fmt.Errorf("failed to write out debug event: %w", w.err)
+		if w.Err() != nil {
+			return fmt.Errorf("failed to write out debug event: %w", w.Err())
 		}
 	}
 	p.line++
@@ -825,9 +825,9 @@ func (p *Printer) WriteGetFlowsResponse(res *observerpb.GetFlowsResponse) error 
 		if p.opts.enableDebug {
 			w := p.createStderrWriter()
 			msg := fmt.Sprintf("unknown response type: %+v", r)
-			w.print(msg + "\n")
-			if w.err != nil {
-				return fmt.Errorf("failed to write out flow response: %w", w.err)
+			w.Print(msg + "\n")
+			if w.Err() != nil {
+				return fmt.Errorf("failed to write out flow response: %w", w.Err())
 			}
 		}
 		return nil
@@ -857,7 +857,7 @@ func (p *Printer) WriteServerStatusResponse(res *observerpb.ServerStatusResponse
 	switch p.opts.output {
 	case TabOutput:
 		w := p.createTabWriter()
-		w.print(
+		w.Print(
 			"NUM FLOWS", tab,
 			"MAX FLOWS", tab,
 			"SEEN FLOWS", tab,
@@ -875,12 +875,12 @@ func (p *Printer) WriteServerStatusResponse(res *observerpb.ServerStatusResponse
 			numUnavailableNodes, tab,
 			res.GetVersion(), newline,
 		)
-		if w.err != nil {
-			return fmt.Errorf("failed to write out server status: %w", w.err)
+		if w.Err() != nil {
+			return fmt.Errorf("failed to write out server status: %w", w.Err())
 		}
 	case DictOutput:
 		w := p.createStdoutWriter()
-		w.print(
+		w.Print(
 			"          NUM FLOWS: ", uint64Grouping(res.GetNumFlows()), newline,
 			"          MAX FLOWS: ", uint64Grouping(res.GetMaxFlows()), newline,
 			"         SEEN FLOWS: ", uint64Grouping(res.GetSeenFlows()), newline,
@@ -890,8 +890,8 @@ func (p *Printer) WriteServerStatusResponse(res *observerpb.ServerStatusResponse
 			" NUM UNAVAIL. NODES: ", numUnavailableNodes, newline,
 			"            VERSION: ", res.GetVersion(), newline,
 		)
-		if w.err != nil {
-			return fmt.Errorf("failed to write out server status: %w", w.err)
+		if w.Err() != nil {
+			return fmt.Errorf("failed to write out server status: %w", w.Err())
 		}
 	case CompactOutput:
 		w := p.createStdoutWriter()
@@ -899,12 +899,12 @@ func (p *Printer) WriteServerStatusResponse(res *observerpb.ServerStatusResponse
 		if res.GetMaxFlows() > 0 {
 			flowsRatio = fmt.Sprintf(" (%.2f%%)", (float64(res.GetNumFlows())/float64(res.GetMaxFlows()))*100)
 		}
-		w.printf("Current/Max Flows: %v/%v%s\n", uint64Grouping(res.GetNumFlows()), uint64Grouping(res.GetMaxFlows()), flowsRatio)
+		w.Printf("Current/Max Flows: %v/%v%s\n", uint64Grouping(res.GetNumFlows()), uint64Grouping(res.GetMaxFlows()), flowsRatio)
 
 		if uptime := time.Duration(res.GetUptimeNs()).Seconds(); flowsPerSec == "N/A" && uptime > 0 {
 			flowsPerSec = fmt.Sprintf("%.2f", float64(res.GetSeenFlows())/uptime)
 		}
-		w.printf("Flows/s: %s\n", flowsPerSec)
+		w.Printf("Flows/s: %s\n", flowsPerSec)
 
 		numConnected := res.GetNumConnectedNodes()
 		numUnavailable := res.GetNumUnavailableNodes()
@@ -913,7 +913,7 @@ func (p *Printer) WriteServerStatusResponse(res *observerpb.ServerStatusResponse
 			if numUnavailable != nil {
 				total = fmt.Sprintf("/%d", numUnavailable.GetValue()+numConnected.GetValue())
 			}
-			w.printf("Connected Nodes: %d%s\n", numConnected.GetValue(), total)
+			w.Printf("Connected Nodes: %d%s\n", numConnected.GetValue(), total)
 		}
 		if numUnavailable != nil && numUnavailable.GetValue() > 0 {
 			if unavailable := res.GetUnavailableNodes(); unavailable != nil {
@@ -921,16 +921,16 @@ func (p *Printer) WriteServerStatusResponse(res *observerpb.ServerStatusResponse
 				if numUnavailable.GetValue() > uint32(len(unavailable)) {
 					unavailable = append(unavailable, fmt.Sprintf("and %d more...", numUnavailable.GetValue()-uint32(len(unavailable))))
 				}
-				w.printf("Unavailable Nodes: %d\n  - %s\n",
+				w.Printf("Unavailable Nodes: %d\n  - %s\n",
 					numUnavailable.GetValue(),
 					strings.Join(unavailable, "\n  - "),
 				)
 			} else {
-				w.printf("Unavailable Nodes: %d\n", numUnavailable.GetValue())
+				w.Printf("Unavailable Nodes: %d\n", numUnavailable.GetValue())
 			}
 		}
-		if w.err != nil {
-			return fmt.Errorf("failed to write out server status: %w", w.err)
+		if w.Err() != nil {
+			return fmt.Errorf("failed to write out server status: %w", w.Err())
 		}
 	case JSONPBOutput:
 		return p.jsonEncoder.Encode(res)
@@ -951,11 +951,11 @@ func (p *Printer) WriteLostEvent(res *observerpb.GetFlowsResponse) error {
 		first, last := f.GetFirst(), f.GetLast()
 
 		if p.line == 0 {
-			w.print("TIMESTAMP", tab)
+			w.Print("TIMESTAMP", tab)
 			if p.opts.nodeName {
-				w.print("NODE", tab)
+				w.Print("NODE", tab)
 			}
-			w.print(
+			w.Print(
 				"SOURCE", tab,
 				"DESTINATION", tab,
 				"TYPE", tab,
@@ -963,27 +963,27 @@ func (p *Printer) WriteLostEvent(res *observerpb.GetFlowsResponse) error {
 				"SUMMARY", newline,
 			)
 		}
-		w.print(fmtTimestamp(p.opts.timeFormat, res.GetTime()), tab)
+		w.Print(fmtTimestamp(p.opts.timeFormat, res.GetTime()), tab)
 		if p.opts.nodeName {
 			nodeName := res.GetNodeName()
 			if nodeName == "" {
 				nodeName = "-"
 			}
-			w.print(nodeName, tab)
+			w.Print(nodeName, tab)
 		}
 		summary := fmt.Sprintf("CPU(%d) - %d", cpu.GetValue(), numEventsLost)
 		if first != nil && last != nil {
 			summary += fmt.Sprintf(" (first: %s, last: %s)", fmtTimestamp(p.opts.timeFormat, first), fmtTimestamp(p.opts.timeFormat, last))
 		}
-		w.print(
+		w.Print(
 			src, tab,
 			"-", tab,
 			"EVENTS LOST", tab,
 			"-", tab,
 			summary, newline,
 		)
-		if w.err != nil {
-			return fmt.Errorf("failed to write out packet: %w", w.err)
+		if w.Err() != nil {
+			return fmt.Errorf("failed to write out packet: %w", w.Err())
 		}
 	case DictOutput:
 		w := p.createStdoutWriter()
@@ -993,31 +993,31 @@ func (p *Printer) WriteLostEvent(res *observerpb.GetFlowsResponse) error {
 		first, last := f.GetFirst(), f.GetLast()
 		if p.line != 0 {
 			// TODO: line length?
-			w.print(dictSeparator, newline)
+			w.Print(dictSeparator, newline)
 		}
 
 		// this is a little crude, but will do for now. should probably find the
 		// longest header and auto-format the keys
-		w.print("  TIMESTAMP: ", fmtTimestamp(p.opts.timeFormat, res.GetTime()), newline)
+		w.Print("  TIMESTAMP: ", fmtTimestamp(p.opts.timeFormat, res.GetTime()), newline)
 		if p.opts.nodeName {
 			nodeName := res.GetNodeName()
 			if nodeName == "" {
 				nodeName = "-"
 			}
-			w.print("       NODE: ", nodeName, newline)
+			w.Print("       NODE: ", nodeName, newline)
 		}
 		summary := fmt.Sprintf("CPU(%d) - %d", cpu.GetValue(), numEventsLost)
 		if first != nil && last != nil {
 			summary += fmt.Sprintf(" (first: %s, last: %s)", fmtTimestamp(p.opts.timeFormat, first), fmtTimestamp(p.opts.timeFormat, last))
 		}
-		w.print(
+		w.Print(
 			"     SOURCE: ", src, newline,
 			"       TYPE: ", "EVENTS LOST", newline,
 			"    VERDICT: ", "-", newline,
 			"    SUMMARY: ", summary, newline,
 		)
-		if w.err != nil {
-			return fmt.Errorf("failed to write out packet: %w", w.err)
+		if w.Err() != nil {
+			return fmt.Errorf("failed to write out packet: %w", w.Err())
 		}
 	case CompactOutput:
 		w := p.createStdoutWriter()
@@ -1030,13 +1030,13 @@ func (p *Printer) WriteLostEvent(res *observerpb.GetFlowsResponse) error {
 		if first != nil && last != nil {
 			summary += fmt.Sprintf(" (first: %s, last: %s)", fmtTimestamp(p.opts.timeFormat, first), fmtTimestamp(p.opts.timeFormat, last))
 		}
-		w.printf("%s EVENTS LOST: %s %s\n",
+		w.Printf("%s EVENTS LOST: %s %s\n",
 			fmtTimestamp(p.opts.timeFormat, res.GetTime()),
 			src,
 			summary,
 		)
-		if w.err != nil {
-			return fmt.Errorf("failed to write out packet: %w", w.err)
+		if w.Err() != nil {
+			return fmt.Errorf("failed to write out packet: %w", w.Err())
 		}
 	case JSONLegacyOutput:
 		return p.jsonEncoder.Encode(f)
@@ -1047,14 +1047,14 @@ func (p *Printer) WriteLostEvent(res *observerpb.GetFlowsResponse) error {
 	return nil
 }
 
-func (p *Printer) createStdoutWriter() *terminalEscaperWriter {
+func (p *Printer) createStdoutWriter() writer {
 	return p.writerBuilder.NewWriter(p.opts.w)
 }
 
-func (p *Printer) createStderrWriter() *terminalEscaperWriter {
+func (p *Printer) createStderrWriter() writer {
 	return p.writerBuilder.NewWriter(p.opts.werr)
 }
 
-func (p *Printer) createTabWriter() *terminalEscaperWriter {
+func (p *Printer) createTabWriter() writer {
 	return p.writerBuilder.NewWriter(p.tw)
 }

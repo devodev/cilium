@@ -8,12 +8,13 @@ import (
 	"fmt"
 	"testing"
 
+	observerpb "github.com/cilium/cilium/api/v1/observer"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestTerminalEscaperWriter(t *testing.T) {
 	colorer := newColorer("always")
-	allowedSequences := colorer.sequences()
+	allowedSequences := colorer.sequencesStaticSlice()
 	builder := newTerminalEscaperBuilder(allowedSequences)
 
 	testCases := []struct {
@@ -48,12 +49,47 @@ func TestTerminalEscaperWriter(t *testing.T) {
 			var buf bytes.Buffer
 			tew := builder.NewWriter(&buf)
 			if tc.format != "" {
-				tew.printf(tc.format, tc.args...)
+				tew.Printf(tc.format, tc.args...)
 			} else {
-				tew.print(tc.args...)
+				tew.Print(tc.args...)
 			}
 			got := buf.String()
 			assert.Equal(t, tc.want, got)
 		})
 	}
+}
+
+func BenchmarkTerminalEscaperWriter(b *testing.B) {
+	var buf bytes.Buffer
+	p := New(Writer(&buf), Dict(), WithColor("always"))
+	res := &observerpb.GetFlowsResponse{
+		ResponseTypes: &observerpb.GetFlowsResponse_Flow{Flow: &f},
+	}
+
+	b.Run("terminalEscapeWriter=without", func(b *testing.B) {
+		p.writerBuilder = &dummyWriterBuilder{}
+		b.ReportAllocs()
+		for b.Loop() {
+			buf.Reset()
+			p.WriteProtoFlow(res)
+		}
+	})
+	b.Run("terminalEscapeWriter=with-static-slice", func(b *testing.B) {
+		p.writerBuilder = newTerminalEscaperBuilder(p.color.sequencesStaticSlice())
+		b.Logf("sequences: %v (static)", p.color.sequencesStaticSlice())
+		b.ReportAllocs()
+		for b.Loop() {
+			buf.Reset()
+			p.WriteProtoFlow(res)
+		}
+	})
+	b.Run("terminalEscapeWriter=with", func(b *testing.B) {
+		p.writerBuilder = newTerminalEscaperBuilder(p.color.sequences())
+		b.Logf("sequences: %v", p.color.sequences())
+		b.ReportAllocs()
+		for b.Loop() {
+			buf.Reset()
+			p.WriteProtoFlow(res)
+		}
+	})
 }
