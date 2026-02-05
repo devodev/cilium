@@ -25,24 +25,6 @@ func TestPhantomServicesEnabled(t *testing.T) {
 		expected assert.BoolAssertionFunc
 	}{
 		{
-			name:     "Cilium v1.15.99, no feature flag",
-			cfg:      map[string]string{},
-			vsn:      semver.MustParse("1.15.99"),
-			expected: assert.True,
-		},
-		{
-			name:     "Cilium v1.15.99, feature flag disabled",
-			cfg:      map[string]string{"enable-phantom-services": "false"},
-			vsn:      semver.MustParse("1.15.99"),
-			expected: assert.False,
-		},
-		{
-			name:     "Cilium v1.15.99, feature flag enabled",
-			cfg:      map[string]string{"enable-phantom-services": "true"},
-			vsn:      semver.MustParse("1.15.99"),
-			expected: assert.True,
-		},
-		{
 			name:     "Cilium v1.16.0, no feature flag",
 			cfg:      map[string]string{},
 			vsn:      semver.MustParse("1.16.0"),

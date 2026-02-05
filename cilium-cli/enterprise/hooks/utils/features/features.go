@@ -280,16 +280,7 @@ func ExtractFromSysdumpCollector(collector *sysdump.Collector) error {
 }
 
 func phantomServicesEnabled(cfg map[string]string, ciliumVersion semver.Version) bool {
-	value, ok := cfg[string(PhantomServices)]
-
-	// Until Cilium v1.16-ce, the phantom service support was not guarded by a feature
-	// flag, and was always enabled. However, we are conservative and consider it to be
-	// enabled only if the the feature flag is not specified, to always respect the
-	// setting in case of mixed version clusters (given that ciliumVersion is the
-	// minimum version across all agents).
-	if !ok && ciliumVersion.LT(semver.MustParse("1.16.0")) {
-		return true
-	}
+	value := cfg[string(PhantomServices)]
 
 	return value == "true"
 }
