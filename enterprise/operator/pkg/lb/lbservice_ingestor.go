@@ -69,21 +69,22 @@ func (r *ingestor) ingest(ctx context.Context, vip *isovalentv1alpha1.LBVIP, lbs
 			assignedIPv6: getAssignedIPv6(vip),
 			bindStatus:   getVIPBindStatus(t1Service),
 		},
-		zoneAwareMode:        r.resolveZoneAwareMode(lbsvc),
-		port:                 lbsvc.Spec.Port,
-		proxyProtocolConfig:  r.toServiceProxyProtocolConfig(lbsvc.Spec.ProxyProtocolConfig),
-		enableGRPCAccessLogs: lbsvc.Spec.EnableGRPCAccessLogs,
-		applications:         r.toApplications(lbsvc, referencedBackends, referencedSecrets),
-		referencedBackends:   referencedBackends,
-		t1NodeIPv4Addresses:  t1NodeIPv4Addresses,
-		t1NodeIPv6Addresses:  t1NodeIPv6Addresses,
-		t2NodeIPv4Addresses:  t2NodeIPv4Addresses,
-		t2NodeIPv6Addresses:  t2NodeIPv6Addresses,
-		t2NodeIPv4Zones:      t2NodeIPv4Zones,
-		t2NodeIPv6Zones:      t2NodeIPv6Zones,
-		t1LabelSelector:      *t1LabelSelector,
-		t2LabelSelector:      *t2LabelSelector,
-		enableCNPIntegration: r.hasSelectorBasedK8sServiceBackends(backends, referencedK8sServices),
+		zoneAwareMode:            r.resolveZoneAwareMode(lbsvc),
+		zoneAwareMinBackendCount: r.resolveZoneAwareMinBackendCount(lbsvc),
+		port:                     lbsvc.Spec.Port,
+		proxyProtocolConfig:      r.toServiceProxyProtocolConfig(lbsvc.Spec.ProxyProtocolConfig),
+		enableGRPCAccessLogs:     lbsvc.Spec.EnableGRPCAccessLogs,
+		applications:             r.toApplications(lbsvc, referencedBackends, referencedSecrets),
+		referencedBackends:       referencedBackends,
+		t1NodeIPv4Addresses:      t1NodeIPv4Addresses,
+		t1NodeIPv6Addresses:      t1NodeIPv6Addresses,
+		t2NodeIPv4Addresses:      t2NodeIPv4Addresses,
+		t2NodeIPv6Addresses:      t2NodeIPv6Addresses,
+		t2NodeIPv4Zones:          t2NodeIPv4Zones,
+		t2NodeIPv6Zones:          t2NodeIPv6Zones,
+		t1LabelSelector:          *t1LabelSelector,
+		t2LabelSelector:          *t2LabelSelector,
+		enableCNPIntegration:     r.hasSelectorBasedK8sServiceBackends(backends, referencedK8sServices),
 	}, nil
 }
 
@@ -208,6 +209,18 @@ func (*ingestor) resolveZoneAwareMode(lbsvc *isovalentv1alpha1.LBService) lbServ
 	default:
 		return lbServiceZoneAwareModeDisabled
 	}
+}
+
+func (*ingestor) resolveZoneAwareMinBackendCount(lbsvc *isovalentv1alpha1.LBService) uint64 {
+	if lbsvc.Spec.TrafficPolicy == nil || lbsvc.Spec.TrafficPolicy.ZoneAware == nil {
+		return 0
+	}
+
+	if lbsvc.Spec.TrafficPolicy.ZoneAware.MinBackendCount == 0 {
+		return 1
+	}
+
+	return lbsvc.Spec.TrafficPolicy.ZoneAware.MinBackendCount
 }
 
 func resolveNodeZone(nodeLabels map[string]string) string {

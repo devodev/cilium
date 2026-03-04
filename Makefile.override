@@ -9,7 +9,7 @@
 # permission is obtained from Isovalent Inc.
 
 CILIUM_BUILD_DIR := enterprise
-SUBDIRS_CILIUM_CONTAINER := enterprise/cilium-dbg enterprise/daemon cilium-health enterprise/hubble enterprise/bugtool tools/mount tools/sysctlfix enterprise/plugins/cilium-cni
+SUBDIRS_CILIUM_CONTAINER := enterprise/cilium-dbg enterprise/daemon cilium-health enterprise/hubble enterprise/bugtool tools/mount tools/sysctlfix tools/envoy-bootstrap-locality enterprise/plugins/cilium-cni
 SUBDIR_OPERATOR_CONTAINER := enterprise/operator
 SUBDIR_RELAY_CONTAINER := enterprise/hubble-relay
 SUBDIR_CLUSTERMESH_APISERVER_CONTAINER := enterprise/clustermesh-apiserver

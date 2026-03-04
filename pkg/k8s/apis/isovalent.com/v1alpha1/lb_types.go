@@ -1937,6 +1937,14 @@ type LBZoneAware struct {
 	//
 	// +kubebuilder:validation:Required
 	Mode LBZoneAwareModeType `json:"mode"`
+
+	// Sets the minimum backend count threshold for this service.
+	// Defaults to 1.
+	//
+	// +kubebuilder:default:=1
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Minimum=1
+	MinBackendCount uint64 `json:"minBackendCount"`
 }
 
 // +kubebuilder:validation:Enum=preferSameZone;requireSameZone

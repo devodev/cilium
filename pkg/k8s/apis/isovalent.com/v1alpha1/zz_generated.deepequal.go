@@ -5755,6 +5755,9 @@ func (in *LBZoneAware) DeepEqual(other *LBZoneAware) bool {
 	if in.Mode != other.Mode {
 		return false
 	}
+	if in.MinBackendCount != other.MinBackendCount {
+		return false
+	}
 
 	return true
 }

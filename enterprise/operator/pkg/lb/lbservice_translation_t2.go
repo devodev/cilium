@@ -1795,6 +1795,10 @@ func (r *lbServiceT2Translator) desiredEnvoyCluster(model *lbService, name strin
 		cluster.LbConfig = r.toLbConfigMaglev(b.lbAlgorithm)
 	}
 
+	if localityConfigSpecifier := r.lookupLocalityConfigSpecifier(model); localityConfigSpecifier != nil {
+		cluster.CommonLbConfig.LocalityConfigSpecifier = localityConfigSpecifier
+	}
+
 	switch b.typ {
 	case lbBackendTypeHostname:
 		cluster.ClusterDiscoveryType = &envoy_config_cluster_v3.Cluster_ClusterType{
@@ -2117,6 +2121,10 @@ func (r *lbServiceT2Translator) toClusterHealthCheckerTCP(healthCheckConfig lbBa
 func (r *lbServiceT2Translator) desiredEnvoyClusterLoadAssignments(model *lbService) []*envoy_config_endpoint_v3.ClusterLoadAssignment {
 	loadAssignments := []*envoy_config_endpoint_v3.ClusterLoadAssignment{}
 
+	if la := r.desiredEnvoyZoneAwarenessLoadAssignment(model); la != nil {
+		loadAssignments = append(loadAssignments, la)
+	}
+
 	refBackendNamesSorted := slices.Sorted(maps.Keys(model.referencedBackends))
 
 	for _, bn := range refBackendNamesSorted {
@@ -2129,8 +2137,84 @@ func (r *lbServiceT2Translator) desiredEnvoyClusterLoadAssignments(model *lbServ
 	return loadAssignments
 }
 
+// desiredEnvoyZoneAwarenessLoadAssignment builds the synthetic locality EDS
+// resource ILB publishes for Envoy's internal locality cluster. Envoy uses this
+// cluster only as a model of the per-zone T2 proxy population when evaluating
+// zone-aware routing on T2; it is not used to open real upstream connections.
+func (r *lbServiceT2Translator) desiredEnvoyZoneAwarenessLoadAssignment(model *lbService) *envoy_config_endpoint_v3.ClusterLoadAssignment {
+	if model.zoneAwareMode != lbServiceZoneAwareModePreferSameZone && model.zoneAwareMode != lbServiceZoneAwareModeRequireSameZone {
+		return nil
+	}
+
+	addresses := model.t2NodeIPv4Addresses
+	addressZone := model.t2NodeIPv4Zones
+	if len(addresses) == 0 {
+		addresses = model.t2NodeIPv6Addresses
+		addressZone = model.t2NodeIPv6Zones
+	}
+
+	zoneLbEndpoints := map[string][]*envoy_config_endpoint_v3.LbEndpoint{}
+	for _, addr := range addresses {
+		zone := addressZone[addr]
+		if zone == "" || zone == lbServiceZoneUnknown {
+			// The synthetic locality cluster must represent only T2 Envoys with a
+			// usable local zone. Embedded Envoy locality requires
+			// topology.kubernetes.io/zone and fails startup without it, so nodes
+			// with unknown zone are intentionally excluded here.
+			continue
+		}
+		zoneLbEndpoints[zone] = append(zoneLbEndpoints[zone], &envoy_config_endpoint_v3.LbEndpoint{
+			LoadBalancingWeight: wrapperspb.UInt32(1),
+			HostIdentifier: &envoy_config_endpoint_v3.LbEndpoint_Endpoint{
+				Endpoint: &envoy_config_endpoint_v3.Endpoint{
+					Address: &envoy_config_core_v3.Address{
+						Address: &envoy_config_core_v3.Address_SocketAddress{
+							SocketAddress: &envoy_config_core_v3.SocketAddress{
+								Address: addr,
+								PortSpecifier: &envoy_config_core_v3.SocketAddress_PortValue{
+									// This synthetic locality cluster is used only to model the
+									// per-zone T2 node population for Envoy's locality math. It is
+									// not used to open real upstream connections, but SocketAddress
+									// still requires PortSpecifier to be set, so provide a harmless
+									// dummy port value.
+									PortValue: 1,
+								},
+							},
+						},
+					},
+				},
+			},
+		})
+	}
+
+	if len(zoneLbEndpoints) == 0 {
+		// No zoned T2 Envoys are available, so there is no locality population
+		// model to publish for zone-aware routing.
+		return nil
+	}
+
+	localityLbEndpoints := make([]*envoy_config_endpoint_v3.LocalityLbEndpoints, 0, len(zoneLbEndpoints))
+	for _, zone := range slices.Sorted(maps.Keys(zoneLbEndpoints)) {
+		localityLbEndpoints = append(localityLbEndpoints, &envoy_config_endpoint_v3.LocalityLbEndpoints{
+			Locality: &envoy_config_core_v3.Locality{
+				Zone: zone,
+			},
+			LbEndpoints: zoneLbEndpoints[zone],
+		})
+	}
+
+	return &envoy_config_endpoint_v3.ClusterLoadAssignment{
+		ClusterName: envoy.LocalityClusterName,
+		Endpoints:   localityLbEndpoints,
+	}
+}
+
+// desiredEnvoyClusterLoadAssignment builds the real backend EDS resource for a
+// single upstream cluster, grouping endpoints by zone when that metadata is
+// available and preserving unknown-zone endpoints in a fallback bucket.
 func (r *lbServiceT2Translator) desiredEnvoyClusterLoadAssignment(name string, b backend) *envoy_config_endpoint_v3.ClusterLoadAssignment {
-	lbEndpoints := []*envoy_config_endpoint_v3.LbEndpoint{}
+	zoneLbEndpoints := map[string][]*envoy_config_endpoint_v3.LbEndpoint{}
+	bareLbEndpoints := []*envoy_config_endpoint_v3.LbEndpoint{}
 
 	for _, lbBackend := range b.lbBackends {
 		var hcConfig *envoy_config_endpoint_v3.Endpoint_HealthCheckConfig
@@ -2140,7 +2224,7 @@ func (r *lbServiceT2Translator) desiredEnvoyClusterLoadAssignment(name string, b
 			}
 		}
 		for _, a := range lbBackend.addresses {
-			lbEndpoints = append(lbEndpoints, &envoy_config_endpoint_v3.LbEndpoint{
+			lbEndpoint := &envoy_config_endpoint_v3.LbEndpoint{
 				LoadBalancingWeight: wrapperspb.UInt32(lbBackend.weight),
 				HealthStatus:        r.toHealthStatus(lbBackend.status),
 				HostIdentifier: &envoy_config_endpoint_v3.LbEndpoint_Endpoint{Endpoint: &envoy_config_endpoint_v3.Endpoint{
@@ -2150,17 +2234,34 @@ func (r *lbServiceT2Translator) desiredEnvoyClusterLoadAssignment(name string, b
 					}}},
 					HealthCheckConfig: hcConfig,
 				}},
-			})
+			}
+
+			if zone, ok := lbBackend.addressZones[a]; ok && zone != "" && zone != lbServiceZoneUnknown {
+				zoneLbEndpoints[zone] = append(zoneLbEndpoints[zone], lbEndpoint)
+				continue
+			}
+			bareLbEndpoints = append(bareLbEndpoints, lbEndpoint)
 		}
+	}
+
+	localityLbEndpoints := make([]*envoy_config_endpoint_v3.LocalityLbEndpoints, 0, len(zoneLbEndpoints)+1)
+	for _, zone := range slices.Sorted(maps.Keys(zoneLbEndpoints)) {
+		localityLbEndpoints = append(localityLbEndpoints, &envoy_config_endpoint_v3.LocalityLbEndpoints{
+			Locality: &envoy_config_core_v3.Locality{
+				Zone: zone,
+			},
+			LbEndpoints: zoneLbEndpoints[zone],
+		})
+	}
+	if len(bareLbEndpoints) > 0 || len(localityLbEndpoints) == 0 {
+		localityLbEndpoints = append(localityLbEndpoints, &envoy_config_endpoint_v3.LocalityLbEndpoints{
+			LbEndpoints: bareLbEndpoints,
+		})
 	}
 
 	return &envoy_config_endpoint_v3.ClusterLoadAssignment{
 		ClusterName: name,
-		Endpoints: []*envoy_config_endpoint_v3.LocalityLbEndpoints{
-			{
-				LbEndpoints: lbEndpoints,
-			},
-		},
+		Endpoints:   localityLbEndpoints,
 	}
 }
 
@@ -2864,4 +2965,17 @@ func toAny(message proto.Message) *anypb.Any {
 	}
 
 	return a
+}
+
+func (r *lbServiceT2Translator) lookupLocalityConfigSpecifier(model *lbService) *envoy_config_cluster_v3.Cluster_CommonLbConfig_ZoneAwareLbConfig_ {
+	switch model.zoneAwareMode {
+	case lbServiceZoneAwareModePreferSameZone:
+		return &envoy_config_cluster_v3.Cluster_CommonLbConfig_ZoneAwareLbConfig_{
+			ZoneAwareLbConfig: &envoy_config_cluster_v3.Cluster_CommonLbConfig_ZoneAwareLbConfig{
+				MinClusterSize: wrapperspb.UInt64(model.zoneAwareMinBackendCount),
+			},
+		}
+	default:
+		return nil
+	}
 }

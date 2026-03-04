@@ -69,6 +69,53 @@ func TestIngestorResolveZoneAwareMode(t *testing.T) {
 	}
 }
 
+func TestIngestorResolveZoneAwareMinBackendCount(t *testing.T) {
+	ing := &ingestor{}
+
+	testCases := []struct {
+		name   string
+		lbsvc  *isovalentv1alpha1.LBService
+		expect uint64
+	}{
+		{
+			name:   "defaults to zero when traffic policy is unset",
+			lbsvc:  &isovalentv1alpha1.LBService{},
+			expect: 0,
+		},
+		{
+			name: "defaults to two for non-defaulted zone aware policy without min backend count",
+			lbsvc: &isovalentv1alpha1.LBService{
+				Spec: isovalentv1alpha1.LBServiceSpec{
+					TrafficPolicy: &isovalentv1alpha1.LBTrafficPolicy{
+						ZoneAware: &isovalentv1alpha1.LBZoneAware{Mode: isovalentv1alpha1.LBZoneAwareModePreferSameZone},
+					},
+				},
+			},
+			expect: 1,
+		},
+		{
+			name: "maps explicit min backend count from spec",
+			lbsvc: &isovalentv1alpha1.LBService{
+				Spec: isovalentv1alpha1.LBServiceSpec{
+					TrafficPolicy: &isovalentv1alpha1.LBTrafficPolicy{
+						ZoneAware: &isovalentv1alpha1.LBZoneAware{
+							Mode:            isovalentv1alpha1.LBZoneAwareModePreferSameZone,
+							MinBackendCount: 7,
+						},
+					},
+				},
+			},
+			expect: 7,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.expect, ing.resolveZoneAwareMinBackendCount(tc.lbsvc))
+		})
+	}
+}
+
 func TestResolveNodeZone(t *testing.T) {
 	testCases := []struct {
 		name       string

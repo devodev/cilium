@@ -20,24 +20,25 @@ import (
 // - http and tls routes -> validate for overlapping hostnames? (with wildcards...)
 
 type lbService struct {
-	namespace            string
-	name                 string
-	vip                  lbVIP
-	zoneAwareMode        lbServiceZoneAwareModeType
-	port                 int32
-	proxyProtocolConfig  *lbServiceProxyProtocolConfig
-	enableGRPCAccessLogs *bool
-	applications         lbApplications
-	referencedBackends   map[string]backend
-	t1NodeIPv4Addresses  []string
-	t1NodeIPv6Addresses  []string
-	t2NodeIPv4Addresses  []string
-	t2NodeIPv6Addresses  []string
-	t2NodeIPv4Zones      map[string]string
-	t2NodeIPv6Zones      map[string]string
-	t1LabelSelector      labels.Selector
-	t2LabelSelector      labels.Selector
-	enableCNPIntegration bool
+	namespace                string
+	name                     string
+	vip                      lbVIP
+	zoneAwareMode            lbServiceZoneAwareModeType
+	zoneAwareMinBackendCount uint64
+	port                     int32
+	proxyProtocolConfig      *lbServiceProxyProtocolConfig
+	enableGRPCAccessLogs     *bool
+	applications             lbApplications
+	referencedBackends       map[string]backend
+	t1NodeIPv4Addresses      []string
+	t1NodeIPv6Addresses      []string
+	t2NodeIPv4Addresses      []string
+	t2NodeIPv6Addresses      []string
+	t2NodeIPv4Zones          map[string]string
+	t2NodeIPv6Zones          map[string]string
+	t1LabelSelector          labels.Selector
+	t2LabelSelector          labels.Selector
+	enableCNPIntegration     bool
 }
 
 type lbServiceZoneAwareModeType string

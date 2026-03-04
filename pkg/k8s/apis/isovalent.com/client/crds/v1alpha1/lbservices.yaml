@@ -2488,6 +2488,14 @@ spec:
                   zoneAware:
                     description: The zone-aware routing configuration for this service.
                     properties:
+                      minBackendCount:
+                        default: 1
+                        description: |-
+                          Sets the minimum backend count threshold for this service.
+                          Defaults to 1.
+                        format: int64
+                        minimum: 1
+                        type: integer
                       mode:
                         description: |-
                           Configures zone-aware routing for this service. When enabled,
@@ -2506,6 +2514,7 @@ spec:
                         - requireSameZone
                         type: string
                     required:
+                    - minBackendCount
                     - mode
                     type: object
                 type: object
