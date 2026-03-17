@@ -88,7 +88,7 @@ jobs:
             docker-context: hubble-ui-frontend
             dockerfile: hubble-ui-frontend/Dockerfile
             # renovate: datasource=docker
-            base-image: quay.io/isovalent-dev/nginx-unprivileged-ubi:1772792493-13a2bf3@sha256:c13f44f46cac791d2b1bb7cdc9033382840c93e6c8487137663f8342065e1099
+            base-image: quay.io/isovalent-dev/nginx-unprivileged-ubi:1773387217-c133d26@sha256:e71257cfb5a0a26666fc77eb3789f40d43a298fef2174929853edc99e7b3787b
             build-from-source: true
             source-repo: isovalent/hubble-ui-enterprise
             source-path: hubble-ui-frontend
