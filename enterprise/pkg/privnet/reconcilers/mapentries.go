@@ -602,29 +602,10 @@ func skipChangeEvent[T any](changeEvent statedb.Change[T], network tables.Networ
 }
 
 // insertEndpointEntry inserts the provided active endpoint entry from the table. If the
-// new endpoint entry shadows a route entry with the same target, then we remove that
-// route entry.
+// new endpoint entry shadows an existing entry with the same target, then we overwrite that
+// entry.
 func (m *MapEntries) insertEndpointEntry(txn statedb.WriteTxn, epEntry *tables.MapEntry) error {
-	// Check if there is a route entry (static or DCN) with the same target and delete it
-	for _, routeType := range []tables.MapEntryType{tables.MapEntryTypeDCNRoute, tables.MapEntryTypeStaticRoute} {
-		routeEntry, _, found := m.tbl.Get(txn,
-			tables.MapEntryByTypeNetworkSubnetCIDR(epEntry.Target.NetworkName, epEntry.Target.SubnetName, routeType, epEntry.Target.CIDR),
-		)
-		if found {
-			// delete conflicting route entry
-			m.log.Debug("Inserted endpoint entry shadows route entry",
-				logfields.Endpoint, epEntry,
-				logfields.Route, routeEntry,
-			)
-			_, _, err := m.tbl.Delete(txn, routeEntry)
-			if err != nil {
-				return err
-			}
-			break
-		}
-	}
-
-	// Upsert the endpoint entry
+	// Upsert the endpoint entry - this might overwrite a route entry
 	_, _, err := m.tbl.Insert(txn, epEntry)
 	return err
 }
@@ -687,7 +668,7 @@ func (m *MapEntries) upsertRoute(txn statedb.WriteTxn, route tables.Route) error
 
 	// Skip insert if entry already exists (this ensures downstream consumers are not woken up unnecessarily)
 	current, _, found := m.tbl.Get(txn,
-		tables.MapEntryByTypeNetworkSubnetCIDR(route.Network, route.Subnet, route.MapEntryType(), route.Destination),
+		tables.MapEntryByKindNetworkSubnetCIDR(route.Network, route.Subnet, route.MapEntryType().Kind(), route.Destination),
 	)
 
 	if desired == nil {
@@ -713,9 +694,11 @@ func (m *MapEntries) upsertRoute(txn statedb.WriteTxn, route tables.Route) error
 // we do not have to check the endpoint table as we do in upsertRoute.
 func (m *MapEntries) deleteRoute(txn statedb.WriteTxn, route tables.Route) error {
 	entry, _, found := m.tbl.Get(txn,
-		tables.MapEntryByTypeNetworkSubnetCIDR(route.Network, route.Subnet, route.MapEntryType(), route.Destination),
+		tables.MapEntryByKindNetworkSubnetCIDR(route.Network, route.Subnet, route.MapEntryType().Kind(), route.Destination),
 	)
-	if !found {
+	if !found || entry.Type != route.MapEntryType() {
+		// Only delete entries that actually have the same type. This most importantly
+		// makes sure, that we won't delete endpoints with the same key.
 		return nil
 	}
 

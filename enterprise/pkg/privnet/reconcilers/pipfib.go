@@ -164,8 +164,8 @@ func (pmo *pipFIBMapOps) FIBValFlags(typ tables.MapEntryType, l2ann bool) pnmaps
 }
 
 func (pmo *pipFIBMapOps) FIBKeyType(typ tables.MapEntryType) pnmaps.FIBKeyType {
-	switch typ {
-	case tables.MapEntryTypePeeringRoute:
+	switch typ.Kind() {
+	case tables.MapEntryKindPeering:
 		return pnmaps.FIBKeyTypePeering
 	default:
 		return pnmaps.FIBKeyTypeDefault
