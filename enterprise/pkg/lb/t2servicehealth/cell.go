@@ -21,17 +21,26 @@ var Cell = cell.Module(
 
 	cell.Config(defaultT2ServiceHealthConfig),
 	cell.ProvidePrivate(newServiceHealthTable),
-	cell.Invoke(registerAggregatorController),
+	cell.Invoke(
+		registerAggregatorController,
+		registerGRPCServer,
+	),
 )
 
 type t2ServiceHealthConfig struct {
 	MinHealthyBackendsPct uint32 `mapstructure:"loadbalancer-cp-t2-hc-probe-min-healthy-backends"`
+	Enabled               bool   `mapstructure:"loadbalancer-cp-t2-hc-push-enabled"`
+	Port                  uint16 `mapstructure:"loadbalancer-cp-t2-hc-push-server-port"`
 }
 
 var defaultT2ServiceHealthConfig = t2ServiceHealthConfig{
 	MinHealthyBackendsPct: 20,
+	Enabled:               false,
+	Port:                  18080,
 }
 
 func (c t2ServiceHealthConfig) Flags(flags *pflag.FlagSet) {
 	flags.Uint32("loadbalancer-cp-t2-hc-probe-min-healthy-backends", c.MinHealthyBackendsPct, "The minimum percentage of backends that must be healthy from T2 point of view in order to send traffic from T1 to it")
+	flags.Bool("loadbalancer-cp-t2-hc-push-enabled", c.Enabled, "Enable remote T2 health push from T2 nodes to T1 nodes")
+	flags.Uint16("loadbalancer-cp-t2-hc-push-server-port", c.Port, "Port for the T2 health push gRPC server")
 }

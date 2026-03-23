@@ -427,6 +427,8 @@ cilium-agent [flags]
       --lb-state-file string                                             Synchronize load-balancing state from the specified file
       --lib-dir string                                                   Directory path to store runtime build environment (default "/var/lib/cilium")
       --loadbalancer-cp-t2-hc-probe-min-healthy-backends uint32          The minimum percentage of backends that must be healthy from T2 point of view in order to send traffic from T1 to it (default 20)
+      --loadbalancer-cp-t2-hc-push-enabled                               Enable remote T2 health push from T2 nodes to T1 nodes
+      --loadbalancer-cp-t2-hc-push-server-port uint16                    Port for the T2 health push gRPC server (default 18080)
       --loadbalancer-envoy-health-state-sync-enabled                     Enables LB health state sync between K8s node and the node-local Envoy proxy
       --loadbalancer-envoy-health-state-sync-interval duration           Interval for the periodic (fallback) LB health state sync between K8s node and the node-local Envoy proxy (default 1m0s)
       --loadbalancer-flow-logs-enabled                                   Enables LB Per-packet Flow Logs

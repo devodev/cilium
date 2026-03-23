@@ -42,7 +42,7 @@ type aggregatorControllerParams struct {
 }
 
 func registerAggregatorController(params aggregatorControllerParams) {
-	if !option.Config.EnableL7Proxy {
+	if !option.Config.EnableL7Proxy || !params.Config.Enabled {
 		return
 	}
 
