@@ -136,6 +136,10 @@ func (r *lbServiceT1Translator) getHealthCheckAnnotations(model *lbService) map[
 
 	switch {
 	case !model.isTCPProxyT1OnlyMode() && !model.isUDPProxyT1OnlyMode():
+		if r.config.T1T2HealthCheck.T2HCPushEnabled {
+			return annotations
+		}
+
 		// In T1&T2 deployment mode, T1 service is configured to perform T1->T2 health checking using
 		// hardcoded, globally configurable and calculated values (based on the backend configs)
 		annotations[annotation.ServiceHealthProbeInterval] = fmt.Sprintf("%ds", r.getT1T2HealthCheckIntervalSeconds(model))

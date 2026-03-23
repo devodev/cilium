@@ -93,3 +93,83 @@ func newServiceHealthTable(db *statedb.DB) (statedb.RWTable[*serviceHealth], err
 		serviceHealthPrimaryIndex,
 	)
 }
+
+type remoteServiceHealth struct {
+	TargetAddr string
+	Namespace  string
+	Name       string
+	Healthy    bool
+	ExpiresAt  time.Time
+}
+
+func (*remoteServiceHealth) TableHeader() []string {
+	return []string{
+		"TargetAddr",
+		"Namespace",
+		"Name",
+		"Healthy",
+		"Expires In",
+	}
+}
+
+func (s *remoteServiceHealth) TableRow() []string {
+	return []string{
+		s.TargetAddr,
+		s.Namespace,
+		s.Name,
+		strconv.FormatBool(s.Healthy),
+		duration.HumanDuration(time.Until(s.ExpiresAt)),
+	}
+}
+
+var _ statedb.TableWritable = &remoteServiceHealth{}
+
+type remoteServiceHealthKey struct {
+	TargetAddr string
+	Service    loadbalancer.ServiceName
+}
+
+func (k remoteServiceHealthKey) Key() index.Key {
+	return append(index.String(k.TargetAddr), serviceHealthKey{Service: k.Service}.Key()...)
+}
+
+type remoteServiceHealthTargetKey struct {
+	TargetAddr string
+}
+
+func (k remoteServiceHealthTargetKey) Key() index.Key {
+	return index.String(k.TargetAddr)
+}
+
+const remoteServiceHealthTableName = "ilb-t2-remote-service-health"
+
+var (
+	remoteServiceHealthPrimaryIndex = statedb.Index[*remoteServiceHealth, remoteServiceHealthKey]{
+		Name: "target-service",
+		FromObject: func(obj *remoteServiceHealth) index.KeySet {
+			return index.NewKeySet(remoteServiceHealthKey{
+				TargetAddr: obj.TargetAddr,
+				Service:    loadbalancer.NewServiceName(obj.Namespace, obj.Name),
+			}.Key())
+		},
+		FromKey: remoteServiceHealthKey.Key,
+		Unique:  true,
+	}
+	remoteServiceHealthTargetIndex = statedb.Index[*remoteServiceHealth, remoteServiceHealthTargetKey]{
+		Name: "target",
+		FromObject: func(obj *remoteServiceHealth) index.KeySet {
+			return index.NewKeySet(remoteServiceHealthTargetKey{TargetAddr: obj.TargetAddr}.Key())
+		},
+		FromKey: remoteServiceHealthTargetKey.Key,
+		Unique:  false,
+	}
+)
+
+func newRemoteServiceHealthTable(db *statedb.DB) (statedb.RWTable[*remoteServiceHealth], error) {
+	return statedb.NewTable(
+		db,
+		remoteServiceHealthTableName,
+		remoteServiceHealthPrimaryIndex,
+		remoteServiceHealthTargetIndex,
+	)
+}

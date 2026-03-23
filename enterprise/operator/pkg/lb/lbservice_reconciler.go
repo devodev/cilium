@@ -121,6 +121,7 @@ type reconcilerT1T2HealthCheckConfig struct {
 	T1ProbeHttpPath                    string
 	T1ProbeHttpMethod                  string
 	T1ProbeHttpUserAgentPrefix         string
+	T2HCPushEnabled                    bool
 	T2ProbeMinHealthyBackendPercentage uint
 	T2EnvoyHCEventLoggingEnabled       bool
 	T2EnvoyHCEventLoggingStateDir      string

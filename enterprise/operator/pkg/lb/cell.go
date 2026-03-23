@@ -80,6 +80,7 @@ type Config struct {
 	LoadBalancerCPRequestIDPreserve                       bool
 	LoadBalancerCPRequestIDResponse                       bool
 	LoadBalancerCPHTTPServerName                          string
+	LoadBalancerCPT2HCPushEnabled                         bool
 	LoadBalancerCPT1HCProbeTimeoutSeconds                 uint
 	LoadBalancerCPT2HCProbeMinHealthyBackends             uint
 	LoadbalancerCPT2HCEventLoggingEnabled                 bool
@@ -122,6 +123,7 @@ func (cfg Config) Flags(flags *pflag.FlagSet) {
 	flags.Bool("loadbalancer-cp-requestid-preserve", false, "Whether or not the LoadBalancer control plane should configure T2 Envoy to preserve any existing X-Request-ID HTTP header")
 	flags.Bool("loadbalancer-cp-requestid-response", false, "Whether or not the LoadBalancer control plane should configure T2 Envoy to add the X-Request-ID HTTP header to the response")
 	flags.String("loadbalancer-cp-http-server-name", "ilb", "Server name that is used when writing the server header in T2 HTTP responses")
+	flags.Bool("loadbalancer-cp-t2-hc-push-enabled", false, "Whether or not the LoadBalancer control plane should configure T1 services to consume remote T2 health instead of actively probing T2 nodes")
 	flags.Uint("loadbalancer-cp-t1-hc-probe-timeout-seconds", 5, "Probe timeout in seconds for T1 -> T2 health checks")
 	flags.Uint("loadbalancer-cp-t2-hc-probe-min-healthy-backends", 20, "The minimum percentage of backend that must be healthy from T2 point of view in order to send traffic from T1 to it")
 	flags.Bool("loadbalancer-cp-t2-hc-event-logging-enabled", false, "Enables LB health check event logging between Envoy proxy and the node-local Agent")
@@ -325,6 +327,7 @@ func mapReconcilerConfig(config Config, agentConfig *option.DaemonConfig) reconc
 			Response: config.LoadBalancerCPRequestIDResponse,
 		},
 		T1T2HealthCheck: reconcilerT1T2HealthCheckConfig{
+			T2HCPushEnabled:                    config.LoadBalancerCPT2HCPushEnabled,
 			T1ProbeTimeoutSeconds:              config.LoadBalancerCPT1HCProbeTimeoutSeconds,
 			T1ProbeHttpPath:                    "/health",
 			T1ProbeHttpMethod:                  "GET",

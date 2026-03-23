@@ -20,10 +20,15 @@ var Cell = cell.Module(
 	"Derives per-service T2 readiness from Envoy health state",
 
 	cell.Config(defaultT2ServiceHealthConfig),
-	cell.ProvidePrivate(newServiceHealthTable),
+	cell.ProvidePrivate(
+		newServiceHealthTable,
+		newRemoteServiceHealthTable,
+	),
 	cell.Invoke(
 		registerAggregatorController,
 		registerGRPCServer,
+		registerRemoteWatchController,
+		registerRemoteBackendHealthController,
 	),
 )
 

@@ -138,6 +138,7 @@ cilium-operator-generic hive [flags]
       --loadbalancer-cp-t2-hc-event-logging-enabled                    Enables LB health check event logging between Envoy proxy and the node-local Agent
       --loadbalancer-cp-t2-hc-event-logging-state-dir string           State directory for the Envoy health check logging socket
       --loadbalancer-cp-t2-hc-probe-min-healthy-backends uint          The minimum percentage of backend that must be healthy from T2 point of view in order to send traffic from T1 to it (default 20)
+      --loadbalancer-cp-t2-hc-push-enabled                             Whether or not the LoadBalancer control plane should configure T1 services to consume remote T2 health instead of actively probing T2 nodes
       --loadbalancer-cp-t2-use-remote-address                          Whether or not the LoadBalancer control plane should configure T2 Envoy to use the real remote address of the client connection when determining internal versus external origin.
                                                                        More information can be found at https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_conn_man/headers#x-forwarded-for (default true)
       --loadbalancer-cp-t2-xff-num-trusted-hops uint                   The number of additional ingress proxy hops from the right side of the HTTP header to trust when determining the origin client's IP address.
