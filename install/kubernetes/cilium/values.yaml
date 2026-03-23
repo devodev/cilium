@@ -2393,6 +2393,25 @@ hubble:
       # @schema
       # @default -- `30s`
       aggregationTTL: ~
+      # -- Timescape ingest RPC mode to use.
+      # Supported values are `auto`, `batch`, and `single`.
+      # @schema
+      # type: [null, string]
+      # @schema
+      # @default -- `auto`
+      ingestMode: ~
+      # -- The maximum number of flows to send in a single batch.
+      # @schema
+      # type: [null, integer]
+      # @schema
+      # @default -- `256`
+      batchSize: ~
+      # -- The maximum time to wait before flushing a partial flow batch.
+      # @schema
+      # type: [null, string]
+      # @schema
+      # @default -- `250ms`
+      batchFlushInterval: ~
       # -- The maximum number of flows to buffer before dropping them.
       # @schema
       # type: [null, integer]

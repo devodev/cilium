@@ -2515,7 +2515,7 @@
    * - :spelling:ignore:`hubble.export`
      - Hubble flows export.
      - object
-     - ``{"connectionlog":{"enabled":false,"exportInterval":"10s","fileCompress":true,"fileMaxBackups":5,"fileMaxSizeMb":10,"filePath":"/var/run/cilium/hubble/connectionlog.log"},"dynamic":{"config":{"configMapName":"cilium-flowlog-config","content":[{"aggregation":[],"aggregationIgnoreSourcePort":true,"aggregationRenewTTL":true,"aggregationStateFilter":["new","error","closed"],"aggregationTTL":"30s","excludeFilters":[],"fieldMask":[],"fileCompress":false,"fileMaxBackups":5,"fileMaxSizeMb":10,"filePath":"/var/run/cilium/hubble/events.log","fileRotationInterval":"0s","formatVersion":"v1","includeFilters":[],"name":"all","nodeName":null,"rateLimit":-1}],"createConfigMap":true},"enabled":false},"static":{"aggregation":null,"aggregationIgnoreSourcePort":null,"aggregationInterval":"0s","aggregationRenewTTL":null,"aggregationStateFilter":null,"aggregationTTL":null,"allowList":[],"denyList":[],"enabled":false,"fieldAggregate":[],"fieldMask":[],"fileCompress":false,"fileMaxBackups":5,"fileMaxSizeMb":10,"filePath":"/var/run/cilium/hubble/events.log","fileRotationInterval":null,"formatVersion":"v1","overrideNodeName":null,"rateLimit":null},"timescape":{"aggregation":null,"aggregationIgnoreSourcePort":null,"aggregationRenewTTL":null,"aggregationStateFilter":null,"aggregationTTL":null,"allowList":null,"denyList":null,"enabled":null,"fieldMask":null,"maxBufferSize":null,"nodeName":null,"reportDroppedFlowsInterval":null,"target":null,"tls":{"ca":{"configMap":{"key":null,"name":null}},"enabled":null,"mtls":{"enabled":null,"secretName":null}},"useCiliumServiceResolver":null}}``
+     - ``{"connectionlog":{"enabled":false,"exportInterval":"10s","fileCompress":true,"fileMaxBackups":5,"fileMaxSizeMb":10,"filePath":"/var/run/cilium/hubble/connectionlog.log"},"dynamic":{"config":{"configMapName":"cilium-flowlog-config","content":[{"aggregation":[],"aggregationIgnoreSourcePort":true,"aggregationRenewTTL":true,"aggregationStateFilter":["new","error","closed"],"aggregationTTL":"30s","excludeFilters":[],"fieldMask":[],"fileCompress":false,"fileMaxBackups":5,"fileMaxSizeMb":10,"filePath":"/var/run/cilium/hubble/events.log","fileRotationInterval":"0s","formatVersion":"v1","includeFilters":[],"name":"all","nodeName":null,"rateLimit":-1}],"createConfigMap":true},"enabled":false},"static":{"aggregation":null,"aggregationIgnoreSourcePort":null,"aggregationInterval":"0s","aggregationRenewTTL":null,"aggregationStateFilter":null,"aggregationTTL":null,"allowList":[],"denyList":[],"enabled":false,"fieldAggregate":[],"fieldMask":[],"fileCompress":false,"fileMaxBackups":5,"fileMaxSizeMb":10,"filePath":"/var/run/cilium/hubble/events.log","fileRotationInterval":null,"formatVersion":"v1","overrideNodeName":null,"rateLimit":null},"timescape":{"aggregation":null,"aggregationIgnoreSourcePort":null,"aggregationRenewTTL":null,"aggregationStateFilter":null,"aggregationTTL":null,"allowList":null,"batchFlushInterval":null,"batchSize":null,"denyList":null,"enabled":null,"fieldMask":null,"ingestMode":null,"maxBufferSize":null,"nodeName":null,"reportDroppedFlowsInterval":null,"target":null,"tls":{"ca":{"configMap":{"key":null,"name":null}},"enabled":null,"mtls":{"enabled":null,"secretName":null}},"useCiliumServiceResolver":null}}``
    * - :spelling:ignore:`hubble.export.connectionlog.enabled`
      - Enables experimental support for ConnectionLog export. @schema type: [boolean] @schema
      - bool
@@ -2636,6 +2636,14 @@
      - - The list of allow filters to apply to exported events. Leave empty to not apply any filters.  Each filter is a JSON object with the field to filter on as key and the values to match as value. The filter is applied as an AND operation.  @schema type: [null, array] @schema
      - string
      - ``nil``
+   * - :spelling:ignore:`hubble.export.timescape.batchFlushInterval`
+     - The maximum time to wait before flushing a partial flow batch. @schema type: [null, string] @schema
+     - string
+     - ``250ms``
+   * - :spelling:ignore:`hubble.export.timescape.batchSize`
+     - The maximum number of flows to send in a single batch. @schema type: [null, integer] @schema
+     - string
+     - ``256``
    * - :spelling:ignore:`hubble.export.timescape.denyList`
      - - The list of deny filters to apply to exported events. Leave empty to not apply any filters.  Each filter is a JSON object with the field to filter on as key and the values to match as value. The filter is applied as an AND operation.  @schema type: [null, array] @schema
      - string
@@ -2648,6 +2656,10 @@
      - The list of fields to include in exported events. Leave empty to include all fields. @schema type: [null, array] @schema
      - string
      - ``nil``
+   * - :spelling:ignore:`hubble.export.timescape.ingestMode`
+     - Timescape ingest RPC mode to use. Supported values are ``auto``\ , ``batch``\ , and ``single``. @schema type: [null, string] @schema
+     - string
+     - ``auto``
    * - :spelling:ignore:`hubble.export.timescape.maxBufferSize`
      - The maximum number of flows to buffer before dropping them. @schema type: [null, integer] @schema
      - string

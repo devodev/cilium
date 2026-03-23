@@ -3989,6 +3989,18 @@
                     "array"
                   ]
                 },
+                "batchFlushInterval": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "batchSize": {
+                  "type": [
+                    "null",
+                    "integer"
+                  ]
+                },
                 "denyList": {
                   "type": [
                     "null",
@@ -4005,6 +4017,12 @@
                   "type": [
                     "null",
                     "array"
+                  ]
+                },
+                "ingestMode": {
+                  "type": [
+                    "null",
+                    "string"
                   ]
                 },
                 "maxBufferSize": {
