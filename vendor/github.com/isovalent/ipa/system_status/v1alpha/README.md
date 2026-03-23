@@ -7,6 +7,7 @@
     - [ConditionMetadata](#system_status-v1alpha-ConditionMetadata)
     - [FailingCondition](#system_status-v1alpha-FailingCondition)
     - [PolicyStatus](#system_status-v1alpha-PolicyStatus)
+    - [PolicyStatus.ExtraDataEntry](#system_status-v1alpha-PolicyStatus-ExtraDataEntry)
     - [PolicyStatusUpdate](#system_status-v1alpha-PolicyStatusUpdate)
     - [SystemID](#system_status-v1alpha-SystemID)
     - [SystemMetadataUpdate](#system_status-v1alpha-SystemMetadataUpdate)
@@ -74,8 +75,26 @@ PolicyStatus represents the status of a single policy on a node.
 | type | [PolicyType](#system_status-v1alpha-PolicyType) |  | Type of the policy. |
 | id | [string](#string) |  | ID of the policy. |
 | name | [string](#string) |  | Name of the policy. |
+| namespace | [string](#string) |  | Namespace of the policy. |
 | version | [string](#string) |  | Version of the policy. |
 | failing_conditions | [FailingCondition](#system_status-v1alpha-FailingCondition) | repeated | Conditions that are currently preventing the policy to be enforced. If empty, the policy is being enforced. |
+| extra_data | [PolicyStatus.ExtraDataEntry](#system_status-v1alpha-PolicyStatus-ExtraDataEntry) | repeated | Extra data that allows the SmartSwitch client to include additional information or data that needs to be presented to the end-user or consumer of this data. |
+
+
+
+
+
+
+<a name="system_status-v1alpha-PolicyStatus-ExtraDataEntry"></a>
+
+### PolicyStatus.ExtraDataEntry
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| key | [string](#string) |  |  |
+| value | [string](#string) |  |  |
 
 
 
@@ -91,7 +110,8 @@ node.
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| node_id | [string](#string) |  | The ID of the node that&#39;s reporting the policy statuses. |
+| cluster_name | [string](#string) |  | Cluster for which the status is being updated |
+| node_name | [string](#string) |  | The name of the node that&#39;s reporting the policy statuses. |
 | statuses | [PolicyStatus](#system_status-v1alpha-PolicyStatus) | repeated | The statuses of all the policies on the node. |
 
 
@@ -205,6 +225,7 @@ PolicyType represents the type of a policy.
 | ---- | ------ | ----------- |
 | POLICY_TYPE_UNSPECIFIED | 0 |  |
 | POLICY_TYPE_TETRAGON_NETWORK_POLICY | 1 |  |
+| POLICY_TYPE_SMARTSWITCH_NETWORK_POLICY | 2 |  |
 
 
 

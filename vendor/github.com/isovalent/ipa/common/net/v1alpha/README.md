@@ -37,6 +37,7 @@ https://www.iana.org/assignments/protocol-numbers/protocol-numbers.xhtml
 | IP_PROTOCOL_UDP | 17 | IP_PROTOCOL_UDP is the User Datagram protocol. |
 | IP_PROTOCOL_DCCP | 33 | IP_PROTOCOL_DCCP is the Datagram Congestion Control protocol. |
 | IP_PROTOCOL_ICMPV6 | 58 | IP_PROTOCOL_ICMPV6 is ICMP for IPv6. |
+| IP_PROTOCOL_MTP | 92 | IP_PROTOCOL_MTP is the Multicast Transport Protocol. |
 | IP_PROTOCOL_SCTP | 132 | IP_PROTOCOL_SCTP is the Stream Control Transmission protocol. |
 | IP_PROTOCOL_UDPLITE | 136 | IP_PROTOCOL_UDPLITE is the Lightweight User Datagram protocol. |
 

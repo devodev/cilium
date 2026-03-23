@@ -12,23 +12,35 @@ syntax = "proto3";
 
 package system_status.v1alpha;
 
+import "buf/validate/validate.proto";
 import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/isovalent/ipa/system_status/v1alpha";
 
 message SystemStatusEvent {
   // Time at which the event was produced
-  google.protobuf.Timestamp time = 1;
+  google.protobuf.Timestamp time = 1 [(buf.validate.field).required = true];
   oneof event {
     SystemStatusUpdate status = 2;
     SystemMetadataUpdate metadata = 3;
     PolicyStatusUpdate policy = 4;
   }
+
+  option (buf.validate.message).cel = {
+    id: "system_status_event.event_required"
+    message: "one of status, metadata, or policy must be set"
+    expression: "has(this.status) || has(this.metadata) || has(this.policy)"
+  };
 }
 
 // An update describing the current state of a system running
 // on a particular node.
 message SystemStatusUpdate {
+  option (buf.validate.message).cel = {
+    id: "system_status_update.unique_condition_ids"
+    message: "failing_conditions must not contain duplicate condition_id values"
+    expression: "this.failing_conditions.all(c, this.failing_conditions.filter(x, x.condition_id == c.condition_id).size() == 1)"
+  };
   // Cluster for which the status is being updated
   string cluster_name = 1;
 
@@ -37,7 +49,7 @@ message SystemStatusUpdate {
   string node_name = 2;
 
   // The system whose status is being updated
-  SystemID system = 3;
+  SystemID system = 3 [(buf.validate.field).required = true];
 
   // The local node time at which this system was started
   google.protobuf.Timestamp started_at = 4;
@@ -59,7 +71,7 @@ message SystemStatusUpdate {
 message SystemID {
   // The name of the system. This is usually the name of the process reporting
   // the status, e.g. cilium-agent or cilium-operator.
-  string name = 1;
+  string name = 1 [(buf.validate.field).required = true];
 
   // Version of the system, e.g. v1.18.0-cee.1.
   string version = 2;
@@ -69,10 +81,17 @@ message FailingCondition {
   // Identifier to identify a condition within a system.
   // For a globally unique identifier this must be paired with
   // [SystemID].
-  string condition_id = 1;
+  string condition_id = 1 [(buf.validate.field).required = true];
 
   // Severity of the failure
-  Severity severity = 2;
+  Severity severity = 2 [
+    (buf.validate.field).enum.defined_only = true,
+    (buf.validate.field).cel = {
+      id: "failing_condition.severity.not_unspecified"
+      message: "severity must be specified"
+      expression: "this != 0"
+    }
+  ];
 
   // Optional details on why the condition is failing
   string message = 3;
@@ -88,20 +107,23 @@ message FailingCondition {
 // separately even though they're part of the same system.
 message SystemMetadataUpdate {
   // The system the metadata is associated with
-  SystemID system = 1;
+  SystemID system = 1 [(buf.validate.field).required = true];
 
   // Metadata for each condition
-  repeated ConditionMetadata conditions = 2;
+  repeated ConditionMetadata conditions = 2 [(buf.validate.field).repeated.min_items = 1];
 }
 
 message ConditionMetadata {
   // The identifier for the condition within a system
-  string condition_id = 1;
+  string condition_id = 1 [(buf.validate.field).required = true];
 
   // The sub-system that is impacted by the condition. This should be
   // fairly high-level and user should be able to easily infer what
   // functionality is being impacted.
-  string subsystem = 3;
+  string subsystem = 3 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 253
+  }];
 
   // A detailed description about the condition
   string description = 4;
@@ -135,28 +157,49 @@ enum Severity {
 enum PolicyType {
   POLICY_TYPE_UNSPECIFIED = 0;
   POLICY_TYPE_TETRAGON_NETWORK_POLICY = 1;
+  POLICY_TYPE_SMARTSWITCH_NETWORK_POLICY = 2;
 }
 
 // PolicyStatus represents the status of a single policy on a node.
 message PolicyStatus {
+  option (buf.validate.message).cel = {
+    id: "policy_status.unique_condition_ids"
+    message: "failing_conditions must not contain duplicate condition_id values"
+    expression: "this.failing_conditions.all(c, this.failing_conditions.filter(x, x.condition_id == c.condition_id).size() == 1)"
+  };
   // Type of the policy.
-  PolicyType type = 1;
+  PolicyType type = 1 [
+    (buf.validate.field).enum.defined_only = true,
+    (buf.validate.field).cel = {
+      id: "policy_status.type.not_unspecified"
+      message: "policy type must be specified"
+      expression: "this != 0"
+    }
+  ];
   // ID of the policy.
-  string id = 2;
+  string id = 2 [(buf.validate.field).required = true];
   // Name of the policy.
   string name = 3;
+  // Namespace of the policy.
+  string namespace = 4;
   // Version of the policy.
-  string version = 4;
+  string version = 5;
   // Conditions that are currently preventing the policy to be enforced.
   // If empty, the policy is being enforced.
-  repeated FailingCondition failing_conditions = 5;
+  repeated FailingCondition failing_conditions = 6;
+  // Extra data that allows the SmartSwitch client to include additional
+  // information or data that needs to be presented to the end-user or
+  // consumer of this data.
+  map<string, string> extra_data = 7;
 }
 
 // PolicyStatusUpdate contains the current statuses of all the policies on a
 // node.
 message PolicyStatusUpdate {
-  // The ID of the node that's reporting the policy statuses.
-  string node_id = 1;
+  // Cluster for which the status is being updated
+  string cluster_name = 1;
+  // The name of the node that's reporting the policy statuses.
+  string node_name = 2;
   // The statuses of all the policies on the node.
-  repeated PolicyStatus statuses = 2;
+  repeated PolicyStatus statuses = 3 [(buf.validate.field).repeated.min_items = 1];
 }

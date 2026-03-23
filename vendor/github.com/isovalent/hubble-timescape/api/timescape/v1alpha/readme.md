@@ -17,12 +17,15 @@
     - [GetDetailResponse](#timescape-v1alpha-GetDetailResponse)
     - [GetExtraDataRequest](#timescape-v1alpha-GetExtraDataRequest)
     - [GetExtraDataResponse](#timescape-v1alpha-GetExtraDataResponse)
+    - [GetLatestPolicyStatusRequest](#timescape-v1alpha-GetLatestPolicyStatusRequest)
+    - [GetLatestPolicyStatusResponse](#timescape-v1alpha-GetLatestPolicyStatusResponse)
     - [GetSummaryRequest](#timescape-v1alpha-GetSummaryRequest)
     - [GetSummaryResponse](#timescape-v1alpha-GetSummaryResponse)
     - [GetTimelineRequest](#timescape-v1alpha-GetTimelineRequest)
     - [GetTimelineResponse](#timescape-v1alpha-GetTimelineResponse)
     - [NodeFailingCondition](#timescape-v1alpha-NodeFailingCondition)
     - [QualifiedConditionID](#timescape-v1alpha-QualifiedConditionID)
+    - [SystemPolicyStatus](#timescape-v1alpha-SystemPolicyStatus)
     - [TimelineSample](#timescape-v1alpha-TimelineSample)
   
     - [SystemStatusService](#timescape-v1alpha-SystemStatusService)
@@ -208,6 +211,37 @@ Response for the GetExtraData rpc call.
 
 
 
+<a name="timescape-v1alpha-GetLatestPolicyStatusRequest"></a>
+
+### GetLatestPolicyStatusRequest
+Request for GetLatestPolicyStatus rpc call.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| cluster | [string](#string) |  | Optional cluster to filter the results |
+| node_names | [string](#string) | repeated | The nodes for which to get the current policy status. If empty, returns the policy status for all systems. |
+
+
+
+
+
+
+<a name="timescape-v1alpha-GetLatestPolicyStatusResponse"></a>
+
+### GetLatestPolicyStatusResponse
+Response for GetLatestPolicyStatus rpc call.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| statuses | [SystemPolicyStatus](#timescape-v1alpha-SystemPolicyStatus) | repeated | The list of policy statuses for the requested node. |
+
+
+
+
+
+
 <a name="timescape-v1alpha-GetSummaryRequest"></a>
 
 ### GetSummaryRequest
@@ -306,6 +340,22 @@ QualifiedConditionID uniquely identifies the condition to a specific system.
 
 
 
+<a name="timescape-v1alpha-SystemPolicyStatus"></a>
+
+### SystemPolicyStatus
+SystemPolicyStatus represents the policy status of a system at a specific time.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| timestamp | [google.protobuf.Timestamp](#google-protobuf-Timestamp) |  | The time at which the policy status was recorded. |
+| policy_status | [system_status.v1alpha.PolicyStatusUpdate](#system_status-v1alpha-PolicyStatusUpdate) |  | The current policy status. |
+
+
+
+
+
+
 <a name="timescape-v1alpha-TimelineSample"></a>
 
 ### TimelineSample
@@ -342,6 +392,7 @@ SystemStatusService for querying the system status.
 | GetDetail | [GetDetailRequest](#timescape-v1alpha-GetDetailRequest) | [GetDetailResponse](#timescape-v1alpha-GetDetailResponse) | GetDetail returns details about a specific condition. |
 | GetTimeline | [GetTimelineRequest](#timescape-v1alpha-GetTimelineRequest) | [GetTimelineResponse](#timescape-v1alpha-GetTimelineResponse) | GetTimeline returns a timeline of counts of succeeding and failing conditions. |
 | GetExtraData | [GetExtraDataRequest](#timescape-v1alpha-GetExtraDataRequest) | [GetExtraDataResponse](#timescape-v1alpha-GetExtraDataResponse) | GetExtraData returns the latest extra data from each node for a specific system. |
+| GetLatestPolicyStatus | [GetLatestPolicyStatusRequest](#timescape-v1alpha-GetLatestPolicyStatusRequest) | [GetLatestPolicyStatusResponse](#timescape-v1alpha-GetLatestPolicyStatusResponse) | GetLatestPolicyStatus returns the latest policy status for the specified systems. |
 
  
 

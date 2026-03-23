@@ -6,7 +6,10 @@
 - [graph/v1alpha/edge.proto](#graph_v1alpha_edge-proto)
     - [Edge](#graph-v1alpha-Edge)
     - [EdgeTypeBasic](#graph-v1alpha-EdgeTypeBasic)
+    - [EdgeTypeL4Telemetry](#graph-v1alpha-EdgeTypeL4Telemetry)
     - [EdgeTypeL7Telemetry](#graph-v1alpha-EdgeTypeL7Telemetry)
+    - [EdgeTypeMulticastTelemetry](#graph-v1alpha-EdgeTypeMulticastTelemetry)
+    - [EdgeTypeMulticastTelemetry.FeederReceiverDelayHistogram](#graph-v1alpha-EdgeTypeMulticastTelemetry-FeederReceiverDelayHistogram)
     - [EdgeTypeNetworkTelemetry](#graph-v1alpha-EdgeTypeNetworkTelemetry)
     - [EdgeTypeRoutingTelemetry](#graph-v1alpha-EdgeTypeRoutingTelemetry)
   
@@ -15,6 +18,7 @@
     - [VertexFamilyKubernetes](#graph-v1alpha-VertexFamilyKubernetes)
     - [VertexFamilyNetworkDevice](#graph-v1alpha-VertexFamilyNetworkDevice)
     - [VertexFamilyWorldEntity](#graph-v1alpha-VertexFamilyWorldEntity)
+    - [VertexPropertyMulticast](#graph-v1alpha-VertexPropertyMulticast)
   
 - [graph/v1alpha/connection.proto](#graph_v1alpha_connection-proto)
     - [Connection](#graph-v1alpha-Connection)
@@ -42,7 +46,9 @@ An edge represents aggregatable properties of a given connection.
 | basic | [EdgeTypeBasic](#graph-v1alpha-EdgeTypeBasic) |  |  |
 | network_telemetry | [EdgeTypeNetworkTelemetry](#graph-v1alpha-EdgeTypeNetworkTelemetry) |  |  |
 | routing_telemetry | [EdgeTypeRoutingTelemetry](#graph-v1alpha-EdgeTypeRoutingTelemetry) |  |  |
+| l4_telemetry | [EdgeTypeL4Telemetry](#graph-v1alpha-EdgeTypeL4Telemetry) |  |  |
 | l7_telemetry | [EdgeTypeL7Telemetry](#graph-v1alpha-EdgeTypeL7Telemetry) |  |  |
+| multicast_telemetry | [EdgeTypeMulticastTelemetry](#graph-v1alpha-EdgeTypeMulticastTelemetry) |  |  |
 
 
 
@@ -53,6 +59,24 @@ An edge represents aggregatable properties of a given connection.
 
 ### EdgeTypeBasic
 EdgeTypeBasic is a base edge that does not carry any information.
+
+
+
+
+
+
+<a name="graph-v1alpha-EdgeTypeL4Telemetry"></a>
+
+### EdgeTypeL4Telemetry
+EdgeTypeL4Telemetry provides telemetry information regarding a network
+connection at the transport layer.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| tcp_retransmits_total | [uint64](#uint64) |  | tcp_retransmits_total is the number of TCP segments that have been retransmitted during the selected time window. |
+| tcp_zero_window_total | [uint64](#uint64) |  | tcp_zero_window_total is the number of times a zero TCP window has been observed during the selected time window. |
+| tcp_resets_total | [uint64](#uint64) |  | tcp_resets_total is the number of TCP resets that have been observed during the selected time window. |
 
 
 
@@ -77,6 +101,51 @@ connection at the application layer.
 
 
 
+<a name="graph-v1alpha-EdgeTypeMulticastTelemetry"></a>
+
+### EdgeTypeMulticastTelemetry
+EdgeTypeMulticastTelemetry provides telemetry information regarding a
+multicast connection.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| sequence_number_gap_count_total | [uint64](#uint64) |  | sequence_number_gap_count_total is the number of sequence number gaps detected. |
+| feeder_receiver_delay_histogram | [EdgeTypeMulticastTelemetry.FeederReceiverDelayHistogram](#graph-v1alpha-EdgeTypeMulticastTelemetry-FeederReceiverDelayHistogram) |  | feeder_receiver_delay_histogram captures a histogram of delays experienced by multicast receivers from feeders. |
+
+
+
+
+
+
+<a name="graph-v1alpha-EdgeTypeMulticastTelemetry-FeederReceiverDelayHistogram"></a>
+
+### EdgeTypeMulticastTelemetry.FeederReceiverDelayHistogram
+FeederReceiverDelayHistogram represents a cumulative histogram with
+hardcoded buckets for delays experienced by multicast receivers from
+feeders.
+
+The histogram model is based on Prometheus classic histograms, with the
+difference that it does not include the upper bound bucket (le=&#34;&#43;Inf&#34;) for
+space efficiency. When computing rates, averages or quantiles, the
+count_total field can be used instead.
+Prometheus docs: https://prometheus.io/docs/concepts/metric_types/#histogram.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| count_total | [uint64](#uint64) |  | count_total is the total number of observations. Use this to interpret the upper bound bucket (le=&#34;&#43;Inf&#34;) in higher level calculations. |
+| sum_total | [uint64](#uint64) |  | sum_total is the sum of all observed values, in milliseconds. |
+| bucket_le_1ms_total | [uint64](#uint64) |  | bucket_le_1ms_total is the number of observations less than or equal to 1ms. |
+| bucket_le_10ms_total | [uint64](#uint64) |  | bucket_le_10ms_total is the number of observations less than or equal to 10ms. |
+| bucket_le_100ms_total | [uint64](#uint64) |  | bucket_le_100ms_total is the number of observations less than or equal to 100ms. |
+| bucket_le_1s_total | [uint64](#uint64) |  | bucket_le_1s_total is the number of observations less than or equal to 1s. |
+
+
+
+
+
+
 <a name="graph-v1alpha-EdgeTypeNetworkTelemetry"></a>
 
 ### EdgeTypeNetworkTelemetry
@@ -89,9 +158,11 @@ connection.
 | network_transmit_packets_total | [uint64](#uint64) |  | network_transmit_packets_total is the number of packets transferred. |
 | network_transmit_bytes_total | [uint64](#uint64) |  | network_transmit_bytes_total is the number of bytes transferred. |
 | network_transmit_drop_total | [uint64](#uint64) |  | network_transmit_drop_total is the number of packets dropped during transmission. |
+| network_transmit_drop_policy_total | [uint64](#uint64) |  | network_transmit_drop_policy_total is the number of packets dropped due to a network policy during transmission. It is always a subset of network_transmit_drop_total. |
 | network_receive_packets_total | [uint64](#uint64) |  | network_receive_packets_total is the number of packets received. |
 | network_receive_bytes_total | [uint64](#uint64) |  | network_receive_bytes_total is the number of bytes received. |
 | network_receive_drop_total | [uint64](#uint64) |  | network_receive_drop_total is the number of packets that are received but discarded. |
+| network_receive_drop_policy_total | [uint64](#uint64) |  | network_receive_drop_policy_total is the number of packets dropped due to a network policy during reception. It is always a subset of network_receive_drop_total. |
 
 
 
@@ -109,6 +180,7 @@ decisions.
 | ----- | ---- | ----- | ----------- |
 | routing_forwarded_total | [uint64](#uint64) |  | routing_forwarded_total is the number of network flows that have been forwarded to the next processing entity. |
 | routing_dropped_total | [uint64](#uint64) |  | routing_dropped_total is the number of network flows that have been dropped. Reasons for dropping data may be due to a malformed packet, rejection by a network policy, etc. |
+| routing_dropped_policy_total | [uint64](#uint64) |  | routing_dropped_policy_total is the number of network flows that have been dropped because of a network policy. It is always a subset of routing_dropped_total. |
 | routing_error_total | [uint64](#uint64) |  | routing_error_total is the number of flows where an error occurred during processing. |
 | routing_audit_total | [uint64](#uint64) |  | routing_audit_total is the number of times a flow would have been dropped if a network policy that applies to it was enforced. |
 | routing_redirected_total | [uint64](#uint64) |  | routing_redirected_total is the number of flows which have been redirected, for instance to a local proxy. |
@@ -172,11 +244,14 @@ Kubernetes context.
 | node_name | [string](#string) |  | node_name is the name of the Kubernetes node. |
 | pod_name | [string](#string) |  | pod_name is the name of the Kubernetes pod. |
 | container_name | [string](#string) |  | container_name is the name of the container. |
-| service_kind | [common.k8s.type.v1alpha.ServiceKind](#common-k8s-type-v1alpha-ServiceKind) |  | service_kind represents the type of the Kubernetes service. |
-| workload_kind | [common.k8s.type.v1alpha.WorkloadKind](#common-k8s-type-v1alpha-WorkloadKind) |  | workload_kind represents the type of the Kubernetes workload. |
+| service_kind | [common.k8s.type.v1alpha.ServiceKind](#common-k8s-type-v1alpha-ServiceKind) |  | service_kind represents the type of the Kubernetes service. The service_kind field should be set when the resource_kind field is RESOURCE_KIND_SERVICE. |
+| workload_kind | [common.k8s.type.v1alpha.WorkloadKind](#common-k8s-type-v1alpha-WorkloadKind) |  | workload_kind represents the type of the Kubernetes workload. The workload_kind should be set when the resource_kind field is set to RESOURCE_KIND_WORKLOAD. |
 | ip | [string](#string) |  | ip is a network address that can be associated with the Kubernetes resource and the connection. |
 | port | [uint32](#uint32) |  | port is the network port associated with the ip address. |
+| ip_protocol | [common.net.v1alpha.IPProtocol](#common-net-v1alpha-IPProtocol) |  | protocol is the protocol that is used for the connection at the L3/L4 layer. |
 | application_model_uuid | [string](#string) |  | application_model_uuid is a unique identifier that identifies the application model associated with the Kubernetes resource. |
+| interface_name | [string](#string) |  | interface_name is the name of the network interface associated with the connection. |
+| multicast | [VertexPropertyMulticast](#graph-v1alpha-VertexPropertyMulticast) |  | multicast contains multicast specific information. |
 
 
 
@@ -200,6 +275,8 @@ network device.
 | vlan_name | [string](#string) |  | vlan_name is a human readable name associated with a VLAN ID. |
 | vlan_id | [uint32](#uint32) |  | vlan_id is an ID in the range 1 to 4094 that defines a broadcast domain at the data link layer. |
 | vrf_name | [string](#string) |  | vrf_name is the name of a virtual routing and forwarding segement that is the equivalent of a VLAN but at the network layer. |
+| interface_name | [string](#string) |  | interface_name is the name of the network interface associated with the connection. |
+| multicast | [VertexPropertyMulticast](#graph-v1alpha-VertexPropertyMulticast) |  | multicast contains multicast specific information. |
 
 
 
@@ -218,6 +295,24 @@ of a specific network boundary.
 | dns_name | [string](#string) |  | dns_name is the DNS name that can be associated with the world entity. |
 | ip | [string](#string) |  | ip is a network address that can be associated with the world entity and the connection. |
 | port | [uint32](#uint32) |  | port is the network port associated with the ip address. |
+| ip_protocol | [common.net.v1alpha.IPProtocol](#common-net-v1alpha-IPProtocol) |  | protocol is the protocol that is used for the connection at the L3/L4 layer. |
+| multicast | [VertexPropertyMulticast](#graph-v1alpha-VertexPropertyMulticast) |  | multicast contains multicast specific information. |
+
+
+
+
+
+
+<a name="graph-v1alpha-VertexPropertyMulticast"></a>
+
+### VertexPropertyMulticast
+VertexPropertyMulticast contains multicast specific information for a vertex.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| source_id | [string](#string) |  | source_id is an optional identifier that represents the source of the multicast traffic. |
+| group_ip | [string](#string) |  | group_ip is the multicast group address associated with the connection. |
 
 
 

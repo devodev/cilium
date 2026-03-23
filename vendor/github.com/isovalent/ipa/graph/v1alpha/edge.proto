@@ -10,6 +10,8 @@ syntax = "proto3";
 
 package graph.v1alpha;
 
+import "buf/validate/validate.proto";
+
 option go_package = "github.com/isovalent/ipa/graph/v1alpha";
 
 // An edge represents aggregatable properties of a given connection.
@@ -26,7 +28,9 @@ message Edge {
     EdgeTypeBasic basic = 1;
     EdgeTypeNetworkTelemetry network_telemetry = 2;
     EdgeTypeRoutingTelemetry routing_telemetry = 3;
+    EdgeTypeL4Telemetry l4_telemetry = 6;
     EdgeTypeL7Telemetry l7_telemetry = 4;
+    EdgeTypeMulticastTelemetry multicast_telemetry = 5;
   }
 }
 
@@ -36,6 +40,16 @@ message EdgeTypeBasic {}
 // EdgeTypeNetworkTelemetry provides telemetry information regarding a network
 // connection.
 message EdgeTypeNetworkTelemetry {
+  option (buf.validate.message).cel = {
+    id: "network_transmit_drop_policy_subset"
+    message: "network_transmit_drop_policy_total must be <= network_transmit_drop_total"
+    expression: "this.network_transmit_drop_policy_total <= this.network_transmit_drop_total"
+  };
+  option (buf.validate.message).cel = {
+    id: "network_receive_drop_policy_subset"
+    message: "network_receive_drop_policy_total must be <= network_receive_drop_total"
+    expression: "this.network_receive_drop_policy_total <= this.network_receive_drop_total"
+  };
   // network_transmit_packets_total is the number of packets transferred.
   uint64 network_transmit_packets_total = 1;
   // network_transmit_bytes_total is the number of bytes transferred.
@@ -43,6 +57,10 @@ message EdgeTypeNetworkTelemetry {
   // network_transmit_drop_total is the number of packets dropped during
   // transmission.
   uint64 network_transmit_drop_total = 3;
+  // network_transmit_drop_policy_total is the number of packets dropped due to
+  // a network policy during transmission. It is always a subset of
+  // network_transmit_drop_total.
+  uint64 network_transmit_drop_policy_total = 7;
   // network_receive_packets_total is the number of packets received.
   uint64 network_receive_packets_total = 4;
   // network_receive_bytes_total is the number of bytes received.
@@ -50,11 +68,20 @@ message EdgeTypeNetworkTelemetry {
   // network_receive_drop_total is the number of packets that are received but
   // discarded.
   uint64 network_receive_drop_total = 6;
+  // network_receive_drop_policy_total is the number of packets dropped due to
+  // a network policy during reception. It is always a subset of
+  // network_receive_drop_total.
+  uint64 network_receive_drop_policy_total = 8;
 }
 
 // EdgeTypeRoutingTelemetry provides telemetry information regarding routing
 // decisions.
 message EdgeTypeRoutingTelemetry {
+  option (buf.validate.message).cel = {
+    id: "routing_dropped_policy_subset"
+    message: "routing_dropped_policy_total must be <= routing_dropped_total"
+    expression: "this.routing_dropped_policy_total <= this.routing_dropped_total"
+  };
   // routing_forwarded_total is the number of network flows that have been
   // forwarded to the next processing entity.
   uint64 routing_forwarded_total = 1;
@@ -62,6 +89,10 @@ message EdgeTypeRoutingTelemetry {
   // dropped. Reasons for dropping data may be due to a malformed packet,
   // rejection by a network policy, etc.
   uint64 routing_dropped_total = 2;
+  // routing_dropped_policy_total is the number of network flows that have been
+  // dropped because of a network policy. It is always a subset of
+  // routing_dropped_total.
+  uint64 routing_dropped_policy_total = 8;
   // routing_error_total is the number of flows where an error occurred during
   // processing.
   uint64 routing_error_total = 3;
@@ -79,6 +110,20 @@ message EdgeTypeRoutingTelemetry {
   uint64 routing_translated_total = 7;
 }
 
+// EdgeTypeL4Telemetry provides telemetry information regarding a network
+// connection at the transport layer.
+message EdgeTypeL4Telemetry {
+  // tcp_retransmits_total is the number of TCP segments that have been
+  // retransmitted during the selected time window.
+  uint64 tcp_retransmits_total = 1;
+  // tcp_zero_window_total is the number of times a zero TCP window has been
+  // observed during the selected time window.
+  uint64 tcp_zero_window_total = 2;
+  // tcp_resets_total is the number of TCP resets that have been observed
+  // during the selected time window.
+  uint64 tcp_resets_total = 3;
+}
+
 // EdgeTypeL7Telemetry provides telemetry information regarding a network
 // connection at the application layer.
 message EdgeTypeL7Telemetry {
@@ -94,4 +139,60 @@ message EdgeTypeL7Telemetry {
   // http_client_errors_total is the number of HTTP client errors (4xx) that
   // occurred during the selected time window.
   uint64 http_client_errors_total = 3;
+}
+
+// EdgeTypeMulticastTelemetry provides telemetry information regarding a
+// multicast connection.
+message EdgeTypeMulticastTelemetry {
+  // sequence_number_gap_count_total is the number of sequence number gaps
+  // detected.
+  uint64 sequence_number_gap_count_total = 1;
+
+  // FeederReceiverDelayHistogram represents a cumulative histogram with
+  // hardcoded buckets for delays experienced by multicast receivers from
+  // feeders.
+  //
+  // The histogram model is based on Prometheus classic histograms, with the
+  // difference that it does not include the upper bound bucket (le="+Inf") for
+  // space efficiency. When computing rates, averages or quantiles, the
+  // count_total field can be used instead.
+  // Prometheus docs: https://prometheus.io/docs/concepts/metric_types/#histogram.
+  message FeederReceiverDelayHistogram {
+    option (buf.validate.message).cel = {
+      id: "bucket_le_1ms_monotonic"
+      message: "bucket_le_1ms_total must be <= bucket_le_10ms_total"
+      expression: "this.bucket_le_1ms_total <= this.bucket_le_10ms_total"
+    };
+    option (buf.validate.message).cel = {
+      id: "bucket_le_10ms_monotonic"
+      message: "bucket_le_10ms_total must be <= bucket_le_100ms_total"
+      expression: "this.bucket_le_10ms_total <= this.bucket_le_100ms_total"
+    };
+    option (buf.validate.message).cel = {
+      id: "bucket_le_100ms_monotonic"
+      message: "bucket_le_100ms_total must be <= bucket_le_1s_total"
+      expression: "this.bucket_le_100ms_total <= this.bucket_le_1s_total"
+    };
+    option (buf.validate.message).cel = {
+      id: "bucket_le_1s_monotonic"
+      message: "bucket_le_1s_total must be <= count_total"
+      expression: "this.bucket_le_1s_total <= this.count_total"
+    };
+    // count_total is the total number of observations. Use this to interpret
+    // the upper bound bucket (le="+Inf") in higher level calculations.
+    uint64 count_total = 1;
+    // sum_total is the sum of all observed values, in milliseconds.
+    uint64 sum_total = 2;
+    // bucket_le_1ms_total is the number of observations less than or equal to 1ms.
+    uint64 bucket_le_1ms_total = 10;
+    // bucket_le_10ms_total is the number of observations less than or equal to 10ms.
+    uint64 bucket_le_10ms_total = 20;
+    // bucket_le_100ms_total is the number of observations less than or equal to 100ms.
+    uint64 bucket_le_100ms_total = 30;
+    // bucket_le_1s_total is the number of observations less than or equal to 1s.
+    uint64 bucket_le_1s_total = 40;
+  }
+  // feeder_receiver_delay_histogram captures a histogram of delays
+  // experienced by multicast receivers from feeders.
+  FeederReceiverDelayHistogram feeder_receiver_delay_histogram = 2;
 }

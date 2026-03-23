@@ -58,4 +58,7 @@ enum ObjectType {
   // OBJECT_TYPE_CONNECTIONLOG_EVENT means the type of objects in the file are
   // graph API's ConnectionLog events.
   OBJECT_TYPE_CONNECTIONLOG_EVENT = 5;
+  // OBJECT_TYPE_PROCESS_TREE_APP_MODEL_EVENT means the type of objects in the
+  // file are process tree application model events.
+  OBJECT_TYPE_PROCESS_TREE_APP_MODEL_EVENT = 6;
 }

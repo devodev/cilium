@@ -32,6 +32,9 @@ service SystemStatusService {
 
   // GetExtraData returns the latest extra data from each node for a specific system.
   rpc GetExtraData(GetExtraDataRequest) returns (GetExtraDataResponse) {}
+
+  // GetLatestPolicyStatus returns the latest policy status for the specified systems.
+  rpc GetLatestPolicyStatus(GetLatestPolicyStatusRequest) returns (GetLatestPolicyStatusResponse) {}
 }
 
 // Request of GetSummary rpc call.
@@ -181,4 +184,29 @@ message ExtraData {
 
   // The extra data for this node.
   map<string, string> data = 4;
+}
+
+// Request for GetLatestPolicyStatus rpc call.
+message GetLatestPolicyStatusRequest {
+  // Optional cluster to filter the results
+  string cluster = 1;
+
+  // The nodes for which to get the current policy status.
+  // If empty, returns the policy status for all systems.
+  repeated string node_names = 2;
+}
+
+// Response for GetLatestPolicyStatus rpc call.
+message GetLatestPolicyStatusResponse {
+  // The list of policy statuses for the requested node.
+  repeated SystemPolicyStatus statuses = 1;
+}
+
+// SystemPolicyStatus represents the policy status of a system at a specific time.
+message SystemPolicyStatus {
+  // The time at which the policy status was recorded.
+  google.protobuf.Timestamp timestamp = 1;
+
+  // The current policy status.
+  system_status.v1alpha.PolicyStatusUpdate policy_status = 2;
 }

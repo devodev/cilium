@@ -10,6 +10,7 @@ syntax = "proto3";
 
 package graph.v1alpha;
 
+import "buf/validate/validate.proto";
 import "common/k8s/type/v1alpha/resource.proto";
 import "common/k8s/type/v1alpha/service.proto";
 import "common/k8s/type/v1alpha/workload.proto";
@@ -32,6 +33,16 @@ message Vertex {
 // VertexFamilyKubernetes represent vertex properties that are related to a
 // Kubernetes context.
 message VertexFamilyKubernetes {
+  option (buf.validate.message).cel = {
+    id: "service_kind_when_service"
+    message: "service_kind must be set when resource_kind is RESOURCE_KIND_SERVICE"
+    expression: "int(this.resource_kind) != 2 || int(this.service_kind) != 0"
+  };
+  option (buf.validate.message).cel = {
+    id: "workload_kind_when_workload"
+    message: "workload_kind must be set when resource_kind is RESOURCE_KIND_WORKLOAD"
+    expression: "int(this.resource_kind) != 1 || int(this.workload_kind) != 0"
+  };
   // UID is the unique in time and space value of the Kubernetes object.
   string uid = 1;
   // resource_kind defines the type of Kubernetes resource.
@@ -52,18 +63,36 @@ message VertexFamilyKubernetes {
   string pod_name = 8;
   // container_name is the name of the container.
   string container_name = 9;
-  // service_kind represents the type of the Kubernetes service.
+  // service_kind represents the type of the Kubernetes service. The
+  // service_kind field should be set when the resource_kind field is
+  // RESOURCE_KIND_SERVICE.
   common.k8s.type.v1alpha.ServiceKind service_kind = 10;
-  // workload_kind represents the type of the Kubernetes workload.
+  // workload_kind represents the type of the Kubernetes workload. The
+  // workload_kind should be set when the resource_kind field is set to
+  // RESOURCE_KIND_WORKLOAD.
   common.k8s.type.v1alpha.WorkloadKind workload_kind = 11;
   // ip is a network address that can be associated with the Kubernetes
   // resource and the connection.
-  string ip = 12;
+  string ip = 12 [(buf.validate.field) = {
+    ignore: IGNORE_IF_ZERO_VALUE
+    string: {ip: true}
+  }];
   // port is the network port associated with the ip address.
-  uint32 port = 13;
+  uint32 port = 13 [(buf.validate.field) = {
+    ignore: IGNORE_IF_ZERO_VALUE
+    uint32: {lte: 65535}
+  }];
+  // protocol is the protocol that is used for the connection at the L3/L4
+  // layer.
+  common.net.v1alpha.IPProtocol ip_protocol = 15;
   // application_model_uuid is a unique identifier that identifies the
   // application model associated with the Kubernetes resource.
   string application_model_uuid = 14;
+  // interface_name is the name of the network interface associated with the
+  // connection.
+  string interface_name = 16;
+  // multicast contains multicast specific information.
+  VertexPropertyMulticast multicast = 17;
 }
 
 // VertexFamilyNetworkDevice represents vertex properties that are related to a
@@ -73,9 +102,15 @@ message VertexFamilyNetworkDevice {
   string name = 1;
   // ip is a network address that can be associated with the network device and
   // the connection.
-  string ip = 2;
+  string ip = 2 [(buf.validate.field) = {
+    ignore: IGNORE_IF_ZERO_VALUE
+    string: {ip: true}
+  }];
   // port is the network port associated with the ip address.
-  uint32 port = 3;
+  uint32 port = 3 [(buf.validate.field) = {
+    ignore: IGNORE_IF_ZERO_VALUE
+    uint32: {lte: 65535}
+  }];
   // protocol is the protocol that is used for the connection at the L3/L4
   // layer.
   common.net.v1alpha.IPProtocol ip_protocol = 4;
@@ -86,10 +121,21 @@ message VertexFamilyNetworkDevice {
   string vlan_name = 7;
   // vlan_id is an ID in the range 1 to 4094 that defines a broadcast domain at
   // the data link layer.
-  uint32 vlan_id = 8;
+  uint32 vlan_id = 8 [(buf.validate.field) = {
+    ignore: IGNORE_IF_ZERO_VALUE
+    uint32: {
+      gte: 1
+      lte: 4094
+    }
+  }];
   // vrf_name is the name of a virtual routing and forwarding segement that is
   // the equivalent of a VLAN but at the network layer.
   string vrf_name = 9;
+  // interface_name is the name of the network interface associated with the
+  // connection.
+  string interface_name = 10;
+  // multicast contains multicast specific information.
+  VertexPropertyMulticast multicast = 11;
 }
 
 // VertexFamilyWorldEntity represents a broad set of network elements outside
@@ -99,7 +145,35 @@ message VertexFamilyWorldEntity {
   string dns_name = 1;
   // ip is a network address that can be associated with the world entity and
   // the connection.
-  string ip = 2;
+  string ip = 2 [(buf.validate.field) = {
+    ignore: IGNORE_IF_ZERO_VALUE
+    string: {ip: true}
+  }];
   // port is the network port associated with the ip address.
-  uint32 port = 3;
+  uint32 port = 3 [(buf.validate.field) = {
+    ignore: IGNORE_IF_ZERO_VALUE
+    uint32: {lte: 65535}
+  }];
+  // protocol is the protocol that is used for the connection at the L3/L4
+  // layer.
+  common.net.v1alpha.IPProtocol ip_protocol = 4;
+  // multicast contains multicast specific information.
+  VertexPropertyMulticast multicast = 5;
+}
+
+// VertexPropertyMulticast contains multicast specific information for a vertex.
+message VertexPropertyMulticast {
+  option (buf.validate.message).cel = {
+    id: "multicast_group_ip_range"
+    message: "group_ip must be a valid multicast address (IPv4: 224.0.0.0/4, IPv6: ff00::/8)"
+    expression: "this.group_ip == '' || this.group_ip.startsWith('224.') || this.group_ip.startsWith('225.') || this.group_ip.startsWith('226.') || this.group_ip.startsWith('227.') || this.group_ip.startsWith('228.') || this.group_ip.startsWith('229.') || this.group_ip.startsWith('230.') || this.group_ip.startsWith('231.') || this.group_ip.startsWith('232.') || this.group_ip.startsWith('233.') || this.group_ip.startsWith('234.') || this.group_ip.startsWith('235.') || this.group_ip.startsWith('236.') || this.group_ip.startsWith('237.') || this.group_ip.startsWith('238.') || this.group_ip.startsWith('239.') || this.group_ip.startsWith('ff') || this.group_ip.startsWith('FF')"
+  };
+  // source_id is an optional identifier that represents the source of the
+  // multicast traffic.
+  string source_id = 1;
+  // group_ip is the multicast group address associated with the connection.
+  string group_ip = 2 [(buf.validate.field) = {
+    ignore: IGNORE_IF_ZERO_VALUE
+    string: {ip: true}
+  }];
 }

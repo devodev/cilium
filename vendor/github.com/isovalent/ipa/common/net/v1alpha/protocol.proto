@@ -35,6 +35,8 @@ enum IPProtocol {
   IP_PROTOCOL_DCCP = 33;
   // IP_PROTOCOL_ICMPV6 is ICMP for IPv6.
   IP_PROTOCOL_ICMPV6 = 58;
+  // IP_PROTOCOL_MTP is the Multicast Transport Protocol.
+  IP_PROTOCOL_MTP = 92;
   // IP_PROTOCOL_SCTP is the Stream Control Transmission protocol.
   IP_PROTOCOL_SCTP = 132;
   // IP_PROTOCOL_UDPLITE is the Lightweight User Datagram protocol.

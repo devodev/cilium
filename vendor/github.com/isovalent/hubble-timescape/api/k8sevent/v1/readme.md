@@ -138,6 +138,9 @@ later release.
 | KIND_TETRAGON_NODE | 10 | The kind of the object was TetragonNode. |
 | KIND_SMART_SWITCH | 11 | The kind of the object was SmartSwitch. |
 | KIND_SMART_SWITCH_NETWORK_POLICY | 12 | The kind of the object was SmartSwitchNetworkPolicy. |
+| KIND_ISOVALENT_NETWORK_POLICY | 13 | The kind of the object was IsovalentNetworkPolicy. |
+| KIND_ISOVALENT_CLUSTERWIDE_NETWORK_POLICY | 14 | The kind of the object was IsovalentClusterwideNetworkPolicy. |
+| KIND_KUBERNETES_NAMESPACE | 15 | The kind of the object was the upstream Kubernetes Namespace. |
 
 
  

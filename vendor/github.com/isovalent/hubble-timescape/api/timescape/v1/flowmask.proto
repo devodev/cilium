@@ -51,6 +51,7 @@ message FlowMask {
   bool trace_observation_point = 24;
   bool trace_reason = 36;
   bool file = 38;
+  bool ip_trace_id = 40;
   bool drop_reason_desc = 25;
   bool is_reply = 26;
   bool debug_capture_point = 27;
@@ -67,4 +68,5 @@ message FlowMask {
   bool egress_denied_by = 21004;
   bool ingress_denied_by = 21005;
   bool policy_log = 21006;
+  bool aggregate = 21007;
 }

@@ -91,6 +91,12 @@ enum Kind {
   KIND_SMART_SWITCH = 11;
   // The kind of the object was SmartSwitchNetworkPolicy.
   KIND_SMART_SWITCH_NETWORK_POLICY = 12;
+  // The kind of the object was IsovalentNetworkPolicy.
+  KIND_ISOVALENT_NETWORK_POLICY = 13;
+  // The kind of the object was IsovalentClusterwideNetworkPolicy.
+  KIND_ISOVALENT_CLUSTERWIDE_NETWORK_POLICY = 14;
+  // The kind of the object was the upstream Kubernetes Namespace.
+  KIND_KUBERNETES_NAMESPACE = 15;
 }
 
 // EventType represents the type of event that occurred.

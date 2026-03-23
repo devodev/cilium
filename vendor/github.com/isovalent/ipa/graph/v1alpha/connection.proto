@@ -10,6 +10,7 @@ syntax = "proto3";
 
 package graph.v1alpha;
 
+import "buf/validate/validate.proto";
 import "common/v1alpha/emitter.proto";
 import "google/protobuf/timestamp.proto";
 import "graph/v1alpha/edge.proto";
@@ -23,18 +24,23 @@ option go_package = "github.com/isovalent/ipa/graph/v1alpha";
 // Emitters SHOULD NOT re-emit ConnectionLog events.
 // ConnectionLog events SHOULD NOT have overlapping time windows.
 message ConnectionLog {
+  option (buf.validate.message).cel = {
+    id: "window_end_after_start"
+    message: "window_end must be after or equal to window_start"
+    expression: "this.window_end >= this.window_start"
+  };
   // Uuid is a universally unique identifier for this event.
-  string uuid = 1;
+  string uuid = 1 [(buf.validate.field).string.uuid = true];
   // An emitter is the source that observes connection information. The emitter
   // typically observes data at the source of the connection.
-  common.v1alpha.Emitter emitter = 2;
+  common.v1alpha.Emitter emitter = 2 [(buf.validate.field).required = true];
 
   // Window start is the time at which the emitter started collecting
   // information regarding the observed connections.
-  google.protobuf.Timestamp window_start = 3;
+  google.protobuf.Timestamp window_start = 3 [(buf.validate.field).required = true];
   // Window end is the time at which the emitter stopped collecting information
   // regarding the observed connections.
-  google.protobuf.Timestamp window_end = 4;
+  google.protobuf.Timestamp window_end = 4 [(buf.validate.field).required = true];
 
   // Connections is a list of all connections that were tracked during the
   // given time window.
@@ -44,12 +50,17 @@ message ConnectionLog {
 // A connection is a simple directed graph where an edge links two vertices in
 // one direction.
 message Connection {
+  option (buf.validate.message).cel = {
+    id: "unique_edge_types"
+    message: "links must have unique edge types"
+    expression: "size(this.links.filter(e, has(e.basic))) <= 1 && size(this.links.filter(e, has(e.network_telemetry))) <= 1 && size(this.links.filter(e, has(e.routing_telemetry))) <= 1 && size(this.links.filter(e, has(e.l4_telemetry))) <= 1 && size(this.links.filter(e, has(e.l7_telemetry))) <= 1 && size(this.links.filter(e, has(e.multicast_telemetry))) <= 1"
+  };
   // Source defines properties of the vertex at the emitting side of the
   // connection.
-  Vertex source = 1;
+  Vertex source = 1 [(buf.validate.field).required = true];
   // Source defines properties of the vertex at the receiving side of the
   // connection.
-  Vertex destination = 2;
+  Vertex destination = 2 [(buf.validate.field).required = true];
   // Links define properties of the edges that link the two vertices.
   //
   // There MUST be at least one link between the source and destination vertices.
@@ -57,5 +68,5 @@ message Connection {
   // If more than one link is provided, their type MUST be different.
   // In other words, links MUST be a set of at least one element where every
   // element in the set is of a different edge type.
-  repeated Edge links = 3;
+  repeated Edge links = 3 [(buf.validate.field).repeated.min_items = 1];
 }

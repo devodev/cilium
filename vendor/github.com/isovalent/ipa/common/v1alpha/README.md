@@ -27,6 +27,11 @@ Emitter identifies the source that emits some data.
 | ----- | ---- | ----- | ----------- |
 | name | [string](#string) |  | name identifies the emitter. The name should be capitalized (&#34;Hubble&#34;, not &#34;hubble&#34; nor &#34;HUBBLE&#34;). |
 | version | [string](#string) |  | version identifies the emitter version. The version should not contain a &#39;v&#39; prefix as sometimes seen (&#34;1.19.0&#34;, not &#34;v1.19.0&#34;). |
+| source_identifier | [string](#string) |  | source_identifier uniquely identifies the specific instance of the emitter that produced the data. While name and version describe the emitter software itself, source_identifier pinpoints where it ran, which makes it possible to distinguish between multiple emitters of the same kind -- for example, to deduplicate events from an HA pair of smart switches, or to attribute a connection log to a specific Cilium agent.
+
+Typical values are the Kubernetes node name or pod hostname of a Cilium agent, or the serial number of a smart switch. The field is optional and may be left unset by emitters that cannot meaningfully identify themselves (e.g. single-instance deployments).
+
+The upper bound of 253 matches the maximum length of a DNS name (RFC 1035), which also bounds Kubernetes object names and pod hostnames, and comfortably fits a typical hardware serial number. |
 
 
 

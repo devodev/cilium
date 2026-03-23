@@ -112,6 +112,7 @@ ObjectType is the type of objects in a file
 | OBJECT_TYPE_K8S_EVENT | 3 | OBJECT_TYPE_K8S_EVENT means the type of objects in the file are K8s events. |
 | OBJECT_TYPE_SYSTEM_STATUS_EVENT | 4 | OBJECT_TYPE_SYSTEM_STATUS_EVENT marks the objects as system status events. |
 | OBJECT_TYPE_CONNECTIONLOG_EVENT | 5 | OBJECT_TYPE_CONNECTIONLOG_EVENT means the type of objects in the file are graph API&#39;s ConnectionLog events. |
+| OBJECT_TYPE_PROCESS_TREE_APP_MODEL_EVENT | 6 | OBJECT_TYPE_PROCESS_TREE_APP_MODEL_EVENT means the type of objects in the file are process tree application model events. |
 
 
  
@@ -217,6 +218,7 @@ ingester replicas.
 | trace_observation_point | [bool](#bool) |  |  |
 | trace_reason | [bool](#bool) |  |  |
 | file | [bool](#bool) |  |  |
+| ip_trace_id | [bool](#bool) |  |  |
 | drop_reason_desc | [bool](#bool) |  |  |
 | is_reply | [bool](#bool) |  |  |
 | debug_capture_point | [bool](#bool) |  |  |
@@ -233,6 +235,7 @@ ingester replicas.
 | egress_denied_by | [bool](#bool) |  |  |
 | ingress_denied_by | [bool](#bool) |  |  |
 | policy_log | [bool](#bool) |  |  |
+| aggregate | [bool](#bool) |  |  |
 
 
 
@@ -484,7 +487,7 @@ FlowService is a service that offers network flow related information.
 | ----------- | ------------ | ------------- | ------------|
 | GetFlow | [GetFlowRequest](#timescape-v1-GetFlowRequest) | [GetFlowResponse](#timescape-v1-GetFlowResponse) | GetFlow returns the flow that corresponds to the unique identifier. |
 | GetFlowCount | [GetFlowCountRequest](#timescape-v1-GetFlowCountRequest) | [GetFlowCountResponse](#timescape-v1-GetFlowCountResponse) stream | GetFlowCount returns the flow count per time window. If the duration of the time window is 0, results are not aggregated by window. The filter parameter can be used to limit the scope to flows that match the filter (e.g. time range). |
-| GetNamespaces | [GetNamespacesRequest](#timescape-v1-GetNamespacesRequest) | [GetNamespacesResponse](#timescape-v1-GetNamespacesResponse) | GetNamespaces returns a unique list of namespaces seen in the hubble flows (either as a source, or a destination). |
+| GetNamespaces | [GetNamespacesRequest](#timescape-v1-GetNamespacesRequest) | [GetNamespacesResponse](#timescape-v1-GetNamespacesResponse) | GetNamespaces returns a unique list of namespaces seen in flows or Kubernetes namespace events. |
 | GetFlowsSummary | [GetFlowsSummaryRequest](#timescape-v1-GetFlowsSummaryRequest) | [GetFlowsSummaryResponse](#timescape-v1-GetFlowsSummaryResponse) stream | GetFlowsSummary allows retrieval of multiple flows at the same time. |
 
  

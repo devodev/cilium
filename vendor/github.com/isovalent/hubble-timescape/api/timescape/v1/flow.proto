@@ -31,8 +31,8 @@ service FlowService {
   // (e.g. time range).
   rpc GetFlowCount(GetFlowCountRequest) returns (stream GetFlowCountResponse) {}
 
-  // GetNamespaces returns a unique list of namespaces seen in the hubble flows
-  // (either as a source, or a destination).
+  // GetNamespaces returns a unique list of namespaces seen in flows or
+  // Kubernetes namespace events.
   rpc GetNamespaces(GetNamespacesRequest) returns (GetNamespacesResponse) {}
 
   // GetFlowsSummary allows retrieval of multiple flows at the same time.
