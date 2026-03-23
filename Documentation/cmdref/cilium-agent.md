@@ -426,6 +426,7 @@ cilium-agent [flags]
       --labels strings                                                   List of label prefixes used to determine identity of an endpoint
       --lb-state-file string                                             Synchronize load-balancing state from the specified file
       --lib-dir string                                                   Directory path to store runtime build environment (default "/var/lib/cilium")
+      --loadbalancer-cp-t2-hc-probe-min-healthy-backends uint32          The minimum percentage of backends that must be healthy from T2 point of view in order to send traffic from T1 to it (default 20)
       --loadbalancer-envoy-health-state-sync-enabled                     Enables LB health state sync between K8s node and the node-local Envoy proxy
       --loadbalancer-envoy-health-state-sync-interval duration           Interval for the periodic (fallback) LB health state sync between K8s node and the node-local Envoy proxy (default 1m0s)
       --loadbalancer-flow-logs-enabled                                   Enables LB Per-packet Flow Logs

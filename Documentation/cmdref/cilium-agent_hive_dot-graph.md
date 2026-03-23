@@ -295,6 +295,7 @@ cilium-agent hive dot-graph [flags]
       --kvstore-opt stringToString                                       Key-value store options e.g. etcd.address=127.0.0.1:4001 (default [])
       --l2-pod-announcements-interface-pattern string                    Regex matching interfaces used for sending gratuitous ARP and NDP messages
       --lb-state-file string                                             Synchronize load-balancing state from the specified file
+      --loadbalancer-cp-t2-hc-probe-min-healthy-backends uint32          The minimum percentage of backends that must be healthy from T2 point of view in order to send traffic from T1 to it (default 20)
       --loadbalancer-envoy-health-state-sync-enabled                     Enables LB health state sync between K8s node and the node-local Envoy proxy
       --loadbalancer-envoy-health-state-sync-interval duration           Interval for the periodic (fallback) LB health state sync between K8s node and the node-local Envoy proxy (default 1m0s)
       --loadbalancer-flow-logs-enabled                                   Enables LB Per-packet Flow Logs

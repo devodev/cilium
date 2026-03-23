@@ -43,6 +43,7 @@ var Cell = cell.Module(
 
 	cell.Invoke(registerHealthCheckSinkServer),
 	cell.ProvidePrivate(newHealthCheckTable),
+	cell.Provide(statedb.RWTable[*HealthCheck].ToTable),
 	cell.Config(envoyHealthCheckSinkConfig{
 		EnvoyHealthCheckEventServerEnabled:    false,
 		EnvoyHealthCheckEventServerGCInterval: 30 * time.Second,
@@ -70,7 +71,7 @@ type healthcheckSinkServerParams struct {
 	EnvoyProxyConfig config.ProxyConfig
 
 	DB               *statedb.DB
-	HealthCheckTable statedb.RWTable[*healthCheck]
+	HealthCheckTable statedb.RWTable[*HealthCheck]
 	CECTable         statedb.Table[*ciliumenvoyconfig.CEC]
 }
 
@@ -113,7 +114,7 @@ func registerHealthCheckSinkServer(params healthcheckSinkServerParams) error {
 type HealthCheckSinkServer struct {
 	logger           *slog.Logger
 	db               *statedb.DB
-	healthCheckTable statedb.RWTable[*healthCheck]
+	healthCheckTable statedb.RWTable[*HealthCheck]
 	cecTable         statedb.Table[*ciliumenvoyconfig.CEC]
 
 	socketPath string
@@ -125,7 +126,7 @@ type HealthCheckSinkServer struct {
 	intervalsMutex lock.RWMutex
 }
 
-func newHealthCheckSinkServer(logger *slog.Logger, db *statedb.DB, healthCheckTable statedb.RWTable[*healthCheck], cecTable statedb.Table[*ciliumenvoyconfig.CEC], envoySocketDir string, proxyGID uint, bufferSize uint) *HealthCheckSinkServer {
+func newHealthCheckSinkServer(logger *slog.Logger, db *statedb.DB, healthCheckTable statedb.RWTable[*HealthCheck], cecTable statedb.Table[*ciliumenvoyconfig.CEC], envoySocketDir string, proxyGID uint, bufferSize uint) *HealthCheckSinkServer {
 	return &HealthCheckSinkServer{
 		logger:           logger,
 		db:               db,
@@ -276,7 +277,7 @@ func (s *HealthCheckSinkServer) updateHealthCheckEvent(event *envoy_data_core_v3
 	wtxn := s.db.WriteTxn(s.healthCheckTable)
 	defer wtxn.Commit()
 
-	_, _, err := s.healthCheckTable.Insert(wtxn, &healthCheck{
+	_, _, err := s.healthCheckTable.Insert(wtxn, &HealthCheck{
 		Cluster:   event.ClusterName,
 		Backend:   toBackendAddress(event.Host),
 		Type:      toHealthCheckType(event.HealthCheckerType),

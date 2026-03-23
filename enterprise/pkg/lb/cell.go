@@ -17,6 +17,7 @@ import (
 	"github.com/cilium/cilium/enterprise/pkg/lb/envoyhealthsync"
 	flowlogs "github.com/cilium/cilium/enterprise/pkg/lb/flowlogs"
 	"github.com/cilium/cilium/enterprise/pkg/lb/metrics"
+	"github.com/cilium/cilium/enterprise/pkg/lb/t2servicehealth"
 )
 
 var Cell = cell.Group(
@@ -24,4 +25,5 @@ var Cell = cell.Group(
 	metrics.Cell,
 	envoyhealthsync.Cell,
 	envoyhealthcheck.Cell,
+	t2servicehealth.Cell,
 )

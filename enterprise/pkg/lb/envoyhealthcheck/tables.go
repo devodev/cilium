@@ -21,14 +21,14 @@ import (
 	"github.com/cilium/cilium/pkg/time"
 )
 
-// healthCheck defines the Envoy health check cluster and it's health status.
+// HealthCheck defines the Envoy health check cluster and it's health status.
 //
 // The table is populated with the health check events received by the node local Envoy instance.
 // https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/upstream/health_checking#health-check-event-logging
 //
 // Note that the fields of this object are exported so that we can JSON marshal
 // it into sysdump.
-type healthCheck struct {
+type HealthCheck struct {
 	Cluster string
 	Backend string
 	Type    string
@@ -45,7 +45,7 @@ type healthCheck struct {
 }
 
 // TableHeader implements statedb.TableWritable.
-func (h *healthCheck) TableHeader() []string {
+func (h *HealthCheck) TableHeader() []string {
 	return []string{
 		"Cluster",
 		"Backend",
@@ -57,7 +57,7 @@ func (h *healthCheck) TableHeader() []string {
 }
 
 // TableRow implements statedb.TableWritable.
-func (h *healthCheck) TableRow() []string {
+func (h *HealthCheck) TableRow() []string {
 	return []string{
 		h.Cluster,
 		h.Backend,
@@ -68,7 +68,7 @@ func (h *healthCheck) TableRow() []string {
 	}
 }
 
-var _ statedb.TableWritable = &healthCheck{}
+var _ statedb.TableWritable = &HealthCheck{}
 
 type healthCheckKey struct {
 	Cluster string
@@ -84,16 +84,16 @@ const (
 	healthCheckTableName = "envoy-healthchecks"
 )
 
-var healthCheckClusterBackendIndex = statedb.Index[*healthCheck, healthCheckKey]{
+var healthCheckClusterBackendIndex = statedb.Index[*HealthCheck, healthCheckKey]{
 	Name: "cluster-backend-type",
-	FromObject: func(obj *healthCheck) index.KeySet {
+	FromObject: func(obj *HealthCheck) index.KeySet {
 		return index.NewKeySet(healthCheckKey{obj.Cluster, obj.Backend, obj.Type}.Key())
 	},
 	FromKey: healthCheckKey.Key,
 	Unique:  true,
 }
 
-func newHealthCheckTable(db *statedb.DB) (statedb.RWTable[*healthCheck], error) {
+func newHealthCheckTable(db *statedb.DB) (statedb.RWTable[*HealthCheck], error) {
 	return statedb.NewTable(
 		db,
 		healthCheckTableName,
