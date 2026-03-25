@@ -185,6 +185,18 @@ jobs:
             t2-nodes: "kind-worker2 kind-worker3 kind-worker4"
             # Only run the extlb tests
             run-tests: "LBK8sBackendCluster"
+          - name: "9"
+            mode: "multi-node"
+            kind-ip-family: "ipv4"
+            kernel: "6.1-20240710.064909"
+            use-remote-address: "true"
+            xff-num-trusted-hops: 0
+            nr-of-worker-nodes: 4
+            t1-nodes: "kind-control-plane kind-worker"
+            t2-nodes: "kind-worker2 kind-worker3 kind-worker4"
+            # Don't run the extlb tests, those are run in a separate matrix entry
+            run-tests: "!LBK8sBackendCluster"
+            t2-hc-push: "true"
 
     timeout-minutes: 120
 
@@ -306,6 +318,10 @@ jobs:
 
           if [[ "${{ matrix.kind-ip-family }}" == "ipv6" ]]; then
             EXTRA+=" --helm-set=ipv4.enabled=false" # explicitly disable ipv4
+          fi
+
+          if [[ "${{ matrix.t2-hc-push }}" != "" ]]; then
+            EXTRA+=" --helm-set-string=extraConfig.loadbalancer-cp-t2-hc-push-enabled=${{ matrix.t2-hc-push }}"
           fi
 
           cilium install \
