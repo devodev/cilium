@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Node
+metadata:
+  labels:
+    beta.kubernetes.io/arch: amd64
+    beta.kubernetes.io/os: linux
+    kubernetes.io/arch: amd64
+    kubernetes.io/hostname: kind-control-plane
+    kubernetes.io/os: linux
+    node-role.kubernetes.io/control-plane: ""
+    node.kubernetes.io/exclude-from-external-load-balancers: ""
+    service.cilium.io/node: t1
+  name: kind-control-plane
+spec: {}
+status:
+  addresses:
+    - address: 172.18.0.0
+      type: InternalIP
+    - address: fc00:c111::2
+      type: InternalIP
+    - address: kind-control-plane
+      type: Hostname

@@ -1,0 +1,15 @@
+apiVersion: isovalent.com/v1alpha1
+kind: LBService
+metadata:
+  namespace: default
+  name: lb-1
+spec:
+  vipRef:
+    name: lb-1
+  port: 80
+  applications:
+    udpProxy:
+      forceDeploymentMode: t1-t2
+      routes:
+        - backendRef:
+            name: lb-1

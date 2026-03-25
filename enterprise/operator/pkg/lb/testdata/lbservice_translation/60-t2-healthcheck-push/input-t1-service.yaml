@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: default
+  name: lb-1
+spec:
+  ports:
+    - name: tcp
+      port: 80
+      protocol: TCP
+  type: LoadBalancer
+status:
+  conditions:
+    - lastTransitionTime: "2024-08-22T07:33:23Z"
+      message: ""
+      reason: satisfied
+      status: "True"
+      type: cilium.io/IPAMRequestSatisfied
+  loadBalancer:
+    ingress:
+      - ip: 100.64.0.2
+        ipMode: VIP
+

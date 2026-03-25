@@ -1,0 +1,19 @@
+addressType: IPv4
+apiVersion: discovery/v1
+endpoints:
+  - addresses:
+      - 172.18.0.2
+      - 172.18.0.3
+    conditions: {}
+kind: EndpointSlice
+metadata:
+  creationTimestamp: null
+  labels:
+    endpointslice.kubernetes.io/managed-by: ilb
+    kubernetes.io/service-name: lbfe-lb-1
+  name: lbfe-lb-1
+  namespace: default
+ports:
+  - name: tcp
+    port: 80
+    protocol: TCP
