@@ -249,7 +249,12 @@ func (r *lbServiceT2Translator) desiredEnvoyListeners(model *lbService) []*envoy
 		addresses = append(addresses, *model.vip.assignedIPv6)
 	}
 
-	listeners = append(listeners, r.desiredEnvoyTCPListener(model, addresses))
+	// In T2 health push mode, UDP services no longer need the dedicated TCP health-check
+	// listener. Keeping it would emit a TCP listener without any filter chains, which Envoy
+	// rejects with a NACK.
+	if !model.isUDPProxy() || !r.config.T1T2HealthCheck.T2HCPushEnabled {
+		listeners = append(listeners, r.desiredEnvoyTCPListener(model, addresses))
+	}
 
 	if model.isUDPProxy() {
 		listeners = append(listeners, r.desiredEnvoyUDPListener(model, addresses))
@@ -461,8 +466,10 @@ func (r *lbServiceT2Translator) toProxyProtocolConfig(proxyProtocolConfig *lbSer
 func (r *lbServiceT2Translator) desiredEnvoyListenerFilterChains(model *lbService) []*envoy_config_listener_v3.FilterChain {
 	filterChains := []*envoy_config_listener_v3.FilterChain{}
 
-	healthCheckFilterChain := r.desiredEnvoyListenerHealthCheckHttpFilterChain(model)
-	filterChains = append(filterChains, healthCheckFilterChain)
+	if !r.config.T1T2HealthCheck.T2HCPushEnabled {
+		healthCheckFilterChain := r.desiredEnvoyListenerHealthCheckHttpFilterChain(model)
+		filterChains = append(filterChains, healthCheckFilterChain)
+	}
 
 	if model.applications.isHTTPProxyConfigured() {
 		httpFilterChain := r.desiredEnvoyListenerHttpFilterChain(model)
