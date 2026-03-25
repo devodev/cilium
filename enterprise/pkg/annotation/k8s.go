@@ -15,6 +15,14 @@ import (
 )
 
 const (
+	// ServiceHealthMode annotation declares that backend health for a service
+	// is provided externally rather than native active probing.
+	ServiceHealthMode = ossannotation.ServicePrefix + "/health-check-mode"
+
+	// ServiceHealthModeExternal indicates that health for the service is managed
+	// externally rather than via native active probing.
+	ServiceHealthModeExternal = "external"
+
 	// ServiceHealthProbeInterval / ServiceHealthProbeTimeout / ServiceHealthProbePort annotations
 	// determine the probe interval of a service and timeout duration for
 	// when a probe is considered as failed. ServiceHealthProbePort configures

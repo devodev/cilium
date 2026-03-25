@@ -139,7 +139,7 @@ func (c *controller) computeHealthChecks(watchSet *statedb.WatchSet, closedChann
 		svcWatchSet.Add(svcWatch)
 
 		cfg := getAnnotationHealthCheckConfig(svc.Annotations)
-		if cfg.State == HealthCheckDisabled {
+		if cfg.State == HealthCheckDisabled || cfg.State == HealthCheckEnabledExternal {
 			for hc := range c.HealthChecks.List(wtxn, healthCheckByService(svc.Name)) {
 				c.HealthChecks.Delete(wtxn, hc)
 				deletedHealthChecks = append(deletedHealthChecks, hc)
@@ -240,8 +240,7 @@ func (c *controller) updateBackendHealth(watchSet *statedb.WatchSet, deletedHeal
 }
 
 func (c *controller) isServiceHealthChecked(svc *loadbalancer.Service) bool {
-	cfg := getAnnotationHealthCheckConfig(svc.Annotations)
-	return cfg.State == HealthCheckEnabledNative
+	return IsHealthCheckEnabled(svc.Annotations)
 }
 
 func addrsEqual(a, b []lb.L3n4Addr) bool {

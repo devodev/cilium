@@ -137,6 +137,7 @@ func (r *lbServiceT1Translator) getHealthCheckAnnotations(model *lbService) map[
 	switch {
 	case !model.isTCPProxyT1OnlyMode() && !model.isUDPProxyT1OnlyMode():
 		if r.config.T1T2HealthCheck.T2HCPushEnabled {
+			annotations[annotation.ServiceHealthMode] = annotation.ServiceHealthModeExternal
 			return annotations
 		}
 

@@ -24,9 +24,5 @@ func isRemoteT2HealthService(svc *loadbalancer.Service) bool {
 		return false
 	}
 
-	if _, ok := svc.Annotations[enterpriseannotation.ServiceHealthProbeInterval]; ok {
-		return false
-	}
-
-	return true
+	return svc.Annotations[enterpriseannotation.ServiceHealthMode] == enterpriseannotation.ServiceHealthModeExternal
 }

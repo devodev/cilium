@@ -28,6 +28,7 @@ import (
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
 	enterpriseannotation "github.com/cilium/cilium/enterprise/pkg/annotation"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
+	"github.com/cilium/cilium/enterprise/pkg/service/healthchecker"
 	"github.com/cilium/cilium/pkg/annotation"
 	"github.com/cilium/cilium/pkg/bgp/agent/signaler"
 	"github.com/cilium/cilium/pkg/bgp/manager/instance"
@@ -542,9 +543,9 @@ func hasBackends(p EnterpriseReconcileParams, fe *loadbalancer.Frontend) (hasBac
 func (r *ServiceReconciler) unhealthyFrontendAddrs(svc *loadbalancer.Service, frontends []*loadbalancer.Frontend) sets.Set[netip.Addr] {
 	res := sets.New[netip.Addr]()
 
-	// if the hc probe interval annotation is not set on the service, it means that health-checking is not enabled
-	// for the service, and it is considered to be always healthy
-	if _, exists := annotation.Get(svc, enterpriseannotation.ServiceHealthProbeInterval); !exists {
+	// If neither native (active) nor external health management is configured on the
+	// service, it is considered always healthy for route advertisement purposes.
+	if !healthchecker.IsHealthCheckEnabled(svc.Annotations) {
 		return res
 	}
 

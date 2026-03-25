@@ -90,6 +90,13 @@ func defaultHealthCheckConfig() HealthCheckConfig {
 func getAnnotationHealthCheckConfig(svcAnnotations map[string]string) HealthCheckConfig {
 	hc := defaultHealthCheckConfig()
 
+	if value, ok := svcAnnotations[annotation.ServiceHealthMode]; ok {
+		switch strings.ToLower(value) {
+		case annotation.ServiceHealthModeExternal:
+			hc.State = HealthCheckEnabledExternal
+		}
+	}
+
 	if value, ok := svcAnnotations[annotation.ServiceHealthProbeInterval]; ok {
 		if duration, err := time.ParseDuration(value); err == nil {
 			hc.ProbeInterval = duration
@@ -157,4 +164,8 @@ func getAnnotationHealthCheckConfig(svcAnnotations map[string]string) HealthChec
 	}
 
 	return hc
+}
+
+func IsHealthCheckEnabled(svcAnnotations map[string]string) bool {
+	return getAnnotationHealthCheckConfig(svcAnnotations).State != HealthCheckDisabled
 }
