@@ -21,6 +21,8 @@ echo "TAG_SUFFIX=-cee.1" >> "$GITHUB_ENV"
 echo "EGRESS_GATEWAY_HELM_VALUES=--helm-set=egressGateway.enabled=true --helm-set=enterprise.egressGatewayHA.enabled=true \
     --helm-set=enterprise.featureGate.approved='{EgressGatewayIPv4,EgressGatewayHA}'" >> "$GITHUB_ENV"
 echo "BGP_CONTROL_PLANE_HELM_VALUES=--helm-set=enterprise.bgpControlPlane.enabled=true --helm-set=enterprise.bfd.enabled=true" >> "$GITHUB_ENV"
+echo "CONN_DISRUPT_EXTRA_ARG=--include-conn-disrupt-test-egw-ha" >> "$GITHUB_ENV"
+echo "CONN_DISRUPT_EXTRA_TEST=no-interrupted-connections-for-enterprise" >> "$GITHUB_ENV"
 
 echo "CILIUM_CLI_RELEASE_REPO=isovalent/cilium-cli-releases" >> "$GITHUB_ENV"
 CILIUM_CLI_VERSION=""
