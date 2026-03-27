@@ -18,10 +18,19 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/cilium/cilium/cilium-cli/connectivity/check"
+	"github.com/cilium/cilium/cilium-cli/defaults"
+	enterpriseTests "github.com/cilium/cilium/cilium-cli/enterprise/hooks/connectivity/tests"
 	"github.com/cilium/cilium/cilium-cli/k8s"
+	"github.com/cilium/cilium/cilium-cli/utils/features"
+	k8sconst "github.com/cilium/cilium/pkg/k8s/apis/cilium.io"
+	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
+	isovalentv1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
+	slimmetav1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
+	policyapi "github.com/cilium/cilium/pkg/policy/api"
 )
 
 const (
@@ -40,6 +49,7 @@ type deploymentParameters struct {
 	Affinity                      *corev1.Affinity
 	NodeSelector                  map[string]string
 	ReadinessProbe                *corev1.Probe
+	Resources                     corev1.ResourceRequirements
 	Labels                        map[string]string
 	Annotations                   map[string]string
 	HostNetwork                   bool
@@ -47,12 +57,35 @@ type deploymentParameters struct {
 	TerminationGracePeriodSeconds *int64
 }
 
+func (p *deploymentParameters) namedPort() string {
+	if len(p.NamedPort) == 0 {
+		return fmt.Sprintf("port-%d", p.Port)
+	}
+	return p.NamedPort
+}
+
+func (p *deploymentParameters) ports() (ports []corev1.ContainerPort) {
+	if p.Port != 0 {
+		ports = append(ports, corev1.ContainerPort{
+			Name: p.namedPort(), ContainerPort: int32(p.Port), HostPort: int32(p.HostPort),
+		})
+	}
+	return ports
+}
+
+func (p *deploymentParameters) envs() (envs []corev1.EnvVar) {
+	if p.Port != 0 {
+		envs = append(envs,
+			corev1.EnvVar{Name: "PORT", Value: fmt.Sprintf("%d", p.Port)},
+			corev1.EnvVar{Name: "NAMED_PORT", Value: p.namedPort()},
+		)
+	}
+	return envs
+}
+
 func newDeployment(p deploymentParameters) *appsv1.Deployment {
 	if p.Replicas == 0 {
 		p.Replicas = 1
-	}
-	if len(p.NamedPort) == 0 {
-		p.NamedPort = fmt.Sprintf("port-%d", p.Port)
 	}
 	replicas32 := int32(p.Replicas)
 	dep := &appsv1.Deployment{
@@ -76,18 +109,14 @@ func newDeployment(p deploymentParameters) *appsv1.Deployment {
 				Spec: corev1.PodSpec{
 					Containers: []corev1.Container{
 						{
-							Name: p.Name,
-							Env: []corev1.EnvVar{
-								{Name: "PORT", Value: fmt.Sprintf("%d", p.Port)},
-								{Name: "NAMED_PORT", Value: p.NamedPort},
-							},
-							Ports: []corev1.ContainerPort{
-								{Name: p.NamedPort, ContainerPort: int32(p.Port), HostPort: int32(p.HostPort)},
-							},
+							Name:            p.Name,
+							Env:             p.envs(),
+							Ports:           p.ports(),
 							Image:           p.Image,
 							ImagePullPolicy: corev1.PullIfNotPresent,
 							Command:         p.Command,
 							ReadinessProbe:  p.ReadinessProbe,
+							Resources:       p.Resources,
 							SecurityContext: &corev1.SecurityContext{
 								Capabilities: &corev1.Capabilities{
 									Add: []corev1.Capability{"NET_RAW"},
@@ -400,5 +429,335 @@ func (t *EnterpriseTest) deleteInspectionWorkloads(ctx context.Context) error {
 
 	t.Debugf("Successfully deleted inspection workloads (%d DaemonSets, %d Deployments)",
 		len(t.inspectionDaemonSets), len(t.inspectionDeploys))
+	return nil
+}
+
+// SetupConnDisruptEGWHA deploys the EGW HA conn-disrupt test resources
+// (IEGP, server, clients, CNP). BPF entry validation is handled separately.
+//
+//nolint:misspell
+func (ect *EnterpriseConnectivityTest) SetupConnDisruptEGWHA(ctx context.Context, egressCIDRs []string) error {
+	ct := ect.ConnectivityTest
+	ct.Logf("Setting up EGW HA conn-disrupt test resources...")
+
+	if len(egressCIDRs) != 0 && len(egressCIDRs) != 2 {
+		return fmt.Errorf("--conn-disrupt-egw-ha-egress-cidrs requires exactly 2 CIDRs (first for single-GW IEGP, second for two-GW IEGP), got %d", len(egressCIDRs))
+	}
+
+	gwNode1, gwNode2, nonGWNode, err := enterpriseTests.GetNodesForConnDisrupt(ct)
+	if err != nil {
+		return fmt.Errorf("failed to get nodes for conn-disrupt: %w", err)
+	}
+
+	var egressCIDRsGWNode, egressCIDRsNonGWNode []string
+	if len(egressCIDRs) == 2 {
+		egressCIDRsGWNode = []string{egressCIDRs[0]}
+		egressCIDRsNonGWNode = []string{egressCIDRs[1]}
+	}
+
+	// Deploy IEGP for GW-node client: single gateway (gwNode1),
+	// so the client on gwNode1 is guaranteed to use the local gateway.
+	if err := ect.deployConnDisruptIEGP(ctx, enterpriseTests.ConnDisruptEGWHAIEGPGWNodeName,
+		enterpriseTests.ConnDisruptEGWHAClientGWNodeAppLabel, []string{gwNode1}, egressCIDRsGWNode); err != nil {
+		return err
+	}
+
+	// Deploy IEGP for non-GW-node client: two gateways (gwNode1, gwNode2),
+	// so the client on nonGWNode gets HA failover protection.
+	if err := ect.deployConnDisruptIEGP(ctx, enterpriseTests.ConnDisruptEGWHAIEGPNonGWNodeName,
+		enterpriseTests.ConnDisruptEGWHAClientNonGWNodeAppLabel, []string{gwNode1, gwNode2}, egressCIDRsNonGWNode); err != nil {
+		return err
+	}
+
+	// Deploy server
+	if err := ect.deployConnDisruptServer(ctx); err != nil {
+		return err
+	}
+
+	// Deploy clients
+	svcAddr := fmt.Sprintf("%s.%s.svc.cluster.local.:8081", enterpriseTests.ConnDisruptEGWHAServiceName, ct.Params().TestNamespace)
+	if err := ect.deployConnDisruptClient(ctx, enterpriseTests.ConnDisruptEGWHAClientGWNodeDeploymentName,
+		enterpriseTests.ConnDisruptEGWHAClientGWNodeAppLabel, svcAddr, map[string]string{"kubernetes.io/hostname": gwNode1}); err != nil {
+		return err
+	}
+	if err := ect.deployConnDisruptClient(ctx, enterpriseTests.ConnDisruptEGWHAClientNonGWNodeDeploymentName,
+		enterpriseTests.ConnDisruptEGWHAClientNonGWNodeAppLabel, svcAddr, map[string]string{"kubernetes.io/hostname": nonGWNode}); err != nil {
+		return err
+	}
+	for _, name := range []string{enterpriseTests.ConnDisruptEGWHAClientGWNodeDeploymentName, enterpriseTests.ConnDisruptEGWHAClientNonGWNodeDeploymentName} {
+		if err := check.WaitForDeployment(ctx, ct, ect.clients.dst.Client, ct.Params().TestNamespace, name); err != nil {
+			return fmt.Errorf("%s deployment is not ready: %w", name, err)
+		}
+	}
+
+	// Wait for BPF egress-ha entries
+	if err := enterpriseTests.WaitForConnDisruptBPFEntries(ctx, ct); err != nil {
+		return fmt.Errorf("failed waiting for BPF egress-ha entries: %w", err)
+	}
+
+	ct.Logf("EGW HA conn-disrupt test setup complete")
+	return nil
+}
+
+// CleanupConnDisruptEGWHA deletes the EGW HA conn-disrupt test resources.
+//
+//nolint:misspell
+func (ect *EnterpriseConnectivityTest) CleanupConnDisruptEGWHA(ctx context.Context) error {
+	ct := ect.ConnectivityTest
+	ct.Debugf("Cleaning up EGW HA conn-disrupt test resources...")
+	ns := ct.Params().TestNamespace
+
+	for _, client := range ect.EntClients() {
+		_ = client.DeleteIsovalentEgressGatewayPolicy(ctx, enterpriseTests.ConnDisruptEGWHAIEGPGWNodeName, metav1.DeleteOptions{})
+		_ = client.DeleteIsovalentEgressGatewayPolicy(ctx, enterpriseTests.ConnDisruptEGWHAIEGPNonGWNodeName, metav1.DeleteOptions{})
+		_ = client.DeleteDeployment(ctx, ns, enterpriseTests.ConnDisruptEGWHAServerDeploymentName, metav1.DeleteOptions{})
+		_ = client.DeleteServiceAccount(ctx, ns, enterpriseTests.ConnDisruptEGWHAServerDeploymentName, metav1.DeleteOptions{})
+		_ = client.DeleteDeployment(ctx, ns, enterpriseTests.ConnDisruptEGWHAClientGWNodeDeploymentName, metav1.DeleteOptions{})
+		_ = client.DeleteServiceAccount(ctx, ns, enterpriseTests.ConnDisruptEGWHAClientGWNodeDeploymentName, metav1.DeleteOptions{})
+		_ = client.DeleteDeployment(ctx, ns, enterpriseTests.ConnDisruptEGWHAClientNonGWNodeDeploymentName, metav1.DeleteOptions{})
+		_ = client.DeleteServiceAccount(ctx, ns, enterpriseTests.ConnDisruptEGWHAClientNonGWNodeDeploymentName, metav1.DeleteOptions{})
+		_ = client.DeleteService(ctx, ns, enterpriseTests.ConnDisruptEGWHAServiceName, metav1.DeleteOptions{})
+		_ = client.DeleteCiliumNetworkPolicy(ctx, ns, enterpriseTests.ConnDisruptEGWHACNPName, metav1.DeleteOptions{})
+	}
+
+	return nil
+}
+
+//nolint:misspell
+func (ect *EnterpriseConnectivityTest) deployConnDisruptIEGP(ctx context.Context, iegpName, clientAppLabel string, gatewayNodes, egressCIDRs []string) error {
+	ct := ect.ConnectivityTest
+	iegpClient := ect.clients.src.EnterpriseCiliumClientset.IsovalentV1().IsovalentEgressGatewayPolicies()
+
+	_, err := iegpClient.Get(ctx, iegpName, metav1.GetOptions{})
+	if err == nil {
+		ct.Logf("✨ [%s] IEGP %s already exists, skipping creation", ect.clients.src.ClusterName(), iegpName)
+		return nil
+	}
+
+	egressGroups := make([]isovalentv1.EgressGroup, 0, len(gatewayNodes))
+	for _, node := range gatewayNodes {
+		egressGroups = append(egressGroups, isovalentv1.EgressGroup{
+			NodeSelector: &slimmetav1.LabelSelector{
+				MatchLabels: map[string]slimmetav1.MatchLabelsValue{
+					"kubernetes.io/hostname": node,
+				},
+			},
+		})
+	}
+
+	ipv4CIDRs := make([]isovalentv1.IPv4CIDR, 0, len(egressCIDRs))
+	for _, cidr := range egressCIDRs {
+		ipv4CIDRs = append(ipv4CIDRs, isovalentv1.IPv4CIDR(cidr))
+	}
+
+	iegp := &isovalentv1.IsovalentEgressGatewayPolicy{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "IsovalentEgressGatewayPolicy",
+			APIVersion: "isovalent.com/v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: iegpName,
+		},
+		Spec: isovalentv1.IsovalentEgressGatewayPolicySpec{
+			Selectors: []isovalentv1.EgressRule{
+				{
+					PodSelector: &slimmetav1.LabelSelector{
+						MatchLabels: map[string]slimmetav1.MatchLabelsValue{
+							k8sconst.PodNamespaceLabel: ct.Params().TestNamespace,
+							"app":                      clientAppLabel,
+						},
+					},
+				},
+			},
+			DestinationCIDRs: []isovalentv1.IPv4CIDR{"0.0.0.0/0"},
+			EgressCIDRs:      ipv4CIDRs,
+			EgressGroups:     egressGroups,
+			AZAffinity:       "disabled",
+		},
+	}
+
+	ct.Logf("✨ [%s] Deploying IEGP %s...", ect.clients.src.ClusterName(), iegpName)
+	_, err = iegpClient.Create(ctx, iegp, metav1.CreateOptions{})
+	if err != nil {
+		return fmt.Errorf("unable to create IsovalentEgressGatewayPolicy %s: %w", iegpName, err)
+	}
+
+	return nil
+}
+
+func connDisruptReadinessProbe(readyFile string) *corev1.Probe {
+	return &corev1.Probe{
+		ProbeHandler: corev1.ProbeHandler{
+			Exec: &corev1.ExecAction{
+				Command: []string{"cat", readyFile},
+			},
+		},
+		PeriodSeconds:       int32(3),
+		InitialDelaySeconds: int32(1),
+		FailureThreshold:    int32(20),
+	}
+}
+
+func connDisruptResources() corev1.ResourceRequirements {
+	return corev1.ResourceRequirements{
+		Requests: corev1.ResourceList{
+			corev1.ResourceCPU: *resource.NewMilliQuantity(100, resource.DecimalSI),
+		},
+	}
+}
+
+//nolint:misspell
+func (ect *EnterpriseConnectivityTest) deployConnDisruptServer(ctx context.Context) error {
+	ct := ect.ConnectivityTest
+	deployName := enterpriseTests.ConnDisruptEGWHAServerDeploymentName
+
+	_, err := ect.clients.src.GetDeployment(ctx, ct.Params().TestNamespace, deployName, metav1.GetOptions{})
+	if err != nil {
+		ct.Logf("✨ [%s] Deploying %s deployment...", ect.clients.src.ClusterName(), deployName)
+
+		params := ct.Params()
+		dep := newDeployment(deploymentParameters{
+			Name:           deployName,
+			Kind:           enterpriseTests.KindConnDisruptEGWHA,
+			Image:          params.TestConnDisruptImage,
+			Command:        []string{"tcd-server", "8081"},
+			Port:           8081,
+			Labels:         map[string]string{"app": enterpriseTests.ConnDisruptEGWHAServerAppLabel},
+			ReadinessProbe: connDisruptReadinessProbe("/tmp/server-ready"),
+			Resources:      connDisruptResources(),
+			NodeSelector:   map[string]string{defaults.CiliumNoScheduleLabel: "true"},
+			HostNetwork:    true,
+			Tolerations: append(params.GetTolerations(), corev1.Toleration{
+				Operator: corev1.TolerationOpExists,
+			}),
+		})
+
+		_, err = ect.clients.src.CreateServiceAccount(ctx, ct.Params().TestNamespace, k8s.NewServiceAccount(deployName), metav1.CreateOptions{})
+		if err != nil {
+			return fmt.Errorf("unable to create service account %s: %w", deployName, err)
+		}
+
+		_, err = ect.clients.src.CreateDeployment(ctx, ct.Params().TestNamespace, dep, metav1.CreateOptions{})
+		if err != nil {
+			return fmt.Errorf("unable to create deployment %s: %w", deployName, err)
+		}
+	}
+
+	// Make sure that the server deployment is ready to spread client connections
+	if err := check.WaitForDeployment(ctx, ct, ect.clients.src.Client, ct.Params().TestNamespace, enterpriseTests.ConnDisruptEGWHAServerDeploymentName); err != nil {
+		return fmt.Errorf("%s deployment is not ready: %w", enterpriseTests.ConnDisruptEGWHAServerDeploymentName, err)
+	}
+
+	for _, client := range ect.clients.clients() {
+		_, getErr := client.GetService(ctx, ct.Params().TestNamespace, enterpriseTests.ConnDisruptEGWHAServiceName, metav1.GetOptions{})
+		if getErr != nil {
+			ct.Logf("✨ [%s] Deploying %s service...", client.ClusterName(), enterpriseTests.ConnDisruptEGWHAServiceName)
+			svc := &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: enterpriseTests.ConnDisruptEGWHAServiceName,
+					Annotations: map[string]string{
+						"service.cilium.io/global": "true",
+					},
+				},
+				Spec: corev1.ServiceSpec{
+					Type: corev1.ServiceType(ct.Params().ServiceType),
+					Ports: []corev1.ServicePort{{
+						Name: "http",
+						Port: 8081,
+					}},
+					Selector: map[string]string{"app": enterpriseTests.ConnDisruptEGWHAServerAppLabel},
+				},
+			}
+			_, err = client.CreateService(ctx, ct.Params().TestNamespace, svc, metav1.CreateOptions{})
+			if err != nil {
+				return fmt.Errorf("unable to create service %s: %w", enterpriseTests.ConnDisruptEGWHAServiceName, err)
+			}
+		}
+	}
+
+	if enabled, _ := ct.Features.MatchRequirements(features.RequireEnabled(features.CNP)); enabled {
+		for _, client := range ect.clients.clients() {
+			ct.Logf("✨ [%s] Deploying CNP %s...", client.ClusterName(), enterpriseTests.ConnDisruptEGWHACNPName)
+			cnp := &ciliumv2.CiliumNetworkPolicy{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       ciliumv2.CNPKindDefinition,
+					APIVersion: ciliumv2.SchemeGroupVersion.String(),
+				},
+				ObjectMeta: metav1.ObjectMeta{Name: enterpriseTests.ConnDisruptEGWHACNPName, Namespace: ct.Params().TestNamespace},
+				Spec: &policyapi.Rule{
+					EndpointSelector: policyapi.EndpointSelector{
+						LabelSelector: &slimmetav1.LabelSelector{
+							MatchLabels: map[string]string{"kind": enterpriseTests.KindConnDisruptEGWHA},
+						},
+					},
+					Egress: []policyapi.EgressRule{
+						{
+							EgressCommonRule: policyapi.EgressCommonRule{
+								ToEntities: policyapi.EntitySlice{policyapi.EntityWorld},
+							},
+							ToPorts: []policyapi.PortRule{{
+								Ports: []policyapi.PortProtocol{{
+									Protocol: policyapi.ProtoTCP,
+									Port:     "8081",
+								}},
+							}},
+						},
+						{
+							ToPorts: []policyapi.PortRule{{
+								Ports: []policyapi.PortProtocol{
+									{Protocol: policyapi.ProtoUDP, Port: "53"},
+									{Protocol: policyapi.ProtoUDP, Port: "5353"},
+								},
+							}},
+						},
+					},
+				},
+			}
+			_, err := client.ApplyGeneric(ctx, cnp)
+			if err != nil {
+				return fmt.Errorf("unable to create CiliumNetworkPolicy %s: %w", enterpriseTests.ConnDisruptEGWHACNPName, err)
+			}
+		}
+	}
+
+	return nil
+}
+
+//nolint:misspell
+func (ect *EnterpriseConnectivityTest) deployConnDisruptClient(ctx context.Context, deployName, appLabel, address string, nodeSelector map[string]string) error {
+	ct := ect.ConnectivityTest
+
+	_, err := ect.clients.dst.GetDeployment(ctx, ct.Params().TestNamespace, deployName, metav1.GetOptions{})
+	if err != nil {
+		ct.Logf("✨ [%s] Deploying %s deployment...", ect.clients.dst.ClusterName(), deployName)
+
+		params := ct.Params()
+		dep := newDeployment(deploymentParameters{
+			Name:  deployName,
+			Kind:  enterpriseTests.KindConnDisruptEGWHA,
+			Image: params.TestConnDisruptImage,
+			Command: []string{
+				"tcd-client",
+				"--dispatch-interval", params.ConnDisruptDispatchInterval.String(),
+				address,
+			},
+			Labels:         map[string]string{"app": appLabel},
+			ReadinessProbe: connDisruptReadinessProbe("/tmp/client-ready"),
+			Resources:      connDisruptResources(),
+			NodeSelector:   nodeSelector,
+			Tolerations:    params.GetTolerations(),
+		})
+
+		_, err = ect.clients.dst.CreateServiceAccount(ctx, ct.Params().TestNamespace, k8s.NewServiceAccount(deployName), metav1.CreateOptions{})
+		if err != nil {
+			return fmt.Errorf("unable to create service account %s: %w", deployName, err)
+		}
+
+		_, err = ect.clients.dst.CreateDeployment(ctx, ct.Params().TestNamespace, dep, metav1.CreateOptions{})
+		if err != nil {
+			return fmt.Errorf("unable to create deployment %s: %w", deployName, err)
+		}
+	}
+
 	return nil
 }

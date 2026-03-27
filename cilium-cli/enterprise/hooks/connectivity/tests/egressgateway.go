@@ -104,7 +104,11 @@ type ipRouteEntry struct {
 func waitForBpfPolicyEntries(ctx context.Context, t *check.Test,
 	targetEntriesCallback func(ciliumPod check.Pod) []bpfEgressGatewayPolicyEntry,
 ) error {
-	return waitForBpfPolicyEntriesWithEntryMatcher(ctx, t.Context().CiliumPods(), targetEntriesCallback, nil, nil)
+	ct := t.Context()
+	return waitForBpfPolicyEntriesWithEntryMatcher(ctx, ct.CiliumPods(), targetEntriesCallback, nil,
+		func(ciliumPod check.Pod) ([]bpfEgressGatewayPolicyEntry, error) {
+			return getConnDisruptEgressHAPolicyEntries(ctx, ct, ciliumPod)
+		})
 }
 
 func waitForBpfPolicyEntriesWithEntryMatcher(ctx context.Context,
@@ -922,7 +926,9 @@ func (s *egressGatewayAZAffinity) Run(ctx context.Context, t *check.Test) {
 			// The egressIP allows both the node IP and 0.0.0.0 to support both the new and old versions.
 			(targetEntry.EgressIP == entry.EgressIP || entry.EgressIP == "0.0.0.0") &&
 			cmp.Equal(targetEntry.GatewayIPs, entry.GatewayIPs, cmpopts.EquateEmpty())
-	}, nil); err != nil {
+	}, func(ciliumPod check.Pod) ([]bpfEgressGatewayPolicyEntry, error) {
+		return getConnDisruptEgressHAPolicyEntries(ctx, ct, ciliumPod)
+	}); err != nil {
 		t.Fatalf("%v", err)
 	}
 

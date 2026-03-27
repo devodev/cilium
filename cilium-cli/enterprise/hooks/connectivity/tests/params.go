@@ -16,6 +16,12 @@ var Params Parameters
 
 type Parameters struct {
 	EgressGateway EgressGatewayParameters
+	ConnDisrupt   ConnDisruptParameters
+}
+
+type ConnDisruptParameters struct {
+	IncludeConnDisruptTestEGWHA bool
+	EgressCIDRs                 []string
 }
 
 type EgressGatewayParameters struct {

@@ -82,6 +82,12 @@ func (ec *EnterpriseConnectivity) addConnectivityTests(cts ...*check.Connectivit
 		}
 	}
 
+	if enterpriseTests.Params.ConnDisrupt.IncludeConnDisruptTestEGWHA {
+		if err := ec.addEgressGatewayHAConnDisruptTest(cts[0]); err != nil {
+			return err
+		}
+	}
+
 	if err := ec.addMulticastTests(cts[0]); err != nil {
 		return err
 	}
@@ -132,6 +138,8 @@ func (ec *EnterpriseConnectivity) addConnectivityTestFlags(flags *pflag.FlagSet)
 	flags.DurationVar(&enterpriseTests.Params.EgressGateway.RetryDelay, "egw-ipam-retry-delay", defaults.EgressGatewayConnectRetryDelayDefault, "Delay between retries to external targets for egress gateway ha IPAM tests")
 	flags.Int64Var(&enterpriseTests.Params.EgressGateway.PeerASN, "egw-bgp-asn", defaults.EgressGatewayPeerASN, "Number of peer ASN")
 	flags.StringSliceVar(&enterpriseTests.Params.EgressGateway.PeerAddresses, "egw-bgp-peer-addresses", nil, "")
+	flags.BoolVar(&enterpriseTests.Params.ConnDisrupt.IncludeConnDisruptTestEGWHA, "include-conn-disrupt-test-egw-ha", false, "Include conn disrupt test for Egress Gateway HA")
+	flags.StringSliceVar(&enterpriseTests.Params.ConnDisrupt.EgressCIDRs, "conn-disrupt-egw-ha-egress-cidrs", nil, "CIDRs to use to allocate Egress IPs in EGW HA conn disrupt IEGPs")
 }
 
 func (ec *EnterpriseConnectivity) addHubbleVersionTests(cts ...*check.ConnectivityTest) error {
@@ -362,6 +370,24 @@ func (ec *EnterpriseConnectivity) addEgressGatewayHATests(ct *check.Connectivity
 			WithCiliumPolicy(clientEgressL7HTTPAnywhereYAML).             // L7 allow policy with HTTP introspection
 			WithScenarios(enterpriseTests.EgressGatewayHABGPAdvertisement(bfdEnabled))
 	}
+
+	return nil
+}
+
+func (ec *EnterpriseConnectivity) addEgressGatewayHAConnDisruptTest(ct *check.ConnectivityTest) error {
+	enterpriseCheck.NewEnterpriseConnectivityTest(ct).
+		NewEnterpriseTestWithoutSetup("no-interrupted-connections-for-enterprise").
+		WithFeatureRequirements(
+			features.RequireEnabled(enterpriseFeatures.EgressGatewayHA),
+			features.RequireEnabled(features.NodeWithoutCilium),
+		).
+		WithScenarios(enterpriseTests.EnterpriseNoInterruptedConnections()).
+		WithFinalizer(func(ctx context.Context) error {
+			if !ct.Params().ConnDisruptTestSetup {
+				return enterpriseCheck.NewEnterpriseConnectivityTest(ct).CleanupConnDisruptEGWHA(ctx)
+			}
+			return nil
+		})
 
 	return nil
 }

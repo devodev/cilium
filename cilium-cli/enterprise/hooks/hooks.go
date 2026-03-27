@@ -21,9 +21,11 @@ import (
 	"github.com/cilium/cilium/cilium-cli/connectivity/check"
 	"github.com/cilium/cilium/cilium-cli/enterprise/hooks/cli"
 	"github.com/cilium/cilium/cilium-cli/enterprise/hooks/cli/bgp"
+	enterpriseCheck "github.com/cilium/cilium/cilium-cli/enterprise/hooks/connectivity/check"
 	"github.com/cilium/cilium/cilium-cli/enterprise/hooks/connectivity/tests"
 	enterpriseFeatures "github.com/cilium/cilium/cilium-cli/enterprise/hooks/utils/features"
 	"github.com/cilium/cilium/cilium-cli/sysdump"
+	"github.com/cilium/cilium/cilium-cli/utils/features"
 )
 
 // EnterpriseHooks implements cli.Hooks interface to add connectivity tests and
@@ -109,6 +111,26 @@ func (eh *EnterpriseHooks) SetupAndValidate(ctx context.Context, ct *check.Conne
 	eh.ec.mixedRoutingScenario = mr
 	if err := setup(ctx, ct); err != nil {
 		return err
+	}
+
+	// Setup EGW HA conn-disrupt test resources during the conn-disrupt
+	// setup phase. During the setup phase the builder only registers OSS
+	// conn-disrupt tests. We register the enterprise conn-disrupt test
+	// here so the scenario can record restart counts during setup and compare
+	// them during the check phase.
+	if ct.Params().ConnDisruptTestSetup &&
+		tests.Params.ConnDisrupt.IncludeConnDisruptTestEGWHA {
+		if ct.Params().IncludeUnsafeTests &&
+			ct.Features[enterpriseFeatures.EgressGatewayHA].Enabled &&
+			ct.Features[features.NodeWithoutCilium].Enabled {
+			e := enterpriseCheck.NewEnterpriseConnectivityTest(ct)
+			if err := e.SetupConnDisruptEGWHA(ctx, tests.Params.ConnDisrupt.EgressCIDRs); err != nil {
+				return err
+			}
+		}
+		if err := eh.ec.addEgressGatewayHAConnDisruptTest(ct); err != nil {
+			return err
+		}
 	}
 
 	return nil

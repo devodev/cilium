@@ -463,6 +463,7 @@
 /cilium-cli/enterprise/hooks/cli/privnet* @isovalent/private-networking
 /cilium-cli/enterprise/hooks/connectivity/tests/bfd.go @isovalent/traffic-engineering
 /cilium-cli/enterprise/hooks/connectivity/tests/bgp.go @isovalent/traffic-engineering
+/cilium-cli/enterprise/hooks/connectivity/tests/conn_disrupt.go @isovalent/egress-gateway
 /cilium-cli/enterprise/hooks/connectivity/tests/egressgateway.go @isovalent/egress-gateway
 /cilium-cli/enterprise/hooks/connectivity/tests/external_dns_proxy*.go @isovalent/dns-proxy
 /cilium-cli/enterprise/hooks/connectivity/tests/hubble-cli-version.go @isovalent/hubble
