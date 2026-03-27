@@ -104,20 +104,20 @@ type ipRouteEntry struct {
 func waitForBpfPolicyEntries(ctx context.Context, t *check.Test,
 	targetEntriesCallback func(ciliumPod check.Pod) []bpfEgressGatewayPolicyEntry,
 ) error {
-	return waitForBpfPolicyEntriesWithEntryMatcher(ctx, t, targetEntriesCallback, nil)
+	return waitForBpfPolicyEntriesWithEntryMatcher(ctx, t.Context().CiliumPods(), targetEntriesCallback, nil, nil)
 }
 
-func waitForBpfPolicyEntriesWithEntryMatcher(ctx context.Context, t *check.Test,
+func waitForBpfPolicyEntriesWithEntryMatcher(ctx context.Context,
+	ciliumPods map[string]check.Pod,
 	targetEntriesCallback func(ciliumPod check.Pod) []bpfEgressGatewayPolicyEntry,
 	entryMatcher func(targetEntry, entry bpfEgressGatewayPolicyEntry) bool,
+	excludeEntries func(ciliumPod check.Pod) ([]bpfEgressGatewayPolicyEntry, error),
 ) error {
-	ct := t.Context()
-
 	w := wait.NewObserver(ctx, wait.Parameters{Timeout: 10 * time.Second})
 	defer w.Cancel()
 
 	ensureBpfPolicyEntries := func() error {
-		for _, ciliumPod := range ct.CiliumPods() {
+		for _, ciliumPod := range ciliumPods {
 			targetEntries := targetEntriesCallback(ciliumPod)
 
 			cmd := strings.Split("cilium bpf egress-ha list -o json", " ")
@@ -128,6 +128,18 @@ func waitForBpfPolicyEntriesWithEntryMatcher(ctx context.Context, t *check.Test,
 
 			entries := []bpfEgressGatewayPolicyEntry{}
 			json.Unmarshal(stdout.Bytes(), &entries)
+
+			if excludeEntries != nil {
+				excludes, err := excludeEntries(ciliumPod)
+				if err != nil {
+					return fmt.Errorf("failed to get exclude entries: %w", err)
+				}
+				for _, exclude := range excludes {
+					entries = slices.DeleteFunc(entries, func(entry bpfEgressGatewayPolicyEntry) bool {
+						return entry.matches(exclude)
+					})
+				}
+			}
 
 		nextTargetEntry:
 			for _, targetEntry := range targetEntries {
@@ -879,7 +891,7 @@ func (s *egressGatewayAZAffinity) Run(ctx context.Context, t *check.Test) {
 	}
 
 	// wait for the policy map to be populated
-	if err := waitForBpfPolicyEntriesWithEntryMatcher(ctx, t, func(ciliumPod check.Pod) []bpfEgressGatewayPolicyEntry {
+	if err := waitForBpfPolicyEntriesWithEntryMatcher(ctx, ct.CiliumPods(), func(ciliumPod check.Pod) []bpfEgressGatewayPolicyEntry {
 		targetEntries := []bpfEgressGatewayPolicyEntry{}
 
 		for _, client := range ct.ClientPods() {
@@ -910,7 +922,7 @@ func (s *egressGatewayAZAffinity) Run(ctx context.Context, t *check.Test) {
 			// The egressIP allows both the node IP and 0.0.0.0 to support both the new and old versions.
 			(targetEntry.EgressIP == entry.EgressIP || entry.EgressIP == "0.0.0.0") &&
 			cmp.Equal(targetEntry.GatewayIPs, entry.GatewayIPs, cmpopts.EquateEmpty())
-	}); err != nil {
+	}, nil); err != nil {
 		t.Fatalf("%v", err)
 	}
 
