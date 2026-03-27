@@ -20,6 +20,7 @@ import (
 	ctrlRuntime "sigs.k8s.io/controller-runtime"
 
 	isovalentv1alpha1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
+	"github.com/cilium/cilium/pkg/option"
 )
 
 var Cell = cell.Module(
@@ -33,17 +34,21 @@ var Cell = cell.Module(
 )
 
 type Config struct {
-	WAFEnabled       bool
-	WAFMode          string
-	WAFPolicyProfile string
-	WAFFailureMode   string
+	WAFEnabled              bool
+	WAFMode                 string
+	WAFPolicyProfile        string
+	WAFFailureMode          string
+	WAFInlineRulesConfigMap string
 }
+
+const DefaultInlineRulesCM = "waf-inline-rules"
 
 func (cfg Config) Flags(flags *pflag.FlagSet) {
 	flags.Bool("waf-enabled", cfg.WAFEnabled, "Enable WAF by default for operator-managed resources.")
 	flags.String("waf-mode", string(isovalentv1alpha1.IsovalentWAFPolicyModeEnforce), "Default WAF mode for operator-managed resources. Applicable values: Monitor, Enforce")
 	flags.String("waf-policy-profile", string(isovalentv1alpha1.IsovalentWAFPolicyProfileBalanced), "Default WAF policy profile for operator-managed resources. Applicable values: max_security, high_security, balanced, low_friction, min_friction")
 	flags.String("waf-failure-mode", string(isovalentv1alpha1.WAFFailureModeOpen), "Default WAF failure mode for operator-managed resources. Applicable values: Open, Close")
+	flags.String("waf-inline-rules-config-map", DefaultInlineRulesCM, "Name of the ConfigMap used to publish shared WAF inline rule bundles.")
 }
 
 type GlobalDefaults struct {
@@ -97,6 +102,7 @@ type reconcilerParams struct {
 
 	Logger             *slog.Logger
 	Config             Config
+	AgentConfig        *option.DaemonConfig
 	CtrlRuntimeManager ctrlRuntime.Manager
 	Scheme             *runtime.Scheme
 }
@@ -113,5 +119,18 @@ func registerReconcilers(params reconcilerParams) error {
 		return fmt.Errorf("failed to add Isovalent scheme: %w", err)
 	}
 
-	return newReconciler(params.Logger, params.CtrlRuntimeManager.GetClient()).SetupWithManager(params.CtrlRuntimeManager)
+	namespace := ""
+	if params.AgentConfig != nil {
+		namespace = params.AgentConfig.CiliumNamespaceName()
+	}
+
+	return newReconciler(
+		params.Logger,
+		params.CtrlRuntimeManager.GetClient(),
+		// Use an uncached reader for the operator-managed ConfigMap to avoid
+		// starting a cluster-scoped ConfigMap informer.
+		params.CtrlRuntimeManager.GetAPIReader(),
+		namespace,
+		params.Config.WAFInlineRulesConfigMap,
+	).SetupWithManager(params.CtrlRuntimeManager)
 }

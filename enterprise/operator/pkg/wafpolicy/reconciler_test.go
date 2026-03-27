@@ -13,6 +13,7 @@ package wafpolicy
 import (
 	"testing"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -30,6 +31,7 @@ import (
 
 func TestReconcilerSetsAcceptedCondition(t *testing.T) {
 	scheme := runtime.NewScheme()
+	utilruntime.Must(corev1.AddToScheme(scheme))
 	utilruntime.Must(isovalentv1alpha1.AddToScheme(scheme))
 
 	testCases := []struct {
@@ -168,7 +170,7 @@ func TestReconcilerSetsAcceptedCondition(t *testing.T) {
 				WithObjects(tc.policy.DeepCopy()).
 				Build()
 
-			reconciler := newReconciler(hivetest.Logger(t), k8sClient)
+			reconciler := newReconciler(hivetest.Logger(t), k8sClient, k8sClient, "kube-system", "")
 
 			_, err := reconciler.Reconcile(t.Context(), ctrl.Request{
 				NamespacedName: types.NamespacedName{
@@ -186,5 +188,94 @@ func TestReconcilerSetsAcceptedCondition(t *testing.T) {
 			require.NotNil(t, condition)
 			require.Equal(t, tc.expectedStatus, condition.Status)
 		})
+	}
+}
+
+func TestBuildInlineBundleEntries(t *testing.T) {
+	testCases := []struct {
+		name     string
+		policy   *isovalentv1alpha1.IsovalentWAFPolicy
+		expected map[string]string
+	}{
+		{
+			name:   "custom rules produce inline bundle entry",
+			policy: newInlineBundlePolicy(),
+			expected: func() map[string]string {
+				expectedInline, err := BuildInlineRules(`SecAction "id:1000,phase:1,pass,nolog"`)
+				require.NoError(t, err)
+				return map[string]string{
+					expectedInline.HashKey: expectedInline.Inline,
+				}
+			}(),
+		},
+		{
+			name:     "missing custom rules return no entries",
+			policy:   &isovalentv1alpha1.IsovalentWAFPolicy{},
+			expected: nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			actual, err := buildInlineBundleEntries(tc.policy)
+			require.NoError(t, err)
+			require.Equal(t, tc.expected, actual)
+		})
+	}
+}
+
+func TestMergeInlineBundleData(t *testing.T) {
+	testCases := []struct {
+		name     string
+		existing map[string]string
+		updates  map[string]string
+		expected map[string]string
+	}{
+		{
+			name:     "keeps existing entries and adds new keys",
+			existing: map[string]string{"stale": "stale"},
+			updates:  map[string]string{"new": "value"},
+			expected: map[string]string{
+				"stale": "stale",
+				"new":   "value",
+			},
+		},
+		{
+			name:     "updates override existing keys",
+			existing: map[string]string{"same": "old"},
+			updates:  map[string]string{"same": "new"},
+			expected: map[string]string{"same": "new"},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			actual := mergeInlineBundleData(tc.existing, tc.updates)
+			require.Equal(t, tc.expected, actual)
+		})
+	}
+}
+
+func newInlineBundlePolicy() *isovalentv1alpha1.IsovalentWAFPolicy {
+	return &isovalentv1alpha1.IsovalentWAFPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "team-a",
+			Name:      "policy-inline",
+		},
+		Spec: isovalentv1alpha1.IsovalentWAFPolicySpec{
+			Targets: isovalentv1alpha1.IsovalentWAFPolicyTargets{
+				LBServices: &isovalentv1alpha1.IsovalentWAFPolicyLBServices{
+					LabelSelector: &slim_metav1.LabelSelector{
+						MatchLabels: map[string]string{"app": "api"},
+					},
+				},
+			},
+			Enabled: true,
+			Rules: &isovalentv1alpha1.IsovalentWAFPolicyRules{
+				Custom: &isovalentv1alpha1.IsovalentWAFCustomRules{
+					Inline: `SecAction "id:1000,phase:1,pass,nolog"`,
+				},
+			},
+		},
 	}
 }
