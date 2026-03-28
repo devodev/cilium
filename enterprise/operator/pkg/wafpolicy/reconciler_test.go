@@ -80,6 +80,84 @@ func TestReconcilerSetsAcceptedCondition(t *testing.T) {
 			},
 			expectedStatus: metav1.ConditionFalse,
 		},
+		{
+			name: "invalid inline rules",
+			policy: &isovalentv1alpha1.IsovalentWAFPolicy{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "team-a",
+					Name:      "policy1",
+				},
+				Spec: isovalentv1alpha1.IsovalentWAFPolicySpec{
+					Targets: isovalentv1alpha1.IsovalentWAFPolicyTargets{
+						LBServices: &isovalentv1alpha1.IsovalentWAFPolicyLBServices{
+							LabelSelector: &slim_metav1.LabelSelector{
+								MatchLabels: map[string]string{"app": "api"},
+							},
+						},
+					},
+					Enabled: true,
+					Rules: &isovalentv1alpha1.IsovalentWAFPolicyRules{
+						Custom: &isovalentv1alpha1.IsovalentWAFCustomRules{
+							Inline: `SecRule REQUEST_URI "@rx (" "id:1000,phase:1,deny"`,
+						},
+					},
+				},
+			},
+			expectedStatus: metav1.ConditionFalse,
+		},
+		{
+			name: "empty inline rules",
+			policy: &isovalentv1alpha1.IsovalentWAFPolicy{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "team-a",
+					Name:      "policy1",
+				},
+				Spec: isovalentv1alpha1.IsovalentWAFPolicySpec{
+					Targets: isovalentv1alpha1.IsovalentWAFPolicyTargets{
+						LBServices: &isovalentv1alpha1.IsovalentWAFPolicyLBServices{
+							LabelSelector: &slim_metav1.LabelSelector{
+								MatchLabels: map[string]string{"app": "api"},
+							},
+						},
+					},
+					Enabled: true,
+					Rules: &isovalentv1alpha1.IsovalentWAFPolicyRules{
+						Custom: &isovalentv1alpha1.IsovalentWAFCustomRules{
+							Inline: "\n\t \r\n",
+						},
+					},
+				},
+			},
+			expectedStatus: metav1.ConditionFalse,
+		},
+		{
+			name: "rejects policies that specify both managed and custom rules",
+			policy: &isovalentv1alpha1.IsovalentWAFPolicy{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "team-a",
+					Name:      "policy1",
+				},
+				Spec: isovalentv1alpha1.IsovalentWAFPolicySpec{
+					Targets: isovalentv1alpha1.IsovalentWAFPolicyTargets{
+						LBServices: &isovalentv1alpha1.IsovalentWAFPolicyLBServices{
+							LabelSelector: &slim_metav1.LabelSelector{
+								MatchLabels: map[string]string{"app": "api"},
+							},
+						},
+					},
+					Enabled: true,
+					Rules: &isovalentv1alpha1.IsovalentWAFPolicyRules{
+						Managed: &isovalentv1alpha1.IsovalentWAFManagedRules{
+							Profile: isovalentv1alpha1.IsovalentWAFPolicyProfileBalanced,
+						},
+						Custom: &isovalentv1alpha1.IsovalentWAFCustomRules{
+							Inline: `SecAction "id:1000,phase:1,pass,nolog"`,
+						},
+					},
+				},
+			},
+			expectedStatus: metav1.ConditionFalse,
+		},
 	}
 
 	for _, tc := range testCases {

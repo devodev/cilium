@@ -39,7 +39,7 @@ func TestResolveForLBService(t *testing.T) {
 		},
 	}
 
-	inline := "SecRuleEngine DetectionOnly\n"
+	inline := `SecAction "id:1000,phase:1,pass,nolog"`
 	mode := isovalentv1alpha1.IsovalentWAFPolicyModeMonitor
 	overridePolicy := acceptedPolicy(
 		"team-a",
@@ -51,6 +51,17 @@ func TestResolveForLBService(t *testing.T) {
 	overridePolicy.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{
 		Custom: &isovalentv1alpha1.IsovalentWAFCustomRules{
 			Inline: inline,
+		},
+	}
+	managedPolicy := acceptedPolicy(
+		"team-a",
+		"api-waf-managed",
+		&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}},
+	)
+	profile := isovalentv1alpha1.IsovalentWAFPolicyProfileHighSecurity
+	managedPolicy.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{
+		Managed: &isovalentv1alpha1.IsovalentWAFManagedRules{
+			Profile: profile,
 		},
 	}
 
@@ -73,77 +84,116 @@ func TestResolveForLBService(t *testing.T) {
 	pendingPolicy.Generation = 2
 
 	testCases := []struct {
-		desc                    string
-		policies                []isovalentv1alpha1.IsovalentWAFPolicy
-		expectedState           ResolutionState
-		expectedEffectiveConfig EffectiveConfig
-		expectedPolicyRefsSize  int
+		desc     string
+		policies []isovalentv1alpha1.IsovalentWAFPolicy
+		expected Resolution
 	}{
 		{
-			desc:          "uses global defaults when no accepted match exists",
-			expectedState: ResolutionStateResolved,
-			expectedEffectiveConfig: EffectiveConfig{
-				Enabled:         defaults.Enabled,
-				Mode:            defaults.Mode,
-				PolicyProfile:   defaults.PolicyProfile,
-				FailureMode:     defaults.FailureMode,
-				UsesGlobalRules: true,
+			desc: "uses global defaults when no accepted match exists",
+			expected: Resolution{
+				State: ResolutionStateResolved,
+				Config: EffectiveConfig{
+					Enabled:     defaults.Enabled,
+					Mode:        defaults.Mode,
+					FailureMode: defaults.FailureMode,
+					Rules: EffectiveRules{
+						Source:        EffectiveRuleSourceDefault,
+						PolicyProfile: defaults.PolicyProfile,
+					},
+				},
 			},
 		},
 		{
-			desc:          "applies matching accepted policy overrides",
-			policies:      []isovalentv1alpha1.IsovalentWAFPolicy{overridePolicy},
-			expectedState: ResolutionStateResolved,
-			expectedEffectiveConfig: EffectiveConfig{
-				PolicyRef: &types.NamespacedName{
+			desc:     "applies matching accepted policy overrides",
+			policies: []isovalentv1alpha1.IsovalentWAFPolicy{overridePolicy},
+			expected: Resolution{
+				State: ResolutionStateResolved,
+				Config: EffectiveConfig{
+					Enabled:     true,
+					Mode:        mode,
+					FailureMode: defaults.FailureMode,
+					Rules: EffectiveRules{
+						Source: EffectiveRuleSourceInline,
+						Inline: mustInlineRulesForTest(t, inline),
+					},
+				},
+				PolicyRefs: []types.NamespacedName{{
 					Namespace: "team-a",
 					Name:      "api-waf",
+				}},
+			},
+		},
+		{
+			desc:     "applies managed profile when selected",
+			policies: []isovalentv1alpha1.IsovalentWAFPolicy{managedPolicy},
+			expected: Resolution{
+				State: ResolutionStateResolved,
+				Config: EffectiveConfig{
+					Enabled:     true,
+					Mode:        defaults.Mode,
+					FailureMode: defaults.FailureMode,
+					Rules: EffectiveRules{
+						Source:        EffectiveRuleSourceManaged,
+						PolicyProfile: profile,
+					},
 				},
-				Enabled:         true,
-				Mode:            mode,
-				PolicyProfile:   defaults.PolicyProfile,
-				FailureMode:     defaults.FailureMode,
-				Inline:          &inline,
-				UsesGlobalRules: false,
+				PolicyRefs: []types.NamespacedName{{
+					Namespace: "team-a",
+					Name:      "api-waf-managed",
+				}},
 			},
-			expectedPolicyRefsSize: 1,
 		},
 		{
-			desc:          "rejects multiple accepted matches",
-			policies:      []isovalentv1alpha1.IsovalentWAFPolicy{conflictFirst, conflictSecond},
-			expectedState: ResolutionStateConflict,
-			expectedEffectiveConfig: EffectiveConfig{
-				Enabled:         defaults.Enabled,
-				Mode:            defaults.Mode,
-				PolicyProfile:   defaults.PolicyProfile,
-				FailureMode:     defaults.FailureMode,
-				UsesGlobalRules: true,
+			desc:     "rejects multiple accepted matches",
+			policies: []isovalentv1alpha1.IsovalentWAFPolicy{conflictFirst, conflictSecond},
+			expected: Resolution{
+				State: ResolutionStateConflict,
+				Config: EffectiveConfig{
+					Enabled:     defaults.Enabled,
+					Mode:        defaults.Mode,
+					FailureMode: defaults.FailureMode,
+					Rules: EffectiveRules{
+						Source:        EffectiveRuleSourceDefault,
+						PolicyProfile: defaults.PolicyProfile,
+					},
+				},
+				PolicyRefs: []types.NamespacedName{
+					{Namespace: "team-a", Name: "first"},
+					{Namespace: "team-a", Name: "second"},
+				},
 			},
-			expectedPolicyRefsSize: 2,
 		},
 		{
-			desc:          "waits for matching policy validation from current generation",
-			policies:      []isovalentv1alpha1.IsovalentWAFPolicy{pendingPolicy},
-			expectedState: ResolutionStatePending,
-			expectedEffectiveConfig: EffectiveConfig{
-				Enabled:         defaults.Enabled,
-				Mode:            defaults.Mode,
-				PolicyProfile:   defaults.PolicyProfile,
-				FailureMode:     defaults.FailureMode,
-				UsesGlobalRules: true,
+			desc:     "waits for matching policy validation from current generation",
+			policies: []isovalentv1alpha1.IsovalentWAFPolicy{pendingPolicy},
+			expected: Resolution{
+				State: ResolutionStatePending,
+				Config: EffectiveConfig{
+					Enabled:     defaults.Enabled,
+					Mode:        defaults.Mode,
+					FailureMode: defaults.FailureMode,
+					Rules: EffectiveRules{
+						Source:        EffectiveRuleSourceDefault,
+						PolicyProfile: defaults.PolicyProfile,
+					},
+				},
+				PolicyRefs: []types.NamespacedName{{
+					Namespace: "team-a",
+					Name:      "pending",
+				}},
 			},
-			expectedPolicyRefsSize: 1,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			resolution, err := ResolveForLBService(service, tc.policies, defaults)
+			actual, err := ResolveForLBService(service, tc.policies, defaults)
 			require.NoError(t, err)
 
-			require.Equal(t, tc.expectedState, resolution.State)
-			require.Equal(t, tc.expectedEffectiveConfig, resolution.Config)
-			require.Len(t, resolution.PolicyRefs, tc.expectedPolicyRefsSize)
+			// require.Equal(t, tc.expectedState, resolution.State)
+			// require.Equal(t, tc.expectedEffectiveConfig, resolution.Config)
+			// require.Len(t, resolution.PolicyRefs, tc.expectedPolicyRefsSize)
+			require.Equal(t, tc.expected, actual)
 		})
 	}
 }
@@ -175,6 +225,68 @@ func TestValidate(t *testing.T) {
 			}),
 			expectError: true,
 		},
+		{
+			desc: "invalid inline rules",
+			policy: func() isovalentv1alpha1.IsovalentWAFPolicy {
+				policy := acceptedPolicy(
+					"team-a",
+					"inline-invalid",
+					&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}},
+				)
+				inline := `SecRule REQUEST_URI "@rx (" "id:1000,phase:1,deny"`
+				policy.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{
+					Custom: &isovalentv1alpha1.IsovalentWAFCustomRules{Inline: inline},
+				}
+				return policy
+			}(),
+			expectError: true,
+		},
+		{
+			desc: "rejects empty inline rules",
+			policy: func() isovalentv1alpha1.IsovalentWAFPolicy {
+				policy := acceptedPolicy(
+					"team-a",
+					"inline-empty",
+					&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}},
+				)
+				policy.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{
+					Custom: &isovalentv1alpha1.IsovalentWAFCustomRules{Inline: "\n\t \r\n"},
+				}
+				return policy
+			}(),
+			expectError: true,
+		},
+		{
+			desc: "rejects empty rules object",
+			policy: func() isovalentv1alpha1.IsovalentWAFPolicy {
+				policy := acceptedPolicy(
+					"team-a",
+					"invalid-empty-rules",
+					&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}},
+				)
+				policy.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{}
+				return policy
+			}(),
+			expectError: true,
+		},
+		{
+			desc: "rejects policies that specify both managed and custom rules",
+			policy: func() isovalentv1alpha1.IsovalentWAFPolicy {
+				policy := acceptedPolicy(
+					"team-a",
+					"invalid-mixed-rules",
+					&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}},
+				)
+				inline := `SecAction "id:1000,phase:1,pass,nolog"`
+				profile := isovalentv1alpha1.IsovalentWAFPolicyProfileBalanced
+				policy.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{
+					Managed: &isovalentv1alpha1.IsovalentWAFManagedRules{Profile: profile},
+					Custom:  &isovalentv1alpha1.IsovalentWAFCustomRules{Inline: inline},
+				}
+				return policy
+			}(),
+			expectError: true,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -182,9 +294,9 @@ func TestValidate(t *testing.T) {
 			err := Validate(&tc.policy)
 			if tc.expectError {
 				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
+				return
 			}
+			require.NoError(t, err)
 		})
 	}
 }
@@ -220,4 +332,12 @@ func acceptedPolicy(
 	policy.UpdateResourceStatus()
 
 	return policy
+}
+
+func mustInlineRulesForTest(t *testing.T, inline string) InlineRules {
+	t.Helper()
+
+	compiled, err := BuildInlineRules(inline)
+	require.NoError(t, err)
+	return compiled
 }

@@ -110,6 +110,10 @@ type IsovalentWAFCustomRules struct {
 	// Inline provides a fully custom WAF ruleset directly in the resource.
 	// Multi-line values should be provided as a YAML block scalar.
 	//
+	// If provided, the field must not declare SecRuleEngine or Include.
+	// SecRuleEngine conflicts with spec.mode, and Include would make the custom
+	// ruleset depend on external files instead of being self-contained.
+	//
 	// +kubebuilder:validation:Optional
 	Inline string `json:"inline,omitempty"`
 

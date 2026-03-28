@@ -547,18 +547,16 @@ func (r *lbServiceReconciler) reconcileWAF(ctx context.Context, lbsvc *isovalent
 	logArgs := []any{
 		logfields.K8sNamespace, lbsvc.Namespace,
 		logfields.Service, lbsvc.Name,
-		logfields.PolicyLogString, fmt.Sprintf("%v, %s, %s, %s, %v",
+		logfields.PolicyLogString, fmt.Sprintf("%v, %s, %s, %s, %s, %v",
 			effectiveWAFConfig.Enabled,
 			effectiveWAFConfig.Mode,
-			effectiveWAFConfig.PolicyProfile,
+			effectiveWAFConfig.Rules.PolicyProfile,
 			effectiveWAFConfig.FailureMode,
-			effectiveWAFConfig.UsesGlobalRules),
+			effectiveWAFConfig.Rules.Source,
+			resolution.PolicyRefs),
 	}
-	if effectiveWAFConfig.PolicyRef != nil {
-		logArgs = append(logArgs, logfields.PolicyID, effectiveWAFConfig.PolicyRef.String())
-	}
-	if effectiveWAFConfig.Inline != nil {
-		logArgs = append(logArgs, logfields.PolicyEntry, len(*effectiveWAFConfig.Inline))
+	if effectiveWAFConfig.Rules.Source == wafpolicy.EffectiveRuleSourceInline {
+		logArgs = append(logArgs, logfields.PolicyEntry, len(effectiveWAFConfig.Rules.Inline.Inline))
 	}
 	r.logger.Debug("Resolved effective WAF config for LBService", logArgs...)
 

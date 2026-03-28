@@ -29,22 +29,27 @@ const (
 	ResolutionStateConflict ResolutionState = "Conflict"
 )
 
-type policyState string
+type EffectiveRuleSource string
 
 const (
-	policyStatePending  policyState = "Pending"
-	policyStateAccepted policyState = "Accepted"
-	policyStateRejected policyState = "Rejected"
+	EffectiveRuleSourceDefault EffectiveRuleSource = "Default"
+	EffectiveRuleSourceManaged EffectiveRuleSource = "Managed"
+	EffectiveRuleSourceInline  EffectiveRuleSource = "Inline"
 )
 
+// EffectiveRules is the resolved rules union for an LBService. It mirrors the
+// policy API shape: exactly one rules source is active after resolution.
+type EffectiveRules struct {
+	Source        EffectiveRuleSource
+	PolicyProfile isovalentv1alpha1.IsovalentWAFPolicyProfileType
+	Inline        InlineRules
+}
+
 type EffectiveConfig struct {
-	PolicyRef       *types.NamespacedName
-	Enabled         bool
-	Mode            isovalentv1alpha1.IsovalentWAFPolicyModeType
-	PolicyProfile   isovalentv1alpha1.IsovalentWAFPolicyProfileType
-	FailureMode     isovalentv1alpha1.WAFFailureModeType
-	Inline          *string
-	UsesGlobalRules bool
+	Enabled     bool
+	Mode        isovalentv1alpha1.IsovalentWAFPolicyModeType
+	FailureMode isovalentv1alpha1.WAFFailureModeType
+	Rules       EffectiveRules
 }
 
 type Resolution struct {
@@ -52,6 +57,14 @@ type Resolution struct {
 	Config     EffectiveConfig
 	PolicyRefs []types.NamespacedName
 }
+
+type policyState string
+
+const (
+	policyStatePending  policyState = "Pending"
+	policyStateAccepted policyState = "Accepted"
+	policyStateRejected policyState = "Rejected"
+)
 
 func Validate(policy *isovalentv1alpha1.IsovalentWAFPolicy) error {
 	if policy.Spec.Targets.LBServices == nil {
@@ -61,6 +74,20 @@ func Validate(policy *isovalentv1alpha1.IsovalentWAFPolicy) error {
 	_, err := slim_metav1.LabelSelectorAsSelector(policy.Spec.Targets.LBServices.LabelSelector)
 	if err != nil {
 		return fmt.Errorf("invalid spec.targets.lbServices.labelSelector: %w", err)
+	}
+
+	if policy.Spec.Rules == nil {
+		return nil
+	}
+
+	hasManaged := policy.Spec.Rules.Managed != nil
+	hasCustom := policy.Spec.Rules.Custom != nil
+	if hasManaged == hasCustom {
+		return fmt.Errorf("exactly one of spec.rules.managed or spec.rules.custom must be specified")
+	}
+
+	if hasCustom {
+		return ValidateInlineRules(policy.Spec.Rules.Custom.Inline)
 	}
 
 	return nil
@@ -82,7 +109,7 @@ func Condition(policy *isovalentv1alpha1.IsovalentWAFPolicy, err error) metav1.C
 
 	condition.Status = metav1.ConditionTrue
 	condition.Reason = isovalentv1alpha1.IsovalentWAFPolicyAcceptedConditionReasonValid
-	condition.Message = "policy selector is valid"
+	condition.Message = "policy selector and rules are valid"
 	return condition
 }
 
@@ -107,11 +134,13 @@ func ResolveForLBService(
 	defaults GlobalDefaults,
 ) (Resolution, error) {
 	resolved := EffectiveConfig{
-		Enabled:         defaults.Enabled,
-		Mode:            defaults.Mode,
-		PolicyProfile:   defaults.PolicyProfile,
-		FailureMode:     defaults.FailureMode,
-		UsesGlobalRules: true,
+		Enabled:     defaults.Enabled,
+		Mode:        defaults.Mode,
+		FailureMode: defaults.FailureMode,
+		Rules: EffectiveRules{
+			Source:        EffectiveRuleSourceDefault,
+			PolicyProfile: defaults.PolicyProfile,
+		},
 	}
 
 	matches, pending, err := matchLBServicePolicies(service, policies)
@@ -147,31 +176,36 @@ func ResolveForLBService(
 	}
 
 	policy := matches[0]
-	resolved.PolicyRef = &types.NamespacedName{
-		Namespace: policy.Namespace,
-		Name:      policy.Name,
-	}
 	resolved.Enabled = policy.Spec.Enabled
 
 	if policy.Spec.Mode != nil {
 		resolved.Mode = *policy.Spec.Mode
 	}
-	if policy.Spec.Rules.Managed != nil {
-		resolved.PolicyProfile = policy.Spec.Rules.Managed.Profile
+	if policy.Spec.Rules != nil && policy.Spec.Rules.Managed != nil {
+		resolved.Rules.Source = EffectiveRuleSourceManaged
+		resolved.Rules.PolicyProfile = policy.Spec.Rules.Managed.Profile
 	}
 	if policy.Spec.FailureMode != nil {
 		resolved.FailureMode = *policy.Spec.FailureMode
 	}
 	if policy.Spec.Rules != nil && policy.Spec.Rules.Custom != nil {
-		inline := policy.Spec.Rules.Custom.Inline
-		resolved.Inline = &inline
-		resolved.UsesGlobalRules = false
+		inlineRules, err := BuildInlineRules(policy.Spec.Rules.Custom.Inline)
+		if err != nil {
+			return Resolution{}, err
+		}
+		resolved.Rules = EffectiveRules{
+			Source: EffectiveRuleSourceInline,
+			Inline: inlineRules,
+		}
 	}
 
 	return Resolution{
-		State:      ResolutionStateResolved,
-		Config:     resolved,
-		PolicyRefs: []types.NamespacedName{*resolved.PolicyRef},
+		State:  ResolutionStateResolved,
+		Config: resolved,
+		PolicyRefs: []types.NamespacedName{{
+			Namespace: policy.Namespace,
+			Name:      policy.Name,
+		}},
 	}, nil
 }
 
