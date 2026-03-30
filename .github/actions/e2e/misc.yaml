@@ -12,8 +12,7 @@
   # L7 testing: Ingress covered in lb.yaml, can skip
   test-l7: 'false'
 - name: 'misc-2'
-  # Enterprise: Override due to https://github.com/isovalent/cilium/issues/9730
-  kernel: '6.12'
+  kernel: '6.6'
   kube-proxy: 'none'
   kpr: 'true'
   devices: '{eth0,eth1}'
