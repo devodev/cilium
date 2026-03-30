@@ -157,6 +157,7 @@ jobs:
             --set=bpf.masquerade=true \
             --set=kubeProxyReplacement=true \
             --set=ipv4.enabled=true \
+            --set=ipv6.enabled=true \
             --set=image.override=quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/cilium-ci:${SHA} \
             --set=operator.image.override=quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/operator-generic-ci:${SHA} \
             --nodes-without-cilium
@@ -178,8 +179,12 @@ jobs:
             CILIUM_INSTALL_DEFAULTS+=" --set=ipam.mode=multi-pool \
                                       --set=ipam.operator.autoCreateCiliumPodIPPools.default.ipv4.cidrs='{192.168.32.0/20}' \
                                       --set=ipam.operator.autoCreateCiliumPodIPPools.default.ipv4.maskSize=24 \
+                                      --set=ipam.operator.autoCreateCiliumPodIPPools.default.ipv6.cidrs='{fd00::/120}' \
+                                      --set=ipam.operator.autoCreateCiliumPodIPPools.default.ipv6.maskSize=128 \
                                       --set=ipam.operator.autoCreateCiliumPodIPPools.client2-pool.ipv4.cidrs='{192.168.16.0/20}' \
-                                      --set=ipam.operator.autoCreateCiliumPodIPPools.client2-pool.ipv4.maskSize=27 "
+                                      --set=ipam.operator.autoCreateCiliumPodIPPools.client2-pool.ipv4.maskSize=27 \
+                                      --set=ipam.operator.autoCreateCiliumPodIPPools.client2-pool.ipv6.cidrs='{fd00::300/120}' \
+                                      --set=ipam.operator.autoCreateCiliumPodIPPools.client2-pool.ipv6.maskSize=122 "
           fi
 
           CILIUM_INSTALL_DEFAULTS+=" --set=enterprise.featureGate.approved='{${FEATURE_GATES}}' "
