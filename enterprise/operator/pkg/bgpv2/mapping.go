@@ -14,6 +14,7 @@ import (
 	"context"
 	"errors"
 	"maps"
+	"reflect"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -86,7 +87,8 @@ func (m *BGPResourceMapper) mapClusterConfig(ctx context.Context, entClusterConf
 	switch {
 	case exists && expectedOSSClusterConfig.Spec.DeepEqual(&runningOSSClusterConfig.Spec) &&
 		maps.Equal(expectedOSSClusterConfig.Labels, runningOSSClusterConfig.Labels) &&
-		maps.Equal(expectedOSSClusterConfig.Annotations, runningOSSClusterConfig.Annotations):
+		maps.Equal(expectedOSSClusterConfig.Annotations, runningOSSClusterConfig.Annotations) &&
+		reflect.DeepEqual(expectedOSSClusterConfig.OwnerReferences, runningOSSClusterConfig.OwnerReferences):
 		return nil
 
 	case exists:
@@ -94,6 +96,7 @@ func (m *BGPResourceMapper) mapClusterConfig(ctx context.Context, entClusterConf
 		runningOSSClusterConfig.Spec = expectedOSSClusterConfig.Spec
 		runningOSSClusterConfig.Labels = expectedOSSClusterConfig.Labels
 		runningOSSClusterConfig.Annotations = expectedOSSClusterConfig.Annotations
+		runningOSSClusterConfig.OwnerReferences = expectedOSSClusterConfig.OwnerReferences
 
 		_, err = clusterConfigClientSet.Update(ctx, runningOSSClusterConfig, metav1.UpdateOptions{})
 		if err != nil {
@@ -140,7 +143,8 @@ func (m *BGPResourceMapper) mapPeerConfig(ctx context.Context, entPeerConfig *v1
 	switch {
 	case exists && expectedOSSPeerConfig.Spec.DeepEqual(&runningOSSPeerConfig.Spec) &&
 		maps.Equal(expectedOSSPeerConfig.Labels, runningOSSPeerConfig.Labels) &&
-		maps.Equal(expectedOSSPeerConfig.Annotations, runningOSSPeerConfig.Annotations):
+		maps.Equal(expectedOSSPeerConfig.Annotations, runningOSSPeerConfig.Annotations) &&
+		reflect.DeepEqual(expectedOSSPeerConfig.OwnerReferences, runningOSSPeerConfig.OwnerReferences):
 		return nil
 
 	case exists:
@@ -148,6 +152,7 @@ func (m *BGPResourceMapper) mapPeerConfig(ctx context.Context, entPeerConfig *v1
 		runningOSSPeerConfig.Spec = expectedOSSPeerConfig.Spec
 		runningOSSPeerConfig.Labels = expectedOSSPeerConfig.Labels
 		runningOSSPeerConfig.Annotations = expectedOSSPeerConfig.Annotations
+		runningOSSPeerConfig.OwnerReferences = expectedOSSPeerConfig.OwnerReferences
 
 		_, err = peerConfigClientSet.Update(ctx, runningOSSPeerConfig, metav1.UpdateOptions{})
 		if err != nil {
@@ -194,7 +199,8 @@ func (m *BGPResourceMapper) mapAdvertisement(ctx context.Context, entAdvertiseme
 	switch {
 	case exists && expectedOSSAdvertisement.Spec.DeepEqual(&runningOSSAdvertisement.Spec) &&
 		maps.Equal(expectedOSSAdvertisement.Labels, runningOSSAdvertisement.Labels) &&
-		maps.Equal(expectedOSSAdvertisement.Annotations, runningOSSAdvertisement.Annotations):
+		maps.Equal(expectedOSSAdvertisement.Annotations, runningOSSAdvertisement.Annotations) &&
+		reflect.DeepEqual(expectedOSSAdvertisement.OwnerReferences, runningOSSAdvertisement.OwnerReferences):
 		return nil
 
 	case exists:
@@ -202,6 +208,7 @@ func (m *BGPResourceMapper) mapAdvertisement(ctx context.Context, entAdvertiseme
 		runningOSSAdvertisement.Spec = expectedOSSAdvertisement.Spec
 		runningOSSAdvertisement.Labels = expectedOSSAdvertisement.Labels
 		runningOSSAdvertisement.Annotations = expectedOSSAdvertisement.Annotations
+		runningOSSAdvertisement.OwnerReferences = expectedOSSAdvertisement.OwnerReferences
 
 		_, err = advertisementClientSet.Update(ctx, runningOSSAdvertisement, metav1.UpdateOptions{})
 		if err != nil {
@@ -248,7 +255,8 @@ func (m *BGPResourceMapper) mapNodeConfigOverride(ctx context.Context, entNodeCo
 	switch {
 	case exists && expectedOSSNodeConfigOverride.Spec.DeepEqual(&runningOSSNodeConfigOverride.Spec) &&
 		maps.Equal(expectedOSSNodeConfigOverride.Labels, runningOSSNodeConfigOverride.Labels) &&
-		maps.Equal(expectedOSSNodeConfigOverride.Annotations, runningOSSNodeConfigOverride.Annotations):
+		maps.Equal(expectedOSSNodeConfigOverride.Annotations, runningOSSNodeConfigOverride.Annotations) &&
+		reflect.DeepEqual(expectedOSSNodeConfigOverride.OwnerReferences, runningOSSNodeConfigOverride.OwnerReferences):
 		return nil
 
 	case exists:
@@ -256,6 +264,7 @@ func (m *BGPResourceMapper) mapNodeConfigOverride(ctx context.Context, entNodeCo
 		runningOSSNodeConfigOverride.Spec = expectedOSSNodeConfigOverride.Spec
 		runningOSSNodeConfigOverride.Labels = expectedOSSNodeConfigOverride.Labels
 		runningOSSNodeConfigOverride.Annotations = expectedOSSNodeConfigOverride.Annotations
+		runningOSSNodeConfigOverride.OwnerReferences = expectedOSSNodeConfigOverride.OwnerReferences
 
 		_, err = nodeConfigOverrideClientSet.Update(ctx, runningOSSNodeConfigOverride, metav1.UpdateOptions{})
 		if err != nil {

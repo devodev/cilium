@@ -442,6 +442,7 @@ func Test_Mapping(t *testing.T) {
 				assert.Equal(c, tt.expectedOSSClusterConfig.Name, ossClusterConfig.Name)
 				assert.Equal(c, tt.expectedOSSClusterConfig.Labels, ossClusterConfig.Labels)
 				assert.Equal(c, map[string]string{ownerVersionAnnotation: isoClusterConfig.ResourceVersion}, ossClusterConfig.Annotations)
+				assertOwnerReferences(c, ossClusterConfig.OwnerReferences, v1.IsovalentBGPClusterConfigKindDefinition, isoClusterConfig)
 				assert.True(c, tt.expectedOSSClusterConfig.Spec.DeepEqual(&ossClusterConfig.Spec))
 			}, TestTimeout, 50*time.Millisecond)
 
@@ -471,6 +472,7 @@ func Test_Mapping(t *testing.T) {
 				assert.Equal(c, tt.expectedOSSPeerConfig.Name, ossPeerConfig.Name)
 				assert.Equal(c, tt.expectedOSSPeerConfig.Labels, ossPeerConfig.Labels)
 				assert.Equal(c, map[string]string{ownerVersionAnnotation: isoPeerConfig.ResourceVersion}, ossPeerConfig.Annotations)
+				assertOwnerReferences(c, ossPeerConfig.OwnerReferences, v1.IsovalentBGPPeerConfigKindDefinition, isoPeerConfig)
 				assert.True(c, tt.expectedOSSPeerConfig.Spec.DeepEqual(&ossPeerConfig.Spec))
 			}, TestTimeout, 50*time.Millisecond)
 
@@ -499,6 +501,7 @@ func Test_Mapping(t *testing.T) {
 				assert.Equal(c, tt.expectedOSSAdvert.Name, ossAdvert.Name)
 				assert.Equal(c, tt.expectedOSSAdvert.Labels, ossAdvert.Labels)
 				assert.Equal(c, map[string]string{ownerVersionAnnotation: isoAdvert.ResourceVersion}, ossAdvert.Annotations)
+				assertOwnerReferences(c, ossAdvert.OwnerReferences, v1.IsovalentBGPAdvertisementKindDefinition, isoAdvert)
 				assert.True(c, tt.expectedOSSAdvert.Spec.DeepEqual(&ossAdvert.Spec))
 			}, TestTimeout, 50*time.Millisecond)
 
@@ -522,10 +525,22 @@ func Test_Mapping(t *testing.T) {
 				assert.Equal(c, tt.expectedOSSNodeConfigOR.Name, ossNodeConfigOR.Name)
 				assert.Equal(c, tt.expectedOSSNodeConfigOR.Labels, ossNodeConfigOR.Labels)
 				assert.Equal(c, map[string]string{ownerVersionAnnotation: tt.isoNodeConfigOR.ResourceVersion}, ossNodeConfigOR.Annotations)
+				assertOwnerReferences(c, ossNodeConfigOR.OwnerReferences, v1.IsovalentBGPNodeConfigOverrideKindDefinition, tt.isoNodeConfigOR)
 				assert.True(c, tt.expectedOSSNodeConfigOR.Spec.DeepEqual(&ossNodeConfigOR.Spec))
 			}, TestTimeout, 50*time.Millisecond)
 		})
 	}
+}
+
+func assertOwnerReferences(c *assert.CollectT, ownerRefs []meta_v1.OwnerReference, kind string, owner meta_v1.Object) {
+	assert.Equal(c, []meta_v1.OwnerReference{
+		{
+			APIVersion: v1.SchemeGroupVersion.String(),
+			Kind:       kind,
+			Name:       owner.GetName(),
+			UID:        owner.GetUID(),
+		},
+	}, ownerRefs)
 }
 
 func upsertIsoBGPCC(req *require.Assertions, ctx context.Context, f *fixture, bgpcc *v1.IsovalentBGPClusterConfig) {
