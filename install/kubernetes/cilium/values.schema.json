@@ -2519,6 +2519,14 @@
           },
           "type": "object"
         },
+        "inspection": {
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            }
+          },
+          "type": "object"
+        },
         "loadbalancer": {
           "properties": {
             "enabled": {

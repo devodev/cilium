@@ -5473,6 +5473,12 @@ enterprise:
           issuerRef: {}
           # -- Validity duration of the generated certificate, in days.
           certValidityDuration: 365
+  # Passive inspection for pod traffic
+  inspection:
+    # -- Enable passive inspection for pod traffic. When enabled, a clone
+    # of packets leaving and entering pods is redirected to a dedicated
+    # dummy interface ("cilium_inspect") for passive inspection.
+    enabled: false
   healthServerWithoutActiveChecks:
     # -- Enable health server without active health checks.
     enabled: false

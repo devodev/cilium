@@ -306,6 +306,9 @@ private-networks-webhook-inventory-ca-bundle-file: "/var/lib/cilium/privnet/webh
 {{- end }}
 {{- end }}
 
+# Passive inspection for pod traffic
+enable-passive-inspection: {{ .Values.enterprise.inspection.enabled | quote }}
+
 enable-health-server-without-active-checks: {{ .Values.enterprise.healthServerWithoutActiveChecks.enabled | quote }}
 
 {{- end }}

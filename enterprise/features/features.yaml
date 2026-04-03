@@ -135,6 +135,18 @@ features:
     helm:
       enterprise.multicast.enabled: true
 
+  PassiveInspection:
+    maturity: Beta
+    description: |
+      Passive inspection mirrors all pod ingress and egress traffic to an
+      agent-managed dummy network interface for deep packet inspection
+      (e.g. IDS/Snort).
+    skip-flag-check: true
+    flags:
+      enable-passive-inspection: true
+    helm:
+      enterprise.inspection.enabled: true
+
   ClusterMeshMixedRoutingMode:
     maturity: Limited
     description: |

@@ -1740,6 +1740,10 @@
      - Enable health server without active health checks.
      - bool
      - ``false``
+   * - :spelling:ignore:`enterprise.inspection.enabled`
+     - Enable passive inspection for pod traffic. When enabled, a clone of packets leaving and entering pods is redirected to a dedicated dummy interface ("cilium_inspect") for passive inspection.
+     - bool
+     - ``false``
    * - :spelling:ignore:`enterprise.loadbalancer.enabled`
      - Enables Loadbalancer mode (Control Plane)
      - bool
