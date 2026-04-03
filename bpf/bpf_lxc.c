@@ -1806,6 +1806,10 @@ int cil_from_container(struct __ctx_buff *ctx)
 	 */
 	ctx->queue_mapping = 0;
 
+	ret = enterprise_inspection_from_container(ctx);
+	if (IS_ERR(ret))
+		return ret;
+
 	/* Needs to happen before any possible notify, because we set
 	 * netID information that Hubble needs to understand the events.
 	 */
@@ -2037,6 +2041,10 @@ int tail_ipv6_policy(struct __ctx_buff *ctx)
 #ifdef HAVE_ENCAP
 	from_tunnel = ctx_load_and_clear_meta(ctx, CB_FROM_TUNNEL);
 #endif
+
+	ret = enterprise_inspection_to_container(ctx);
+	if (IS_ERR(ret))
+		goto drop_err;
 
 	if (!revalidate_data(ctx, &data, &data_end, &ip6)) {
 		ret = DROP_INVALID;
@@ -2357,6 +2365,10 @@ int tail_ipv4_policy(struct __ctx_buff *ctx)
 	from_tunnel = ctx_load_and_clear_meta(ctx, CB_FROM_TUNNEL);
 #endif
 
+	ret = enterprise_inspection_to_container(ctx);
+	if (IS_ERR(ret))
+		goto drop_err;
+
 	if (!revalidate_data(ctx, &data, &data_end, &ip4)) {
 		ret = DROP_INVALID;
 		goto drop_err;
@@ -2625,6 +2637,10 @@ int cil_to_container(struct __ctx_buff *ctx)
 	 * Hubble needs to understand the events.
 	 */
 	ret = enterprise_privnet_to_lxc(ctx);
+	if (IS_ERR(ret))
+		return ret;
+
+	ret = enterprise_inspection_to_container(ctx);
 	if (IS_ERR(ret))
 		return ret;
 

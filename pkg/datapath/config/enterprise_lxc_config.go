@@ -20,6 +20,10 @@ type BPFLXCEnterprise struct {
 	EVPNDeviceMAC types.MACAddr `config:"evpn_device_mac"`
 	// True if evpn feature is enabled.
 	EVPNEnable bool `config:"evpn_enable"`
+	// True if passive inspection is enabled for pod traffic.
+	PassiveInspectionEnable bool `config:"passive_inspection_enable"`
+	// Ifindex receiving mirrored pod traffic for passive inspection.
+	PassiveInspectionIfIndex uint32 `config:"passive_inspection_ifindex"`
 	// True if running on network bridge.
 	PrivnetBridgeEnable bool `config:"privnet_bridge_enable"`
 	// True if the endpoint is in a non-default network.
@@ -39,7 +43,7 @@ type BPFLXCEnterprise struct {
 func NewBPFLXCEnterprise() *BPFLXCEnterprise {
 	return &BPFLXCEnterprise{0x0, 0x0,
 		cast[types.MACAddr]([]byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}),
-		false, false, false, false, cast[types.V4Addr]([]byte{0x0, 0x0, 0x0, 0x0}),
+		false, false, 0x0, false, false, false, cast[types.V4Addr]([]byte{0x0, 0x0, 0x0, 0x0}),
 		cast[types.V6Addr]([]byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}),
 		false, 0x0}
 }

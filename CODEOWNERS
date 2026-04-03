@@ -873,6 +873,7 @@ Makefile* @cilium/build
 /bpf/enterprise_bpf_alignchecker.h @isovalent/cilium-datapath
 /bpf/enterprise_bpf_evpn.c @isovalent/traffic-engineering
 /bpf/lib/enterprise_* @isovalent/cilium-datapath
+/bpf/lib/enterprise_inspection*.h @isovalent/sig-defence
 /bpf/lib/enterprise_encrypt.h @isovalent/encryption
 /bpf/lib/enterprise_evpn.h @isovalent/traffic-engineering
 /bpf/lib/enterprise_ext_eps*.h @isovalent/private-networking
@@ -887,6 +888,7 @@ Makefile* @cilium/build
 /bpf/tests/enterprise_tc_encryption_policy_fallback_encrypt.c @isovalent/encryption
 /bpf/tests/enterprise_tc_encryption_policy_fallback_plaintext.c @isovalent/encryption
 /bpf/tests/enterprise_tc_privnet*.c @isovalent/private-networking
+/bpf/tests/enterprise_tc_lxc_inspection.c @isovalent/sig-defence
 /bpf/tests/enterprise_tc_evpn_ingress_tests.c @isovalent/traffic-engineering
 /bpf/tests/lib/enterprise_bpf_evpn.h @isovalent/traffic-engineering
 /bpf/tests/lib/enterprise_vni.h @isovalent/traffic-engineering
@@ -895,6 +897,7 @@ Makefile* @cilium/build
 /bpf/tests/lib/enterprise_evpn.h @isovalent/traffic-engineering
 /bpf/tests/enterprise_tc_evpn_egress_tests.c @isovalent/traffic-engineering
 /bpf/tests/scapy/enterprise_evpn_pkt_defs.py @isovalent/traffic-engineering
+/bpf/tests/scapy/enterprise_inspection_pkt_defs.py @isovalent/sig-defence
 /bpf/tests/lib/egressgw_ha.h @isovalent/egress-gateway
 /bpf/tests/lib/enterprise_privnet.h @isovalent/private-networking
 /bpf/tests/enterprise_tc_privnet_evpn_egress_disabled_tests.c @isovalent/traffic-engineering

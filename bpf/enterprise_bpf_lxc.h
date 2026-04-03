@@ -7,6 +7,7 @@
 #include "lib/trace.h"
 #include "lib/edt.h"
 
+#include "lib/enterprise_inspection.h"
 #include "lib/enterprise_privnet.h"
 #include "lib/enterprise_evpn.h"
 
