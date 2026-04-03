@@ -1001,6 +1001,7 @@ Makefile* @cilium/build
 /enterprise/pkg/hubble/ @isovalent/hubble
 /enterprise/pkg/hubble/parser/privnet* @isovalent/hubble @isovalent/private-networking
 /enterprise/pkg/hubble/aggregation/api @isovalent/hubble-api
+/enterprise/pkg/inspection/ @isovalent/sig-defence
 /enterprise/pkg/k8s/ @isovalent/sig-k8s
 /enterprise/pkg/lb/ @isovalent/isovalent-loadbalancer
 /enterprise/pkg/lb/flowlogs @isovalent/isovalent-loadbalancer

@@ -125,6 +125,7 @@ cilium-agent hive [flags]
       --enable-multi-network                                             Enable support for multiple pod networks
       --enable-no-service-endpoints-routable                             Enable routes when service has 0 endpoints (default true)
       --enable-node-ipam                                                 Enable Node IPAM
+      --enable-passive-inspection                                        Enable passive inspection for pod traffic (mirror packets to a dedicated dummy interface)
       --enable-phantom-services                                          Enable phantom services handling (default true)
       --enable-policy-secrets-sync                                       Enables Envoy secret sync for Secrets used in CiliumNetworkPolicy and CiliumClusterwideNetworkPolicy
       --enable-route-mtu-for-cni-chaining                                Enable route MTU for pod netns when CNI chaining is used
@@ -401,4 +402,3 @@ cilium-agent hive [flags]
 
 * [cilium-agent](cilium-agent.md)	 - Run the cilium agent
 * [cilium-agent hive dot-graph](cilium-agent_hive_dot-graph.md)	 - Output the dependencies graph in graphviz dot format
-

@@ -29,6 +29,7 @@ import (
 	"github.com/cilium/cilium/enterprise/pkg/healthconfig"
 	"github.com/cilium/cilium/enterprise/pkg/hubble"
 	cecIngressPolicy "github.com/cilium/cilium/enterprise/pkg/ingresspolicy"
+	"github.com/cilium/cilium/enterprise/pkg/inspection"
 	"github.com/cilium/cilium/enterprise/pkg/lb"
 	cemaps "github.com/cilium/cilium/enterprise/pkg/maps"
 	"github.com/cilium/cilium/enterprise/pkg/mixedrouting"
@@ -100,6 +101,8 @@ var (
 
 		privnet.Cell,
 		evpn.Cell,
+
+		inspection.Cell,
 
 		mixedrouting.Cell,
 		encryptionPolicy.Cell,

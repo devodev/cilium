@@ -207,6 +207,7 @@ cilium-agent [flags]
       --enable-no-service-endpoints-routable                             Enable routes when service has 0 endpoints (default true)
       --enable-node-ipam                                                 Enable Node IPAM
       --enable-node-selector-labels                                      Enable use of node label based identity
+      --enable-passive-inspection                                        Enable passive inspection for pod traffic (mirror packets to a dedicated dummy interface)
       --enable-phantom-services                                          Enable phantom services handling (default true)
       --enable-pmtu-discovery                                            Enable path MTU discovery to send ICMP fragmentation-needed replies to the client
       --enable-policy string                                             Enable policy enforcement (default "default")
@@ -572,4 +573,3 @@ cilium-agent [flags]
 * [cilium-agent completion](cilium-agent_completion.md)	 - Generate the autocompletion script for the specified shell
 * [cilium-agent hive](cilium-agent_hive.md)	 - Inspect the hive
 * [cilium-agent shell](cilium-agent_shell.md)	 - Connect to the shell
-

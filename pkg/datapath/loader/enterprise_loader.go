@@ -21,6 +21,7 @@ import (
 
 	encryptionPolicyTypes "github.com/cilium/cilium/enterprise/pkg/encryption/policy/types"
 	evpnConfig "github.com/cilium/cilium/enterprise/pkg/evpn/config"
+	inspectionConfig "github.com/cilium/cilium/enterprise/pkg/inspection/config"
 	pnconfig "github.com/cilium/cilium/enterprise/pkg/privnet/config"
 	pnendpoints "github.com/cilium/cilium/enterprise/pkg/privnet/endpoints"
 	"github.com/cilium/cilium/pkg/datapath/config"
@@ -54,6 +55,7 @@ var EnterpriseCell = cell.Module(
 type EnterpriseLoader struct {
 	privnetConfig       pnconfig.Config
 	evpnConfig          evpnConfig.Config
+	inspectionConfig    inspectionConfig.Config
 	encryptionPolicyCfg encryptionPolicyTypes.Config
 	db                  *statedb.DB
 	deviceTable         statedb.Table[*tables.Device]
@@ -64,6 +66,7 @@ func newEnterpriseLoader(in struct {
 
 	PrivnetConfig       pnconfig.Config
 	EvpnConfig          evpnConfig.Config
+	InspectionConfig    inspectionConfig.Config
 	EncryptionPolicyCfg encryptionPolicyTypes.Config
 	DB                  *statedb.DB
 	DeviceTable         statedb.Table[*tables.Device]
@@ -71,6 +74,7 @@ func newEnterpriseLoader(in struct {
 	return &EnterpriseLoader{
 		privnetConfig:       in.PrivnetConfig,
 		evpnConfig:          in.EvpnConfig,
+		inspectionConfig:    in.InspectionConfig,
 		encryptionPolicyCfg: in.EncryptionPolicyCfg,
 		db:                  in.DB,
 		deviceTable:         in.DeviceTable,
@@ -103,6 +107,14 @@ func (l *EnterpriseLoader) registerEndpointConfig(pd *privnetDHCPDevice) {
 			if found {
 				cfg.EVPNDeviceIfIndex = uint32(dev.Index)
 				cfg.EVPNDeviceMAC.Addr = mac.MAC(dev.HardwareAddr).As6()
+			}
+		}
+
+		if l.inspectionConfig.Enabled {
+			dev, _, found := l.deviceTable.Get(l.db.ReadTxn(), tables.DeviceNameIndex.Query(inspectionConfig.InterfaceName))
+			if found {
+				cfg.PassiveInspectionEnable = true
+				cfg.PassiveInspectionIfIndex = uint32(dev.Index)
 			}
 		}
 
