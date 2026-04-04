@@ -151,8 +151,9 @@ jobs:
           helm install -n kube-system cilium ${{ env.helm_chart_repo }} \
             --version ${{ steps.vars.outputs.version }} \
             --set-string extraConfig.external-dns-proxy=true \
+            --set=enterprise.inspection.enabled=true \
             --set=enterprise.featureGate.strict=true \
-            --set='enterprise.featureGate.approved={DatapathIPModeDualStack}' \
+            --set='enterprise.featureGate.approved={DatapathIPModeDualStack,PassiveInspection}' \
             --set=ipv6.enabled=true
           kubectl rollout status -n kube-system ds/cilium --watch
 

@@ -84,12 +84,14 @@ func (ect *EnterpriseConnectivityTest) newEnterpriseTest(name string) *Enterpris
 	ct := check.NewTest(name, ect.ConnectivityTest.Params().Verbose, ect.ConnectivityTest.Params().Debug)
 	ect.ConnectivityTest.AddTest(ct)
 	et := EnterpriseTest{
-		Test:         ct,
-		ctx:          ect,
-		iegps:        make(map[string]*isovalentv1.IsovalentEgressGatewayPolicy),
-		imgs:         make(map[string]*isovalentv1alpha1.IsovalentMulticastGroup),
-		mcastDeploys: make(map[string]*appsv1.Deployment),
-		iceps:        make(map[string]*isovalentv1alpha1.IsovalentClusterwideEncryptionPolicy),
+		Test:                 ct,
+		ctx:                  ect,
+		iegps:                make(map[string]*isovalentv1.IsovalentEgressGatewayPolicy),
+		imgs:                 make(map[string]*isovalentv1alpha1.IsovalentMulticastGroup),
+		mcastDeploys:         make(map[string]*appsv1.Deployment),
+		iceps:                make(map[string]*isovalentv1alpha1.IsovalentClusterwideEncryptionPolicy),
+		inspectionDaemonSets: make(map[string]*appsv1.DaemonSet),
+		inspectionDeploys:    make(map[string]*appsv1.Deployment),
 	}
 
 	return &et

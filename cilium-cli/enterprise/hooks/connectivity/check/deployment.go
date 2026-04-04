@@ -17,6 +17,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/cilium/cilium/cilium-cli/connectivity/check"
@@ -254,5 +255,150 @@ func (t *EnterpriseTest) deleteDeployments(ctx context.Context) error {
 		t.Debugf("Successfully deleted %d Multicast deployments", len(t.mcastDeploys))
 	}
 
+	return nil
+}
+
+// ─── Inspection deployment / DaemonSet lifecycle ─────────────────────────────
+
+// addInspectionDaemonSet registers a DaemonSet to be applied during test setup.
+func (t *EnterpriseTest) addInspectionDaemonSet(ds *appsv1.DaemonSet) error {
+	if ds == nil {
+		return fmt.Errorf("nil DaemonSet")
+	}
+	if ds.Name == "" {
+		return fmt.Errorf("DaemonSet name is empty")
+	}
+	if _, exists := t.inspectionDaemonSets[ds.Name]; exists {
+		return fmt.Errorf("DaemonSet %s already registered in test scope", ds.Name)
+	}
+	t.inspectionDaemonSets[ds.Name] = ds
+	return nil
+}
+
+// addInspectionDeployment registers a Deployment to be applied during test setup.
+func (t *EnterpriseTest) addInspectionDeployment(dep *appsv1.Deployment) error {
+	if dep == nil {
+		return fmt.Errorf("nil Deployment")
+	}
+	if dep.Name == "" {
+		return fmt.Errorf("Deployment name is empty")
+	}
+	if _, exists := t.inspectionDeploys[dep.Name]; exists {
+		return fmt.Errorf("Deployment %s already registered in test scope", dep.Name)
+	}
+	t.inspectionDeploys[dep.Name] = dep
+	return nil
+}
+
+// applyInspectionWorkloads creates all registered inspection DaemonSets and
+// Deployments, waits for them to be ready, and registers a cleanup finalizer.
+func (t *EnterpriseTest) applyInspectionWorkloads(ctx context.Context) error {
+	if len(t.inspectionDaemonSets) == 0 && len(t.inspectionDeploys) == 0 {
+		return nil
+	}
+
+	ns := t.ctx.Params().TestNamespace
+
+	for _, client := range t.ctx.Clients() {
+		_, err := client.GetNamespace(ctx, ns, metav1.GetOptions{})
+		if err != nil {
+			t.ctx.Logf("✨ [%s] Creating namespace %s for inspection connectivity check...", client.ClusterName(), ns)
+			namespace := &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        ns,
+					Annotations: t.ctx.Params().NamespaceAnnotations,
+				},
+			}
+			if _, err = client.CreateNamespace(ctx, namespace, metav1.CreateOptions{}); err != nil {
+				return fmt.Errorf("unable to create namespace %s: %w", ns, err)
+			}
+		}
+	}
+
+	for _, ds := range t.inspectionDaemonSets {
+		for _, client := range t.ctx.clients.clients() {
+			t.Infof("📜[%s] Deploying inspection sniffer DaemonSet %s...", client.ClusterName(), ds.Name)
+
+			_, err := client.CreateServiceAccount(ctx, ns, k8s.NewServiceAccount(ds.Name), metav1.CreateOptions{})
+			if err != nil && !k8sErrors.IsAlreadyExists(err) {
+				return fmt.Errorf("unable to create service account %s: %w", ds.Name, err)
+			}
+			_, err = client.CreateDaemonSet(ctx, ns, ds, metav1.CreateOptions{})
+			if err != nil && !k8sErrors.IsAlreadyExists(err) {
+				return fmt.Errorf("unable to create DaemonSet %s: %w", ds.Name, err)
+			}
+		}
+	}
+
+	for _, dep := range t.inspectionDeploys {
+		for _, client := range t.ctx.clients.clients() {
+			t.Infof("📜[%s] Deploying inspection sender Deployment %s...", client.ClusterName(), dep.Name)
+
+			_, err := client.CreateServiceAccount(ctx, ns, k8s.NewServiceAccount(dep.Name), metav1.CreateOptions{})
+			if err != nil && !k8sErrors.IsAlreadyExists(err) {
+				return fmt.Errorf("unable to create service account %s: %w", dep.Name, err)
+			}
+			_, err = client.CreateDeployment(ctx, ns, dep, metav1.CreateOptions{})
+			if err != nil && !k8sErrors.IsAlreadyExists(err) {
+				return fmt.Errorf("unable to create Deployment %s: %w", dep.Name, err)
+			}
+		}
+	}
+
+	t.WithFinalizer(func(_ context.Context) error {
+		return t.deleteInspectionWorkloads(context.TODO())
+	})
+
+	for _, ds := range t.inspectionDaemonSets {
+		for _, client := range t.ctx.clients.clients() {
+			if err := check.WaitForDaemonSet(ctx, t.ctx, client.Client, ns, ds.Name); err != nil {
+				t.Failf("inspection sniffer DaemonSet %s is not ready: %s", ds.Name, err)
+			}
+		}
+	}
+	for _, dep := range t.inspectionDeploys {
+		for _, client := range t.ctx.clients.clients() {
+			if err := check.WaitForDeployment(ctx, t.ctx, client.Client, ns, dep.Name); err != nil {
+				t.Failf("inspection sender Deployment %s is not ready: %s", dep.Name, err)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (t *EnterpriseTest) deleteInspectionWorkloads(ctx context.Context) error {
+	ns := t.ctx.Params().TestNamespace
+
+	for _, ds := range t.inspectionDaemonSets {
+		for _, client := range t.ctx.clients.clients() {
+			t.Infof("📜[%s] Deleting inspection sniffer DaemonSet %s...", client.ClusterName(), ds.Name)
+			err := client.Clientset.AppsV1().DaemonSets(ns).Delete(ctx, ds.Name, metav1.DeleteOptions{})
+			if err != nil && !k8sErrors.IsNotFound(err) {
+				return fmt.Errorf("unable to delete DaemonSet %s: %w", ds.Name, err)
+			}
+			err = client.DeleteServiceAccount(ctx, ns, ds.Name, metav1.DeleteOptions{})
+			if err != nil && !k8sErrors.IsNotFound(err) {
+				return fmt.Errorf("unable to delete service account %s: %w", ds.Name, err)
+			}
+		}
+	}
+
+	for _, dep := range t.inspectionDeploys {
+		for _, client := range t.ctx.clients.clients() {
+			t.Infof("📜[%s] Deleting inspection sender Deployment %s...", client.ClusterName(), dep.Name)
+			err := client.DeleteDeployment(ctx, ns, dep.Name, metav1.DeleteOptions{})
+			if err != nil && !k8sErrors.IsNotFound(err) {
+				return fmt.Errorf("unable to delete Deployment %s: %w", dep.Name, err)
+			}
+			err = client.DeleteServiceAccount(ctx, ns, dep.Name, metav1.DeleteOptions{})
+			if err != nil && !k8sErrors.IsNotFound(err) {
+				return fmt.Errorf("unable to delete service account %s: %w", dep.Name, err)
+			}
+		}
+	}
+
+	t.Debugf("Successfully deleted inspection workloads (%d DaemonSets, %d Deployments)",
+		len(t.inspectionDaemonSets), len(t.inspectionDeploys))
 	return nil
 }

@@ -61,6 +61,11 @@ const (
 
 	// DedicatedEnvoyConfigPolicy is the indicator whether dedicated ingress policy is enabled
 	DedicatedEnvoyConfigPolicy features.Feature = "envoy-config-policy-mode"
+
+	// PassiveInspection: whether passive inspection is enabled for pod traffic.
+	// When enabled, a clone of every pod packet is mirrored to a dedicated
+	// inspection interface for out-of-band IDS analysis.
+	PassiveInspection features.Feature = "enable-passive-inspection"
 )
 
 func Detect(ctx context.Context, ct *check.ConnectivityTest) error {
@@ -156,6 +161,10 @@ func extractFromConfigMap(ctx context.Context, ct *check.ConnectivityTest) error
 
 	ct.Features[DedicatedEnvoyConfigPolicy] = features.Status{
 		Enabled: cm.Data[string(DedicatedEnvoyConfigPolicy)] == "dedicated",
+	}
+
+	ct.Features[PassiveInspection] = features.Status{
+		Enabled: cm.Data[string(PassiveInspection)] == "true",
 	}
 
 	return nil

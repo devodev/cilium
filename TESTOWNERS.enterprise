@@ -465,6 +465,7 @@
 /cilium-cli/enterprise/hooks/connectivity/tests/egressgateway.go @isovalent/egress-gateway
 /cilium-cli/enterprise/hooks/connectivity/tests/external_dns_proxy*.go @isovalent/dns-proxy
 /cilium-cli/enterprise/hooks/connectivity/tests/hubble-cli-version.go @isovalent/hubble
+/cilium-cli/enterprise/hooks/connectivity/tests/inspection.go @isovalent/sig-defence
 /cilium-cli/enterprise/hooks/connectivity/tests/mixedrouting.go @isovalent/clustermesh
 /cilium-cli/enterprise/hooks/connectivity/tests/multicast.go @isovalent/traffic-engineering
 /cilium-cli/enterprise/hooks/connectivity/tests/phantom.go @isovalent/clustermesh

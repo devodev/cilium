@@ -55,6 +55,12 @@ type EnterpriseTest struct {
 
 	// Isovalent Clusterwide Encryption Policies active during this test.
 	iceps map[string]*isovalentv1alpha1.IsovalentClusterwideEncryptionPolicy
+
+	// inspection DaemonSets (one-per-node sniffers) active during this test.
+	inspectionDaemonSets map[string]*appsv1.DaemonSet
+
+	// inspection sender Deployments active during this test.
+	inspectionDeploys map[string]*appsv1.Deployment
 }
 
 func (t *EnterpriseTest) Context() *EnterpriseConnectivityTest {
@@ -367,6 +373,48 @@ func (t *EnterpriseTest) WithScenarios(sl ...check.Scenario) *EnterpriseTest {
 	return t
 }
 
+// InspectionSnifferDaemonSetParams holds the parameters for a sniffer DaemonSet
+// that captures traffic on the inspection interface.
+type InspectionSnifferDaemonSetParams struct {
+	// Image is the container image to use; must have tcpdump available.
+	// Defaults to nicolaka/netshoot if empty.
+	Image string
+}
+
+// WithInspectionSnifferDaemonSet adds a sniffer DaemonSet that will be deployed
+// on every node during the test.  The DaemonSet container must have tcpdump
+// available — nicolaka/netshoot is a suitable default.
+func (t *EnterpriseTest) WithInspectionSnifferDaemonSet(params InspectionSnifferDaemonSetParams) *EnterpriseTest {
+	if params.Image == "" {
+		params.Image = "nicolaka/netshoot:v0.15"
+	}
+	ds := enterpriseTests.NewInspectionSnifferDaemonSet(t.ctx.Params().TestNamespace, params.Image)
+	if err := t.addInspectionDaemonSet(ds); err != nil {
+		t.Fatalf("Adding inspection sniffer DaemonSet: %s", err)
+	}
+	return t
+}
+
+// InspectionSenderDeploymentParams holds the parameters for a sender Deployment.
+type InspectionSenderDeploymentParams struct {
+	// Image is the container image to use; must have /dev/udp support (bash or busybox ash).
+	// Defaults to nicolaka/netshoot if empty.
+	Image string
+}
+
+// WithInspectionSenderDeployment adds a two-replica sender Deployment spread
+// across nodes during the test.
+func (t *EnterpriseTest) WithInspectionSenderDeployment(params InspectionSenderDeploymentParams) *EnterpriseTest {
+	if params.Image == "" {
+		params.Image = "nicolaka/netshoot:v0.15"
+	}
+	dep := enterpriseTests.NewInspectionSenderDeployment(t.ctx.Params().TestNamespace, params.Image)
+	if err := t.addInspectionDeployment(dep); err != nil {
+		t.Fatalf("Adding inspection sender Deployment: %s", err)
+	}
+	return t
+}
+
 func (t *EnterpriseTest) Setup(ctx context.Context) error {
 	if err := t.applyPolicies(ctx); err != nil {
 		t.ContainerLogs(ctx)
@@ -376,6 +424,11 @@ func (t *EnterpriseTest) Setup(ctx context.Context) error {
 	if err := t.applyDeployments(ctx); err != nil {
 		t.ContainerLogs(ctx)
 		return fmt.Errorf("applying deployments: %w", err)
+	}
+
+	if err := t.applyInspectionWorkloads(ctx); err != nil {
+		t.ContainerLogs(ctx)
+		return fmt.Errorf("applying inspection workloads: %w", err)
 	}
 
 	return nil
