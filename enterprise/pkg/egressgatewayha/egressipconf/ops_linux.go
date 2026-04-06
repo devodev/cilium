@@ -101,10 +101,10 @@ func (ops *ops) Prune(ctx context.Context, txn statedb.ReadTxn, iter iter.Seq2[*
 		return fmt.Errorf("failed to list egress-gateway IPAM addresses: %w", err)
 	}
 
-	// build a map of in-use egressIP -> destinations:
-	egressIPs := make(map[netip.Addr]struct{})
+	// build a map of in-use egressIP -> network interface:
+	egressIPs := make(map[netip.Addr]string)
 	for entry := range iter {
-		egressIPs[entry.Addr] = struct{}{}
+		egressIPs[entry.Addr] = entry.Interface
 	}
 
 	for _, a := range addrs {
@@ -117,9 +117,17 @@ func (ops *ops) Prune(ctx context.Context, txn statedb.ReadTxn, iter iter.Seq2[*
 			return fmt.Errorf("failed to convert netlink addr IP: %s", a.IP.String())
 		}
 
-		if _, ok := egressIPs[addr]; ok {
-			// TODO could also check whether the IP is set on the expected interface
-			continue
+		// Retain address when it's on the expected network interface:
+		if ifName, ok := egressIPs[addr]; ok && ifName != "" {
+			// TODO use Device table
+			iface, err := safenetlink.LinkByName(ifName)
+			if err != nil {
+				return fmt.Errorf("failed to get device %s by name: %w", ifName, err)
+			}
+
+			if iface.Attrs().Index == a.LinkIndex {
+				continue
+			}
 		}
 
 		ops.logger.Debug("Pruning address",

@@ -224,7 +224,7 @@ func TestPrivilegedPrune(t *testing.T) {
 		ns.Close()
 	})
 
-	// Create a dummy device to test with
+	// Create dummy devices to test with
 	err = nlh.LinkAdd(
 		&netlink.Dummy{
 			LinkAttrs: netlink.LinkAttrs{
@@ -240,6 +240,22 @@ func TestPrivilegedPrune(t *testing.T) {
 	require.NoError(t, err, "LinkByName")
 	require.NoError(t, nlh.LinkSetUp(link))
 	ifName := link.Attrs().Name
+
+	err = nlh.LinkAdd(
+		&netlink.Dummy{
+			LinkAttrs: netlink.LinkAttrs{
+				Name: "dummy1",
+			},
+		},
+	)
+	require.NoError(t, err, "LinkAdd")
+	link1, err := safenetlink.WithRetryResult(func() (netlink.Link, error) {
+		//nolint:forbidigo
+		return nlh.LinkByName("dummy1")
+	})
+	require.NoError(t, err, "LinkByName")
+	require.NoError(t, nlh.LinkSetUp(link1))
+	ifName1 := link1.Attrs().Name
 
 	ops := newOps(slog.New(slog.DiscardHandler), newMockGNeighSender())
 
@@ -321,6 +337,47 @@ func TestPrivilegedPrune(t *testing.T) {
 	// build a fake empty iterator and call Prune
 	err = ns.Do(func() error {
 		return ops.Prune(context.Background(), nil, newFakeIterator())
+	})
+	require.NoError(t, err, "ops.Prune")
+
+	// egress IPs should have been deleted
+	nlAddrs, err = safenetlink.WithRetryResult(func() ([]netlink.Addr, error) {
+		//nolint:forbidigo
+		return nlh.AddrList(link, netlink.FAMILY_V4)
+	})
+	require.NoError(t, err, "netlink.AddrList")
+	addrs = filterEgressIPs(nlAddrs, "")
+	require.Empty(t, addrs)
+
+	// *** Addrs should also be deleted when not associated with any interface
+
+	// call again Update() to reconcile network config as specified in the entries
+	for _, entry := range entries {
+		err = ns.Do(func() error {
+			return ops.Update(context.Background(), nil, 0, entry)
+		})
+		require.NoError(t, err, "ops.Update")
+	}
+
+	// build a fake iterator containing an entry for:
+	//
+	// <egressIP_1>
+	// <egressIP_2>
+	//
+	// then call Prune
+	err = ns.Do(func() error {
+		return ops.Prune(context.Background(), nil, newFakeIterator(
+			// Virtual IP, not bound to any interface
+			&tables.EgressIPEntry{
+				Addr:      egressIP_1,
+				Interface: "",
+			},
+			// IP has magically moved to another interface
+			&tables.EgressIPEntry{
+				Addr:      egressIP_2,
+				Interface: ifName1,
+			},
+		))
 	})
 	require.NoError(t, err, "ops.Prune")
 
