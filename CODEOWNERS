@@ -820,6 +820,9 @@ Makefile* @cilium/build
 #   Responsible for security related features and issues.
 # - @isovalent/service-mesh
 #   Responsible for maintaining service mesh or L7 proxy related features and issues.
+# - @isovalent/sig-defence
+#   Responsible for maintaining defence-oriented enterprise features such as
+#   WAF and IDS.
 # - @isovalent/sig-k8s:
 #   Provide input on all interactions with Kubernetes, both for standard
 #   resources and CRDs. Ensure best practices are followed for the coordination

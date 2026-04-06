@@ -119,6 +119,7 @@ var (
 		"@isovalent/scalability-performance":    {},
 		"@isovalent/security":                   {},
 		"@isovalent/service-mesh":               {},
+		"@isovalent/sig-defence":                {},
 		"@isovalent/sig-k8s":                    {},
 		"@isovalent/timescape":                  {},
 		"@isovalent/traffic-engineering":        {},
