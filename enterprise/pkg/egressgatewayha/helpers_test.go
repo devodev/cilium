@@ -300,6 +300,7 @@ type policyParams struct {
 	uid                types.UID
 	generation         int64
 	labels             map[string]string
+	annotations        map[string]string
 	endpointLabels     map[string]string
 	destinationCIDRs   []string
 	excludedCIDRs      []string
@@ -388,6 +389,10 @@ func newIEGP(params *policyParams) (*Policy, *PolicyConfig) {
 		groupStatuses: parsedGroupStatusesConfigs,
 	}
 
+	if val, found := params.annotations[virtualEgressIPKey]; found {
+		policy.virtualIP = val == "true"
+	}
+
 	destinationCIDRs := []v1.IPv4CIDR{}
 	for _, destinationCIDR := range params.destinationCIDRs {
 		destinationCIDRs = append(destinationCIDRs, v1.IPv4CIDR(destinationCIDR))
@@ -430,6 +435,7 @@ func newIEGP(params *policyParams) (*Policy, *PolicyConfig) {
 			CreationTimestamp: metav1.Now(),
 			Generation:        params.generation,
 			Labels:            params.labels,
+			Annotations:       params.annotations,
 		},
 		Spec: v1.IsovalentEgressGatewayPolicySpec{
 			Selectors: []v1.EgressRule{

@@ -42,6 +42,11 @@ func (ops *ops) Update(ctx context.Context, _ statedb.ReadTxn, _ statedb.Revisio
 		return fmt.Errorf("egress IP %s is not valid", entry.Addr)
 	}
 
+	// For virtual IPs we currently don't need to take any action
+	if entry.Interface == "" {
+		return nil
+	}
+
 	iface, err := safenetlink.LinkByName(entry.Interface)
 	if err != nil {
 		return fmt.Errorf("failed to get device %s by name: %w", entry.Interface, err)
@@ -73,6 +78,11 @@ func (ops *ops) Update(ctx context.Context, _ statedb.ReadTxn, _ statedb.Revisio
 }
 
 func (ops *ops) Delete(ctx context.Context, _ statedb.ReadTxn, _ statedb.Revision, entry *tables.EgressIPEntry) error {
+	// For virtual IPs we currently don't need to take any action
+	if entry.Interface == "" {
+		return nil
+	}
+
 	iface, err := safenetlink.LinkByName(entry.Interface)
 	if err != nil {
 		return fmt.Errorf("failed to get device %s by name: %w", entry.Interface, err)

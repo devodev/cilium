@@ -30,6 +30,11 @@ import (
 	"github.com/cilium/cilium/pkg/time"
 )
 
+const (
+	egressGatewayPrefix = "egw.isovalent.com"
+	virtualEgressIPKey  = egressGatewayPrefix + "/virtual-ip"
+)
+
 // groupConfig is the internal representation of an egress group, describing
 // which nodes should act as egress gateway for a given policy
 type groupConfig struct {
@@ -116,6 +121,8 @@ type PolicyConfig struct {
 	apiVersion string
 	generation int64
 	labels     map[string]string
+	// ingested from annotations:
+	virtualIP bool
 
 	endpointSelectors []*policyTypes.LabelSelector
 	dstCIDRs          []netip.Prefix
@@ -151,6 +158,7 @@ func ParseIEGP(logger *slog.Logger, iegp *v1.IsovalentEgressGatewayPolicy) (*Pol
 	var dstCidrList []netip.Prefix
 	var excludedCIDRs []netip.Prefix
 	var egressCIDRs []netip.Prefix
+	var virtualIP bool
 
 	allowAllNamespacesRequirement := slim_metav1.LabelSelectorRequirement{
 		Key:      k8sConst.PodNamespaceLabel,
@@ -165,6 +173,10 @@ func ParseIEGP(logger *slog.Logger, iegp *v1.IsovalentEgressGatewayPolicy) (*Pol
 	uid := iegp.UID
 	if uid == "" {
 		return nil, fmt.Errorf("must have a uid")
+	}
+
+	if val, found := iegp.Annotations[virtualEgressIPKey]; found {
+		virtualIP = val == "true"
 	}
 
 	destinationCIDRs := iegp.Spec.DestinationCIDRs
@@ -371,6 +383,7 @@ func ParseIEGP(logger *slog.Logger, iegp *v1.IsovalentEgressGatewayPolicy) (*Pol
 		creationTimestamp: iegp.CreationTimestamp.Time,
 		apiVersion:        "isovalent.com/v1",
 		generation:        iegp.GetGeneration(),
+		virtualIP:         virtualIP,
 	}, nil
 }
 

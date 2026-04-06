@@ -173,6 +173,42 @@ func runTest(t *testing.T, prepareLink func(*netlink.Handle, netlink.Link, strin
 		})
 	})
 	require.Error(t, err, "expected error from delete of non-existing device")
+
+	// *** Virtual Egress IP
+
+	err = ns.Do(func() error {
+		return ops.Update(context.Background(), nil, 0, &tables.EgressIPEntry{
+			Addr:      egressIP,
+			Interface: "",
+			Status:    reconciler.StatusPending(),
+		})
+
+	})
+	require.NoError(t, err, "expected no error from initial update")
+
+	// Virtual Egress IP should not be set on the node
+	nlAddrs, err = safenetlink.WithRetryResult(func() ([]netlink.Addr, error) {
+		//nolint:forbidigo
+		return nlh.AddrList(nil, netlink.FAMILY_V4)
+	})
+	require.NoError(t, err, "netlink.AddrList")
+
+	addrs = make([]netip.Addr, 0, len(nlAddrs))
+	for _, nlAddr := range nlAddrs {
+		addr, _ := netip.AddrFromSlice(nlAddr.IP)
+		addrs = append(addrs, addr)
+	}
+	require.NotContainsf(t, addrs, egressIP, "found virtual egress IP %s on the node", egressIP)
+
+	// Delete() should not do anything
+	err = ns.Do(func() error {
+		return ops.Delete(context.Background(), nil, 0, &tables.EgressIPEntry{
+			Addr:      egressIP,
+			Interface: "",
+			Status:    reconciler.StatusPending(),
+		})
+	})
+	require.NoError(t, err, "expected no error from delete")
 }
 
 func TestPrivilegedClean(t *testing.T) {

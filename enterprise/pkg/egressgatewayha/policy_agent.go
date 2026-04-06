@@ -252,7 +252,7 @@ func (config *AgentPolicyConfig) regenerateGatewayConfig(manager *Manager, tx st
 
 					if gc.iface != "" {
 						ifaceName, ifaceIndex, ifaceType, err = fetchLinkInfo(manager, gc.iface)
-					} else {
+					} else if !config.virtualIP {
 						iface, err = route.NodeDeviceWithDefaultRoute(manager.logger, true, false)
 						if err == nil {
 							ifaceIndex = iface.Attrs().Index
@@ -268,10 +268,12 @@ func (config *AgentPolicyConfig) regenerateGatewayConfig(manager *Manager, tx st
 					}
 
 					egressIPs = append(egressIPs, gwEgressIPConfig{egressIP, ifaceName})
-
-					gwc.egressIfindex = manager.ifindexResolver(ifaceIndex, ifaceType)
-					gwc.ifaceName = ifaceName
 					gwc.egressIP = egressIP
+
+					if ifaceName != "" {
+						gwc.egressIfindex = manager.ifindexResolver(ifaceIndex, ifaceType)
+						gwc.ifaceName = ifaceName
+					}
 				} else {
 					// egressCIDRs is set, meaning the operator is responsible for IPAM-assigning
 					// egress IPs from those CIDRs. If the local node has no assigned egress IP,

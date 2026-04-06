@@ -18,8 +18,8 @@ import (
 	"github.com/cilium/statedb/reconciler"
 )
 
-// EgressIPTableName is the name of the stateDB table used to keep track of the
-// allocated egress IPs that needs to be configured on the gateway.
+// EgressIPTableName is the name of the stateDB table that tracks all
+// allocated egress IPs on a gateway node.
 const EgressIPTableName = "egress-ips"
 
 // EgressIPKey is an egress-ips stateDB table key

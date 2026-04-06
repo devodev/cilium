@@ -184,12 +184,21 @@ func TestPrivilegedAgentScripts(t *testing.T) {
 
 					func() cache.IdentityAllocator {
 						m := testidentity.NewMockIdentityAllocator(nil)
+
 						_, _, err := m.AllocateIdentity(context.TODO(),
 							labels.NewLabelsFromSortedList("k8s:foo=bar"),
 							false,
 							30000,
 						)
 						assert.NoError(t, err)
+
+						_, _, err = m.AllocateIdentity(context.TODO(),
+							labels.NewLabelsFromSortedList("k8s:foo=bar2"),
+							false,
+							30001,
+						)
+						assert.NoError(t, err)
+
 						return m
 					},
 

@@ -772,6 +772,10 @@ func (manager *Manager) relaxRPFilter(tx statedb.ReadTxn) error {
 		}
 
 		ifaceName := pc.gatewayConfig.ifaceName
+		if ifaceName == "" {
+			continue
+		}
+
 		if _, ok := ifSet[ifaceName]; !ok {
 			ifSet[ifaceName] = struct{}{}
 			sysSettings = append(sysSettings, tables.Sysctl{

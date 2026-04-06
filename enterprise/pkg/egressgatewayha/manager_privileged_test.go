@@ -1946,3 +1946,37 @@ func TestPrivilegedEgressGatewayManagerIPAMWithEgressCIDRs(t *testing.T) {
 		{ep1IP, destCIDR, "10.100.0.1", node1IP, ifIndex1},
 	})
 }
+
+// TestPrivilegedEgressGatewayManagerIPAMWithVirtualIP verifies that an IPAM
+// policy without interface selector creates Virtual IPs (with no interface
+// binding in the datapath).
+func TestPrivilegedEgressGatewayManagerIPAMWithVirtualIP(t *testing.T) {
+	k := setupEgressGatewayTestSuite(t)
+
+	// Add an endpoint that matches the policy.
+	k.addEndpoint(t, "ep-1", ep1IP, ep1Labels, node1IP)
+
+	// Create an IPAM policy with virtual EgressIPs.
+	k.addPolicy(t, &policyParams{
+		name: "policy-1",
+		uid:  policy1UID,
+		annotations: map[string]string{
+			virtualEgressIPKey: "true",
+		},
+		endpointLabels:   ep1Labels,
+		destinationCIDRs: []string{destCIDR},
+		egressCIDRs:      []string{"10.100.0.0/24"},
+		egressGroups: []egressGroupParams{{
+			nodeLabels:        nodeGroup1Labels,
+			healthyGatewayIPs: []string{node1IP},
+			activeGatewayIPs:  []string{node1IP},
+			egressIPByGatewayIP: map[string]string{
+				node1IP: "10.100.0.1",
+			},
+		}},
+	})
+
+	k.assertEgressRules(t, []egressRule{
+		{ep1IP, destCIDR, "10.100.0.1", node1IP, 0},
+	})
+}

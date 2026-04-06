@@ -78,5 +78,8 @@ func deletedEgressIfaces(devices []*tables.Device, db *statedb.DB, table statedb
 			func(entry *enterpriseTables.EgressIPEntry) string { return entry.Interface },
 		))...)
 
+	// Ignore virtual IPs
+	egressIfaces.Delete("")
+
 	return egressIfaces.Difference(devNames).UnsortedList()
 }
