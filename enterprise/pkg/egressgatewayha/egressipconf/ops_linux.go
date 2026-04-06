@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"iter"
 	"log/slog"
-	"net"
 	"net/netip"
 	"os"
 
@@ -30,20 +29,11 @@ import (
 
 	"github.com/cilium/cilium/enterprise/datapath/tables"
 	"github.com/cilium/cilium/pkg/datapath/gneigh"
-	"github.com/cilium/cilium/pkg/datapath/linux/linux_defaults"
-	"github.com/cilium/cilium/pkg/datapath/linux/route"
 	"github.com/cilium/cilium/pkg/datapath/linux/safenetlink"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 )
 
 const (
-	// RouteTableEgressGatewayIPAM is the default table ID to use for routing rules related to Egress Gateway IPAM.
-	RouteTableEgressGatewayIPAM = 2050
-
-	// RulePriorityEgressGatewayIPAM is the priority of the rule installed by Egress Gateway IPAM to route
-	// SNATed traffic to the proper egress interface.
-	RulePriorityEgressGatewayIPAM = 30
-
 	egressIPLabel = "cilium-iegp"
 )
 
@@ -141,22 +131,6 @@ func (ops *ops) Prune(ctx context.Context, txn statedb.ReadTxn, iter iter.Seq2[*
 		}
 	}
 
-	rulesFilter, rulesMask := rulesFilter()
-	rules, err := safenetlink.RuleListFiltered(netlink.FAMILY_V4, rulesFilter, rulesMask)
-	if err != nil {
-		return fmt.Errorf("failed to list egress-gateway IPAM routing rules: %w", err)
-	}
-
-	for _, rule := range rules {
-		if err := netlink.RuleDel(&rule); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("failed to delete egress-gateway IPAM routing rule while pruning: %w", err)
-		}
-	}
-
-	if err := route.DeleteRouteTable(RouteTableEgressGatewayIPAM, netlink.FAMILY_V4); err != nil {
-		return fmt.Errorf("failed to delete egress-gateway IPAM route table: %w", err)
-	}
-
 	return nil
 }
 
@@ -176,45 +150,4 @@ var _ reconciler.Operations[*tables.EgressIPEntry] = &ops{}
 
 func addrForEgressIP(addr netip.Addr, label string) *netlink.Addr {
 	return &netlink.Addr{IPNet: netipx.AddrIPNet(addr), Label: label}
-}
-
-func ruleForEgressIP(addr netip.Addr) route.Rule {
-	return route.Rule{
-		Priority: RulePriorityEgressGatewayIPAM,
-		From:     netipx.AddrIPNet(addr),
-		Table:    RouteTableEgressGatewayIPAM,
-		Protocol: linux_defaults.RTProto,
-	}
-}
-
-func routeForEgressIP(addr netip.Addr, dest netip.Prefix, iface netlink.Link) route.Route {
-	return route.Route{
-		Prefix: prefixToIPNet(dest),
-		Local:  addr.AsSlice(),
-		Device: iface.Attrs().Name,
-		Table:  RouteTableEgressGatewayIPAM,
-		Proto:  linux_defaults.RTProto,
-	}
-}
-
-func routeWithNextHop(r route.Route, gw netip.Addr) route.Route {
-	nextHop := net.IP(gw.AsSlice())
-	r.Nexthop = &nextHop
-	return r
-}
-
-func prefixToIPNet(prefix netip.Prefix) net.IPNet {
-	prefix = prefix.Masked()
-	return net.IPNet{
-		IP:   prefix.Addr().AsSlice(),
-		Mask: net.CIDRMask(prefix.Bits(), prefix.Addr().BitLen()),
-	}
-}
-
-func rulesFilter() (*netlink.Rule, uint64) {
-	return &netlink.Rule{
-		Priority: RulePriorityEgressGatewayIPAM,
-		Table:    RouteTableEgressGatewayIPAM,
-		Protocol: linux_defaults.RTProto,
-	}, netlink.RT_FILTER_PRIORITY | netlink.RT_FILTER_TABLE | netlink.RT_FILTER_PROTOCOL
 }

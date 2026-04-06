@@ -279,7 +279,7 @@ func (config *AgentPolicyConfig) regenerateGatewayConfig(manager *Manager, tx st
 		}
 	}
 
-	// upsert all the egress configs <egress IP, egress interface, destination CIDRs>
+	// upsert all the egress configs <egress IP, egress interface>
 	// from the current status of the policy and remove the configs from the previous policy status
 	nextEgressIPs := sets.New(egressIPs...)
 	curEgressIPs := manager.egressConfigsByPolicy[config.id]

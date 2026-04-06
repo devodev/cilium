@@ -24,12 +24,9 @@ import (
 	"github.com/cilium/statedb/reconciler"
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netlink"
-	"go4.org/netipx"
 
 	"github.com/cilium/cilium/enterprise/datapath/tables"
 	"github.com/cilium/cilium/pkg/datapath/gneigh"
-	"github.com/cilium/cilium/pkg/datapath/linux/linux_defaults"
-	"github.com/cilium/cilium/pkg/datapath/linux/route"
 	"github.com/cilium/cilium/pkg/datapath/linux/safenetlink"
 	"github.com/cilium/cilium/pkg/testutils"
 	"github.com/cilium/cilium/pkg/testutils/netns"
@@ -243,12 +240,10 @@ func TestPrivilegedPrune(t *testing.T) {
 	require.NoError(t, err, "LinkByName")
 	require.NoError(t, nlh.LinkSetUp(link))
 	ifName := link.Attrs().Name
-	ifIndex := link.Attrs().Index
 
 	ops := newOps(slog.New(slog.DiscardHandler), newMockGNeighSender())
 
 	egressIP_1 := netip.MustParseAddr("192.168.1.50")
-	destinations_1_1 := netip.MustParsePrefix("192.168.1.0/24")
 	egressIP_2 := netip.MustParseAddr("192.168.1.100")
 
 	entries := []*tables.EgressIPEntry{
@@ -272,8 +267,7 @@ func TestPrivilegedPrune(t *testing.T) {
 
 	// build a fake iterator containing entries for:
 	//
-	// <egressIP_2, destinations_2_1>
-	// <egressIP_2, destinations_2_2>
+	// <egressIP_2>
 	//
 	// then call Prune
 	err = ns.Do(func() error {
@@ -303,7 +297,7 @@ func TestPrivilegedPrune(t *testing.T) {
 
 	// build a fake iterator containing an entry for:
 	//
-	// <egressIP_1, destinations_1_1>
+	// <egressIP_1>
 	//
 	// then call Prune
 	err = ns.Do(func() error {
@@ -369,65 +363,6 @@ func TestPrivilegedPrune(t *testing.T) {
 	require.NoError(t, err, "netlink.AddrList")
 	addrs = filterEgressIPs(nlAddrs, "")
 	require.ElementsMatch(t, addrs, []netip.Addr{egressIP_2})
-
-	// Prune should delete all dangling IP rules & routes from an old installation.
-
-	// Install an old IP rule:
-	err = ns.Do(func() error {
-		return route.ReplaceRule(ruleForEgressIP(egressIP_2))
-	})
-	require.NoError(t, err, "route.ReplaceRule")
-
-	// Install an old route:
-	// needed to avoid "network is unreachable" error when installing route with default gateway
-	require.NoError(t, nlh.AddrAdd(link, &netlink.Addr{
-		IPNet: netipx.PrefixIPNet(netip.MustParsePrefix("192.168.1.2/24")),
-	}))
-	nextHop := netip.MustParseAddr("192.168.1.1")
-
-	r := routeForEgressIP(egressIP_2, destinations_1_1, link)
-	err = ns.Do(func() error {
-		return route.UpsertWithoutDirectRoute(routeWithNextHop(r, nextHop))
-	})
-	require.NoError(t, err, "route.UpsertWithoutDirectRoute")
-
-	// build a fake empty iterator and call Prune
-	err = ns.Do(func() error {
-		return ops.Prune(context.Background(), nil, newFakeIterator())
-	})
-	require.NoError(t, err, "ops.Prune")
-
-	// all rules should have been deleted
-	rules, err := safenetlink.WithRetryResult(func() ([]netlink.Rule, error) {
-		//nolint:forbidigo
-		return nlh.RuleListFiltered(
-			netlink.FAMILY_V4,
-			&netlink.Rule{
-				Priority: RulePriorityEgressGatewayIPAM,
-				Table:    RouteTableEgressGatewayIPAM,
-				Protocol: linux_defaults.RTProto,
-			},
-			netlink.RT_FILTER_PRIORITY|netlink.RT_FILTER_TABLE|netlink.RT_FILTER_PROTOCOL,
-		)
-	})
-	require.NoError(t, err, "RuleListFiltered")
-	require.Empty(t, rules)
-
-	// all routes should have been deleted
-	routes, err := safenetlink.WithRetryResult(func() ([]netlink.Route, error) {
-		//nolint:forbidigo
-		return nlh.RouteListFiltered(
-			netlink.FAMILY_V4,
-			&netlink.Route{
-				LinkIndex: ifIndex,
-				Table:     RouteTableEgressGatewayIPAM,
-				Protocol:  linux_defaults.RTProto,
-			},
-			netlink.RT_FILTER_OIF|netlink.RT_FILTER_TABLE|netlink.RT_FILTER_PROTOCOL,
-		)
-	})
-	require.NoError(t, err, "RouteListFiltered")
-	require.Empty(t, routes)
 }
 
 func newFakeIterator(objs ...*tables.EgressIPEntry) iter.Seq2[*tables.EgressIPEntry, statedb.Revision] {
