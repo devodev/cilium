@@ -11,6 +11,7 @@
 package commands
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/netip"
 	"slices"
@@ -40,6 +41,7 @@ func BGPRoutesExtendedCmd(bgpMgr agent.EnterpriseBGPRouterManager, errorPathStor
 			Args:    "<table type> <afi> <safi>",
 			Flags: func(fs *pflag.FlagSet) {
 				AddOutFileFlag(fs)
+				AddFormatFlag(fs)
 				fs.Bool("no-age", false, "Do not show Age column for testing purpose")
 				fs.BoolP("with-attrs", "a", false, "Show path attributes (excluding NEXT_HOP and MP_REACH_NLRI)")
 			},
@@ -54,6 +56,10 @@ func BGPRoutesExtendedCmd(bgpMgr agent.EnterpriseBGPRouterManager, errorPathStor
 		func(s *script.State, args ...string) (script.WaitFunc, error) {
 			if len(args) < 3 {
 				return nil, fmt.Errorf("BGP routes command requires <table type> <afi> <safi>")
+			}
+			format, err := s.Flags.GetString(formatFlag)
+			if err != nil {
+				return nil, err
 			}
 			tableType, err := parseTableTypeArg(args[0])
 			if err != nil {
@@ -95,8 +101,6 @@ func BGPRoutesExtendedCmd(bgpMgr agent.EnterpriseBGPRouterManager, errorPathStor
 					defer f.Close()
 				}
 
-				tw := GetCmdTabWriter(w)
-
 				routesRes, err := bgpMgr.GetRoutesExtended(s.Context(), routesReq)
 				if err != nil {
 					return "", "", err
@@ -117,8 +121,26 @@ func BGPRoutesExtendedCmd(bgpMgr agent.EnterpriseBGPRouterManager, errorPathStor
 				}
 
 				isAdjRIB := tableType == ossTypes.TableTypeAdjRIBIn || tableType == ossTypes.TableTypeAdjRIBOut
-				PrintRoutes(tw, routesRes.Instances, peerMaps, errorPathStore, noAge, isAdjRIB, printAttr)
-				tw.Flush()
+
+				switch format {
+				case "table":
+					tw := GetCmdTabWriter(w)
+					if err != nil {
+						return "", "", err
+					}
+					PrintRoutes(tw, routesRes.Instances, peerMaps, errorPathStore, noAge, isAdjRIB, printAttr)
+					tw.Flush()
+				case "json":
+					out, err := json.MarshalIndent(routesRes, "", "  ")
+					if err != nil {
+						return "", "", fmt.Errorf("json marshal failed: %w", err)
+					}
+					if _, err := w.Write(out); err != nil {
+						return "", "", err
+					}
+				default:
+					return "", "", fmt.Errorf("unsupported format: %s", format)
+				}
 
 				return buf.String(), "", nil
 			}, nil

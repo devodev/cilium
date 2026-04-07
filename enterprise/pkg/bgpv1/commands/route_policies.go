@@ -22,7 +22,6 @@ import (
 
 	"github.com/cilium/hive/script"
 	"github.com/spf13/pflag"
-	"go.yaml.in/yaml/v3"
 
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/agent"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
@@ -81,14 +80,6 @@ func BGPPRoutePolicies(bgpMgr agent.EnterpriseBGPRouterManager) script.Cmd {
 					out, err := json.MarshalIndent(policies, "", "  ")
 					if err != nil {
 						return "", "", fmt.Errorf("json marshal failed: %w", err)
-					}
-					if _, err := w.Write(out); err != nil {
-						return "", "", err
-					}
-				case "yaml":
-					out, err := yaml.Marshal(policies)
-					if err != nil {
-						return "", "", fmt.Errorf("yaml marshal failed: %w", err)
 					}
 					if _, err := w.Write(out); err != nil {
 						return "", "", err
