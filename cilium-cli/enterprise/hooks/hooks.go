@@ -164,6 +164,8 @@ cilium status`
 
 	command.AddCommand(cli.NewCmdPrivNet())
 
+	command.AddCommand(cli.NewCmdEVPN())
+
 	for _, cmd := range command.Commands() {
 		if !slices.Contains(supportedCommands, cmd.Name()) {
 			cmd.Hidden = true
