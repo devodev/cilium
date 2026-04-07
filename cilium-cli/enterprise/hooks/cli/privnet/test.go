@@ -71,6 +71,7 @@ const (
 	NetworkB = "network-b"
 	NetworkC = "network-c"
 	NetworkD = "network-d"
+	NetworkE = "network-e"
 
 	EchoServerPort = 8000
 )
@@ -306,11 +307,12 @@ type networkTemplateData struct {
 	Network         NetworkName
 	Prefixes        []Subnet
 	INBClusterNames []string
-	INBInterface    string
 	Routes          []Route
 }
 
 func (t *TestRun) renderClusterNetworkTopology(network NetworkName, ndata NetworkData) ([]k8s.Object, error) {
+	var objs []k8s.Object
+
 	data := networkTemplateData{
 		Network:  network,
 		Prefixes: ndata.Prefixes,
@@ -318,6 +320,22 @@ func (t *TestRun) renderClusterNetworkTopology(network NetworkName, ndata Networ
 
 	for _, inb := range ndata.INBs {
 		data.INBClusterNames = append(data.INBClusterNames, inb.ClusterName)
+	}
+
+	if len(ndata.NodeAttachments) > 0 {
+		attachmentData := attachmentTemplateData{
+			Network:     network,
+			Attachments: ndata.NodeAttachments,
+		}
+		attachmentYAML, err := renderTemplate(nodeAttachmentTemplate, attachmentData)
+		if err != nil {
+			return nil, fmt.Errorf("failed rendering template for node attachment %s: %w", network, err)
+		}
+		attachmentObjs, err := utils.ParseYAML[*isovalentv1alpha1.PrivateNetworkNodeAttachment](attachmentYAML)
+		if err != nil || len(attachmentObjs) == 0 {
+			return nil, fmt.Errorf("failed deserializing manifest for node attachment %s: %w", network, err)
+		}
+		objs = append(objs, toK8sObjects(attachmentObjs)...)
 	}
 
 	networkYAML, err := renderTemplate(privateNetworkTemplate, data)
@@ -329,7 +347,7 @@ func (t *TestRun) renderClusterNetworkTopology(network NetworkName, ndata Networ
 		return nil, fmt.Errorf("failed deserializing manifest for network %s: %w", network, err)
 	}
 
-	return toK8sObjects(networkObjs), nil
+	return append(objs, toK8sObjects(networkObjs)...), nil
 }
 
 func (t *TestRun) renderClusterVMs(ndata NetworkData) ([]k8s.Object, error) {
@@ -380,8 +398,8 @@ func (t *TestRun) renderClusterVMs(ndata NetworkData) ([]k8s.Object, error) {
 }
 
 type attachmentTemplateData struct {
-	Network   NetworkName
-	Interface string
+	Network     NetworkName
+	Attachments []NodeAttachment
 }
 
 func (t *TestRun) applyINBNetworkTopology(ctx context.Context, network NetworkName, ndata NetworkData) error {
@@ -392,8 +410,8 @@ func (t *TestRun) applyINBNetworkTopology(ctx context.Context, network NetworkNa
 		}
 
 		attachmentData := attachmentTemplateData{
-			Network:   network,
-			Interface: inb.Interface,
+			Network:     network,
+			Attachments: inb.NodeAttachments,
 		}
 
 		networkYAML, err := renderTemplate(privateNetworkTemplate, data)
@@ -407,11 +425,11 @@ func (t *TestRun) applyINBNetworkTopology(ctx context.Context, network NetworkNa
 
 		attachmentYAML, err := renderTemplate(nodeAttachmentTemplate, attachmentData)
 		if err != nil {
-			return fmt.Errorf("failed rendering template for node attachment %s: %w", inb.Interface, err)
+			return fmt.Errorf("failed rendering template for node attachment %s: %w", network, err)
 		}
 		attachmentObjs, err := utils.ParseYAML[*isovalentv1alpha1.PrivateNetworkNodeAttachment](attachmentYAML)
 		if err != nil || len(attachmentObjs) == 0 {
-			return fmt.Errorf("failed deserializing manifest for node attachment %s: %w", inb.Interface, err)
+			return fmt.Errorf("failed deserializing manifest for node attachment %s: %w", network, err)
 		}
 
 		objs := append(toK8sObjects(networkObjs), toK8sObjects(attachmentObjs)...)

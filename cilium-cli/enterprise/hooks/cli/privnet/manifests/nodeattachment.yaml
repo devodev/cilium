@@ -7,4 +7,9 @@ spec:
   privateNetworkRef:
     name: "{{ .Network }}"
   attachments:
-    - interface: "{{ .Interface }}"
+  {{- range .Attachments }}
+  - interface: "{{ .Interface }}"
+  {{- if ne .VlanID 0 }}
+    vlanID: {{ .VlanID }}
+  {{- end }}
+  {{- end }}
