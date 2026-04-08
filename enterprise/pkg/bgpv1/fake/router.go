@@ -16,11 +16,12 @@ import (
 	"net/netip"
 
 	ceeTypes "github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
+	ossFake "github.com/cilium/cilium/pkg/bgp/fake"
 	ossTypes "github.com/cilium/cilium/pkg/bgp/types"
 )
 
 type EnterpriseFakeRouter struct {
-	ossTypes.FakeRouter
+	*ossFake.FakeRouter
 	Resets           map[netip.Addr]ossTypes.SoftResetDirection
 	ResetPeersCh     chan netip.Addr
 	extendedPolicies map[string]*ceeTypes.ExtendedRoutePolicy
@@ -28,7 +29,7 @@ type EnterpriseFakeRouter struct {
 
 func NewEnterpriseFakeRouter() *EnterpriseFakeRouter {
 	return &EnterpriseFakeRouter{
-		FakeRouter:       *ossTypes.NewFakeRouter().(*ossTypes.FakeRouter),
+		FakeRouter:       ossFake.NewFakeRouter(),
 		Resets:           make(map[netip.Addr]ossTypes.SoftResetDirection),
 		ResetPeersCh:     make(chan netip.Addr, 10),
 		extendedPolicies: make(map[string]*ceeTypes.ExtendedRoutePolicy),

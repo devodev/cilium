@@ -27,9 +27,9 @@ import (
 	privnetConfig "github.com/cilium/cilium/enterprise/pkg/privnet/config"
 	privnetTables "github.com/cilium/cilium/enterprise/pkg/privnet/tables"
 	"github.com/cilium/cilium/pkg/bgp/agent"
+	ossFake "github.com/cilium/cilium/pkg/bgp/fake"
 	"github.com/cilium/cilium/pkg/bgp/manager"
 	bgpTables "github.com/cilium/cilium/pkg/bgp/manager/tables"
-	"github.com/cilium/cilium/pkg/bgp/types"
 	"github.com/cilium/cilium/pkg/datapath/tunnel"
 	"github.com/cilium/cilium/pkg/hive"
 	v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
@@ -62,7 +62,7 @@ func TestPrivnetStateNotifier(t *testing.T) {
 				statedb.RWTable[privnetTables.PrivateNetwork].ToTable,
 				manager.NewBGPRouterManager,
 				manager.NewBGPManagerMetrics,
-				types.NewFakeRouterProvider,
+				ossFake.NewFakeRouterProvider,
 				bgpTables.NewBGPReconcileErrorTable,
 				func() *option.DaemonConfig {
 					return &option.DaemonConfig{
