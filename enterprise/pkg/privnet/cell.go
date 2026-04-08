@@ -16,6 +16,7 @@ import (
 	"github.com/cilium/cilium/enterprise/pkg/privnet/addressing"
 	pncfg "github.com/cilium/cilium/enterprise/pkg/privnet/config"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/dhcp"
+	"github.com/cilium/cilium/enterprise/pkg/privnet/diagnostics"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/endpoints"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/grpc"
 	health "github.com/cilium/cilium/enterprise/pkg/privnet/health/grpc"
@@ -39,4 +40,5 @@ var Cell = cell.Module(
 	statuscollector.Cell,
 	policy.Cell,
 	dhcp.Cell,
+	diagnostics.Cell,
 )

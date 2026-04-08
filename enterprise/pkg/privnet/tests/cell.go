@@ -20,6 +20,7 @@ import (
 	"github.com/cilium/statedb"
 
 	daemonk8s "github.com/cilium/cilium/daemon/k8s"
+	"github.com/cilium/cilium/enterprise/pkg/diagnostics"
 	"github.com/cilium/cilium/enterprise/pkg/privnet"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/reconcilers"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/reconcilers/idpool"
@@ -40,6 +41,8 @@ func NewTestHive(t testing.TB) *hive.Hive {
 	return hive.New(
 		k8sClient.FakeClientCell(),
 		metrics.Cell,
+
+		diagnostics.NewCell("test", "v0.0.0"),
 
 		cell.Config(cmtypes.DefaultClusterInfo),
 
