@@ -188,6 +188,7 @@ func (l *LocalWorkloads) upsertEndpoint(ep endpoints.Endpoint) {
 			Network: privNetAddr.network,
 		},
 		ActivatedAt: privNetAddr.activatedAt,
+		UsesDHCPv4:  privNetAddr.usesDHCPv4,
 		LXC: tables.LocalWorkloadLXC{
 			IfName:  ep.HostInterface(),
 			IfIndex: ep.GetIfIndex(),
@@ -245,9 +246,10 @@ type privateNetworkAddressing struct {
 	network string
 	subnet  string
 
-	ipv4 string
-	ipv6 string
-	mac  string
+	ipv4       string
+	ipv6       string
+	mac        string
+	usesDHCPv4 bool
 
 	activatedAt time.Time
 }
@@ -271,12 +273,14 @@ func extractPrivateNetworkAddressing(ep endpoints.Endpoint) (*privateNetworkAddr
 		subnet:      properties.PrivateSubnet(),
 		mac:         ep.LXCMac().String(),
 		activatedAt: activatedAt,
+		usesDHCPv4:  properties.NetworkIPv4UsesDHCP(),
 	}
 
 	ipv4, err := properties.NetworkIPv4()
 	if err != nil {
 		return nil, err
 	}
+
 	if ipv4.IsValid() {
 		addr.ipv4 = ipv4.String()
 	}

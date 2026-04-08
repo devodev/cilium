@@ -194,6 +194,7 @@ func (h *addHooks) OnInterfaceConfigReady(state *cmd.CmdState, ep *models.Endpoi
 		}
 		state.IP4 = netIPv4
 		ep.Properties[endpoints.PropertyPrivNetIPv4] = h.privNetAddressing.Address.IPv4
+		ep.Properties[endpoints.PropertyPrivNetIPv4UsesDHCP] = netIPv4.IsUnspecified()
 	}
 
 	if ipv6Enabled && h.daemonConf.Addressing.IPv6 != nil {

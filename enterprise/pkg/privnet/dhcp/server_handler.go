@@ -22,7 +22,6 @@ import (
 	"github.com/insomniacslk/dhcp/dhcpv4"
 
 	"github.com/cilium/cilium/enterprise/pkg/privnet/tables"
-	iso_v1alpha1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/mac"
 	"github.com/cilium/cilium/pkg/time"
@@ -67,14 +66,6 @@ func newServerHandler(log *slog.Logger, db *statedb.DB, workloads statedb.Table[
 	}
 }
 
-func (h *serverHandler) workloadUsesDHCP(txn statedb.ReadTxn, lw *tables.LocalWorkload) bool {
-	subnet, _, found := h.subnets.Get(txn, tables.SubnetsByNetworkAndName(
-		tables.NetworkName(lw.Interface.Network),
-		lw.Subnet,
-	))
-	return found && subnet.DHCP.Mode != iso_v1alpha1.PrivateNetworkDHCPModeNone
-}
-
 // serverHandler returns the handler function for DHCP server.
 func (h *serverHandler) serverHandler() Handler {
 	return func(ctx context.Context, health cell.Health, endpointID uint16, req *dhcpv4.DHCPv4) (int, []*dhcpv4.DHCPv4, error) {
@@ -89,7 +80,7 @@ func (h *serverHandler) serverHandler() Handler {
 			return 0, nil, nil
 		}
 
-		if !h.workloadUsesDHCP(txn, lw) {
+		if !tables.WorkloadUsesDHCP(txn, h.subnets, lw) {
 			// FIXME: DHCP disabled, return response for the static IP. Requires that we enforce use
 			// of managed-tap as with the bridge mode we'll fight with the KubeVirt DHCP server.
 			h.log.Debug("DHCP disabled for workload, ignoring", logfields.EndpointID, endpointID)
@@ -327,7 +318,7 @@ func (h *serverHandler) recordLeaseAck(endpointID uint16, req *dhcpv4.DHCPv4, re
 	wtxn := h.db.WriteTxn(h.leases, h.workloads)
 	defer wtxn.Commit()
 	lw, _, _ := h.workloads.Get(wtxn, tables.LocalWorkloadsByID(endpointID))
-	if !h.workloadUsesDHCP(wtxn, lw) {
+	if !tables.WorkloadUsesDHCP(wtxn, h.subnets, lw) {
 		return
 	}
 	lease := tables.DHCPLease{
@@ -369,7 +360,7 @@ func (h *serverHandler) invalidateLease(endpointID uint16, macAddr mac.MAC, ipHi
 	defer wtxn.Commit()
 
 	lw, _, _ := h.workloads.Get(wtxn, tables.LocalWorkloadsByID(endpointID))
-	if !h.workloadUsesDHCP(wtxn, lw) {
+	if !tables.WorkloadUsesDHCP(wtxn, h.subnets, lw) {
 		return
 	}
 

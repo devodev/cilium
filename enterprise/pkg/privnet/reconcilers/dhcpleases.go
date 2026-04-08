@@ -22,7 +22,6 @@ import (
 	"github.com/cilium/cilium/enterprise/pkg/privnet/dhcp"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/endpoints"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/tables"
-	iso_v1alpha1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/mac"
 	"github.com/cilium/cilium/pkg/time"
@@ -80,17 +79,6 @@ func newDhcpLeaseReconciler(in dhcpLeaseReconcilerParams) *dhcpLeaseReconciler {
 	return m
 }
 
-func (m *dhcpLeaseReconciler) workloadUsesDHCP(txn statedb.ReadTxn, lw *tables.LocalWorkload) bool {
-	if lw == nil {
-		return false
-	}
-	subnet, _, found := m.subnets.Get(txn, tables.SubnetsByNetworkAndName(
-		tables.NetworkName(lw.Interface.Network),
-		lw.Subnet,
-	))
-	return found && subnet.DHCP.Mode != iso_v1alpha1.PrivateNetworkDHCPModeNone
-}
-
 // run watches workloads and leases and projects them into the local workload table.
 func (m *dhcpLeaseReconciler) run(ctx context.Context, _ cell.Health) error {
 	// Wait for subnets to reconcile as we rely on them in [workloadUsesDHCP]
@@ -118,7 +106,7 @@ func (m *dhcpLeaseReconciler) run(ctx context.Context, _ cell.Health) error {
 		watchset.Add(workloadWatch, leaseWatch)
 
 		for change := range workloadChanges {
-			if lw := change.Object; lw != nil && m.workloadUsesDHCP(wtxn, lw) {
+			if lw := change.Object; lw != nil && tables.WorkloadUsesDHCP(wtxn, m.subnets, lw) {
 				if change.Deleted {
 					m.dropWorkloadLeases(wtxn, lw)
 					continue
@@ -223,7 +211,7 @@ func (m *dhcpLeaseReconciler) updateLocalWorkloadIP(
 	if !found {
 		return
 	}
-	if !m.workloadUsesDHCP(wtxn, lw) {
+	if !tables.WorkloadUsesDHCP(wtxn, m.subnets, lw) {
 		return
 	}
 	if lw.Interface.Addressing.IPv4 == ipv4 {

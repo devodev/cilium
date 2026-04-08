@@ -45,6 +45,10 @@ type LocalWorkload struct {
 	// Flags contains additional flags to characterize the endpoint.
 	Flags iso_v1alpha1.PrivateNetworkEndpointSliceFlags
 
+	// UsesDHCPv4 reports whether the workload was configured to obtain its IPv4
+	// address via DHCP.
+	UsesDHCPv4 bool
+
 	// LXC is the LXC interface associated with this endpoint.
 	LXC LocalWorkloadLXC
 }

@@ -23,6 +23,7 @@ import (
 	"github.com/cilium/statedb"
 	"github.com/cilium/statedb/index"
 
+	iso_v1alpha1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/mac"
 	"github.com/cilium/cilium/pkg/option"
@@ -266,4 +267,18 @@ func (l *DHCPLeaseWriter) writeWALEntry(wtxn statedb.WriteTxn, entry dhcpLeaseWA
 			l.log.Warn("Failed to append DHCP leases WAL entry. Lease expiry may not be correctly processed on restart.", logfields.Error, err)
 		}
 	}
+}
+
+// WorkloadUsesDHCP returns true if the workload has DHCP enabled and the associated subnet has
+// DHCP relaying configured.
+func WorkloadUsesDHCP(txn statedb.ReadTxn, subnets statedb.Table[Subnet], lw *LocalWorkload) bool {
+	if lw == nil {
+		return false
+	}
+	subnet, _, found := subnets.Get(txn, SubnetsByNetworkAndName(
+		NetworkName(lw.Interface.Network),
+		lw.Subnet,
+	))
+	return found && lw.UsesDHCPv4 &&
+		subnet.DHCP.Mode != iso_v1alpha1.PrivateNetworkDHCPModeNone
 }

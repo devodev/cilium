@@ -43,6 +43,10 @@ const (
 	// PropertyPrivNetIPv4 contains the IPv4 address of the endpoint within the network.
 	PropertyPrivNetIPv4 = "isovalent-privnet-ipv4-addr"
 
+	// PropertyPrivNetIPv4UsesDHCP records whether the endpoint was configured to
+	// obtain its IPv4 address via DHCP rather than from an explicit annotation.
+	PropertyPrivNetIPv4UsesDHCP = "isovalent-privnet-ipv4-uses-dhcp"
+
 	// PropertyPrivNetIPv6 contains the IPv6 address of the endpoint within the network.
 	PropertyPrivNetIPv6 = "isovalent-privnet-ipv6-addr"
 
@@ -178,6 +182,19 @@ func (p *EndpointProperties) NetworkIPv4() (netip.Addr, error) {
 	}
 
 	return ipv4, nil
+}
+
+// NetworkIPv4UsesDHCP returns whether the endpoint was configured to obtain its
+// IPv4 address via DHCP.
+func (p *EndpointProperties) NetworkIPv4UsesDHCP() bool {
+	usesDHCP, ok := p.ep.GetPropertyValue(PropertyPrivNetIPv4UsesDHCP).(bool)
+	if !ok {
+		// The property is missing which implies that the endpoint was created
+		// before this property was added and thus we don't know whether or not
+		// it used DHCP, thus lean on the safe side and allow it.
+		return true
+	}
+	return usesDHCP
 }
 
 // NetworkIPv6 returns the IPv6 address of the endpoint within the network.

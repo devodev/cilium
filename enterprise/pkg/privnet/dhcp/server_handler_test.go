@@ -30,10 +30,12 @@ import (
 )
 
 type fakeRelay struct {
-	resp *dhcpv4.DHCPv4
+	calls int
+	resp  *dhcpv4.DHCPv4
 }
 
 func (f *fakeRelay) Relay(_ context.Context, _ time.Duration, _ *dhcpv4.DHCPv4) ([]*dhcpv4.DHCPv4, error) {
+	f.calls++
 	if f.resp == nil {
 		return nil, nil
 	}
@@ -72,6 +74,7 @@ func setupHandlerTestState(t *testing.T) (*statedb.DB, statedb.RWTable[*tables.L
 		EndpointID: 10,
 		Namespace:  "ns",
 		Subnet:     "default-v4",
+		UsesDHCPv4: true,
 		Endpoint: iso_v1alpha1.PrivateNetworkEndpointSliceEndpoint{
 			Name: "pod",
 		},
@@ -152,6 +155,7 @@ func TestHandlerRenewsLeaseOnAckSameIP(t *testing.T) {
 		EndpointID: lw.EndpointID,
 		Namespace:  lw.Namespace,
 		Subnet:     lw.Subnet,
+		UsesDHCPv4: lw.UsesDHCPv4,
 		Endpoint:   lw.Endpoint,
 		Interface: iso_v1alpha1.PrivateNetworkEndpointSliceInterface{
 			Network: lw.Interface.Network,
@@ -204,6 +208,7 @@ func TestHandlerClearsLeaseOnNak(t *testing.T) {
 		EndpointID: lw.EndpointID,
 		Namespace:  lw.Namespace,
 		Subnet:     lw.Subnet,
+		UsesDHCPv4: lw.UsesDHCPv4,
 		Endpoint:   lw.Endpoint,
 		Interface: iso_v1alpha1.PrivateNetworkEndpointSliceInterface{
 			Network: lw.Interface.Network,
@@ -245,6 +250,7 @@ func TestHandlerClearsLeaseOnReleaseRequest(t *testing.T) {
 		EndpointID: lw.EndpointID,
 		Namespace:  lw.Namespace,
 		Subnet:     lw.Subnet,
+		UsesDHCPv4: lw.UsesDHCPv4,
 		Endpoint:   lw.Endpoint,
 		Interface: iso_v1alpha1.PrivateNetworkEndpointSliceInterface{
 			Network: lw.Interface.Network,
@@ -283,6 +289,7 @@ func TestHandlerClearsLeaseOnDeclineRequest(t *testing.T) {
 		EndpointID: lw.EndpointID,
 		Namespace:  lw.Namespace,
 		Subnet:     lw.Subnet,
+		UsesDHCPv4: lw.UsesDHCPv4,
 		Endpoint:   lw.Endpoint,
 		Interface: iso_v1alpha1.PrivateNetworkEndpointSliceInterface{
 			Network: lw.Interface.Network,
@@ -329,6 +336,31 @@ func TestHandlerIgnoresAckOutsideConfiguredSubnets(t *testing.T) {
 	txn := db.ReadTxn()
 	_, _, found := leases.Get(txn, tables.DHCPLeaseByNetworkMAC("blue", mac.MAC(reqMAC)))
 	require.False(t, found)
+}
+
+func TestHandlerSkipsRelayForStaticIPv4Workload(t *testing.T) {
+	db, workloads, leaseWriter, _, subnets, lw, req, _ := setupHandlerTestState(t)
+
+	staticLW := *lw
+	staticLW.UsesDHCPv4 = false
+	staticLW.Interface.Addressing.IPv4 = "192.168.1.10"
+
+	wtxn := db.WriteTxn(workloads)
+	_, _, err := workloads.Insert(wtxn, &staticLW)
+	require.NoError(t, err)
+	wtxn.Commit()
+
+	resp, err := dhcpv4.NewReplyFromRequest(req)
+	require.NoError(t, err)
+	resp.YourIPAddr = net.IPv4(192, 168, 1, 10)
+	resp.UpdateOption(dhcpv4.OptMessageType(dhcpv4.MessageTypeAck))
+	relay := &fakeRelay{resp: resp}
+
+	h := newServerHandler(slog.Default(), db, workloads, leaseWriter, subnets, &fakeRelayFactory{relay: relay}, 500*time.Millisecond)
+	_, resps, err := h.serverHandler()(t.Context(), nil, lw.EndpointID, req)
+	require.NoError(t, err)
+	require.Empty(t, resps)
+	require.Zero(t, relay.calls)
 }
 
 func TestHandlerIgnoresAckOutsideWorkloadSubnet(t *testing.T) {
