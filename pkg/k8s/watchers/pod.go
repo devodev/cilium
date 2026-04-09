@@ -27,9 +27,10 @@ import (
 	"github.com/cilium/cilium/pkg/annotation"
 	cgroup "github.com/cilium/cilium/pkg/cgroups/manager"
 	"github.com/cilium/cilium/pkg/controller"
+	"github.com/cilium/cilium/pkg/datapath/iptables"
 	"github.com/cilium/cilium/pkg/datapath/linux/bandwidth"
+	ipsec "github.com/cilium/cilium/pkg/datapath/linux/ipsec/types"
 	datapathTables "github.com/cilium/cilium/pkg/datapath/tables"
-	datapath "github.com/cilium/cilium/pkg/datapath/types"
 	"github.com/cilium/cilium/pkg/endpoint"
 	"github.com/cilium/cilium/pkg/endpoint/regeneration"
 	"github.com/cilium/cilium/pkg/endpointmanager"
@@ -79,9 +80,9 @@ type k8sPodWatcherParams struct {
 	NodeAddrs          statedb.Table[datapathTables.NodeAddress]
 	CGroupManager      cgroup.CGroupManager
 	LBConfig           loadbalancer.Config
-	WgConfig           wgTypes.WireguardConfig
-	IPSecConfig        datapath.IPsecConfig
-	HostNetworkManager datapath.IptablesManager
+	WgConfig           wgTypes.Config
+	IPSecConfig        ipsec.Config
+	HostNetworkManager iptables.Manager
 	LocalNodeStore     *node.LocalNodeStore
 }
 
@@ -130,8 +131,8 @@ type K8sPodWatcher struct {
 	pods               statedb.Table[agentK8s.LocalPod]
 	nodeAddrs          statedb.Table[datapathTables.NodeAddress]
 	lbConfig           loadbalancer.Config
-	wgConfig           wgTypes.WireguardConfig
-	ipsecConfig        datapath.IPsecConfig
+	wgConfig           wgTypes.Config
+	ipsecConfig        ipsec.Config
 	hostNetworkManager hostNetworkManager
 	localNodeStore     *node.LocalNodeStore
 

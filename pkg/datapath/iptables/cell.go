@@ -8,8 +8,8 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/cilium/cilium/pkg/datapath/iptables/ipset"
+	ipsec "github.com/cilium/cilium/pkg/datapath/linux/ipsec/types"
 	"github.com/cilium/cilium/pkg/datapath/tunnel"
-	datapath "github.com/cilium/cilium/pkg/datapath/types"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/time"
 	wgTypes "github.com/cilium/cilium/pkg/wireguard/types"
@@ -28,8 +28,8 @@ var Cell = cell.Module(
 	cell.ProvidePrivate(func(
 		cfg *option.DaemonConfig,
 		tunnelCfg tunnel.Config,
-		ipsecCfg datapath.IPsecConfig,
-		wgConfig wgTypes.WireguardConfig,
+		ipsecCfg ipsec.Config,
+		wgConfig wgTypes.Config,
 	) SharedConfig {
 		return SharedConfig{
 			TunnelingEnabled:                cfg.TunnelingEnabled(),
@@ -52,7 +52,7 @@ var Cell = cell.Module(
 			EnableWireguard:             wgConfig.Enabled(),
 		}
 	}),
-	cell.Provide(newIptablesManager),
+	cell.Provide(newManager),
 )
 
 type Config struct {

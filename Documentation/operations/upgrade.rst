@@ -356,6 +356,12 @@ from Cilium.
 * Support for Envoy Go Extensions (proxylib) and Kafka-aware network policies
   has been removed. These features were deprecated in v1.18.
 
+* The ``v2alpha1`` API version of ``CiliumNodeConfig`` has been removed.
+  ``CiliumNodeConfig`` resources must now use ``apiVersion: cilium.io/v2``,
+  which has been available since Cilium 1.16. Update any existing
+  ``CiliumNodeConfig`` manifests or tooling that references
+  ``cilium.io/v2alpha1`` to use ``cilium.io/v2`` instead.
+
 * The Helm value ``hubble.redact.kafka.apiKey`` and the corresponding
   ``hubble-redact-kafka-apikey`` agent flag have been removed as part of
   dropping Kafka support.
@@ -370,10 +376,18 @@ Added Metrics
   proxy redirects that were missing during endpoint policy calculation.
 * ``cilium_endpoint_component_status`` was added and reports the number of endpoints
   tagged by the status (``OK``, ``Warning``, ``Failure``) of each component (``BPF``, ``Policy``).
+* ``cilium_kubernetes_resource_sync_duration`` was added and reports duration in seconds
+  of a specific Kubernetes resource sync.
 
 Changed Metrics
 ###############
 
+* The Cilium Operator REST API endpoint ``/v1/metrics`` (``DumpMetrics``) now
+  returns per-quantile values for histogram and summary metrics instead of a
+  raw sample sum. Histogram metrics now emit three entries with quantile labels
+  ``0.5``, ``0.9``, and ``0.99``. Summary metrics emit one entry per declared
+  quantile. This aligns the operator metrics API output with the behavior of
+  ``cilium-dbg metrics list``.
 * The ``cilium_feature_np_other_l7_policies_total`` metric no longer counts
   Kafka policies, as Kafka-aware network policy support has been removed.
 * The metric ``policy_change_total`` now reports additional ``source`` (directory, k8s, custom, generated)
@@ -389,6 +403,17 @@ Removed Metrics
 ###############
 
 * ``cilium_agent_bootstrap_seconds`` has been removed. Please use ``cilium_hive_jobs_oneshot_last_run_duration_seconds`` of respective job instead.
+
+Removed CRD Fields
+~~~~~~~~~~~~~~~~~~~
+
+The following obsolete fields have been removed from the ``CiliumNode`` CRD:
+
+* ``spec.eni.instance-id``: Use ``spec.instance-id`` instead. Deprecated since v1.8.
+* ``spec.eni.min-allocate``: Use ``spec.ipam.min-allocate`` instead. Deprecated since v1.8.
+* ``spec.eni.pre-allocate``: Use ``spec.ipam.pre-allocate`` instead. Deprecated since v1.8.
+* ``spec.eni.max-above-watermark``: Use ``spec.ipam.max-above-watermark`` instead. Deprecated since v1.8.
+* ``status.azure.interfaces[].GatewayIP``: Use ``status.azure.interfaces[].gateway`` instead. Deprecated since v1.10.
 
 Advanced
 ========

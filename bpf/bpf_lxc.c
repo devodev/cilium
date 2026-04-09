@@ -201,9 +201,7 @@ static __always_inline int __per_packet_lb_svc_xlate_4(void *ctx, struct iphdr *
 		 * Wildcard lookup is applied only for new connections.
 		 */
 		if (!ct_has_egress_entry4(get_ct_map4(&tmp), &tmp)) {
-			svc = lb4_lookup_wildcard_nodeport_service(&key);
-			if (svc && !lb4_svc_is_nodeport(svc))
-				svc = NULL;
+			svc = lb4_lookup_wildcard_service(&key);
 			if (svc) {
 				struct nodeport_nat_info nat_info = {};
 				__u32 zero = 0;
@@ -381,9 +379,7 @@ static __always_inline int __per_packet_lb_svc_xlate_6(void *ctx, struct ipv6hdr
 		 * Wildcard lookup is applied only for new connections.
 		 */
 		if (!ct_has_egress_entry6(get_ct_map6(&tmp), &tmp)) {
-			svc = lb6_lookup_wildcard_nodeport_service(&key);
-			if (svc && !lb6_svc_is_nodeport(svc))
-				svc = NULL;
+			svc = lb6_lookup_wildcard_service(&key);
 			if (svc) {
 				struct nodeport_nat_info nat_info = {};
 				__u32 zero = 0;
@@ -793,6 +789,13 @@ ipv6_forward_to_destination(struct __ctx_buff *ctx, struct ipv6hdr *ip6,
 		__u32 tbid = CONFIG(fib_table_id);
 
 		ret = fib_redirect_v6(ctx, ETH_HLEN, ip6, false, false, ext_err, &oif, tbid);
+		/*
+		 * if the endpoint is configured with an explicit table id,
+		 * be strict and drop the traffic if we are not redirected.
+		 */
+		if (tbid && ret != CTX_ACT_REDIRECT)
+			return ret;
+
 		switch (ret) {
 		case CTX_ACT_REDIRECT:
 			send_trace_notify(ctx, TRACE_TO_NETWORK, SECLABEL_IPV6,
@@ -1352,6 +1355,13 @@ ipv4_forward_to_destination(struct __ctx_buff *ctx, struct iphdr *ip4,
 		__u32 tbid = CONFIG(fib_table_id);
 
 		ret = fib_redirect_v4(ctx, ETH_HLEN, ip4, false, false, ext_err, &oif, tbid);
+		/*
+		 * if the endpoint is configured with an explicit table id,
+		 * be strict and drop the traffic if we are not redirected.
+		 */
+		if (tbid && ret != CTX_ACT_REDIRECT)
+			return ret;
+
 		switch (ret) {
 		case CTX_ACT_REDIRECT:
 			send_trace_notify(ctx, TRACE_TO_NETWORK, SECLABEL_IPV4,
@@ -2705,7 +2715,7 @@ int tail_policy_denied_ipv4(struct __ctx_buff *ctx)
 
 	ret = generate_icmp4_reply(ctx, ICMP_DEST_UNREACH, ICMP_PKT_FILTERED);
 	if (!ret) {
-		cilium_dbg_capture(ctx, DBG_CAPTURE_DELIVERY, ctx_get_ifindex(ctx));
+		cilium_dbg(ctx, DBG_LOCAL_DELIVERY, LXC_ID, SECLABEL_IPV4);
 		ret = redirect_self(ctx);
 
 		if (!IS_ERR(ret)) {
@@ -2714,7 +2724,7 @@ int tail_policy_denied_ipv4(struct __ctx_buff *ctx)
 		}
 	}
 
-	return send_drop_notify_error(ctx, SECLABEL_IPV4, ret, METRIC_EGRESS);
+	return send_drop_notify_error(ctx, SECLABEL_IPV4, verdict, METRIC_EGRESS);
 }
 #endif /* ENABLE_IPV4 */
 

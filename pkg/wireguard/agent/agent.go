@@ -38,6 +38,7 @@ import (
 	"github.com/cilium/cilium/pkg/datapath/linux/linux_defaults"
 	"github.com/cilium/cilium/pkg/datapath/linux/safenetlink"
 	"github.com/cilium/cilium/pkg/datapath/linux/sysctl"
+	"github.com/cilium/cilium/pkg/datapath/tunnel"
 	"github.com/cilium/cilium/pkg/ipcache"
 	k8sSynced "github.com/cilium/cilium/pkg/k8s/synced"
 	"github.com/cilium/cilium/pkg/lock"
@@ -202,12 +203,12 @@ func (a *Agent) Stop(cell.HookContext) error {
 	return a.wgClient.Close()
 }
 
-// Name implements datapath.NodeHandler.
+// Name implements node.Handler.
 func (a *Agent) Name() string {
 	return "wireguard-agent"
 }
 
-// Returns true when enabled. Implements [types.WireguardAgent].
+// Returns true when enabled. Implements [types.Agent].
 func (a *Agent) Enabled() bool {
 	return a.config.Enabled()
 }
@@ -545,7 +546,9 @@ func (a *Agent) updatePeer(nodeName, pubKeyHex string, nodeIPv4, nodeIPv6 net.IP
 	}
 
 	ep := ""
-	if a.config.EnableIPv4 && nodeIPv4 != nil {
+	if a.config.TunnelingEnabled && a.config.UnderlayProtocol == tunnel.IPv6 && a.config.EnableIPv6 && nodeIPv6 != nil {
+		ep = net.JoinHostPort(nodeIPv6.String(), strconv.Itoa(types.ListenPort))
+	} else if a.config.EnableIPv4 && nodeIPv4 != nil {
 		ep = net.JoinHostPort(nodeIPv4.String(), strconv.Itoa(types.ListenPort))
 	} else if a.config.EnableIPv6 && nodeIPv6 != nil {
 		ep = net.JoinHostPort(nodeIPv6.String(), strconv.Itoa(types.ListenPort))

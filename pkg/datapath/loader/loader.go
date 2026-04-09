@@ -14,10 +14,12 @@ import (
 
 	"github.com/cilium/cilium/pkg/bpf"
 	"github.com/cilium/cilium/pkg/datapath/linux/bigtcp"
+	"github.com/cilium/cilium/pkg/datapath/linux/config"
 	routeReconciler "github.com/cilium/cilium/pkg/datapath/linux/route/reconciler"
 	"github.com/cilium/cilium/pkg/datapath/linux/sysctl"
+	"github.com/cilium/cilium/pkg/datapath/loader/types"
+	"github.com/cilium/cilium/pkg/datapath/prefilter"
 	"github.com/cilium/cilium/pkg/datapath/tables"
-	datapath "github.com/cilium/cilium/pkg/datapath/types"
 	"github.com/cilium/cilium/pkg/defaults"
 	"github.com/cilium/cilium/pkg/endpointstate"
 	"github.com/cilium/cilium/pkg/maps/callsmap"
@@ -47,9 +49,9 @@ type loader struct {
 	hostDpInitialized     chan struct{}
 
 	sysctl             sysctl.Sysctl
-	prefilter          datapath.PreFilter
-	compilationLock    datapath.CompilationLock
-	configWriter       datapath.ConfigWriter
+	prefilter          prefilter.PreFilter
+	compilationLock    types.CompilationLock
+	configWriter       config.Writer
 	nodeConfigNotifier *manager.NodeConfigNotifier
 
 	db           *statedb.DB
@@ -64,15 +66,15 @@ type Params struct {
 	JobGroup           job.Group
 	Logger             *slog.Logger
 	Sysctl             sysctl.Sysctl
-	Prefilter          datapath.PreFilter
-	CompilationLock    datapath.CompilationLock
-	ConfigWriter       datapath.ConfigWriter
+	Prefilter          prefilter.PreFilter
+	CompilationLock    types.CompilationLock
+	ConfigWriter       config.Writer
 	NodeConfigNotifier *manager.NodeConfigNotifier
 	RouteManager       *routeReconciler.DesiredRouteManager
 	DB                 *statedb.DB
 	Devices            statedb.Table[*tables.Device]
 	EPRestorer         promise.Promise[endpointstate.Restorer]
-	BIGTCPConfig       *bigtcp.Configuration
+	BIGTCPConfig       bigtcp.Config
 
 	// Force map initialisation before loader.
 	bpf.MapGroup

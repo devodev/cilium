@@ -20,8 +20,9 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 
 	"github.com/cilium/cilium/daemon/cmd/legacy"
+	"github.com/cilium/cilium/pkg/datapath/connector"
+	ipsec "github.com/cilium/cilium/pkg/datapath/linux/ipsec/types"
 	"github.com/cilium/cilium/pkg/datapath/linux/safenetlink"
-	datapath "github.com/cilium/cilium/pkg/datapath/types"
 	"github.com/cilium/cilium/pkg/endpoint"
 	endpointapi "github.com/cilium/cilium/pkg/endpoint/api"
 	endpointcreator "github.com/cilium/cilium/pkg/endpoint/creator"
@@ -88,13 +89,13 @@ type endpointRestorerParams struct {
 	EndpointRegenerator *endpoint.Regenerator
 	EndpointMetadata    endpointmetadata.EndpointMetadataFetcher
 	EndpointAPIFence    endpointapi.Fence
-	IPSecAgent          datapath.IPsecAgent
+	IPSecAgent          ipsec.Agent
 	IPAMManager         *ipam.IPAM
 	CacheStatus         k8sSynced.CacheStatus
 	DirReadStatus       policyDirectory.DirectoryWatcherReadStatus
 	IPCache             *ipcache.IPCache
 	LXCMap              lxcmap.Map
-	ConnectorConfig     datapath.ConnectorConfig
+	ConnectorConfig     connector.Config
 }
 
 type endpointRestorer struct {
@@ -107,10 +108,10 @@ type endpointRestorer struct {
 	endpointRegenerator *endpoint.Regenerator
 	endpointMetadata    endpointmetadata.EndpointMetadataFetcher
 	endpointAPIFence    endpointapi.Fence
-	ipSecAgent          datapath.IPsecAgent
+	ipSecAgent          ipsec.Agent
 	ipamManager         *ipam.IPAM
 	lxcMap              lxcmap.Map
-	connectorConfig     datapath.ConnectorConfig
+	connectorConfig     connector.Config
 
 	cacheStatus   k8sSynced.CacheStatus
 	dirReadStatus policyDirectory.DirectoryWatcherReadStatus

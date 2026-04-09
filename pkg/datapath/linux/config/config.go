@@ -22,12 +22,13 @@ import (
 
 	"github.com/cilium/cilium/pkg/byteorder"
 	"github.com/cilium/cilium/pkg/cidr"
+	"github.com/cilium/cilium/pkg/datapath/config"
 	dpdef "github.com/cilium/cilium/pkg/datapath/linux/config/defines"
 	"github.com/cilium/cilium/pkg/datapath/linux/safenetlink"
 	"github.com/cilium/cilium/pkg/datapath/linux/sysctl"
 	"github.com/cilium/cilium/pkg/datapath/tables"
-	datapath "github.com/cilium/cilium/pkg/datapath/types"
 	"github.com/cilium/cilium/pkg/defaults"
+	endpoint "github.com/cilium/cilium/pkg/endpoint/types"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/kpr"
 	"github.com/cilium/cilium/pkg/labels"
@@ -43,22 +44,45 @@ import (
 	"github.com/cilium/cilium/pkg/maps/policymap"
 	"github.com/cilium/cilium/pkg/maps/vtep"
 	"github.com/cilium/cilium/pkg/netns"
+	"github.com/cilium/cilium/pkg/node"
 	"github.com/cilium/cilium/pkg/option"
 )
 
-// HeaderfileWriter is a wrapper type which implements datapath.ConfigWriter.
+// Writer is anything which writes the configuration for various datapath
+// program types.
+type Writer interface {
+	// WriteNodeConfig writes the implementation-specific configuration of
+	// node-wide options into the specified writer.
+	WriteNodeConfig(io.Writer, *config.Config) error
+
+	// WriteNetdevConfig writes the implementation-specific configuration
+	// of configurable options to the specified writer. Options specified
+	// here will apply to base programs and not to endpoints, though
+	// endpoints may have equivalent configurable options.
+	WriteNetdevConfig(io.Writer, *option.IntOptions) error
+
+	// WriteTemplateConfig writes the implementation-specific configuration
+	// of configurable options for BPF templates to the specified writer.
+	WriteTemplateConfig(w io.Writer, cfg endpoint.Config) error
+
+	// WriteEndpointConfig writes the implementation-specific configuration
+	// of configurable options for the endpoint to the specified writer.
+	WriteEndpointConfig(w io.Writer, cfg endpoint.Config) error
+}
+
+// HeaderfileWriter is a wrapper type which implements Writer.
 // It manages writing of configuration of datapath program headerfiles.
 type HeaderfileWriter struct {
 	log                *slog.Logger
 	nodeMap            nodemap.MapV2
-	nodeAddressing     datapath.NodeAddressing
+	nodeAddressing     node.Addressing
 	nodeExtraDefines   dpdef.Map
 	nodeExtraDefineFns []dpdef.Fn
 	sysctl             sysctl.Sysctl
 	kprCfg             kpr.KPRConfig
 }
 
-func NewHeaderfileWriter(p WriterParams) (datapath.ConfigWriter, error) {
+func NewHeaderfileWriter(p WriterParams) (Writer, error) {
 	merged := make(dpdef.Map)
 	for _, defines := range p.NodeExtraDefines {
 		if err := merged.Merge(defines); err != nil {
@@ -85,7 +109,7 @@ func writeIncludes(w io.Writer) (int, error) {
 // Deprecated: Future additions to this function will be rejected. The docs at
 // https://docs.cilium.io/en/latest/contributing/development/datapath_config
 // will guide you through adding new configuration.
-func (h *HeaderfileWriter) WriteNodeConfig(w io.Writer, cfg *datapath.LocalNodeConfiguration) error {
+func (h *HeaderfileWriter) WriteNodeConfig(w io.Writer, cfg *config.Config) error {
 	// --- WARNING: THIS CONFIGURATION METHOD IS DEPRECATED, SEE FUNCTION DOC ---
 
 	extraMacrosMap := make(dpdef.Map)
@@ -640,15 +664,15 @@ func (h *HeaderfileWriter) WriteNetdevConfig(w io.Writer, opts *option.IntOption
 }
 
 // WriteEndpointConfig writes the BPF configuration for the endpoint to a writer.
-func (h *HeaderfileWriter) WriteEndpointConfig(w io.Writer, cfg *datapath.LocalNodeConfiguration, e datapath.EndpointConfiguration) error {
+func (h *HeaderfileWriter) WriteEndpointConfig(w io.Writer, e endpoint.Config) error {
 	fw := bufio.NewWriter(w)
 
 	writeIncludes(w)
 
-	return h.writeTemplateConfig(fw, cfg, e)
+	return h.writeTemplateConfig(fw, e)
 }
 
-func (h *HeaderfileWriter) writeTemplateConfig(fw *bufio.Writer, cfg *datapath.LocalNodeConfiguration, e datapath.EndpointConfiguration) error {
+func (h *HeaderfileWriter) writeTemplateConfig(fw *bufio.Writer, e endpoint.Config) error {
 	if e.RequireEgressProg() {
 		fmt.Fprintf(fw, "#define USE_BPF_PROG_FOR_INGRESS_POLICY 1\n")
 	}
@@ -671,9 +695,9 @@ func (h *HeaderfileWriter) writeTemplateConfig(fw *bufio.Writer, cfg *datapath.L
 }
 
 // WriteTemplateConfig writes the BPF configuration for the template to a writer.
-func (h *HeaderfileWriter) WriteTemplateConfig(w io.Writer, cfg *datapath.LocalNodeConfiguration, e datapath.EndpointConfiguration) error {
+func (h *HeaderfileWriter) WriteTemplateConfig(w io.Writer, e endpoint.Config) error {
 	fw := bufio.NewWriter(w)
-	return h.writeTemplateConfig(fw, cfg, e)
+	return h.writeTemplateConfig(fw, e)
 }
 
 func preferredIPv6Address(deviceAddresses []tables.DeviceAddress) netip.Addr {

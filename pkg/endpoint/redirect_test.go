@@ -13,7 +13,8 @@ import (
 
 	"github.com/cilium/cilium/pkg/completion"
 	"github.com/cilium/cilium/pkg/crypto/certificatemanager"
-	fakeTypes "github.com/cilium/cilium/pkg/datapath/fake/types"
+	fakeipsec "github.com/cilium/cilium/pkg/datapath/linux/ipsec/fake"
+	fakeendpoint "github.com/cilium/cilium/pkg/endpoint/fake"
 	envoypolicy "github.com/cilium/cilium/pkg/envoy/policy"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/identity/cache"
@@ -32,6 +33,7 @@ import (
 	testidentity "github.com/cilium/cilium/pkg/testutils/identity"
 	testipcache "github.com/cilium/cilium/pkg/testutils/ipcache"
 	testpolicy "github.com/cilium/cilium/pkg/testutils/policy"
+	fakewireguard "github.com/cilium/cilium/pkg/wireguard/fake"
 )
 
 type RedirectSuite struct {
@@ -110,10 +112,6 @@ func (r *RedirectSuiteProxy) RemoveRedirect(id string) {
 	delete(r.redirects, id)
 }
 
-// UseCurrentNetworkPolicy does nothing.
-func (f *RedirectSuiteProxy) UseCurrentNetworkPolicy(ep endpoint.EndpointUpdater, policy *policy.EndpointPolicy, wg *completion.WaitGroup) {
-}
-
 // UpdateNetworkPolicy does nothing.
 func (r *RedirectSuiteProxy) UpdateNetworkPolicy(ep endpoint.EndpointUpdater, policy *policy.EndpointPolicy, wg *completion.WaitGroup) (error, func() error) {
 	return nil, nil
@@ -168,12 +166,12 @@ func (s *RedirectSuite) createTestEndpointParams(tb testing.TB) EndpointParams {
 	return EndpointParams{
 		Logger:           logger,
 		EPBuildQueue:     &MockEndpointBuildQueue{},
-		Orchestrator:     &fakeTypes.FakeOrchestrator{},
+		Orchestrator:     &fakeendpoint.FakeOrchestrator{},
 		PolicyRepo:       s.do.repo,
 		IdentityManager:  s.do.idmgr,
 		NamedPortsGetter: testipcache.NewMockIPCache(),
-		IPSecConfig:      fakeTypes.IPsecConfig{},
-		WgConfig:         fakeTypes.WireguardConfig{},
+		IPSecConfig:      fakeipsec.Config{},
+		WgConfig:         fakewireguard.Config{},
 		CTMapGC:          ctmap.NewFakeGCRunner(),
 		Allocator:        testidentity.NewMockIdentityAllocator(nil),
 		LocalNodeStore:   &fakeNodeGetter{},

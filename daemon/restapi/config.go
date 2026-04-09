@@ -21,12 +21,14 @@ import (
 	daemonapi "github.com/cilium/cilium/api/v1/server/restapi/daemon"
 	"github.com/cilium/cilium/daemon/cmd/legacy"
 	"github.com/cilium/cilium/pkg/api"
+	"github.com/cilium/cilium/pkg/datapath/connector"
+	bandwidth "github.com/cilium/cilium/pkg/datapath/linux/bandwidth/types"
 	"github.com/cilium/cilium/pkg/datapath/linux/bigtcp"
 	datapathTables "github.com/cilium/cilium/pkg/datapath/tables"
 	"github.com/cilium/cilium/pkg/datapath/tunnel"
-	datapath "github.com/cilium/cilium/pkg/datapath/types"
 	"github.com/cilium/cilium/pkg/defaults"
 	"github.com/cilium/cilium/pkg/endpoint/regeneration"
+	endpoint "github.com/cilium/cilium/pkg/endpoint/types"
 	"github.com/cilium/cilium/pkg/endpointmanager"
 	"github.com/cilium/cilium/pkg/eventqueue"
 	k8sClient "github.com/cilium/cilium/pkg/k8s/client"
@@ -74,11 +76,11 @@ type configModifyApiHandlerParams struct {
 	KVStoreConfig   kvstore.Config
 	MonitorAgent    monitorAgent.Agent
 	MTUConfig       mtu.MTU
-	BigTCPConfig    *bigtcp.Configuration
+	BigTCPConfig    bigtcp.Config
 	TunnelConfig    tunnel.Config
-	BandwidthConfig datapath.BandwidthConfig
-	WgConfig        wgTypes.WireguardConfig
-	ConnectorConfig datapath.ConnectorConfig
+	BandwidthConfig bandwidth.Config
+	WgConfig        wgTypes.Config
+	ConnectorConfig connector.Config
 	LocalNodeStore  *node.LocalNodeStore
 
 	EventHandler *ConfigModifyEventHandler
@@ -122,7 +124,7 @@ type configModifyEventHandlerParams struct {
 	Lifecycle cell.Lifecycle
 	Logger    *slog.Logger
 
-	Orchestrator    datapath.Orchestrator
+	Orchestrator    endpoint.Orchestrator
 	Policy          policy.PolicyRepository
 	EndpointManager endpointmanager.EndpointManager
 	L7Proxy         *proxy.Proxy
@@ -177,7 +179,7 @@ type ConfigModifyEventHandler struct {
 	// event queue for serializing configuration updates to the daemon.
 	configModifyQueue *eventqueue.EventQueue
 
-	orchestrator    datapath.Orchestrator
+	orchestrator    endpoint.Orchestrator
 	policy          policy.PolicyRepository
 	endpointManager endpointmanager.EndpointManager
 	l7Proxy         *proxy.Proxy
@@ -351,11 +353,11 @@ type getConfigHandler struct {
 	kvstoreConfig   kvstore.Config
 	monitorAgent    monitorAgent.Agent
 	mtuConfig       mtu.MTU
-	bigTCPConfig    *bigtcp.Configuration
+	bigTCPConfig    bigtcp.Config
 	tunnelConfig    tunnel.Config
-	bandwidthConfig datapath.BandwidthConfig
-	wgConfig        wgTypes.WireguardConfig
-	connectorConfig datapath.ConnectorConfig
+	bandwidthConfig bandwidth.Config
+	wgConfig        wgTypes.Config
+	connectorConfig connector.Config
 	localNodeStore  *node.LocalNodeStore
 }
 

@@ -469,6 +469,9 @@ data:
 {{- if has (kindOf .Values.bpf.policyMapPressureMetricsThreshold) (list "int64" "float64") }}
   bpf-policy-map-pressure-metrics-threshold: {{ .Values.bpf.policyMapPressureMetricsThreshold | quote }}
 {{- end }}
+{{- if .Values.endpointPolicyUpdateTimeoutDuration }}
+  endpoint-policy-update-timeout: {{ .Values.endpointPolicyUpdateTimeoutDuration | quote }}
+{{- end }}
 {{- if hasKey .Values.bpf "policyStatsMapMax" }}
   # bpf-policy-stats-map-max specifies the maximum number of entries in global
   # policy stats map
@@ -1475,6 +1478,7 @@ data:
   proxy-cluster-max-requests: {{ .Values.envoy.clusterMaxRequests | quote }}
   http-retry-count: {{ .Values.envoy.httpRetryCount | quote }}
   http-stream-idle-timeout: {{ .Values.envoy.streamIdleTimeoutDurationSeconds | quote }}
+  envoy-node-locality-enabled: {{ .Values.envoy.nodeLocality.enabled | quote }}
 
   external-envoy-proxy: {{ include "envoyDaemonSetEnabled" . | quote }}
   envoy-base-id: {{ .Values.envoy.baseID | quote }}
@@ -1493,6 +1497,7 @@ data:
 {{- if .Values.envoy.log.defaultLevel }}
   envoy-default-log-level: {{ .Values.envoy.log.defaultLevel | quote }}
 {{- end }}
+  envoy-access-log-enabled: {{ .Values.envoy.log.accessLogEnabled | quote }}
 {{- if .Values.envoy.log.accessLogBufferSize }}
   envoy-access-log-buffer-size: {{ .Values.envoy.log.accessLogBufferSize | quote }}
 {{- end }}

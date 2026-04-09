@@ -16,15 +16,22 @@ import (
 	"github.com/stretchr/testify/require"
 	k8sTypes "k8s.io/apimachinery/pkg/types"
 
+	"github.com/cilium/cilium/pkg/crypto/certificatemanager"
+	"github.com/cilium/cilium/pkg/endpoint/regeneration"
 	envoypolicy "github.com/cilium/cilium/pkg/envoy/policy"
 	"github.com/cilium/cilium/pkg/envoy/test"
 	"github.com/cilium/cilium/pkg/identity"
+	"github.com/cilium/cilium/pkg/identity/identitymanager"
+	k8sConst "github.com/cilium/cilium/pkg/k8s/apis/cilium.io"
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/logging"
 	"github.com/cilium/cilium/pkg/policy"
 	"github.com/cilium/cilium/pkg/policy/api"
 	"github.com/cilium/cilium/pkg/policy/types"
+	policyTypes "github.com/cilium/cilium/pkg/policy/types"
+	"github.com/cilium/cilium/pkg/spanstat"
 	testpolicy "github.com/cilium/cilium/pkg/testutils/policy"
+	"github.com/cilium/cilium/pkg/u8proto"
 )
 
 var (
@@ -36,6 +43,40 @@ var (
 		Ipv6: "f00d::1",
 	}
 )
+
+type listenerProxyUpdaterMock struct {
+	*test.ProxyUpdaterMock
+	listenerProxyPorts map[string]uint16
+}
+
+func (m *listenerProxyUpdaterMock) GetListenerProxyPort(listener string) uint16 {
+	return m.listenerProxyPorts[listener]
+}
+
+func (m *listenerProxyUpdaterMock) PolicyDebug(string, ...any) {}
+
+func (m *listenerProxyUpdaterMock) IsHost() bool { return false }
+
+func (m *listenerProxyUpdaterMock) PreviousMapState() *policy.MapState { return nil }
+
+func (m *listenerProxyUpdaterMock) RegenerateIfAlive(*regeneration.ExternalRegenerationMetadata) <-chan bool {
+	ch := make(chan bool)
+	close(ch)
+	return ch
+}
+
+type dummyPolicyStats struct {
+	waitingForPolicyRepository spanstat.SpanStat
+	policyCalculation          spanstat.SpanStat
+}
+
+func (s *dummyPolicyStats) WaitingForPolicyRepository() *spanstat.SpanStat {
+	return &s.waitingForPolicyRepository
+}
+
+func (s *dummyPolicyStats) SelectorPolicyCalculation() *spanstat.SpanStat {
+	return &s.policyCalculation
+}
 
 var PortRuleHTTP1 = &api.PortRuleHTTP{
 	Path:    "/foo",
@@ -265,27 +306,56 @@ var ExpectedHttpRule122HeaderMatch = &cilium.PortNetworkPolicyRule_HttpRules{
 }
 
 var ExpectedPortNetworkPolicyRule12 = &cilium.PortNetworkPolicyRule{
+	Precedence:     uint32(policyTypes.MaxAllowPrecedence + 1),
+	RemotePolicies: []uint32{1001, 1002},
+	L7:             ExpectedHttpRule12,
+}
+
+var ExpectedPortNetworkPolicyRule12Precedence = &cilium.PortNetworkPolicyRule{
+	Precedence:     uint32(policyTypes.MaxAllowPrecedence + 1),
 	RemotePolicies: []uint32{1001, 1002},
 	L7:             ExpectedHttpRule12,
 }
 
 var ExpectedPortNetworkPolicyRule12Deny = &cilium.PortNetworkPolicyRule{
-	Deny:           true,
+	Precedence:     uint32(policyTypes.MaxDenyPrecedence),
+	Verdict:        DenyVerdict,
 	RemotePolicies: []uint32{1001, 1002},
 }
 
+var ExpectedPortNetworkPolicyRule12DenyPrecedence = &cilium.PortNetworkPolicyRule{
+	Verdict:        DenyVerdict,
+	RemotePolicies: []uint32{1001, 1002},
+	Precedence:     uint32(policyTypes.MaxDenyPrecedence),
+}
+
 var ExpectedPortNetworkPolicyRule12Wildcard = &cilium.PortNetworkPolicyRule{
-	L7: ExpectedHttpRule12,
+	Precedence: uint32(policyTypes.MaxAllowPrecedence + 1),
+	L7:         ExpectedHttpRule12,
 }
 
 var ExpectedPortNetworkPolicyRule122HeaderMatch = &cilium.PortNetworkPolicyRule{
+	Precedence:     uint32(policyTypes.MaxAllowPrecedence + 1),
 	RemotePolicies: []uint32{1001, 1002},
 	L7:             ExpectedHttpRule122HeaderMatch,
 }
 
+var ExpectedPortNetworkPolicyRule122HeaderMatchPrecedence = &cilium.PortNetworkPolicyRule{
+	RemotePolicies: []uint32{1001, 1002},
+	L7:             ExpectedHttpRule122HeaderMatch,
+	Precedence:     uint32(policyTypes.MaxAllowPrecedence + 1),
+}
+
 var ExpectedPortNetworkPolicyRule1 = &cilium.PortNetworkPolicyRule{
+	Precedence:     uint32(policyTypes.MaxAllowPrecedence + 1),
 	RemotePolicies: []uint32{1001, 1003},
 	L7:             ExpectedHttpRule1,
+}
+
+var ExpectedPortNetworkPolicyRule1Precedence = &cilium.PortNetworkPolicyRule{
+	RemotePolicies: []uint32{1001, 1003},
+	L7:             ExpectedHttpRule1,
+	Precedence:     uint32(policyTypes.MaxAllowPrecedence + 1),
 }
 
 var ExpectedPortNetworkPolicyRule1Wildcard = &cilium.PortNetworkPolicyRule{
@@ -295,7 +365,7 @@ var ExpectedPortNetworkPolicyRule1Wildcard = &cilium.PortNetworkPolicyRule{
 var L4PolicyMap1 = policy.NewL4PolicyMapWithValues(map[string]*policy.L4Filter{
 	"80/TCP": {
 		Port:     80,
-		Protocol: api.ProtoTCP,
+		Protocol: api.ProtoTCP, U8Proto: u8proto.TCP,
 		PerSelectorPolicies: policy.L7DataMap{
 			cachedSelector1: L7Rules12,
 		},
@@ -305,7 +375,7 @@ var L4PolicyMap1 = policy.NewL4PolicyMapWithValues(map[string]*policy.L4Filter{
 var L4PolicyMap1HeaderMatch = policy.NewL4PolicyMapWithValues(map[string]*policy.L4Filter{
 	"80/TCP": {
 		Port:     80,
-		Protocol: api.ProtoTCP,
+		Protocol: api.ProtoTCP, U8Proto: u8proto.TCP,
 		PerSelectorPolicies: policy.L7DataMap{
 			cachedSelector1: L7Rules12HeaderMatch,
 		},
@@ -315,7 +385,7 @@ var L4PolicyMap1HeaderMatch = policy.NewL4PolicyMapWithValues(map[string]*policy
 var L4PolicyMap1RequiresV2 = policy.NewL4PolicyMapWithValues(map[string]*policy.L4Filter{
 	"80/TCP": {
 		Port:     80,
-		Protocol: api.ProtoTCP,
+		Protocol: api.ProtoTCP, U8Proto: u8proto.TCP,
 		PerSelectorPolicies: policy.L7DataMap{
 			cachedSelector1:           L7Rules1,
 			cachedRequiresV2Selector1: L7Rules12,
@@ -326,7 +396,7 @@ var L4PolicyMap1RequiresV2 = policy.NewL4PolicyMapWithValues(map[string]*policy.
 var L4PolicyMap2 = policy.NewL4PolicyMapWithValues(map[string]*policy.L4Filter{
 	"8080/TCP": {
 		Port:     8080,
-		Protocol: api.ProtoTCP,
+		Protocol: api.ProtoTCP, U8Proto: u8proto.TCP,
 		PerSelectorPolicies: policy.L7DataMap{
 			cachedSelector2: L7Rules1,
 		},
@@ -336,7 +406,7 @@ var L4PolicyMap2 = policy.NewL4PolicyMapWithValues(map[string]*policy.L4Filter{
 var L4PolicyMap1Deny2 = policy.NewL4PolicyMapWithValues(map[string]*policy.L4Filter{
 	"8080/TCP": {
 		Port:     8080,
-		Protocol: api.ProtoTCP,
+		Protocol: api.ProtoTCP, U8Proto: u8proto.TCP,
 		PerSelectorPolicies: policy.L7DataMap{
 			cachedSelector1: denyPerSelectorPolicy,
 			cachedSelector2: L7Rules1,
@@ -347,7 +417,7 @@ var L4PolicyMap1Deny2 = policy.NewL4PolicyMapWithValues(map[string]*policy.L4Fil
 var L4PolicyMap3 = policy.NewL4PolicyMapWithValues(map[string]*policy.L4Filter{
 	"80/TCP": {
 		Port:     80,
-		Protocol: api.ProtoTCP,
+		Protocol: api.ProtoTCP, U8Proto: u8proto.TCP,
 		PerSelectorPolicies: policy.L7DataMap{
 			wildcardCachedSelector: L7Rules12,
 		},
@@ -358,7 +428,7 @@ var L4PolicyMap3 = policy.NewL4PolicyMapWithValues(map[string]*policy.L4Filter{
 var L4PolicyMap4 = policy.NewL4PolicyMapWithValues(map[string]*policy.L4Filter{
 	"80/TCP": {
 		Port:     80,
-		Protocol: api.ProtoTCP,
+		Protocol: api.ProtoTCP, U8Proto: u8proto.TCP,
 		PerSelectorPolicies: policy.L7DataMap{
 			cachedSelector1: &policy.PerSelectorPolicy{L7Rules: api.L7Rules{}},
 		},
@@ -369,9 +439,23 @@ var L4PolicyMap4 = policy.NewL4PolicyMapWithValues(map[string]*policy.L4Filter{
 var L4PolicyMap5 = policy.NewL4PolicyMapWithValues(map[string]*policy.L4Filter{
 	"80/TCP": {
 		Port:     80,
-		Protocol: api.ProtoTCP,
+		Protocol: api.ProtoTCP, U8Proto: u8proto.TCP,
 		PerSelectorPolicies: policy.L7DataMap{
 			wildcardCachedSelector: &policy.PerSelectorPolicy{L7Rules: api.L7Rules{}},
+		},
+	},
+})
+
+// L4PolicyMap5 is an L4-only policy, with no L7 rules.
+var L4PolicyMap5LowestPriority = policy.NewL4PolicyMapWithValues(map[string]*policy.L4Filter{
+	"80/TCP": {
+		Port:     80,
+		Protocol: api.ProtoTCP, U8Proto: u8proto.TCP,
+		PerSelectorPolicies: policy.L7DataMap{
+			wildcardCachedSelector: &policy.PerSelectorPolicy{
+				Priority: policyTypes.LowestPriority,
+				L7Rules:  api.L7Rules{},
+			},
 		},
 	},
 })
@@ -380,7 +464,7 @@ var L4PolicyMap5 = policy.NewL4PolicyMapWithValues(map[string]*policy.L4Filter{
 var L4PolicyMapSNI = policy.NewL4PolicyMapWithValues(map[string]*policy.L4Filter{
 	"443/TCP": {
 		Port:     443,
-		Protocol: api.ProtoTCP,
+		Protocol: api.ProtoTCP, U8Proto: u8proto.TCP,
 		PerSelectorPolicies: policy.L7DataMap{
 			wildcardCachedSelector: &policy.PerSelectorPolicy{
 				ServerNames: policy.NewStringSet([]string{
@@ -398,7 +482,72 @@ var ExpectedPerPortPoliciesSNI = []*cilium.PortNetworkPolicy{
 		Protocol: envoy_config_core.SocketAddress_TCP,
 		Rules: []*cilium.PortNetworkPolicyRule{
 			{
+				Precedence:  uint32(policyTypes.MaxAllowPrecedence),
 				ServerNames: []string{"ab.cd.com", "jarno.cilium.rocks"},
+			},
+		},
+	},
+}
+
+// L4PassPolicy is a policy with a pass verdict
+var L4PassPolicy = &policy.L4Policy{
+	Ingress: policy.NewL4DirectionPolicyForTest(L4PolicyMapPass,
+		[]types.Priority{0, 0x2000}),
+}
+
+var L4PolicyMapPass = policy.NewL4PolicyMapWithValues(map[string]*policy.L4Filter{
+	"0/TCP": {
+		Tier:     0,
+		Port:     0,
+		Protocol: api.ProtoTCP, U8Proto: u8proto.TCP,
+		PerSelectorPolicies: policy.L7DataMap{
+			cachedSelector1: &policy.PerSelectorPolicy{
+				Priority: 0,
+				Verdict:  policyTypes.Pass,
+			},
+			wildcardCachedSelector: &policy.PerSelectorPolicy{
+				Priority: 40,
+				Verdict:  policyTypes.Deny,
+			},
+		},
+	},
+	"443/TCP": {
+		Tier:     1,
+		Port:     443,
+		Protocol: api.ProtoTCP, U8Proto: u8proto.TCP,
+		PerSelectorPolicies: policy.L7DataMap{
+			cachedSelector1: &policy.PerSelectorPolicy{
+				Priority: 50,
+			},
+		},
+	},
+})
+
+var ExpectedPerPortPoliciesPass = []*cilium.PortNetworkPolicy{
+	{
+		Port:     0,
+		Protocol: envoy_config_core.SocketAddress_TCP,
+		Rules: []*cilium.PortNetworkPolicyRule{
+			{
+				Verdict: &cilium.PortNetworkPolicyRule_PassPrecedence{
+					PassPrecedence: 0xffe00000,
+				},
+				RemotePolicies: []uint32{1001, 1002},
+				Precedence:     0xffffff00,
+			},
+			{
+				Verdict:    DenyVerdict,
+				Precedence: 0xffffd7ff, // ~40
+			},
+		},
+	},
+	{
+		Port:     443,
+		Protocol: envoy_config_core.SocketAddress_TCP,
+		Rules: []*cilium.PortNetworkPolicyRule{
+			{
+				RemotePolicies: []uint32{1001, 1002},
+				Precedence:     0xffffcd01, // ~50
 			},
 		},
 	},
@@ -470,9 +619,11 @@ var ExpectedPerPortPolicies12RequiresV2 = []*cilium.PortNetworkPolicy{
 		Port:     80,
 		Protocol: envoy_config_core.SocketAddress_TCP,
 		Rules: []*cilium.PortNetworkPolicyRule{{
+			Precedence:     uint32(policyTypes.MaxAllowPrecedence + 1),
 			RemotePolicies: []uint32{1001, 1002},
 			L7:             ExpectedHttpRule1,
 		}, {
+			Precedence:     uint32(policyTypes.MaxAllowPrecedence + 1),
 			RemotePolicies: []uint32{1002},
 			L7:             ExpectedHttpRule12,
 		}},
@@ -484,6 +635,7 @@ var ExpectedPerPortPolicies = []*cilium.PortNetworkPolicy{
 		Port:     80,
 		Protocol: envoy_config_core.SocketAddress_TCP,
 		Rules: []*cilium.PortNetworkPolicyRule{{
+			Precedence:     uint32(policyTypes.MaxAllowPrecedence),
 			RemotePolicies: []uint32{1001, 1002},
 		}},
 	},
@@ -493,7 +645,30 @@ var ExpectedPerPortPoliciesWildcard = []*cilium.PortNetworkPolicy{
 	{
 		Port:     80,
 		Protocol: envoy_config_core.SocketAddress_TCP,
+		Rules: []*cilium.PortNetworkPolicyRule{{
+			Precedence: uint32(policyTypes.MaxAllowPrecedence),
+		}},
 	},
+}
+
+var L4Deny2Policy1 = &policy.L4Policy{
+	Ingress: policy.L4DirectionPolicy{PortRules: L4PolicyMap1Deny2},
+}
+
+var L4Policy4 = &policy.L4Policy{
+	Ingress: policy.L4DirectionPolicy{PortRules: L4PolicyMap4},
+}
+
+var L4Policy5 = &policy.L4Policy{
+	Ingress: policy.L4DirectionPolicy{PortRules: L4PolicyMap5},
+}
+
+var L4HeaderMatchPolicy1 = &policy.L4Policy{
+	Ingress: policy.L4DirectionPolicy{PortRules: L4PolicyMap1HeaderMatch},
+}
+
+var L4SNIPolicy = &policy.L4Policy{
+	Ingress: policy.L4DirectionPolicy{PortRules: L4PolicyMapSNI},
 }
 
 var L4Policy1 = &policy.L4Policy{
@@ -538,33 +713,127 @@ var PortRuleHeaderMatchSecretLogOnMismatch = &api.PortRuleHTTP{
 }
 
 func Test_getWildcardNetworkPolicyRules(t *testing.T) {
-	perSelectorPoliciesWithWildcard := policy.L7DataMap{
-		cachedSelector1:           nil,
-		cachedRequiresV2Selector1: nil,
-		wildcardCachedSelector:    nil,
-	}
-
 	xds := testXdsServer(t)
-
 	version := testSelectorCache.GetSelectorSnapshot()
 
-	obtained := xds.getWildcardNetworkPolicyRules(version, perSelectorPoliciesWithWildcard)
-	require.Equal(t, []*cilium.PortNetworkPolicyRule{{}}, obtained)
+	t.Run("allow_wildcard_and_specific_rules", func(t *testing.T) {
+		perSelectorPoliciesWithWildcard := policy.L7DataMap{
+			cachedSelector1:           nil,
+			cachedRequiresV2Selector1: nil,
+			wildcardCachedSelector:    nil,
+		}
 
-	// both cachedSelector2 and cachedSelector2 select identity 1001, but duplicates must have been removed
-	perSelectorPolicies := policy.L7DataMap{
-		cachedSelector2:           nil,
-		cachedSelector1:           denyPerSelectorPolicy,
-		cachedRequiresV2Selector1: nil,
-	}
+		obtained, isPass, wildcardSelectorPrecedence := xds.getWildcardPortNetworkPolicyRules(ep, version, policyTypes.HighestPriority, policyTypes.LowestPriority, perSelectorPoliciesWithWildcard, false, false, "")
+		require.Equal(t, []*cilium.PortNetworkPolicyRule{{
+			Precedence: uint32(policyTypes.MaxAllowPrecedence),
+		}}, obtained)
+		require.False(t, isPass)
+		require.NotZero(t, wildcardSelectorPrecedence)
+		require.True(t, wildcardSelectorPrecedence.IsAllow())
+	})
 
-	obtained = xds.getWildcardNetworkPolicyRules(version, perSelectorPolicies)
-	require.Equal(t, []*cilium.PortNetworkPolicyRule{{
-		Deny:           true,
-		RemotePolicies: []uint32{1001, 1002},
-	}, {
-		RemotePolicies: []uint32{1001, 1002, 1003},
-	}}, obtained)
+	t.Run("non_wildcard_allow_and_deny_rules_are_grouped", func(t *testing.T) {
+		// both cachedSelector2 and cachedSelector2 select identity 1001, but duplicates must have been removed
+		perSelectorPolicies := policy.L7DataMap{
+			cachedSelector2:           nil,
+			cachedSelector1:           denyPerSelectorPolicy,
+			cachedRequiresV2Selector1: nil,
+		}
+
+		obtained, isPass, wildcardSelectorPrecedence := xds.getWildcardPortNetworkPolicyRules(ep, version, policyTypes.HighestPriority, policyTypes.LowestPriority, perSelectorPolicies, false, false, "")
+		require.Equal(t, []*cilium.PortNetworkPolicyRule{{
+			Precedence:     uint32(policyTypes.MaxDenyPrecedence),
+			Verdict:        DenyVerdict,
+			RemotePolicies: []uint32{1001, 1002},
+		}, {
+			Precedence:     uint32(policyTypes.MaxAllowPrecedence),
+			RemotePolicies: []uint32{1001, 1002, 1003},
+		}}, obtained)
+		require.False(t, isPass)
+		require.Zero(t, wildcardSelectorPrecedence)
+	})
+
+	t.Run("single_selector_wildcard_pass_sets_have_pass_and_precedence", func(t *testing.T) {
+		passPriority := policyTypes.Priority(7)
+		passPolicy := &policy.PerSelectorPolicy{
+			Priority: passPriority,
+			Verdict:  types.Pass,
+		}
+
+		obtained, isPass, wildcardSelectorPrecedence := xds.getWildcardPortNetworkPolicyRules(ep, version, policyTypes.HighestPriority, policyTypes.LowestPriority, policy.L7DataMap{
+			wildcardCachedSelector: passPolicy,
+		}, false, false, "")
+
+		require.Equal(t, []*cilium.PortNetworkPolicyRule{{
+			Precedence: uint32(passPriority.ToPassPrecedence()),
+			Verdict: &cilium.PortNetworkPolicyRule_PassPrecedence{
+				PassPrecedence: uint32(policyTypes.LowestPriority.ToPassPrecedence()),
+			},
+		}}, obtained)
+		require.True(t, isPass)
+		require.Equal(t, passPriority.ToPassPrecedence(), wildcardSelectorPrecedence)
+		require.True(t, wildcardSelectorPrecedence.IsPass())
+	})
+
+	t.Run("grouped_wildcard_pass_keeps_same_priority_allow_and_deny", func(t *testing.T) {
+		passPriority := policyTypes.Priority(9)
+		allowPriority := passPriority
+		denyPriority := passPriority
+
+		obtained, isPass, wildcardSelectorPrecedence := xds.getWildcardPortNetworkPolicyRules(ep, version, policyTypes.HighestPriority, policyTypes.LowestPriority, policy.L7DataMap{
+			wildcardCachedSelector: {
+				Priority: passPriority,
+				Verdict:  types.Pass,
+			},
+			cachedSelector1: {
+				Priority: allowPriority,
+			},
+			cachedSelector2: {
+				Priority: denyPriority,
+				Verdict:  types.Deny,
+			},
+		}, false, false, "")
+
+		require.True(t, isPass)
+		require.Equal(t, passPriority.ToPassPrecedence(), wildcardSelectorPrecedence)
+		require.Len(t, obtained, 3)
+		require.Contains(t, obtained, &cilium.PortNetworkPolicyRule{
+			Precedence: uint32(passPriority.ToPassPrecedence()),
+			Verdict: &cilium.PortNetworkPolicyRule_PassPrecedence{
+				PassPrecedence: uint32(policyTypes.LowestPriority.ToPassPrecedence()),
+			},
+		})
+		require.Contains(t, obtained, &cilium.PortNetworkPolicyRule{
+			Precedence:     uint32(allowPriority.ToAllowPrecedence()),
+			RemotePolicies: []uint32{1001, 1002},
+		})
+		require.Contains(t, obtained, &cilium.PortNetworkPolicyRule{
+			Precedence:     uint32(denyPriority.ToDenyPrecedence()),
+			Verdict:        DenyVerdict,
+			RemotePolicies: []uint32{1001, 1003},
+		})
+	})
+
+	t.Run("grouped_non_wildcard_pass_with_empty_selection_is_skipped", func(t *testing.T) {
+		noneCachedSelector, _ := testSelectorCache.AddIdentitySelectorForTest(dummySelectorCacheUser, api.EndpointSelectorNone)
+
+		obtained, isPass, wildcardSelectorPrecedence := xds.getWildcardPortNetworkPolicyRules(ep, version, policyTypes.HighestPriority, policyTypes.LowestPriority, policy.L7DataMap{
+			cachedSelector1: {
+				Priority: policyTypes.Priority(3),
+			},
+			noneCachedSelector: {
+				Priority: policyTypes.Priority(2),
+				Verdict:  types.Pass,
+			},
+		}, false, false, "")
+
+		require.Equal(t, []*cilium.PortNetworkPolicyRule{{
+			Precedence:     uint32(policyTypes.Priority(3).ToAllowPrecedence()),
+			RemotePolicies: []uint32{1001, 1002},
+		}}, obtained)
+		require.False(t, isPass)
+		require.Zero(t, wildcardSelectorPrecedence)
+	})
 }
 
 func TestGetPortNetworkPolicyRule(t *testing.T) {
@@ -572,20 +841,50 @@ func TestGetPortNetworkPolicyRule(t *testing.T) {
 
 	version := testSelectorCache.GetSelectorSnapshot()
 
-	obtained, canShortCircuit := xds.getPortNetworkPolicyRule(ep, version, cachedSelector1, L7Rules12, false, false, "")
+	obtained, canShortCircuit := xds.getPortNetworkPolicyRule(ep, version, cachedSelector1, L7Rules12, policyTypes.LowestPriority, policyTypes.LowestPriority, false, false, "")
 	require.Equal(t, ExpectedPortNetworkPolicyRule12, obtained)
 	require.True(t, canShortCircuit)
 
-	obtained, canShortCircuit = xds.getPortNetworkPolicyRule(ep, version, cachedSelector1, L7Rules12Deny, false, false, "")
+	obtained, canShortCircuit = xds.getPortNetworkPolicyRule(ep, version, cachedSelector1, L7Rules12Deny, policyTypes.LowestPriority, policyTypes.LowestPriority, false, false, "")
 	require.Equal(t, ExpectedPortNetworkPolicyRule12Deny, obtained)
 	require.False(t, canShortCircuit)
 
-	obtained, canShortCircuit = xds.getPortNetworkPolicyRule(ep, version, cachedSelector1, L7Rules12HeaderMatch, false, false, "")
+	obtained, canShortCircuit = xds.getPortNetworkPolicyRule(ep, version, cachedSelector1, L7Rules12HeaderMatch, policyTypes.LowestPriority, policyTypes.LowestPriority, false, false, "")
 	require.Equal(t, ExpectedPortNetworkPolicyRule122HeaderMatch, obtained)
 	require.False(t, canShortCircuit)
 
-	obtained, canShortCircuit = xds.getPortNetworkPolicyRule(ep, version, cachedSelector2, L7Rules1, false, false, "")
+	obtained, canShortCircuit = xds.getPortNetworkPolicyRule(ep, version, cachedSelector2, L7Rules1, policyTypes.LowestPriority, policyTypes.LowestPriority, false, false, "")
 	require.Equal(t, ExpectedPortNetworkPolicyRule1, obtained)
+	require.True(t, canShortCircuit)
+
+	// With precedence
+
+	obtained, canShortCircuit = xds.getPortNetworkPolicyRule(ep, version, cachedSelector1, L7Rules12, policyTypes.HighestPriority, policyTypes.LowestPriority, false, false, "")
+	require.Equal(t, ExpectedPortNetworkPolicyRule12Precedence, obtained)
+	require.True(t, canShortCircuit)
+
+	obtained, canShortCircuit = xds.getPortNetworkPolicyRule(ep, version, cachedSelector1, L7Rules12Deny, policyTypes.HighestPriority, policyTypes.LowestPriority, false, false, "")
+	require.Equal(t, ExpectedPortNetworkPolicyRule12DenyPrecedence, obtained)
+	require.False(t, canShortCircuit)
+
+	obtained, canShortCircuit = xds.getPortNetworkPolicyRule(ep, version, cachedSelector1, L7Rules12HeaderMatch, policyTypes.HighestPriority, policyTypes.LowestPriority, false, false, "")
+	require.Equal(t, ExpectedPortNetworkPolicyRule122HeaderMatchPrecedence, obtained)
+	require.False(t, canShortCircuit)
+
+	obtained, canShortCircuit = xds.getPortNetworkPolicyRule(ep, version, cachedSelector2, L7Rules1, policyTypes.HighestPriority, policyTypes.LowestPriority, false, false, "")
+	require.Equal(t, ExpectedPortNetworkPolicyRule1Precedence, obtained)
+	require.True(t, canShortCircuit)
+
+	// with pass verdict
+
+	obtained, canShortCircuit = xds.getPortNetworkPolicyRule(ep, version, cachedSelector1,
+		&policy.PerSelectorPolicy{Verdict: types.Pass, Priority: 0xffff},
+		0xffff, 0x1ffff, false, false, "")
+	require.Equal(t, &cilium.PortNetworkPolicyRule{
+		Precedence:     0xff000000,
+		Verdict:        &cilium.PortNetworkPolicyRule_PassPrecedence{PassPrecedence: 0xfe000000},
+		RemotePolicies: []uint32{1001, 1002},
+	}, obtained)
 	require.True(t, canShortCircuit)
 }
 
@@ -593,32 +892,398 @@ func TestGetDirectionNetworkPolicy(t *testing.T) {
 	// L4+L7
 	xds := testXdsServer(t)
 	selectors := testSelectorCache.GetSelectorSnapshot()
-	obtained := xds.getDirectionNetworkPolicy(ep, selectors, L4PolicyMap1, true, false, false, "ingress", "")
+	obtained := xds.getDirectionNetworkPolicy(ep, selectors, &L4Policy1.Ingress, true, false, false, "ingress", "")
 	require.Equal(t, ExpectedPerPortPolicies12, obtained)
 
 	// L4+L7 with header mods
-	obtained = xds.getDirectionNetworkPolicy(ep, selectors, L4PolicyMap1HeaderMatch, true, false, false, "ingress", "")
+	obtained = xds.getDirectionNetworkPolicy(ep, selectors, &L4HeaderMatchPolicy1.Ingress, true, false, false, "ingress", "")
 	require.Equal(t, ExpectedPerPortPolicies122HeaderMatch, obtained)
 
 	// L4+L7
-	obtained = xds.getDirectionNetworkPolicy(ep, selectors, L4PolicyMap2, true, false, false, "ingress", "")
+	obtained = xds.getDirectionNetworkPolicy(ep, selectors, &L4Policy1.Egress, true, false, false, "egress", "")
 	require.Equal(t, ExpectedPerPortPolicies1, obtained)
 
 	// L4+L7 with Deny L3
-	obtained = xds.getDirectionNetworkPolicy(ep, selectors, L4PolicyMap1Deny2, true, false, false, "ingress", "")
+	obtained = xds.getDirectionNetworkPolicy(ep, selectors, &L4Deny2Policy1.Ingress, true, false, false, "ingress", "")
 	require.Equal(t, ExpectedPerPortPolicies1Deny2, obtained)
 
 	// L4-only
-	obtained = xds.getDirectionNetworkPolicy(ep, selectors, L4PolicyMap4, true, false, false, "ingress", "")
+	obtained = xds.getDirectionNetworkPolicy(ep, selectors, &L4Policy4.Ingress, true, false, false, "ingress", "")
 	require.Equal(t, ExpectedPerPortPolicies, obtained)
 
 	// L4-only
-	obtained = xds.getDirectionNetworkPolicy(ep, selectors, L4PolicyMap5, true, false, false, "ingress", "")
+	obtained = xds.getDirectionNetworkPolicy(ep, selectors, &L4Policy5.Ingress, true, false, false, "ingress", "")
 	require.Equal(t, ExpectedPerPortPoliciesWildcard, obtained)
 
 	// L4-only with SNI
-	obtained = xds.getDirectionNetworkPolicy(ep, selectors, L4PolicyMapSNI, true, false, false, "ingress", "")
+	obtained = xds.getDirectionNetworkPolicy(ep, selectors, &L4SNIPolicy.Ingress, true, false, false, "ingress", "")
 	require.Equal(t, ExpectedPerPortPoliciesSNI, obtained)
+
+	// with pass verdict
+	obtained = xds.getDirectionNetworkPolicy(ep, selectors, &L4PassPolicy.Ingress, true, false, false, "ingress", "")
+	require.Equal(t, ExpectedPerPortPoliciesPass, obtained)
+
+}
+
+func TestGetDirectionNetworkPolicyWildcardPass(t *testing.T) {
+	xds := testXdsServer(t)
+	selectors := testSelectorCache.GetSelectorSnapshot()
+
+	t.Run("wildcard_pass_does_not_short_circuit_later_tiers", func(t *testing.T) {
+		l4DirectionPolicy := &policy.L4DirectionPolicy{}
+		*l4DirectionPolicy = policy.NewL4DirectionPolicyForTest(policy.NewL4PolicyMapWithValues(map[string]*policy.L4Filter{
+			"0/TCP": {
+				Tier:     0,
+				Port:     0,
+				Protocol: api.ProtoTCP, U8Proto: u8proto.TCP,
+				PerSelectorPolicies: policy.L7DataMap{
+					wildcardCachedSelector: {
+						Priority: policyTypes.HighestPriority,
+						Verdict:  types.Pass,
+					},
+				},
+			},
+			"443/TCP": {
+				Tier:     1,
+				Port:     443,
+				Protocol: api.ProtoTCP, U8Proto: u8proto.TCP,
+				PerSelectorPolicies: policy.L7DataMap{
+					cachedSelector1: {
+						Priority: policyTypes.Priority(0x100),
+					},
+				},
+			},
+		}), []types.Priority{0, 0x100})
+
+		obtained := xds.getDirectionNetworkPolicy(ep, selectors, l4DirectionPolicy, true, false, false, "ingress", "")
+		require.Equal(t, []*cilium.PortNetworkPolicy{{
+			Port:     0,
+			Protocol: envoy_config_core.SocketAddress_TCP,
+			Rules: []*cilium.PortNetworkPolicyRule{{
+				Precedence: uint32(policyTypes.HighestPriority.ToPassPrecedence()),
+				Verdict: &cilium.PortNetworkPolicyRule_PassPrecedence{
+					PassPrecedence: uint32(policyTypes.Priority(0xff).ToPassPrecedence()),
+				},
+			}},
+		}, {
+			Port:     443,
+			Protocol: envoy_config_core.SocketAddress_TCP,
+			Rules: []*cilium.PortNetworkPolicyRule{{
+				Precedence:     uint32(policyTypes.Priority(0x100).ToAllowPrecedence()),
+				RemotePolicies: []uint32{1001, 1002},
+			}},
+		}}, obtained)
+	})
+
+	t.Run("wildcard_pass_keeps_same_priority_port_rules", func(t *testing.T) {
+		passPriority := policyTypes.HighestPriority
+		l4DirectionPolicy := &policy.L4DirectionPolicy{}
+		*l4DirectionPolicy = policy.NewL4DirectionPolicyForTest(policy.NewL4PolicyMapWithValues(map[string]*policy.L4Filter{
+			"0/TCP": {
+				Port:     0,
+				Protocol: api.ProtoAny, U8Proto: u8proto.ANY,
+				PerSelectorPolicies: policy.L7DataMap{
+					wildcardCachedSelector: {
+						Priority: passPriority,
+						Verdict:  types.Pass,
+					},
+				},
+			},
+			"80/TCP": {
+				Port:     80,
+				Protocol: api.ProtoTCP, U8Proto: u8proto.TCP,
+				PerSelectorPolicies: policy.L7DataMap{
+					cachedSelector1: {
+						Priority: passPriority,
+					},
+					cachedSelector2: {
+						Priority: passPriority,
+						Verdict:  types.Deny,
+					},
+				},
+			},
+		}), []types.Priority{0})
+
+		obtained := xds.getDirectionNetworkPolicy(ep, selectors, l4DirectionPolicy, true, false, false, "ingress", "")
+		require.Equal(t, []*cilium.PortNetworkPolicy{{
+			Port:     0,
+			Protocol: envoy_config_core.SocketAddress_TCP,
+			Rules: []*cilium.PortNetworkPolicyRule{{
+				Precedence: uint32(passPriority.ToPassPrecedence()),
+				Verdict: &cilium.PortNetworkPolicyRule_PassPrecedence{
+					PassPrecedence: uint32(policyTypes.LowestPriority.ToPassPrecedence()),
+				},
+			}},
+		}, {
+			Port:     80,
+			Protocol: envoy_config_core.SocketAddress_TCP,
+			Rules: []*cilium.PortNetworkPolicyRule{{
+				Precedence:     uint32(passPriority.ToDenyPrecedence()),
+				Verdict:        DenyVerdict,
+				RemotePolicies: []uint32{1001, 1003},
+			}, {
+				Precedence:     uint32(passPriority.ToAllowPrecedence()),
+				RemotePolicies: []uint32{1001, 1002},
+			}},
+		}}, obtained)
+	})
+
+	t.Run("wildcard_pass_suppresses_lower_priority_port_rules", func(t *testing.T) {
+		passPriority := policyTypes.HighestPriority
+		l4DirectionPolicy := &policy.L4DirectionPolicy{}
+		*l4DirectionPolicy = policy.NewL4DirectionPolicyForTest(policy.NewL4PolicyMapWithValues(map[string]*policy.L4Filter{
+			"0/TCP": {
+				Port:     0,
+				Protocol: api.ProtoAny,
+				PerSelectorPolicies: policy.L7DataMap{
+					wildcardCachedSelector: {
+						Priority: passPriority,
+						Verdict:  types.Pass,
+					},
+				},
+			},
+			"80/TCP": {
+				Port:     80,
+				Protocol: api.ProtoTCP, U8Proto: u8proto.TCP,
+				PerSelectorPolicies: policy.L7DataMap{
+					cachedSelector1: {
+						Priority: passPriority + 1,
+					},
+					cachedSelector2: {
+						Priority: passPriority + 2,
+						Verdict:  types.Deny,
+					},
+				},
+			},
+		}), []types.Priority{0})
+
+		obtained := xds.getDirectionNetworkPolicy(ep, selectors, l4DirectionPolicy, true, false, false, "ingress", "")
+		require.Equal(t, []*cilium.PortNetworkPolicy{{
+			Port:     0,
+			Protocol: envoy_config_core.SocketAddress_TCP,
+			Rules: []*cilium.PortNetworkPolicyRule{{
+				Precedence: uint32(passPriority.ToPassPrecedence()),
+				Verdict: &cilium.PortNetworkPolicyRule_PassPrecedence{
+					PassPrecedence: uint32(policyTypes.LowestPriority.ToPassPrecedence()),
+				},
+			}},
+		}}, obtained)
+	})
+}
+
+func TestGetDirectionNetworkPolicyWildcardRedirect(t *testing.T) {
+	xds := testXdsServer(t)
+	selectors := testSelectorCache.GetSelectorSnapshot()
+
+	const listener1ProxyPort = uint16(19001)
+	redirectEP := &listenerProxyUpdaterMock{
+		ProxyUpdaterMock: &test.ProxyUpdaterMock{
+			Id:   ep.Id,
+			Ipv4: ep.Ipv4,
+			Ipv6: ep.Ipv6,
+		},
+		listenerProxyPorts: map[string]uint16{
+			"listener1": listener1ProxyPort,
+		},
+	}
+
+	testCases := []struct {
+		name             string
+		redirectProtocol api.L4Proto
+		redirectPriority policyTypes.Priority
+		port80Policy     *policy.PerSelectorPolicy
+		expected         []*cilium.PortNetworkPolicy
+	}{
+		{
+			name:             "tcp_same_priority_keeps_port_rule",
+			redirectProtocol: api.ProtoTCP,
+			redirectPriority: policyTypes.HighestPriority,
+			port80Policy:     &policy.PerSelectorPolicy{Priority: policyTypes.HighestPriority},
+			expected: []*cilium.PortNetworkPolicy{
+				{
+					Port:     0,
+					Protocol: envoy_config_core.SocketAddress_TCP,
+					Rules: []*cilium.PortNetworkPolicyRule{{
+						Precedence: uint32(policyTypes.HighestPriority.ToPrecedenceWithListenerPriority(false, true, policy.ListenerPriorityCRD)),
+						ProxyId:    uint32(listener1ProxyPort),
+					}},
+				},
+				{
+					Port:     80,
+					Protocol: envoy_config_core.SocketAddress_TCP,
+					Rules: []*cilium.PortNetworkPolicyRule{{
+						Precedence:     uint32(policyTypes.HighestPriority.ToAllowPrecedence()),
+						RemotePolicies: []uint32{1001, 1002},
+					}},
+				},
+			},
+		},
+		{
+			name:             "tcp_higher_priority_suppresses_port_rule",
+			redirectProtocol: api.ProtoTCP,
+			redirectPriority: policyTypes.HighestPriority,
+			port80Policy:     &policy.PerSelectorPolicy{Priority: policyTypes.Priority(1)},
+			expected: []*cilium.PortNetworkPolicy{
+				{
+					Port:     0,
+					Protocol: envoy_config_core.SocketAddress_TCP,
+					Rules: []*cilium.PortNetworkPolicyRule{{
+						Precedence: uint32(policyTypes.HighestPriority.ToPrecedenceWithListenerPriority(false, true, policy.ListenerPriorityCRD)),
+						ProxyId:    uint32(listener1ProxyPort),
+					}},
+				},
+			},
+		},
+		{
+			name:             "any_protocol_redirect_is_sent_to_envoy_as_tcp",
+			redirectProtocol: api.ProtoAny,
+			redirectPriority: policyTypes.HighestPriority,
+			port80Policy:     &policy.PerSelectorPolicy{Priority: policyTypes.HighestPriority},
+			expected: []*cilium.PortNetworkPolicy{
+				{
+					Port:     0,
+					Protocol: envoy_config_core.SocketAddress_TCP,
+					Rules: []*cilium.PortNetworkPolicyRule{{
+						Precedence: uint32(policyTypes.HighestPriority.ToPrecedenceWithListenerPriority(false, true, policy.ListenerPriorityCRD)),
+						ProxyId:    uint32(listener1ProxyPort),
+					}},
+				},
+				{
+					Port:     80,
+					Protocol: envoy_config_core.SocketAddress_TCP,
+					Rules: []*cilium.PortNetworkPolicyRule{{
+						Precedence:     uint32(policyTypes.HighestPriority.ToAllowPrecedence()),
+						RemotePolicies: []uint32{1001, 1002},
+					}},
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			redirectPolicy := &policy.PerSelectorPolicy{
+				Priority:         tc.redirectPriority,
+				L7Parser:         policy.ParserTypeCRD,
+				Listener:         "listener1",
+				ListenerPriority: policy.ListenerPriorityCRD,
+			}
+
+			u8p, err := u8proto.ParseProtocol(string(tc.redirectProtocol))
+			require.NoError(t, err)
+
+			l4DirectionPolicy := &policy.L4DirectionPolicy{
+				PortRules: policy.NewL4PolicyMapWithValues(map[string]*policy.L4Filter{
+					"0/" + string(tc.redirectProtocol): {
+						Port:     0,
+						Protocol: tc.redirectProtocol, U8Proto: u8p,
+						PerSelectorPolicies: policy.L7DataMap{
+							wildcardCachedSelector: redirectPolicy,
+						},
+					},
+					"80/TCP": {
+						Port:     80,
+						Protocol: api.ProtoTCP, U8Proto: u8proto.TCP,
+						PerSelectorPolicies: policy.L7DataMap{
+							cachedSelector1: tc.port80Policy,
+						},
+					},
+				}),
+			}
+
+			obtained := xds.getDirectionNetworkPolicy(redirectEP, selectors, l4DirectionPolicy, true, false, false, "ingress", "")
+			require.Equal(t, tc.expected, obtained)
+		})
+	}
+}
+
+func TestCNPWildcardPortListenerRedirectToEnvoy(t *testing.T) {
+	logger := hivetest.Logger(t)
+	xds := testXdsServer(t)
+
+	localIdentity := identity.NewIdentity(9001, labels.LabelArray{
+		labels.NewLabel("id", "a", labels.LabelSourceK8s),
+		labels.NewLabel(k8sConst.PodNamespaceLabel, "default", labels.LabelSourceK8s),
+	}.Labels())
+
+	idMgr := identitymanager.NewIDManager(logger)
+	repo := policy.NewPolicyRepository(
+		logger,
+		identity.IdentityMap{localIdentity.ID: localIdentity.LabelArray},
+		nil,
+		envoypolicy.NewEnvoyL7RulesTranslator(logger, certificatemanager.NewMockSecretManagerInline()),
+		idMgr,
+		testpolicy.NewPolicyMetricsNoop(),
+	)
+	idMgr.Add(localIdentity)
+	t.Cleanup(func() {
+		idMgr.Remove(localIdentity)
+	})
+
+	cnpRule := &api.Rule{
+		EndpointSelector: api.NewESFromLabels(labels.ParseSelectLabel("id=a")),
+		Egress: []api.EgressRule{{
+			EgressCommonRule: api.EgressCommonRule{
+				ToEndpoints: []api.EndpointSelector{api.WildcardEndpointSelector},
+			},
+			ToPorts: []api.PortRule{{
+				Ports: []api.PortProtocol{{
+					Port:     "0",
+					Protocol: api.ProtoAny,
+				}},
+				Listener: &api.Listener{
+					EnvoyConfig: &api.EnvoyConfig{
+						Kind: "CiliumEnvoyConfig",
+						Name: "test-cec",
+					},
+					Name: "listener1",
+				},
+			}},
+		}},
+	}
+	require.NoError(t, cnpRule.Sanitize())
+	repo.MustAddList(api.Rules{cnpRule})
+
+	selPolicy, _, err := repo.GetSelectorPolicy(localIdentity, 0, &dummyPolicyStats{}, ep.GetID())
+	require.NoError(t, err)
+
+	const listenerProxyPort = uint16(19001)
+	const qualifiedListener = "default/test-cec/listener1"
+	redirectEP := &listenerProxyUpdaterMock{
+		ProxyUpdaterMock: &test.ProxyUpdaterMock{
+			Id:   ep.Id,
+			Ipv4: ep.Ipv4,
+			Ipv6: ep.Ipv6,
+		},
+		listenerProxyPorts: map[string]uint16{
+			qualifiedListener: listenerProxyPort,
+		},
+	}
+
+	epp := selPolicy.DistillPolicy(logger, redirectEP, nil)
+	t.Cleanup(func() {
+		epp.Detach(logger)
+	})
+
+	obtained := xds.getDirectionNetworkPolicy(
+		redirectEP,
+		epp.GetPolicySelectors(),
+		&epp.SelectorPolicy.L4Policy.Egress,
+		true,
+		false,
+		false,
+		"egress",
+		"",
+	)
+
+	require.Equal(t, []*cilium.PortNetworkPolicy{{
+		Port:     0,
+		Protocol: envoy_config_core.SocketAddress_TCP,
+		Rules: []*cilium.PortNetworkPolicyRule{{
+			Precedence: uint32(policyTypes.HighestPriority.ToPrecedenceWithListenerPriority(false, true, policy.ListenerPriorityCRD)),
+			ProxyId:    uint32(listenerProxyPort),
+		}},
+	}}, obtained)
 }
 
 func TestGetNetworkPolicy(t *testing.T) {
@@ -630,7 +1295,6 @@ func TestGetNetworkPolicy(t *testing.T) {
 		EndpointId:             uint64(ep.GetID()),
 		IngressPerPortPolicies: ExpectedPerPortPolicies12,
 		EgressPerPortPolicies:  ExpectedPerPortPolicies1,
-		ConntrackMapName:       "global",
 	}
 	require.Equal(t, expected, obtained)
 }
@@ -644,7 +1308,6 @@ func TestGetNetworkPolicyWildcard(t *testing.T) {
 		EndpointId:             uint64(ep.GetID()),
 		IngressPerPortPolicies: ExpectedPerPortPolicies12Wildcard,
 		EgressPerPortPolicies:  ExpectedPerPortPolicies1,
-		ConntrackMapName:       "global",
 	}
 	require.Equal(t, expected, obtained)
 }
@@ -658,7 +1321,6 @@ func TestGetNetworkPolicyDeny(t *testing.T) {
 		EndpointId:             uint64(ep.GetID()),
 		IngressPerPortPolicies: ExpectedPerPortPolicies12RequiresV2,
 		EgressPerPortPolicies:  ExpectedPerPortPolicies1,
-		ConntrackMapName:       "global",
 	}
 	require.Equal(t, expected, obtained)
 }
@@ -672,7 +1334,6 @@ func TestGetNetworkPolicyWildcardDeny(t *testing.T) {
 		EndpointId:             uint64(ep.GetID()),
 		IngressPerPortPolicies: ExpectedPerPortPolicies12RequiresV2,
 		EgressPerPortPolicies:  ExpectedPerPortPolicies1,
-		ConntrackMapName:       "global",
 	}
 	require.Equal(t, expected, obtained)
 }
@@ -686,7 +1347,6 @@ func TestGetNetworkPolicyNil(t *testing.T) {
 		EndpointId:             uint64(ep.GetID()),
 		IngressPerPortPolicies: nil,
 		EgressPerPortPolicies:  nil,
-		ConntrackMapName:       "global",
 	}
 	require.Equal(t, expected, obtained)
 }
@@ -700,7 +1360,6 @@ func TestGetNetworkPolicyIngressNotEnforced(t *testing.T) {
 		EndpointId:             uint64(ep.GetID()),
 		IngressPerPortPolicies: allowAllPortNetworkPolicy,
 		EgressPerPortPolicies:  ExpectedPerPortPolicies1,
-		ConntrackMapName:       "global",
 	}
 	require.Equal(t, expected, obtained)
 }
@@ -714,7 +1373,6 @@ func TestGetNetworkPolicyEgressNotEnforced(t *testing.T) {
 		EndpointId:             uint64(ep.GetID()),
 		IngressPerPortPolicies: ExpectedPerPortPolicies12RequiresV2,
 		EgressPerPortPolicies:  allowAllPortNetworkPolicy,
-		ConntrackMapName:       "global",
 	}
 	require.Equal(t, expected, obtained)
 }
@@ -781,7 +1439,7 @@ func newL4PolicyTLSEgress(tls *policy.TLSContext) *policy.L4Policy {
 	return &policy.L4Policy{
 		Egress: policy.L4DirectionPolicy{PortRules: policy.NewL4PolicyMapWithValues(map[string]*policy.L4Filter{
 			"443/TCP": {
-				Port: 443, Protocol: api.ProtoTCP,
+				Port: 443, Protocol: api.ProtoTCP, U8Proto: u8proto.TCP,
 				PerSelectorPolicies: policy.L7DataMap{
 					cachedSelector1: &policy.PerSelectorPolicy{
 						L7Parser:       "tls",
@@ -807,6 +1465,7 @@ func newEgressPortNetworkPolicyReturnVal(tls *cilium.TLSContext) []*cilium.PortN
 			Port:     443,
 			Protocol: envoy_config_core.SocketAddress_TCP,
 			Rules: []*cilium.PortNetworkPolicyRule{{
+				Precedence:         uint32(policyTypes.MaxAllowPrecedence + 1),
 				RemotePolicies:     []uint32{1001, 1002},
 				UpstreamTlsContext: tls,
 			}},
@@ -847,7 +1506,7 @@ func newL4PolicyTLSIngress(tls *policy.TLSContext) *policy.L4Policy {
 	return &policy.L4Policy{
 		Ingress: policy.L4DirectionPolicy{PortRules: policy.NewL4PolicyMapWithValues(map[string]*policy.L4Filter{
 			"443/TCP": {
-				Port: 443, Protocol: api.ProtoTCP,
+				Port: 443, Protocol: api.ProtoTCP, U8Proto: u8proto.TCP,
 				PerSelectorPolicies: policy.L7DataMap{
 					cachedSelector1: &policy.PerSelectorPolicy{
 						L7Parser:       "tls",
@@ -873,6 +1532,7 @@ func newIngressPortNetworkPolicyReturnVal(tls *cilium.TLSContext) []*cilium.Port
 			Port:     443,
 			Protocol: envoy_config_core.SocketAddress_TCP,
 			Rules: []*cilium.PortNetworkPolicyRule{{
+				Precedence:           uint32(policyTypes.MaxAllowPrecedence + 1),
 				RemotePolicies:       []uint32{1001, 1002},
 				DownstreamTlsContext: tls,
 			}},
@@ -889,7 +1549,7 @@ var ExpectedPerPortPoliciesTLSIngressNoSyncUseFullContext = newIngressPortNetwor
 var L4PolicyTLSFullContext = &policy.L4Policy{
 	Ingress: policy.L4DirectionPolicy{PortRules: policy.NewL4PolicyMapWithValues(map[string]*policy.L4Filter{
 		"443/TCP": {
-			Port: 443, Protocol: api.ProtoTCP,
+			Port: 443, Protocol: api.ProtoTCP, U8Proto: u8proto.TCP,
 			PerSelectorPolicies: policy.L7DataMap{
 				cachedSelector1: &policy.PerSelectorPolicy{
 					L7Parser: "tls",
@@ -923,6 +1583,7 @@ var ExpectedPerPortPoliciesTLSFullContext = []*cilium.PortNetworkPolicy{
 		Port:     443,
 		Protocol: envoy_config_core.SocketAddress_TCP,
 		Rules: []*cilium.PortNetworkPolicyRule{{
+			Precedence:     uint32(policyTypes.MaxAllowPrecedence + 1),
 			RemotePolicies: []uint32{1001, 1002},
 			DownstreamTlsContext: &cilium.TLSContext{
 				CertificateChain: "terminatingCertchain",
@@ -943,6 +1604,7 @@ var ExpectedPerPortPoliciesTLSNotFullContext = []*cilium.PortNetworkPolicy{
 		Port:     443,
 		Protocol: envoy_config_core.SocketAddress_TCP,
 		Rules: []*cilium.PortNetworkPolicyRule{{
+			Precedence:     uint32(policyTypes.MaxAllowPrecedence + 1),
 			RemotePolicies: []uint32{1001, 1002},
 			DownstreamTlsContext: &cilium.TLSContext{
 				CertificateChain: "terminatingCertchain",
@@ -960,6 +1622,7 @@ var ExpectedPerPortPoliciesBothWaysTLSSDS = []*cilium.PortNetworkPolicy{
 		Port:     443,
 		Protocol: envoy_config_core.SocketAddress_TCP,
 		Rules: []*cilium.PortNetworkPolicyRule{{
+			Precedence:     uint32(policyTypes.MaxAllowPrecedence + 1),
 			RemotePolicies: []uint32{1001, 1002},
 			DownstreamTlsContext: &cilium.TLSContext{
 				TlsSdsSecret: "cilium-secrets/tlsns-terminating-tls",
@@ -1402,7 +2065,6 @@ func TestGetNetworkPolicyTLSInterception(t *testing.T) {
 				EndpointId:             uint64(ep.GetID()),
 				IngressPerPortPolicies: tt.wantIngress,
 				EgressPerPortPolicies:  tt.wantEgress,
-				ConntrackMapName:       "global",
 			}
 			require.Equal(t, expected, obtained)
 		})

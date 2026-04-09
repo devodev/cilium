@@ -104,6 +104,7 @@ type standaloneEnvoyConfig struct {
 	runDir                         string
 	logPath                        string
 	defaultLogLevel                string
+	nodeLocalityEnabled            bool
 	baseID                         uint64
 	keepCapNetBindService          bool
 	connectTimeout                 int64
@@ -134,7 +135,7 @@ func (o *onDemandXdsStarter) startStandaloneEnvoyInternal(config standaloneEnvoy
 
 	bootstrapFilePath := filepath.Join(bootstrapDir, "bootstrap.pb")
 
-	o.writeBootstrapConfigFile(bootstrapConfig{
+	err := o.writeBootstrapConfigFile(bootstrapConfig{
 		filePath:                       bootstrapFilePath,
 		nodeId:                         "host~127.0.0.1~no-id~localdomain", // node id format inherited from Istio
 		cluster:                        ingressClusterName,
@@ -150,7 +151,11 @@ func (o *onDemandXdsStarter) startStandaloneEnvoyInternal(config standaloneEnvoy
 		maxConcurrentRetries:           config.maxConcurrentRetries,
 		maxConnections:                 config.maxConnections,
 		maxRequests:                    config.maxRequests,
+		nodeLocalityEnabled:            config.nodeLocalityEnabled,
 	})
+	if err != nil {
+		return nil, err
+	}
 
 	o.logger.Debug("Envoy: Starting standalone Envoy")
 
@@ -373,9 +378,10 @@ type bootstrapConfig struct {
 	maxConcurrentRetries           uint32
 	maxConnections                 uint32
 	maxRequests                    uint32
+	nodeLocalityEnabled            bool
 }
 
-func (o *onDemandXdsStarter) writeBootstrapConfigFile(config bootstrapConfig) {
+func (o *onDemandXdsStarter) writeBootstrapConfigFile(config bootstrapConfig) error {
 	useDownstreamProtocol := map[string]*anypb.Any{
 		"envoy.extensions.upstreams.http.v3.HttpProtocolOptions": toAny(&envoy_config_upstream.HttpProtocolOptions{
 			CommonHttpProtocolOptions: &envoy_config_core.HttpProtocolOptions{
@@ -553,6 +559,21 @@ func (o *onDemandXdsStarter) writeBootstrapConfigFile(config bootstrapConfig) {
 		},
 	}
 
+	if config.nodeLocalityEnabled {
+		zone, err := getLocalNodeZone(o.localNodeStore)
+		if err != nil {
+			o.logger.Error("Envoy: Failed to resolve local node zone for embedded bootstrap",
+				logfields.Error, err,
+			)
+			return err
+		}
+		if zone == "" {
+			o.logger.Error("Envoy: Embedded node locality requires zone label")
+			return fmt.Errorf("embedded Envoy node locality requires zone label")
+		}
+		appendEmbeddedLocalityBootstrap(bs, config.connectTimeout, zone)
+	}
+
 	o.logger.Debug("Envoy: Writing Bootstrap config",
 		logfields.Resource, bs,
 	)
@@ -561,13 +582,16 @@ func (o *onDemandXdsStarter) writeBootstrapConfigFile(config bootstrapConfig) {
 		o.logger.Error("Envoy: Error marshaling Envoy bootstrap",
 			logfields.Error, err,
 		)
-		return
+		return err
 	}
 	if err := os.WriteFile(config.filePath, data, 0644); err != nil {
 		o.logger.Error("Envoy: Error writing Envoy bootstrap file",
 			logfields.Error, err,
 		)
+		return err
 	}
+
+	return nil
 }
 
 // getStandaloneEnvoyVersion returns the envoy binary version string

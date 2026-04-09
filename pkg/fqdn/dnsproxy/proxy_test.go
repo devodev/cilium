@@ -29,7 +29,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/cilium/cilium/api/v1/models"
-	fakeTypes "github.com/cilium/cilium/pkg/datapath/fake/types"
+	fakeipsec "github.com/cilium/cilium/pkg/datapath/linux/ipsec/fake"
 	"github.com/cilium/cilium/pkg/endpoint"
 	fqdndns "github.com/cilium/cilium/pkg/fqdn/dns"
 	"github.com/cilium/cilium/pkg/fqdn/restore"
@@ -51,6 +51,7 @@ import (
 	testipcache "github.com/cilium/cilium/pkg/testutils/ipcache"
 	testpolicy "github.com/cilium/cilium/pkg/testutils/policy"
 	"github.com/cilium/cilium/pkg/u8proto"
+	fakewireguard "github.com/cilium/cilium/pkg/wireguard/fake"
 )
 
 type DNSProxyTestSuite struct {
@@ -175,8 +176,8 @@ func (s *DNSProxyTestSuite) LookupRegisteredEndpoint(ip netip.Addr) (*endpoint.E
 		NamedPortsGetter: testipcache.NewMockIPCache(),
 		Allocator:        testidentity.NewMockIdentityAllocator(nil),
 		CTMapGC:          ctmap.NewFakeGCRunner(),
-		WgConfig:         &fakeTypes.WireguardConfig{},
-		IPSecConfig:      fakeTypes.IPsecConfig{},
+		WgConfig:         &fakewireguard.Config{},
+		IPSecConfig:      fakeipsec.Config{},
 		Logger:           s.logger,
 		IdentityManager:  identitymanager.NewIDManager(s.logger),
 		PolicyRepo:       s.repo,
@@ -910,8 +911,8 @@ func TestPrivilegedFullPathDependence(t *testing.T) {
 		NamedPortsGetter: testipcache.NewMockIPCache(),
 		Allocator:        testidentity.NewMockIdentityAllocator(nil),
 		CTMapGC:          ctmap.NewFakeGCRunner(),
-		WgConfig:         &fakeTypes.WireguardConfig{},
-		IPSecConfig:      fakeTypes.IPsecConfig{},
+		WgConfig:         &fakewireguard.Config{},
+		IPSecConfig:      fakeipsec.Config{},
 		Logger:           hivetest.Logger(t),
 		IdentityManager:  identitymanager.NewIDManager(logger),
 		PolicyRepo:       s.repo,
@@ -972,8 +973,8 @@ func TestPrivilegedFullPathDependence(t *testing.T) {
 		NamedPortsGetter: testipcache.NewMockIPCache(),
 		Allocator:        testidentity.NewMockIdentityAllocator(nil),
 		CTMapGC:          ctmap.NewFakeGCRunner(),
-		WgConfig:         &fakeTypes.WireguardConfig{},
-		IPSecConfig:      fakeTypes.IPsecConfig{},
+		WgConfig:         &fakewireguard.Config{},
+		IPSecConfig:      fakeipsec.Config{},
 		Logger:           hivetest.Logger(t),
 		IdentityManager:  identitymanager.NewIDManager(logger),
 		PolicyRepo:       s.repo,
@@ -1194,8 +1195,8 @@ func TestPrivilegedRestoredEndpoint(t *testing.T) {
 		NamedPortsGetter: testipcache.NewMockIPCache(),
 		Allocator:        testidentity.NewMockIdentityAllocator(nil),
 		CTMapGC:          ctmap.NewFakeGCRunner(),
-		WgConfig:         &fakeTypes.WireguardConfig{},
-		IPSecConfig:      fakeTypes.IPsecConfig{},
+		WgConfig:         &fakewireguard.Config{},
+		IPSecConfig:      fakeipsec.Config{},
 		Logger:           hivetest.Logger(t),
 		IdentityManager:  identitymanager.NewIDManager(logger),
 		PolicyRepo:       s.repo,

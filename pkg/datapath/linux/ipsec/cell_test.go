@@ -23,12 +23,11 @@ import (
 	"github.com/cilium/cilium/daemon/k8s"
 	"github.com/cilium/cilium/pkg/clustermesh"
 	cmtypes "github.com/cilium/cilium/pkg/clustermesh/types"
-	fakeTypes "github.com/cilium/cilium/pkg/datapath/fake/types"
 	"github.com/cilium/cilium/pkg/datapath/iptables/ipset"
+	"github.com/cilium/cilium/pkg/datapath/linux/ipsec/types"
 	"github.com/cilium/cilium/pkg/datapath/linux/sysctl"
 	"github.com/cilium/cilium/pkg/datapath/tables"
 	"github.com/cilium/cilium/pkg/datapath/tunnel"
-	"github.com/cilium/cilium/pkg/datapath/types"
 	"github.com/cilium/cilium/pkg/dial"
 	"github.com/cilium/cilium/pkg/endpoint/regeneration"
 	envoy "github.com/cilium/cilium/pkg/envoy/config"
@@ -46,6 +45,7 @@ import (
 	"github.com/cilium/cilium/pkg/mtu"
 	"github.com/cilium/cilium/pkg/node"
 	"github.com/cilium/cilium/pkg/node/addressing"
+	fakenode "github.com/cilium/cilium/pkg/node/fake"
 	nodeManager "github.com/cilium/cilium/pkg/node/manager"
 	nodeTypes "github.com/cilium/cilium/pkg/node/types"
 	"github.com/cilium/cilium/pkg/nodediscovery"
@@ -54,7 +54,8 @@ import (
 	"github.com/cilium/cilium/pkg/testutils"
 	"github.com/cilium/cilium/pkg/testutils/netns"
 	"github.com/cilium/cilium/pkg/time"
-	wgTypes "github.com/cilium/cilium/pkg/wireguard/types"
+	fakewireguard "github.com/cilium/cilium/pkg/wireguard/fake"
+	wireguard "github.com/cilium/cilium/pkg/wireguard/types"
 )
 
 var (
@@ -67,8 +68,8 @@ var (
 type paramsOut struct {
 	cell.Out
 
-	IPSecConfig           Config
-	WireguardConfig       wgTypes.WireguardConfig
+	IPSecConfig           config
+	WireguardConfig       wireguard.Config
 	TunnelConfig          tunnel.Config
 	DaemonConfig          *option.DaemonConfig
 	LBConfig              loadbalancer.Config
@@ -84,7 +85,7 @@ type paramsOut struct {
 	RemoteIdentityWatcher clustermesh.RemoteIdentityWatcher
 	CacheStatus           k8sSynced.CacheStatus
 	ClusterInfo           cmtypes.ClusterInfo
-	NodeHandler           types.NodeHandler
+	NodeHandler           node.Handler
 	SecretSyncConfig      envoy.SecretSyncConfig
 }
 
@@ -106,11 +107,11 @@ func TestPrivileged_TestIPSecCell(t *testing.T) {
 
 	var (
 		// Local references are updated when starting the Hive.
-		ipsecAgent  *Agent
+		ipsecAgent  *agent
 		nodeStore   *node.LocalNodeStore
 		mtuConfig   mtu.MTU
 		encryptMap  encrypt.EncryptMap
-		nodeHandler types.NodeHandler
+		nodeHandler node.Handler
 
 		ctx = t.Context()
 		ns  = netns.NewNetNS(t)
@@ -159,7 +160,7 @@ func TestPrivileged_TestIPSecCell(t *testing.T) {
 
 				func() paramsOut {
 					return paramsOut{
-						IPSecConfig: Config{
+						IPSecConfig: config{
 							UserConfig: UserConfig{
 								EnableConfig: EnableConfig{
 									EnableIPsec: ipsecEnabled,
@@ -173,7 +174,7 @@ func TestPrivileged_TestIPSecCell(t *testing.T) {
 							},
 							EncryptNode: false,
 						},
-						WireguardConfig:  fakeTypes.WireguardConfig{},
+						WireguardConfig:  fakewireguard.Config{},
 						TunnelConfig:     tunnel.Config{},
 						DaemonConfig:     option.Config,
 						LBConfig:         loadbalancer.Config{},
@@ -203,15 +204,15 @@ func TestPrivileged_TestIPSecCell(t *testing.T) {
 						RemoteIdentityWatcher: nil,
 						CacheStatus:           make(k8sSynced.CacheStatus),
 						ClusterInfo:           cmtypes.DefaultClusterInfo,
-						NodeHandler:           fakeTypes.NewNodeHandler(),
+						NodeHandler:           fakenode.NewHandler(),
 						SecretSyncConfig:      envoy.SecretSyncConfig{},
 					}
 				},
 			),
 
 			cell.Invoke(
-				func(a types.IPsecAgent, s *node.LocalNodeStore, m mtu.MTU, e encrypt.EncryptMap, n types.NodeHandler) {
-					ipsecAgent = a.(*Agent)
+				func(a types.Agent, s *node.LocalNodeStore, m mtu.MTU, e encrypt.EncryptMap, n node.Handler) {
+					ipsecAgent = a.(*agent)
 					nodeStore = s
 					mtuConfig = m
 					nodeHandler = n
@@ -358,7 +359,7 @@ func TestMaxKeyRotationJitter(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			config := Config{
+			config := config{
 				UserConfig: UserConfig{
 					IPsecKeyRotationDuration: tc.rotationDuration,
 				},

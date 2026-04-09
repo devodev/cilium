@@ -13,7 +13,6 @@ import (
 
 	agentK8s "github.com/cilium/cilium/daemon/k8s"
 	"github.com/cilium/cilium/pkg/datapath/linux/sysctl"
-	"github.com/cilium/cilium/pkg/datapath/types"
 	ipamOption "github.com/cilium/cilium/pkg/ipam/option"
 	"github.com/cilium/cilium/pkg/ipam/podippool"
 	"github.com/cilium/cilium/pkg/ipmasq"
@@ -73,7 +72,7 @@ type Metadata interface {
 // NewIPAMParams contains the parameters for creating a new IPAM instance.
 type NewIPAMParams struct {
 	Logger         *slog.Logger
-	NodeAddressing types.NodeAddressing
+	NodeAddressing node.Addressing
 	AgentConfig    *option.DaemonConfig
 	NodeDiscovery  Owner
 	LocalNodeStore *node.LocalNodeStore
@@ -162,6 +161,9 @@ func (ipam *IPAM) ConfigureAllocator() {
 		}
 	case ipamOption.IPAMCRD, ipamOption.IPAMENI, ipamOption.IPAMAzure, ipamOption.IPAMAlibabaCloud:
 		ipam.logger.Info("Initializing CRD-based IPAM")
+		if ipam.config.IPAMMode() == ipamOption.IPAMENI {
+			startENIDeviceConfigurator(ipam.logger, ipam.jg, ipam.nodeResource, ipam.mtuConfig, ipam.sysctl)
+		}
 		if ipam.config.IPv6Enabled() {
 			ipam.ipv6Allocator = newCRDAllocator(ipam.logger, IPv6, ipam.config, ipam.nodeDiscovery, ipam.localNodeStore, ipam.clientset, ipam.k8sEventReg, ipam.mtuConfig, ipam.sysctl, ipam.ipMasqAgent)
 		}

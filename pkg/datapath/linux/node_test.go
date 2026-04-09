@@ -13,22 +13,23 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/cilium/cilium/pkg/cidr"
-	fakeTypes "github.com/cilium/cilium/pkg/datapath/fake/types"
+	"github.com/cilium/cilium/pkg/datapath/config"
+	fakeipsec "github.com/cilium/cilium/pkg/datapath/linux/ipsec/fake"
 	"github.com/cilium/cilium/pkg/datapath/linux/linux_defaults"
 	"github.com/cilium/cilium/pkg/datapath/linux/route"
-	datapath "github.com/cilium/cilium/pkg/datapath/types"
 	"github.com/cilium/cilium/pkg/ip"
 	"github.com/cilium/cilium/pkg/kpr"
 	"github.com/cilium/cilium/pkg/mtu"
 	"github.com/cilium/cilium/pkg/node"
+	fakenode "github.com/cilium/cilium/pkg/node/fake"
 	"github.com/cilium/cilium/pkg/testutils"
 	"github.com/cilium/cilium/pkg/testutils/netns"
 )
 
 var (
-	fakeNodeAddressing = fakeTypes.NewNodeAddressing()
+	fakeNodeAddressing = fakenode.NewAddressing()
 
-	nodeConfig = datapath.LocalNodeConfiguration{
+	nodeConfig = config.Config{
 		NodeIPv4:            ip.AddrFromIP(fakeNodeAddressing.IPv4().PrimaryExternal()),
 		NodeIPv6:            ip.AddrFromIP(fakeNodeAddressing.IPv6().PrimaryExternal()),
 		CiliumInternalIPv4:  ip.AddrFromIP(fakeNodeAddressing.IPv4().Router()),
@@ -55,7 +56,7 @@ func TestCreateNodeRoute(t *testing.T) {
 	log := hivetest.Logger(t)
 
 	lns := node.NewTestLocalNodeStore(node.LocalNode{})
-	nodeHandler := newNodeHandler(log, dpConfig, nil, kpr.KPRConfig{}, &fakeTypes.IPsecAgent{}, fakeTypes.IPsecConfig{}, lns)
+	nodeHandler := newNodeHandler(log, dpConfig, nil, kpr.KPRConfig{}, &fakeipsec.Agent{}, fakeipsec.Config{}, lns)
 	nodeHandler.NodeConfigurationChanged(nodeConfig)
 
 	c1 := cidr.MustParseCIDR("10.10.0.0/16")

@@ -22,7 +22,6 @@ import (
 	"github.com/cilium/cilium/pkg/datapath/linux/route"
 	"github.com/cilium/cilium/pkg/datapath/linux/safenetlink"
 	"github.com/cilium/cilium/pkg/datapath/linux/sysctl"
-	datapath "github.com/cilium/cilium/pkg/datapath/types"
 	"github.com/cilium/cilium/pkg/defaults"
 	endpointcreator "github.com/cilium/cilium/pkg/endpoint/creator"
 	"github.com/cilium/cilium/pkg/endpointmanager"
@@ -243,7 +242,7 @@ func (h *ciliumHealthManager) cleanupEndpoint() {
 //
 // cleanupEndpoint() must be called before calling launchAsEndpoint() to ensure
 // cleanup of prior cilium-health endpoint instances.
-func (h *ciliumHealthManager) launchAsEndpoint(baseCtx context.Context, endpointCreator endpointcreator.EndpointCreator, endpointManager endpointmanager.EndpointsModify, mtuConfig mtu.MTU, bigTCPConfig *bigtcp.Configuration, sysctl sysctl.Sysctl) (*Client, error) {
+func (h *ciliumHealthManager) launchAsEndpoint(baseCtx context.Context, endpointCreator endpointcreator.EndpointCreator, endpointManager endpointmanager.EndpointsModify, mtuConfig mtu.MTU, bigTCPConfig bigtcp.Config, sysctl sysctl.Sysctl) (*Client, error) {
 	var (
 		info = &models.EndpointChangeRequest{
 			ContainerName: ciliumHealth,
@@ -287,7 +286,7 @@ func (h *ciliumHealthManager) launchAsEndpoint(baseCtx context.Context, endpoint
 		return nil, fmt.Errorf("create cilium-health netns: %w", err)
 	}
 
-	linkConfig := datapath.LinkConfig{
+	linkConfig := connector.LinkConfig{
 		HostIfName:     healthName,
 		PeerIfName:     epIfaceName,
 		PeerNamespace:  ns,

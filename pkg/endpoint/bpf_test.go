@@ -12,14 +12,14 @@ import (
 	"github.com/cilium/hive/hivetest"
 	"github.com/stretchr/testify/require"
 
-	fakeTypes "github.com/cilium/cilium/pkg/datapath/fake/types"
-	"github.com/cilium/cilium/pkg/datapath/linux/config"
-	datapath "github.com/cilium/cilium/pkg/datapath/types"
+	linuxConfig "github.com/cilium/cilium/pkg/datapath/linux/config"
+	fakeipsec "github.com/cilium/cilium/pkg/datapath/linux/ipsec/fake"
 	"github.com/cilium/cilium/pkg/identity/identitymanager"
 	"github.com/cilium/cilium/pkg/maps/ctmap"
 	"github.com/cilium/cilium/pkg/testutils"
 	testidentity "github.com/cilium/cilium/pkg/testutils/identity"
 	testipcache "github.com/cilium/cilium/pkg/testutils/ipcache"
+	fakewireguard "github.com/cilium/cilium/pkg/wireguard/fake"
 )
 
 func TestWriteInformationalComments(t *testing.T) {
@@ -34,8 +34,8 @@ func TestWriteInformationalComments(t *testing.T) {
 		PolicyRepo:       s.repo,
 		IdentityManager:  identitymanager.NewIDManager(logger),
 		NamedPortsGetter: testipcache.NewMockIPCache(),
-		IPSecConfig:      fakeTypes.IPsecConfig{},
-		WgConfig:         fakeTypes.WireguardConfig{},
+		IPSecConfig:      fakeipsec.Config{},
+		WgConfig:         fakewireguard.Config{},
 		CTMapGC:          ctmap.NewFakeGCRunner(),
 		Allocator:        testidentity.NewMockIdentityAllocator(nil),
 	}
@@ -66,8 +66,8 @@ func BenchmarkWriteHeaderfile(b *testing.B) {
 		PolicyRepo:       s.repo,
 		IdentityManager:  identitymanager.NewIDManager(logger),
 		NamedPortsGetter: testipcache.NewMockIPCache(),
-		IPSecConfig:      fakeTypes.IPsecConfig{},
-		WgConfig:         fakeTypes.WireguardConfig{},
+		IPSecConfig:      fakeipsec.Config{},
+		WgConfig:         fakewireguard.Config{},
 		CTMapGC:          ctmap.NewFakeGCRunner(),
 		Allocator:        testidentity.NewMockIdentityAllocator(nil),
 	}
@@ -77,14 +77,13 @@ func BenchmarkWriteHeaderfile(b *testing.B) {
 	e.Start(uint16(model.ID))
 	b.Cleanup(e.Stop)
 
-	configWriter := &config.HeaderfileWriter{}
-	cfg := datapath.LocalNodeConfiguration{}
+	configWriter := &linuxConfig.HeaderfileWriter{}
 
 	targetComments := func(w io.Writer) error {
 		return e.writeInformationalComments(w)
 	}
 	targetConfig := func(w io.Writer) error {
-		return configWriter.WriteEndpointConfig(w, &cfg, e)
+		return configWriter.WriteEndpointConfig(w, e)
 	}
 
 	var buf bytes.Buffer

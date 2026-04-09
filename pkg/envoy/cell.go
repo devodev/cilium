@@ -25,6 +25,7 @@ import (
 	"github.com/cilium/cilium/pkg/k8s/utils"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/metrics"
+	"github.com/cilium/cilium/pkg/node"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/promise"
 	"github.com/cilium/cilium/pkg/proxy/accesslog"
@@ -61,6 +62,7 @@ type xdsServerParams struct {
 	Logger             *slog.Logger
 	IPCache            *ipcache.IPCache
 	RestorerPromise    promise.Promise[endpointstate.Restorer]
+	LocalNodeStore     *node.LocalNodeStore
 	LocalEndpointStore *LocalEndpointStore
 
 	EnvoyProxyConfig config.ProxyConfig
@@ -105,6 +107,7 @@ func newEnvoyXDSServer(params xdsServerParams) (XDSServer, error) {
 			policyRestoreTimeout:          params.EnvoyProxyConfig.EnvoyPolicyRestoreTimeout,
 			metrics:                       params.Metrics,
 			httpLingerConfig:              params.EnvoyProxyConfig.EnvoyHTTPUpstreamLingerTimeout,
+			envoyAccessLogEnabled:         params.EnvoyProxyConfig.EnvoyAccessLogEnabled,
 		},
 		params.SecretManager)
 
@@ -133,6 +136,7 @@ func newEnvoyXDSServer(params xdsServerParams) (XDSServer, error) {
 			runDir:                         option.Config.RunDir,
 			envoyLogPath:                   params.EnvoyProxyConfig.EnvoyLog,
 			envoyDefaultLogLevel:           params.EnvoyProxyConfig.EnvoyDefaultLogLevel,
+			envoyNodeLocalityEnabled:       params.EnvoyProxyConfig.EnvoyNodeLocalityEnabled,
 			envoyBaseID:                    params.EnvoyProxyConfig.EnvoyBaseID,
 			keepCapNetBindService:          params.EnvoyProxyConfig.EnvoyKeepCapNetbindservice,
 			metricsListenerPort:            params.EnvoyProxyConfig.ProxyPrometheusPort,
@@ -145,6 +149,7 @@ func newEnvoyXDSServer(params xdsServerParams) (XDSServer, error) {
 			maxConcurrentRetries:           params.EnvoyProxyConfig.ProxyMaxConcurrentRetries,
 			maxConnections:                 params.EnvoyProxyConfig.ProxyClusterMaxConnections,
 			maxRequests:                    params.EnvoyProxyConfig.ProxyClusterMaxRequests,
+			localNodeStore:                 params.LocalNodeStore,
 		}, nil
 	}
 

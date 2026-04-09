@@ -13,14 +13,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cilium/cilium/pkg/datapath/fake/types"
-	fakeTypes "github.com/cilium/cilium/pkg/datapath/fake/types"
+	fakeipsec "github.com/cilium/cilium/pkg/datapath/linux/ipsec/fake"
+	ipsec "github.com/cilium/cilium/pkg/datapath/linux/ipsec/types"
 	"github.com/cilium/cilium/pkg/datapath/linux/sysctl"
 	"github.com/cilium/cilium/pkg/datapath/tunnel"
 	"github.com/cilium/cilium/pkg/kpr"
 	"github.com/cilium/cilium/pkg/loadbalancer"
 	"github.com/cilium/cilium/pkg/option"
-	wgTypes "github.com/cilium/cilium/pkg/wireguard/types"
+	fakewireguard "github.com/cilium/cilium/pkg/wireguard/fake"
+	wireguard "github.com/cilium/cilium/pkg/wireguard/types"
 )
 
 type kprConfig struct {
@@ -43,7 +44,7 @@ type kprConfig struct {
 
 	lbConfig    loadbalancer.Config
 	kprConfig   kpr.KPRConfig
-	ipsecConfig types.IPsecConfig
+	ipsecConfig ipsec.Config
 }
 
 func (cfg *kprConfig) set() (err error) {
@@ -59,7 +60,7 @@ func (cfg *kprConfig) set() (err error) {
 		return err
 	}
 
-	cfg.ipsecConfig = fakeTypes.IPsecConfig{EnableIPsec: cfg.enableIPSec}
+	cfg.ipsecConfig = fakeipsec.Config{EnableIPsec: cfg.enableIPSec}
 	option.Config.UnsafeDaemonConfigOption.EnableHostLegacyRouting = cfg.enableHostLegacyRouting
 	option.Config.InstallNoConntrackIptRules = cfg.installNoConntrackIptRules
 	option.Config.EnableBPFMasquerade = cfg.enableBPFMasquerade
@@ -90,7 +91,7 @@ func errorMatch(err error, regex string) assert.Comparison {
 	}
 }
 
-func (cfg *kprConfig) verify(t *testing.T, lbConfig loadbalancer.Config, kprCfg kpr.KPRConfig, tc tunnel.Config, wgCfg wgTypes.WireguardConfig) {
+func (cfg *kprConfig) verify(t *testing.T, lbConfig loadbalancer.Config, kprCfg kpr.KPRConfig, tc tunnel.Config, wgCfg wireguard.Config) {
 	logger := hivetest.Logger(t)
 	kprManager := &kprInitializer{
 		logger:       logger,
@@ -343,7 +344,7 @@ func TestInitKubeProxyReplacementOptions(t *testing.T) {
 		cfg := def
 		testCase.mod(&cfg)
 		require.NoError(t, cfg.set())
-		testCase.out.verify(t, cfg.lbConfig, cfg.kprConfig, tunnel.NewTestConfig(cfg.tunnelProtocol), fakeTypes.WireguardConfig{})
+		testCase.out.verify(t, cfg.lbConfig, cfg.kprConfig, tunnel.NewTestConfig(cfg.tunnelProtocol), fakewireguard.Config{})
 		def.set()
 	}
 }

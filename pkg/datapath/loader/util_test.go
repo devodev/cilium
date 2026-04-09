@@ -19,11 +19,15 @@ import (
 	"github.com/spf13/afero"
 
 	"github.com/cilium/cilium/pkg/cidr"
+	"github.com/cilium/cilium/pkg/datapath/config"
 	"github.com/cilium/cilium/pkg/datapath/linux/bigtcp"
+	fakebigtcp "github.com/cilium/cilium/pkg/datapath/linux/bigtcp/fake"
+	linuxConfig "github.com/cilium/cilium/pkg/datapath/linux/config"
 	routeReconciler "github.com/cilium/cilium/pkg/datapath/linux/route/reconciler"
 	"github.com/cilium/cilium/pkg/datapath/linux/sysctl"
+	"github.com/cilium/cilium/pkg/datapath/loader/types"
+	"github.com/cilium/cilium/pkg/datapath/prefilter"
 	"github.com/cilium/cilium/pkg/datapath/tables"
-	datapath "github.com/cilium/cilium/pkg/datapath/types"
 	"github.com/cilium/cilium/pkg/endpointstate"
 	"github.com/cilium/cilium/pkg/hive"
 	"github.com/cilium/cilium/pkg/maps/registry"
@@ -33,7 +37,7 @@ import (
 )
 
 var (
-	localNodeConfig = datapath.LocalNodeConfiguration{
+	localNodeConfig = config.Config{
 		NodeIPv4:            netip.AddrFrom4([4]byte(templateIPv4)),
 		CiliumInternalIPv4:  netip.AddrFrom4([4]byte(templateIPv4)),
 		AllocCIDRIPv4:       cidr.MustParseCIDR("10.147.0.0/16"),
@@ -69,7 +73,7 @@ func newTestLoader(tb testing.TB) *loader {
 
 	var l *loader
 	h := hive.New(
-		cell.Invoke(func(ld datapath.Loader) {
+		cell.Invoke(func(ld types.Loader) {
 			l = ld.(*loader)
 		}),
 		Cell,
@@ -82,10 +86,10 @@ func newTestLoader(tb testing.TB) *loader {
 		registry.Cell,
 		cell.Provide(func() (
 			sysctl.Sysctl,
-			datapath.ConfigWriter,
+			linuxConfig.Writer,
 			*manager.NodeConfigNotifier,
 			promise.Promise[endpointstate.Restorer],
-			datapath.PreFilter,
+			prefilter.PreFilter,
 		) {
 			resolver, promise := promise.New[endpointstate.Restorer]()
 			resolver.Resolve(&FakeRestorer{})
@@ -95,8 +99,8 @@ func newTestLoader(tb testing.TB) *loader {
 				promise,
 				&FakePreFilter{}
 		}),
-		cell.Provide(func() *bigtcp.Configuration {
-			return &bigtcp.Configuration{}
+		cell.Provide(func() bigtcp.Config {
+			return &fakebigtcp.Config{}
 		}),
 	)
 	log := hivetest.Logger(tb)

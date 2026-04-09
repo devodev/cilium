@@ -144,7 +144,7 @@ bool sock_proto_enabled(__u8 proto)
 
 static __always_inline int sock4_update_revnat(struct bpf_sock_addr *ctx,
 					       const struct lb4_backend *backend,
-					       const struct lb4_key *orig_key,
+					       __be32 dst_ip, __be16 dst_port,
 					       __u16 rev_nat_id)
 {
 	struct ipv4_revnat_entry val = {}, *tmp;
@@ -159,8 +159,8 @@ static __always_inline int sock4_update_revnat(struct bpf_sock_addr *ctx,
 	key.address = backend->address;
 	key.port = backend->port;
 
-	val.address = orig_key->address;
-	val.port = orig_key->dport;
+	val.address = dst_ip;
+	val.port = dst_port;
 	val.rev_nat_index = rev_nat_id;
 
 	tmp = map_lookup_elem(&cilium_lb4_reverse_sk, &key);
@@ -203,28 +203,25 @@ sock4_skip_xlate(const struct lb4_service *svc, __be32 address)
 
 #ifdef ENABLE_NODEPORT
 static __always_inline const struct lb4_service *
-sock4_wildcard_lookup(struct lb4_key *key, const bool include_remote_hosts,
-		      const bool inv_match, const bool in_hostns)
+sock4_wildcard_lookup(struct lb4_key *key)
 {
 	const struct remote_endpoint_info *info;
 	__u16 service_port;
 
 	service_port = bpf_ntohs(key->dport);
-	if ((service_port < CONFIG(nodeport_port_min) ||
-	     service_port > CONFIG(nodeport_port_max)) ^ inv_match)
+	if (service_port < CONFIG(nodeport_port_min) ||
+	    service_port > CONFIG(nodeport_port_max))
 		return NULL;
 
 	/* When connecting to node port services in our cluster that
 	 * have either {REMOTE_NODE,HOST}_ID or loopback address, we
 	 * do a wild-card lookup with IP of 0.
 	 */
-	if (in_hostns && is_v4_loopback(key->address))
+	if (is_v4_loopback(key->address))
 		goto wildcard_lookup;
 
 	info = lookup_ip4_remote_endpoint(key->address, 0);
-	if (info && (info->sec_identity == HOST_ID ||
-		     (include_remote_hosts && identity_is_remote_node(info->sec_identity) &&
-		      !info->flag_remote_cluster)))
+	if (info && info->sec_identity == HOST_ID)
 		goto wildcard_lookup;
 
 	return NULL;
@@ -239,14 +236,43 @@ sock4_wildcard_lookup_full(struct lb4_key *key __maybe_unused,
 			   const bool in_hostns __maybe_unused)
 {
 #ifdef ENABLE_NODEPORT
-	/* Save the original address, as the sock4_wildcard_lookup zeroes it */
 	bool loopback = is_v4_loopback(key->address);
-	__u32 orig_addr = key->address;
+	const struct remote_endpoint_info *info;
 	const struct lb4_service *svc;
+	bool in_nodeport_range;
+	__u16 service_port;
 
-	svc = sock4_wildcard_lookup(key, true, false, in_hostns);
-	if (svc && lb4_svc_is_nodeport(svc))
-		return svc;
+	service_port = bpf_ntohs(key->dport);
+	in_nodeport_range = service_port >= CONFIG(nodeport_port_min) &&
+			    service_port <= CONFIG(nodeport_port_max);
+
+	if (in_hostns && loopback)
+		goto lookup;
+
+	info = lookup_ip4_remote_endpoint(key->address, 0);
+	if (!info)
+		return NULL;
+
+	if (in_nodeport_range) {
+		/* NodePort: accept HOST_ID and remote nodes */
+		if (info->sec_identity != HOST_ID &&
+		    !(identity_is_remote_node(info->sec_identity) &&
+		      !info->flag_remote_cluster))
+			return NULL;
+	} else {
+		/* HostPort: accept HOST_ID only */
+		if (info->sec_identity != HOST_ID)
+			return NULL;
+	}
+
+lookup:
+	key->address = 0;
+	svc = lb4_lookup_service(key, true);
+	if (!svc)
+		return NULL;
+
+	if (in_nodeport_range)
+		return lb4_svc_is_nodeport(svc) ? svc : NULL;
 
 	/*
 	 * We perform a wildcard hostport lookup. If the SVC_FLAG_LOOPBACK
@@ -254,10 +280,8 @@ sock4_wildcard_lookup_full(struct lb4_key *key __maybe_unused,
 	 * using a loopback IP address, in which case we only want to allow
 	 * connections to loopback addresses
 	 */
-	key->address = orig_addr;
-	svc = sock4_wildcard_lookup(key, false, true, in_hostns);
-	if (svc && lb4_svc_is_hostport(svc) && (!lb4_svc_is_loopback(svc) || loopback))
-		return svc;
+	return (lb4_svc_is_hostport(svc) &&
+		(!lb4_svc_is_loopback(svc) || loopback)) ? svc : NULL;
 #endif /* ENABLE_NODEPORT */
 
 	return NULL;
@@ -272,14 +296,14 @@ static __always_inline int __sock4_xlate_fwd(struct bpf_sock_addr *ctx,
 	const bool in_hostns = ctx_in_hostns(ctx_full, &id.client_cookie);
 	const struct lb4_backend *backend;
 	const struct lb4_service *svc;
-	__u16 dst_port = ctx_dst_port(ctx);
+	__be16 dst_port = ctx_dst_port(ctx);
 	__u8 protocol = ctx_protocol(ctx);
-	__u32 dst_ip = ctx->user_ip4;
+	__be32 dst_ip = ctx->user_ip4;
 	struct lb4_key key = {
 		.address	= dst_ip,
 		.dport		= dst_port,
 		.proto		= protocol,
-	}, orig_key = key;
+	};
 	const struct lb4_service *backend_slot;
 	bool backend_from_affinity = false;
 	__u32 backend_id = 0;
@@ -327,13 +351,13 @@ static __always_inline int __sock4_xlate_fwd(struct bpf_sock_addr *ctx,
 	 * IP address. But do the service translation if the IP
 	 * is from the host.
 	 */
-	if (sock4_skip_xlate(svc, orig_key.address))
+	if (sock4_skip_xlate(svc, dst_ip))
 		return -EPERM;
 
 	if (CONFIG(enable_lrp) &&
 	    lb4_svc_is_localredirect(svc) &&
 	    lrp_v4_skip_xlate_from_ctx_to_svc(get_netns_cookie(ctx_full),
-					      orig_key.address, orig_key.dport))
+					      dst_ip, dst_port))
 		return -ENXIO;
 
 #ifdef ENABLE_L7_LB
@@ -419,7 +443,7 @@ static __always_inline int __sock4_xlate_fwd(struct bpf_sock_addr *ctx,
 #ifdef ENABLE_L7_LB
 out:
 #endif
-	if (sock4_update_revnat(ctx_full, backend, &orig_key,
+	if (sock4_update_revnat(ctx_full, backend, dst_ip, dst_port,
 				svc->rev_nat_index) < 0) {
 		update_metrics(0, METRIC_EGRESS, REASON_LB_REVNAT_UPDATE);
 		return -ENOMEM;
@@ -472,7 +496,7 @@ static __always_inline int __sock4_post_bind(struct bpf_sock *ctx,
 		 * tries to bind to loopback or an address with host identity
 		 * (without remote hosts).
 		 */
-		svc = sock4_wildcard_lookup(&key, false, false, true);
+		svc = sock4_wildcard_lookup(&key);
 	}
 
 	/* If the sockaddr of this socket overlaps with a NodePort,
@@ -636,7 +660,8 @@ int cil_sock4_getpeername(struct bpf_sock_addr *ctx)
 
 static __always_inline int sock6_update_revnat(struct bpf_sock_addr *ctx,
 					       const struct lb6_backend *backend,
-					       const struct lb6_key *orig_key,
+					       const union v6addr *dst_ip,
+					       __be16 dst_port,
 					       __u16 rev_nat_index)
 {
 	struct ipv6_revnat_entry val = {}, *tmp;
@@ -647,8 +672,8 @@ static __always_inline int sock6_update_revnat(struct bpf_sock_addr *ctx,
 	key.address = backend->address;
 	key.port = backend->port;
 
-	val.address = orig_key->address;
-	val.port = orig_key->dport;
+	val.address = *dst_ip;
+	val.port = dst_port;
 	val.rev_nat_index = rev_nat_index;
 
 	tmp = map_lookup_elem(&cilium_lb6_reverse_sk, &key);
@@ -745,28 +770,25 @@ sock6_skip_xlate(const struct lb6_service *svc, const union v6addr *address)
 
 #ifdef ENABLE_NODEPORT
 static __always_inline __maybe_unused const struct lb6_service *
-sock6_wildcard_lookup(struct lb6_key *key, const bool include_remote_hosts,
-		      const bool inv_match, const bool in_hostns)
+sock6_wildcard_lookup(struct lb6_key *key)
 {
 	const struct remote_endpoint_info *info;
 	__u16 service_port;
 
 	service_port = bpf_ntohs(key->dport);
-	if ((service_port < CONFIG(nodeport_port_min) ||
-	     service_port > CONFIG(nodeport_port_max)) ^ inv_match)
+	if (service_port < CONFIG(nodeport_port_min) ||
+	    service_port > CONFIG(nodeport_port_max))
 		return NULL;
 
 	/* When connecting to node port services in our cluster that
 	 * have either {REMOTE_NODE,HOST}_ID or loopback address, we
 	 * do a wild-card lookup with IP of 0.
 	 */
-	if (in_hostns && is_v6_loopback(&key->address))
+	if (is_v6_loopback(&key->address))
 		goto wildcard_lookup;
 
 	info = lookup_ip6_remote_endpoint(&key->address, 0);
-	if (info && (info->sec_identity == HOST_ID ||
-		     (include_remote_hosts && identity_is_remote_node(info->sec_identity) &&
-		      !info->flag_remote_cluster)))
+	if (info && info->sec_identity == HOST_ID)
 		goto wildcard_lookup;
 
 	return NULL;
@@ -781,22 +803,46 @@ sock6_wildcard_lookup_full(struct lb6_key *key __maybe_unused,
 			   const bool in_hostns __maybe_unused)
 {
 #ifdef ENABLE_NODEPORT
-	/* Save the original address, as the sock6_wildcard_lookup zeroes it */
 	bool loopback = is_v6_loopback(&key->address);
-	union v6addr orig_address;
+	const struct remote_endpoint_info *info;
 	const struct lb6_service *svc;
+	bool in_nodeport_range;
+	__u16 service_port;
 
-	memcpy(&orig_address, &key->address, sizeof(orig_address));
-	svc = sock6_wildcard_lookup(key, true, false, in_hostns);
-	if (svc && lb6_svc_is_nodeport(svc))
-		return svc;
+	service_port = bpf_ntohs(key->dport);
+	in_nodeport_range = service_port >= CONFIG(nodeport_port_min) &&
+			    service_port <= CONFIG(nodeport_port_max);
 
-	/* See a corresponding commment in sock4_wildcard_lookup_full */
-	memcpy(&key->address, &orig_address, sizeof(orig_address));
-	svc = sock6_wildcard_lookup(key, false, true, in_hostns);
-	if (svc && lb6_svc_is_hostport(svc) && (!lb6_svc_is_loopback(svc) || loopback))
-		return svc;
+	if (in_hostns && loopback)
+		goto lookup;
 
+	info = lookup_ip6_remote_endpoint(&key->address, 0);
+	if (!info)
+		return NULL;
+
+	if (in_nodeport_range) {
+		/* NodePort: accept HOST_ID and remote nodes */
+		if (info->sec_identity != HOST_ID &&
+		    !(identity_is_remote_node(info->sec_identity) &&
+		      !info->flag_remote_cluster))
+			return NULL;
+	} else {
+		/* HostPort: accept HOST_ID only */
+		if (info->sec_identity != HOST_ID)
+			return NULL;
+	}
+
+lookup:
+	memset(&key->address, 0, sizeof(key->address));
+	svc = lb6_lookup_service(key, true);
+	if (!svc)
+		return NULL;
+
+	if (in_nodeport_range)
+		return lb6_svc_is_nodeport(svc) ? svc : NULL;
+
+	return (lb6_svc_is_hostport(svc) &&
+		(!lb6_svc_is_loopback(svc) || loopback)) ? svc : NULL;
 #endif /* ENABLE_NODEPORT */
 	return NULL;
 }
@@ -872,7 +918,7 @@ static __always_inline int __sock6_post_bind(struct bpf_sock *ctx)
 
 	svc = lb6_lookup_service(&key, true);
 	if (!svc) {
-		svc = sock6_wildcard_lookup(&key, false, false, true);
+		svc = sock6_wildcard_lookup(&key);
 		if (!svc)
 			return sock6_post_bind_v4_in_v6(ctx);
 	}
@@ -988,12 +1034,13 @@ static __always_inline int __sock6_xlate_fwd(struct bpf_sock_addr *ctx,
 	const bool in_hostns = ctx_in_hostns(ctx, &id.client_cookie);
 	const struct lb6_backend *backend;
 	const struct lb6_service *svc;
-	__u16 dst_port = ctx_dst_port(ctx);
+	__be16 dst_port = ctx_dst_port(ctx);
 	__u8 protocol = ctx_protocol(ctx);
+	union v6addr dst_ip __align_stack_8;
 	struct lb6_key key __align_stack_8 = {
 		.dport		= dst_port,
 		.proto		= protocol,
-	}, orig_key __align_stack_8;
+	};
 	const struct lb6_service *backend_slot;
 	bool backend_from_affinity = false;
 	__u32 backend_id = 0;
@@ -1008,7 +1055,7 @@ static __always_inline int __sock6_xlate_fwd(struct bpf_sock_addr *ctx,
 		return -ENOTSUP;
 
 	ctx_get_v6_address(ctx, &key.address);
-	memcpy(&orig_key, &key, sizeof(key));
+	ipv6_addr_copy(&dst_ip, &key.address);
 
 	svc = lb6_lookup_service(&key, true);
 	if (!svc)
@@ -1029,13 +1076,13 @@ static __always_inline int __sock6_xlate_fwd(struct bpf_sock_addr *ctx,
 
 	if (lb6_svc_is_l7_punt_proxy(svc))
 		return SYS_PROCEED;
-	if (sock6_skip_xlate(svc, &orig_key.address))
+	if (sock6_skip_xlate(svc, &dst_ip))
 		return -EPERM;
 
 	if (CONFIG(enable_lrp) &&
 	    lb6_svc_is_localredirect(svc) &&
 	    lrp_v6_skip_xlate_from_ctx_to_svc(get_netns_cookie(ctx),
-					      orig_key.address, orig_key.dport))
+					      dst_ip, dst_port))
 		return -ENXIO;
 
 #ifdef ENABLE_L7_LB
@@ -1096,7 +1143,7 @@ static __always_inline int __sock6_xlate_fwd(struct bpf_sock_addr *ctx,
 #ifdef ENABLE_L7_LB
 out:
 #endif
-	if (sock6_update_revnat(ctx, backend, &orig_key,
+	if (sock6_update_revnat(ctx, backend, &dst_ip, dst_port,
 				svc->rev_nat_index) < 0) {
 		update_metrics(0, METRIC_EGRESS, REASON_LB_REVNAT_UPDATE);
 		return -ENOMEM;
