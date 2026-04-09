@@ -57,6 +57,8 @@ spec:
   azAffinity: disabled
   destinationCIDRs:
   - 0.0.0.0/0
+  egressCIDRs:
+  - 100.1.2.3/32
   egressGroups:
   - maxGatewayNodes: 0
     interface: eth0
