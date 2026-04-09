@@ -259,7 +259,7 @@ func (config *AgentPolicyConfig) regenerateGatewayConfig(manager *Manager, tx st
 				egressIPs = append(egressIPs, gwEgressIPConfig{egressIP, iface.Attrs().Name})
 
 				gwc.ifaceName = iface.Attrs().Name
-				gwc.egressIfindex = egressIfindexForIface(iface)
+				gwc.egressIfindex = manager.ifindexResolver(iface)
 				gwc.egressIP = egressIP
 			} else if len(config.egressCIDRs) > 0 {
 				// egressCIDRs is set, meaning the operator is responsible for IPAM-assigning
@@ -268,7 +268,7 @@ func (config *AgentPolicyConfig) regenerateGatewayConfig(manager *Manager, tx st
 				// the user-specified egressCIDRs.
 				logger.Info("Local node is a gateway but has no egress IP assigned from egressCIDRs pool yet")
 				continue
-			} else if err := gwc.deriveFromGroupConfig(manager.logger, &gc); err != nil {
+			} else if err := gwc.deriveFromGroupConfig(manager, manager.logger, &gc); err != nil {
 				logger.Error("Failed to derive policy gateway configuration",
 					logfields.Error, err,
 				)
@@ -332,7 +332,7 @@ func egressIfindexForIface(iface netlink.Link) uint32 {
 
 // deriveFromGroupConfig retrieves all the missing gateway configuration data
 // (such as egress IP or interface) given a policy group config
-func (gwc *gatewayConfig) deriveFromGroupConfig(logger *slog.Logger, gc *groupConfig) error {
+func (gwc *gatewayConfig) deriveFromGroupConfig(manager *Manager, logger *slog.Logger, gc *groupConfig) error {
 	var err error
 	var egressIP4 netip.Addr
 
@@ -348,7 +348,7 @@ func (gwc *gatewayConfig) deriveFromGroupConfig(logger *slog.Logger, gc *groupCo
 		}
 
 		gwc.ifaceName = iface.Attrs().Name
-		gwc.egressIfindex = egressIfindexForIface(iface)
+		gwc.egressIfindex = manager.ifindexResolver(iface)
 
 		egressIP4, err = netdevice.GetIfaceFirstIPv4Address(gwc.ifaceName)
 		if err != nil {

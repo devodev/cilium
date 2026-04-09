@@ -25,6 +25,7 @@ import (
 	"github.com/cilium/statedb"
 	"github.com/cilium/statedb/reconciler"
 	"github.com/spf13/pflag"
+	"github.com/vishvananda/netlink"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/util/workqueue"
@@ -198,6 +199,8 @@ type Manager struct {
 	health cell.Health
 
 	socketsActions socketsActions
+
+	ifindexResolver ifindexResolver
 }
 
 type Params struct {
@@ -229,7 +232,11 @@ type Params struct {
 	Health    cell.Health
 
 	HealthConfig healthconfig.CiliumHealthConfig
+
+	IfindexResolver ifindexResolver `optional:"true"`
 }
+
+type ifindexResolver func(iface netlink.Link) uint32
 
 // EgressIPsProvider provides policy to egress IPs mappings.
 type EgressIPsProvider interface {
@@ -276,6 +283,10 @@ func NewEgressGatewayManager(p Params) (out struct {
 
 	if !p.HealthConfig.IsHealthCheckingEnabled() {
 		return out, fmt.Errorf("egress gateway HA requires healthchecking to be enabled")
+	}
+
+	if p.IfindexResolver == nil {
+		p.IfindexResolver = egressIfindexForIface
 	}
 
 	out.Manager, err = newEgressGatewayManager(p)
@@ -332,6 +343,7 @@ func newEgressGatewayManager(p Params) (*Manager, error) {
 		ctNATMapGC:                    p.CTNATMapGC,
 		config:                        p.Config,
 		health:                        p.Health,
+		ifindexResolver:               p.IfindexResolver,
 	}
 
 	if p.Config.EnableEgressGatewayHASocketTermination {
