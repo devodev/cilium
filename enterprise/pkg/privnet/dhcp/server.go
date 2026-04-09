@@ -253,7 +253,7 @@ func (s *Server) setup(ctx context.Context) error {
 		// Wait until the device exists and is UP
 		for ctx.Err() == nil {
 			link, err = safenetlink.LinkByName(s.ifname)
-			if err == nil && link.Attrs().OperState == netlink.OperUp {
+			if err == nil && link.Attrs().Flags&net.FlagUp != 0 {
 				break
 			}
 			select {
