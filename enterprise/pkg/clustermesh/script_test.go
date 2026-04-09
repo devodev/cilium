@@ -39,7 +39,8 @@ import (
 	"github.com/cilium/cilium/pkg/clustermesh/common"
 	cmtypes "github.com/cilium/cilium/pkg/clustermesh/types"
 	"github.com/cilium/cilium/pkg/datapath/iptables/ipset"
-	ipsecTypes "github.com/cilium/cilium/pkg/datapath/linux/ipsec/fake"
+	ipsecFake "github.com/cilium/cilium/pkg/datapath/linux/ipsec/fake"
+	ipsecTypes "github.com/cilium/cilium/pkg/datapath/linux/ipsec/types"
 	"github.com/cilium/cilium/pkg/datapath/tables"
 	"github.com/cilium/cilium/pkg/dial"
 	envoyCfg "github.com/cilium/cilium/pkg/envoy/config"
@@ -133,7 +134,7 @@ func TestScript(t *testing.T) {
 					}
 				},
 				func() ipsecTypes.Config {
-					return ipsecTypes.Config{}
+					return ipsecFake.Config{}
 				},
 				func() store.Factory {
 					return storeFactory
