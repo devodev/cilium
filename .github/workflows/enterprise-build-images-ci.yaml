@@ -2,11 +2,25 @@ name: Enterprise Image CI Build
 
 # Any change in triggers needs to be reflected in the concurrency group.
 on:
-  pull_request:
-    types:
-      - opened
-      - synchronize
-      - reopened
+  workflow_dispatch:
+    inputs:
+      PR-number:
+        description: "Pull request number."
+        required: true
+      context-ref:
+        description: "Context in which the workflow runs. If PR is from a fork, will be the PR target branch (general case). If PR is NOT from a fork, will be the PR branch itself (this allows committers to test changes to workflows directly from PRs)."
+        required: true
+      SHA:
+        description: "SHA under test (head of the PR branch)."
+        required: true
+      base-SHA:
+        description: "SHA of the base branch (target branch of the PR)."
+        required: false
+      extra-args:
+        description: "[JSON object] Arbitrary arguments passed from the trigger comment via regex capture group. Parse with 'fromJson(inputs.extra-args).argName' in workflow."
+        required: false
+        default: '{}'
+
   push:
     branches:
       - main-ce
@@ -29,12 +43,34 @@ permissions:
   contents: read
   # Required to generate OIDC tokens for `sigstore/cosign-installer` authentication
   id-token: write
+  statuses: write
+  actions: read
+  # to get PR author
+  pull-requests: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.after }}
+  group: ${{ github.workflow }}-${{ inputs.PR-number || github.event.after }}
   cancel-in-progress: true
 
 jobs:
+  echo-inputs:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    name: Echo Workflow Dispatch Inputs
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Echo Workflow Dispatch Inputs
+        run: |
+          echo '${{ tojson(inputs) }}'
+
+  commit-status-start:
+    name: Commit Status Start
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Set initial commit status
+        uses: myrotvorets/set-commit-status-action@3730c0a348a2ace3c110851bed53331bc6406e9f # v2.0.1
+        with:
+          sha: ${{ inputs.SHA || github.sha }}
+
   load-versions:
     name: Load UBI base image versions
     runs-on: ubuntu-24.04
@@ -191,7 +227,7 @@ jobs:
       - name: Checkout pull request branch
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ inputs.SHA || github.sha }}
           persist-credentials: false
 
       - name: Cleanup Disk space in runner
@@ -235,8 +271,8 @@ jobs:
       - name: Getting image tag
         id: tag
         run: |
-          if [ "${{ github.event.pull_request.head.sha }}" != "" ]; then
-            sha=${{ github.event.pull_request.head.sha }}
+          if [ "${{ inputs.SHA }}" != "" ]; then
+            sha=${{ inputs.SHA }}
           else
             sha=${{ github.sha }}
           fi
@@ -488,29 +524,26 @@ jobs:
       image_tag: ${{ needs.build-and-push-prs.outputs.sha }}
     secrets: inherit
 
-  pre-comment:
-    # Avoid running the "Trigger CI from renovate PRs" environment if we don't need to.
-    name: Pre-Comment
+  get-author:
+    name: Get Author of the PR
     needs: build-and-push-prs
     runs-on: ubuntu-24.04
-    if: ${{
-         github.event_name == 'pull_request' &&
-         github.event.pull_request.user.login == vars.RENOVATE_BOT_USERNAME
-        }}
+    outputs:
+      author: ${{ steps.get_author.outputs.author }}
     steps:
-    - name: Debug
+    - name: Get PR Author
+      id: get_author
       run: |
-        echo ${{ github.event.pull_request.user.login }}
-        echo ${{ github.event_name }}
+        echo author="$(gh pr view --repo isovalent/cilium ${{ inputs.PR-number }} --json author --jq '.author.login')" >> $GITHUB_OUTPUT
 
   comment:
     name: Post test comment for Renovate PRs after images built
     runs-on: ubuntu-24.04
-    needs: pre-comment
+    needs: get-author
     environment: "Trigger CI from renovate PRs"
     if: ${{
-         github.event_name == 'pull_request' &&
-         github.event.pull_request.user.login == vars.RENOVATE_BOT_USERNAME
+         github.event_name == 'workflow_dispatch' &&
+         needs.get-author.outputs.author == vars.RENOVATE_BOT_USERNAME
         }}
     steps:
       - name: Generate Github App Token
@@ -523,7 +556,18 @@ jobs:
         env:
           TOKEN: ${{ steps.generate-token.outputs.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-          PULL_REQUEST_NUMBER: ${{ github.event.pull_request.number }}
+          PULL_REQUEST_NUMBER: ${{ inputs.PR-number }}
         run: |
           echo ${TOKEN} | gh auth login --with-token
           gh pr --repo ${GITHUB_REPOSITORY} comment ${PULL_REQUEST_NUMBER} --body "/test"
+
+  merge-upload-and-status:
+    name: Merge Upload and Status
+    if: ${{ always() }}
+    needs: push-chart
+    uses: ./.github/workflows/common-post-jobs.yaml
+    secrets: inherit
+    with:
+      context-ref: ${{ inputs.context-ref || github.sha }}
+      sha: ${{ inputs.SHA || github.sha }}
+      success: ${{ needs.push-chart.result == 'success' }}

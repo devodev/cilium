@@ -15,15 +15,6 @@ name: Conformance OpenShift (ci-openshift)
 # TODO: Provision a node with labels and annotations so that it runs without Cilium. It activates additional tests, e.g. BGP.
 
 on:
-  pull_request:
-    types:
-      - opened
-      - synchronize
-      - reopened
-    paths:
-        - 'enterprise/olm/**'
-        - 'install/kubernetes/**'
-        - '.github/workflows/enterprise-conformance-openshift.yaml'
   workflow_dispatch:
     inputs:
       PR-number:
@@ -71,7 +62,6 @@ concurrency:
   # - Event type
   # - A unique identifier depending on event type:
   #   - schedule: SHA
-  #   - pull_request: SHA
   #   - workflow_dispatch: PR number
   #
   # This structure ensures a unique concurrency group name is generated for each
@@ -81,7 +71,6 @@ concurrency:
     ${{ github.event_name }}
     ${{
       (github.event_name == 'schedule' && github.sha) ||
-      (github.event_name == 'pull_request' && github.sha) ||
       (github.event_name == 'workflow_dispatch' && github.event.inputs.PR-number)
     }}
   cancel-in-progress: true
@@ -94,15 +83,19 @@ env:
   pod_cidr_host_prefix: 23
 
 jobs:
+  echo-inputs:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    name: Echo Workflow Dispatch Inputs
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Echo Workflow Dispatch Inputs
+        run: |
+          echo '${{ tojson(inputs) }}'
+
   commit-status-start:
     name: Commit Status Start
     runs-on: ubuntu-24.04
     steps:
-      - name: Echo Workflow Dispatch Inputs
-        if: ${{ github.event_name == 'workflow_dispatch' }}
-        run: |
-          echo '${{ tojson(inputs) }}'
-
       - name: Set initial commit status
         uses: myrotvorets/set-commit-status-action@3730c0a348a2ace3c110851bed53331bc6406e9f # v2.0.1
         with:
@@ -116,7 +109,7 @@ jobs:
       - name: Checkout Cilium
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          ref: ${{ inputs.SHA || github.event.pull_request.head.sha }}
+          ref: ${{ inputs.context-ref || github.sha }}
           persist-credentials: false
 
       - name: Cleanup Disk space in runner
@@ -129,8 +122,6 @@ jobs:
             sha="${{ inputs.SHA }}"
           elif [ "${{ github.event_name }}" == 'schedule' ]; then
             sha="${{ github.sha }}"
-          else
-            sha="${{ github.event.pull_request.head.sha }}"
           fi
           echo sha=${sha} >> $GITHUB_OUTPUT
 
@@ -202,7 +193,7 @@ jobs:
       - name: Checkout Cilium
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          ref: ${{ inputs.SHA || github.event.pull_request.head.sha }}
+          ref: ${{ inputs.context-ref || github.sha }}
           persist-credentials: false
 
       - name: Cleanup Disk space in runner
@@ -230,8 +221,6 @@ jobs:
             sha="${{ inputs.SHA }}"
           elif [ "${{ github.event_name }}" == 'schedule' ]; then
             sha="${{ github.sha }}"
-          else
-            sha="${{ github.event.pull_request.head.sha }}"
           fi
           if [ "${{ github.event_name }}" == 'schedule' ]; then
             kubevirt='true'

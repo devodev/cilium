@@ -5,6 +5,13 @@ triggers:
   /default:
     workflows:
       - enterprise-kind.yaml
+      - enterprise-lb-dashboards.yaml
+      - enterprise-lint-ariane-config.yaml
+      - enterprise-conformance-openshift.yaml
+      - enterprise-olm-build-ci.yaml # only built on olm changes
+      - enterprise-kind-integrated-timescape.yaml
+      - enterprise-build-images-ci.yaml
+
   # This trigger needs to be kept in sync with enterprise-ariane-scheduled.yaml workflow
   /test\s*:
     workflows:
@@ -161,12 +168,20 @@ workflows:
   enterprise-lb-vsphere.yaml:
     paths-ignore-regex: ((bpf/complexity-tests|bpf/tests|test|Documentation|hubble|.github/actions/cl2-modules)/|(.github/renovate\.json5|README.rst|CODEOWNERS|stable.txt|.*\.md|.*_test\.go)$)
   enterprise-conformance-openshift.yaml:
-    paths-ignore-regex: ((bpf/complexity-tests|bpf/tests|test|Documentation|hubble|.github/actions/cl2-modules)/|(.github/renovate\.json5|README.rst|CODEOWNERS|stable.txt|.*\.md|.*_test\.go)$)
+    paths-regex: ((enterprise/olm/.*)|(install/kubernetes/.*)|(.github/workflows/enterprise-conformance-openshift.yaml))
   enterprise-ingress-policy.yaml:
     paths-ignore-regex: ((bpf/complexity-tests|bpf/tests|test|Documentation|hubble|.github/actions/cl2-modules)/|(.github/renovate\.json5|README.rst|CODEOWNERS|stable.txt|.*\.md|.*_test\.go)$)
   enterprise-standalone-egress-gateway.yaml:
     paths-ignore-regex: ((bpf/complexity-tests|bpf/tests|test|Documentation|hubble|.github/actions/cl2-modules)/|(.github/renovate\.json5|README.rst|CODEOWNERS|stable.txt|.*\.md|.*_test\.go)$)
   enterprise-kind-hubble-rbac.yaml:
+    paths-ignore-regex: (Documentation/|test/)
+  enterprise-lb-dashboards.yaml:
+    paths-regex: (enterprise/dashboards/)
+  enterprise-lint-ariane-config.yaml:
+    paths-regex: (.github/ariane-config-enterprise.yaml)
+  enterprise-olm-build-ci.yaml:
+    paths-regex: (enterprise/olm/)
+  enterprise-kind-integrated-timescape.yaml:
     paths-ignore-regex: (Documentation/|test/)
 
 feedback:
