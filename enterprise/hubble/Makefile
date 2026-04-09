@@ -9,3 +9,9 @@
 # permission is obtained from Isovalent Inc.
 
 include ../../hubble/Makefile
+
+.PHONY: install-bash-completion
+install-bash-completion: $(TARGET)
+	$(QUIET)$(INSTALL) -m 0755 -d $(DESTDIR)$(CONFDIR)/bash_completion.d
+	./$(TARGET) completion bash > $(TARGET)_bash_completion
+	$(QUIET)$(INSTALL) -m 0644 $(TARGET)_bash_completion $(DESTDIR)$(CONFDIR)/bash_completion.d/$(TARGET)
