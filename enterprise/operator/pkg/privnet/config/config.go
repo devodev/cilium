@@ -12,11 +12,13 @@ package config
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"github.com/cilium/hive/cell"
 	"github.com/spf13/pflag"
 
 	"github.com/cilium/cilium/enterprise/pkg/privnet/config"
+	"github.com/cilium/cilium/pkg/defaults"
 	"github.com/cilium/cilium/pkg/logging"
 )
 
@@ -32,7 +34,7 @@ var (
 
 		NADIntegration: NADIntegrationConfig{
 			Enabled:      false,
-			CNILogFile:   "/var/run/cilium/cilium-cni.log",
+			CNILogFile:   filepath.Join(defaults.RuntimePath, "cilium-cni.log"),
 			CNILogFormat: string(logging.DefaultLogFormatTimestamp),
 		},
 	}
