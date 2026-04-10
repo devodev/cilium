@@ -15,3 +15,8 @@ if [[ "$GITHUB_WORKFLOW_REF" =~ scale-test-egw.yaml ]]; then
         --helm-set=healthChecking=false --helm-set=endpointHealthChecking.enabled=false \
         --helm-set=enterprise.healthServerWithoutActiveChecks.enabled=true" >> "$GITHUB_ENV"
 fi
+
+if [[ "$GITHUB_WORKFLOW_REF" =~ l7-perf.yaml ]]; then
+    # Adjust threshold for enterprise cilium-agent memory consumption.
+    echo "CL2_CILIUM_AGENT_MEDIAN_MEM_USAGE_THRESHOLD=300" >> "$GITHUB_ENV"
+fi
