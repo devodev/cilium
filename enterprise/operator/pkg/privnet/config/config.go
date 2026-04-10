@@ -54,6 +54,10 @@ type Config struct {
 }
 
 func (cfg Config) validate() error {
+	if cfg.AutoExternalEndpoints.Enabled && !cfg.Enabled {
+		return fmt.Errorf("cannot enable automatic creation of PrivateNetworkExternalEndpoints if --%s=false",
+			config.FlagEnable)
+	}
 	return cfg.NADIntegration.validate()
 }
 
