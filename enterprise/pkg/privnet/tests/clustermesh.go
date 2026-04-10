@@ -22,9 +22,9 @@ import (
 	"github.com/cilium/cilium/enterprise/pkg/privnet/kvstore"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/observers"
 	cmtypes "github.com/cilium/cilium/pkg/clustermesh/types"
-	dptypes "github.com/cilium/cilium/pkg/datapath/types"
 	"github.com/cilium/cilium/pkg/kvstore/store"
 	"github.com/cilium/cilium/pkg/lock"
+	"github.com/cilium/cilium/pkg/node"
 	nomgr "github.com/cilium/cilium/pkg/node/manager"
 	nostore "github.com/cilium/cilium/pkg/node/store"
 	notypes "github.com/cilium/cilium/pkg/node/types"
@@ -173,8 +173,8 @@ func (nm *mockNM) NodeDeleted(n notypes.Node) {
 
 func (*mockNM) ClusterSizeDependantInterval(time.Duration) time.Duration { panic("unimplemented") }
 func (*mockNM) GetNodeIdentities() []notypes.Identity                    { panic("unimplemented") }
-func (*mockNM) Subscribe(dptypes.NodeHandler)                            { panic("unimplemented") }
-func (*mockNM) Unsubscribe(dptypes.NodeHandler)                          { panic("unimplemented") }
+func (*mockNM) Subscribe(node.Handler)                                   { panic("unimplemented") }
+func (*mockNM) Unsubscribe(node.Handler)                                 { panic("unimplemented") }
 
 func (*mockNM) SetPrefixClusterMutatorFn(func(*notypes.Node) []cmtypes.PrefixClusterOpts) {}
 

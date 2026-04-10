@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	fakecni "github.com/cilium/cilium/daemon/cmd/cni/fake"
-	fakeTypes "github.com/cilium/cilium/pkg/datapath/fake/types"
+	ipsecTypes "github.com/cilium/cilium/pkg/datapath/linux/ipsec/fake"
 	dpopt "github.com/cilium/cilium/pkg/datapath/option"
 	ipamopt "github.com/cilium/cilium/pkg/ipam/option"
 	"github.com/cilium/cilium/pkg/loadbalancer"
@@ -31,7 +31,7 @@ func TestConfigValidate(t *testing.T) {
 		cfg       Config
 		dcfg      *option.DaemonConfig
 		cmcfg     cecmcfg.Config
-		ipsecCfg  fakeTypes.IPsecConfig
+		ipsecCfg  ipsecTypes.Config
 		lbmode    string
 		assertion func(t assert.TestingT, err error, msgAndArgs ...any) bool
 	}{
@@ -80,7 +80,7 @@ func TestConfigValidate(t *testing.T) {
 			name:      "mixed routing mode enabled, fallback tunnel, IPSec encryption enabled",
 			cfg:       Config{FallbackRoutingMode: FallbackTunnel},
 			dcfg:      &option.DaemonConfig{IPAM: ipamopt.IPAMKubernetes},
-			ipsecCfg:  fakeTypes.IPsecConfig{EnableIPsec: true},
+			ipsecCfg:  ipsecTypes.Config{EnableIPsec: true},
 			assertion: assert.Error,
 		},
 		{

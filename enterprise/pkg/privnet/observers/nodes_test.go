@@ -24,9 +24,9 @@ import (
 	"github.com/cilium/cilium/enterprise/pkg/privnet/types"
 	cmtypes "github.com/cilium/cilium/pkg/clustermesh/types"
 	"github.com/cilium/cilium/pkg/datapath/tunnel"
-	dptypes "github.com/cilium/cilium/pkg/datapath/types"
 	"github.com/cilium/cilium/pkg/hive"
 	"github.com/cilium/cilium/pkg/k8s/resource"
+	"github.com/cilium/cilium/pkg/node"
 	nomgr "github.com/cilium/cilium/pkg/node/manager"
 	notypes "github.com/cilium/cilium/pkg/node/types"
 	"github.com/cilium/cilium/pkg/time"
@@ -43,8 +43,8 @@ var _ nomgr.NodeManager = (*mocknm)(nil)
 func (*mocknm) ClusterSizeDependantInterval(time.Duration) time.Duration { panic("unimplemented") }
 func (*mocknm) GetNodeIdentities() []notypes.Identity                    { panic("unimplemented") }
 func (*mocknm) GetNodes() map[notypes.Identity]notypes.Node              { panic("unimplemented") }
-func (*mocknm) Subscribe(dptypes.NodeHandler)                            { panic("unimplemented") }
-func (*mocknm) Unsubscribe(dptypes.NodeHandler)                          { panic("unimplemented") }
+func (*mocknm) Subscribe(node.Handler)                                   { panic("unimplemented") }
+func (*mocknm) Unsubscribe(node.Handler)                                 { panic("unimplemented") }
 
 func (*mocknm) SetPrefixClusterMutatorFn(func(*notypes.Node) []cmtypes.PrefixClusterOpts) {}
 

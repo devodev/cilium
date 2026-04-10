@@ -26,8 +26,8 @@ import (
 	"github.com/cilium/cilium/pkg/datapath/config"
 	"github.com/cilium/cilium/pkg/datapath/linux/safenetlink"
 	"github.com/cilium/cilium/pkg/datapath/tables"
-	datapath "github.com/cilium/cilium/pkg/datapath/types"
 	"github.com/cilium/cilium/pkg/endpoint/regeneration"
+	endpoint "github.com/cilium/cilium/pkg/endpoint/types"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/mac"
 	"github.com/cilium/cilium/pkg/option"
@@ -78,7 +78,7 @@ func newEnterpriseLoader(in struct {
 }
 
 func (l *EnterpriseLoader) registerEndpointConfig(pd *privnetDHCPDevice) {
-	epConfigs.register(func(ep datapath.EndpointConfiguration, lnc *datapath.LocalNodeConfiguration) any {
+	epConfigs.register(func(ep endpoint.Config, lnc *config.Config) any {
 		cfg := config.NewBPFLXCEnterprise()
 
 		cfg.PrivnetUnknownSecID = uint32(identity.ReservedPrivnetUnknownFlow)
@@ -111,7 +111,7 @@ func (l *EnterpriseLoader) registerEndpointConfig(pd *privnetDHCPDevice) {
 }
 
 func (l *EnterpriseLoader) registerOverlayConfig() {
-	overlayConfigs.register(func(lnc *datapath.LocalNodeConfiguration, link netlink.Link) any {
+	overlayConfigs.register(func(lnc *config.Config, link netlink.Link) any {
 		cfg := config.NewBPFOverlayEnterprise()
 
 		cfg.PrivnetEnable = l.privnetConfig.Enabled
@@ -128,7 +128,7 @@ func (l *EnterpriseLoader) registerOverlayConfig() {
 }
 
 func (l *EnterpriseLoader) registerNetdevConfig() {
-	netdevConfigs.register(func(ep datapath.EndpointConfiguration, lnc *datapath.LocalNodeConfiguration, link netlink.Link, _ netip.Addr, _ netip.Addr) any {
+	netdevConfigs.register(func(ep endpoint.Config, lnc *config.Config, link netlink.Link, _ netip.Addr, _ netip.Addr) any {
 		cfg := config.NewBPFHostEnterprise()
 
 		cfg.EncryptionPolicyFallbackEncrypt = l.encryptionPolicyCfg.FallbackEncrypt()
@@ -143,7 +143,7 @@ func (l *EnterpriseLoader) registerNetdevConfig() {
 }
 
 func (l *EnterpriseLoader) registerWireguardConfig() {
-	wireguardConfigs.register(func(lnc *datapath.LocalNodeConfiguration, link netlink.Link) any {
+	wireguardConfigs.register(func(lnc *config.Config, link netlink.Link) any {
 		cfg := config.NewBPFWireguardEnterprise()
 
 		cfg.PrivnetEnable = l.privnetConfig.Enabled

@@ -15,7 +15,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	fakeTypes "github.com/cilium/cilium/pkg/datapath/fake/types"
+	ipsecTypes "github.com/cilium/cilium/pkg/datapath/linux/ipsec/fake"
 	"github.com/cilium/cilium/pkg/kpr"
 	"github.com/cilium/cilium/pkg/option"
 )
@@ -35,7 +35,7 @@ func TestConfigValidate(t *testing.T) {
 		dcfg      *option.DaemonConfig
 		kprCfg    kpr.KPRConfig
 		wgCfg     fakeWgConfig
-		ipsecCfg  fakeTypes.IPsecConfig
+		ipsecCfg  ipsecTypes.Config
 		assertion func(t assert.TestingT, err error, msgAndArgs ...any) bool
 	}{
 		{
@@ -132,7 +132,7 @@ func TestConfigValidate(t *testing.T) {
 			},
 			dcfg:      &option.DaemonConfig{},
 			kprCfg:    kpr.KPRConfig{},
-			ipsecCfg:  fakeTypes.IPsecConfig{EnableIPsec: true},
+			ipsecCfg:  ipsecTypes.Config{EnableIPsec: true},
 			assertion: assert.Error,
 		},
 		{

@@ -16,8 +16,8 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/cilium/cilium/daemon/cmd/cni"
+	ipsectypes "github.com/cilium/cilium/pkg/datapath/linux/ipsec/types"
 	dpopt "github.com/cilium/cilium/pkg/datapath/option"
-	dpTypes "github.com/cilium/cilium/pkg/datapath/types"
 	ipamopt "github.com/cilium/cilium/pkg/ipam/option"
 	"github.com/cilium/cilium/pkg/loadbalancer"
 	"github.com/cilium/cilium/pkg/option"
@@ -53,7 +53,7 @@ func (def Config) Flags(flags *pflag.FlagSet) {
 			"source and destination node (supported: %s)", FallbackTunnel))
 }
 
-func (cfg Config) Validate(dcfg *option.DaemonConfig, cmcfg cecmcfg.Config, cnicfg cni.CNIConfigManager, lbcfg loadbalancer.Config, ipsecCfg dpTypes.IPsecConfig) error {
+func (cfg Config) Validate(dcfg *option.DaemonConfig, cmcfg cecmcfg.Config, cnicfg cni.CNIConfigManager, lbcfg loadbalancer.Config, ipsecCfg ipsectypes.Config) error {
 	switch cfg.FallbackRoutingMode {
 	case FallbackDisabled:
 		return nil
@@ -67,7 +67,7 @@ func (cfg Config) Validate(dcfg *option.DaemonConfig, cmcfg cecmcfg.Config, cnic
 
 	for cfgname, enabled := range map[string]bool{
 		option.EnableEncryptionStrictModeEgress: dcfg.EnableEncryptionStrictModeEgress,
-		dpTypes.EnableIPSec:                     ipsecCfg.Enabled(),
+		option.EnableIPSec:                      ipsecCfg.Enabled(),
 		option.EnableEgressGateway:              dcfg.EnableEgressGateway,
 		option.EnableIPv4EgressGatewayHA:        dcfg.EnableIPv4EgressGatewayHA,
 		option.EnableNat46X64Gateway:            dcfg.EnableNat46X64Gateway,

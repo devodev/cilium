@@ -24,10 +24,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
+	ipsecTypes "github.com/cilium/cilium/pkg/datapath/linux/ipsec/types"
 	"github.com/cilium/cilium/pkg/datapath/linux/safenetlink"
 	"github.com/cilium/cilium/pkg/datapath/linux/sysctl"
 	"github.com/cilium/cilium/pkg/datapath/tunnel"
-	dpTypes "github.com/cilium/cilium/pkg/datapath/types"
 	"github.com/cilium/cilium/pkg/ebpf"
 	isovalent_api_v1alpha1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
 	k8sClient "github.com/cilium/cilium/pkg/k8s/client"
@@ -63,7 +63,7 @@ type MulticastManagerParams struct {
 	Cfg                    maps_multicast.Config
 	Sysctl                 sysctl.Sysctl
 	Config                 *option.DaemonConfig
-	IPsecConfig            dpTypes.IPsecConfig
+	IPsecConfig            ipsecTypes.Config
 	TunnelConfig           tunnel.Config
 	MulticastMaps          maps_multicast.GroupV4Map
 	MulticastGroupResource resource.Resource[*isovalent_api_v1alpha1.IsovalentMulticastGroup]
