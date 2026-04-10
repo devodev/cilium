@@ -338,6 +338,7 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_PR_ASSUME_ROLE }}
           aws-region: ${{ steps.vars.outputs.region }}
+          role-duration-seconds: 5400
 
       - name: Install Cilium CLI
         uses: cilium/cilium-cli@3ce83aa3b4ea3ce6d97023c4d83c22b73a4ed3b4 # v0.19.2
