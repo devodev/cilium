@@ -23,12 +23,13 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	"github.com/cilium/cilium/enterprise/datapath/tables"
+	ent_tables "github.com/cilium/cilium/enterprise/datapath/tables"
 	"github.com/cilium/cilium/enterprise/pkg/maps/egressmapha"
 	"github.com/cilium/cilium/pkg/bgp/agent/signaler"
 	"github.com/cilium/cilium/pkg/bpf"
 	"github.com/cilium/cilium/pkg/datapath/linux/safenetlink"
 	"github.com/cilium/cilium/pkg/datapath/linux/sysctl"
+	"github.com/cilium/cilium/pkg/datapath/tables"
 	"github.com/cilium/cilium/pkg/hive"
 	"github.com/cilium/cilium/pkg/identity"
 	cilium_api_v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
@@ -66,8 +67,8 @@ func (m *mockReconciler) WaitUntilReconciled(_ context.Context, untilRevision st
 
 // For testing we override the agent's ifindex resolver, so that we can validate
 // the ifindex even when using dummy devices for testing.
-func mockEgressIfindexForIface(iface netlink.Link) uint32 {
-	return uint32(iface.Attrs().Index)
+func mockEgressIfindexForIface(ifaceIndex int, ifaceType string) uint32 {
+	return uint32(ifaceIndex)
 }
 
 func setupEgressGatewayTestSuite(t *testing.T) *EgressGatewayTestSuite {
@@ -99,28 +100,32 @@ func setupEgressGatewayTestSuite(t *testing.T) *EgressGatewayTestSuite {
 
 	var (
 		db            *statedb.DB
-		egressIPTable statedb.RWTable[*tables.EgressIPEntry]
-		r             reconciler.Reconciler[*tables.EgressIPEntry]
+		egressIPTable statedb.RWTable[*ent_tables.EgressIPEntry]
+		r             reconciler.Reconciler[*ent_tables.EgressIPEntry]
 		policyTable   statedb.RWTable[AgentPolicyConfig]
+		deviceTable   statedb.Table[*tables.Device]
 	)
 
 	// create a hive to provide statedb, egress-ips table and a mock reconcile
 	h := hive.New(
 		cell.Provide(newAgentTables),
 		cell.Provide(
-			tables.NewEgressIPTable,
-			func() reconciler.Reconciler[*tables.EgressIPEntry] {
+			tables.NewDeviceTable,
+			ent_tables.NewEgressIPTable,
+			func() reconciler.Reconciler[*ent_tables.EgressIPEntry] {
 				return &mockReconciler{}
 			},
 		),
 
 		cell.Invoke(func(db_ *statedb.DB,
 			pt statedb.RWTable[AgentPolicyConfig],
-			table statedb.RWTable[*tables.EgressIPEntry],
-			reconciler reconciler.Reconciler[*tables.EgressIPEntry]) {
+			table statedb.RWTable[*ent_tables.EgressIPEntry],
+			dT statedb.RWTable[*tables.Device],
+			reconciler reconciler.Reconciler[*ent_tables.EgressIPEntry]) {
 			db = db_
 			egressIPTable = table
 			r = reconciler
+			deviceTable = dT
 			policyTable = pt
 		}),
 	)
@@ -154,6 +159,7 @@ func setupEgressGatewayTestSuite(t *testing.T) *EgressGatewayTestSuite {
 		DB:                 db,
 		EgressIPTable:      egressIPTable,
 		EgressIPReconciler: r,
+		DeviceTable:        deviceTable,
 		CTNATMapGC:         ctmap.NewFakeGCRunner(),
 		Health:             health,
 		PolicyConfigsTable: policyTable,

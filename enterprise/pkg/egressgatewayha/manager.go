@@ -25,7 +25,6 @@ import (
 	"github.com/cilium/statedb"
 	"github.com/cilium/statedb/reconciler"
 	"github.com/spf13/pflag"
-	"github.com/vishvananda/netlink"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/util/workqueue"
@@ -185,6 +184,7 @@ type Manager struct {
 	egressConfigsByPolicy map[policyID]sets.Set[gwEgressIPConfig]
 
 	egressIPTable statedb.RWTable[*enterprise_tables.EgressIPEntry]
+	deviceTable   statedb.Table[*tables.Device]
 
 	egressIPReconciler reconciler.Reconciler[*enterprise_tables.EgressIPEntry]
 
@@ -225,6 +225,7 @@ type Params struct {
 	EgressIPTable      statedb.RWTable[*enterprise_tables.EgressIPEntry]
 	EgressIPReconciler reconciler.Reconciler[*enterprise_tables.EgressIPEntry]
 	PolicyConfigsTable statedb.RWTable[AgentPolicyConfig]
+	DeviceTable        statedb.Table[*tables.Device]
 
 	CTNATMapGC ctmap.GCRunner
 
@@ -236,7 +237,7 @@ type Params struct {
 	IfindexResolver ifindexResolver `optional:"true"`
 }
 
-type ifindexResolver func(iface netlink.Link) uint32
+type ifindexResolver func(ifaceIndex int, ifaceType string) uint32
 
 // EgressIPsProvider provides policy to egress IPs mappings.
 type EgressIPsProvider interface {
@@ -339,6 +340,7 @@ func newEgressGatewayManager(p Params) (*Manager, error) {
 		db:                            p.DB,
 		egressIPTable:                 p.EgressIPTable,
 		egressIPReconciler:            p.EgressIPReconciler,
+		deviceTable:                   p.DeviceTable,
 		policyInitializer:             policyInitializer,
 		ctNATMapGC:                    p.CTNATMapGC,
 		config:                        p.Config,

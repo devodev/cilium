@@ -25,10 +25,11 @@ import (
 	core_v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 
-	"github.com/cilium/cilium/enterprise/datapath/tables"
+	ent_tables "github.com/cilium/cilium/enterprise/datapath/tables"
 	"github.com/cilium/cilium/pkg/datapath/linux/netdevice"
 	"github.com/cilium/cilium/pkg/datapath/linux/route"
 	"github.com/cilium/cilium/pkg/datapath/linux/safenetlink"
+	"github.com/cilium/cilium/pkg/datapath/tables"
 	v1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/logging/logfields"
@@ -241,13 +242,22 @@ func (config *AgentPolicyConfig) regenerateGatewayConfig(manager *Manager, tx st
 
 			if egressIP, found := groupStatus.egressIPByGatewayIP[localNodeK8sAddr]; found {
 				var (
-					iface netlink.Link
-					err   error
+					iface      netlink.Link
+					ifaceIndex int
+					ifaceName  string
+					ifaceType  string
+					err        error
 				)
+
 				if gc.iface != "" {
-					iface, err = safenetlink.LinkByName(gc.iface)
+					ifaceName, ifaceIndex, ifaceType, err = fetchLinkInfo(manager, gc.iface)
 				} else {
 					iface, err = route.NodeDeviceWithDefaultRoute(manager.logger, true, false)
+					if err == nil {
+						ifaceIndex = iface.Attrs().Index
+						ifaceName = iface.Attrs().Name
+						ifaceType = iface.Type()
+					}
 				}
 				if err != nil {
 					logger.Error("Failed to find interface while updating node egress IP config",
@@ -256,10 +266,10 @@ func (config *AgentPolicyConfig) regenerateGatewayConfig(manager *Manager, tx st
 					continue
 				}
 
-				egressIPs = append(egressIPs, gwEgressIPConfig{egressIP, iface.Attrs().Name})
+				egressIPs = append(egressIPs, gwEgressIPConfig{egressIP, ifaceName})
 
-				gwc.ifaceName = iface.Attrs().Name
-				gwc.egressIfindex = manager.ifindexResolver(iface)
+				gwc.egressIfindex = manager.ifindexResolver(ifaceIndex, ifaceType)
+				gwc.ifaceName = ifaceName
 				gwc.egressIP = egressIP
 			} else if len(config.egressCIDRs) > 0 {
 				// egressCIDRs is set, meaning the operator is responsible for IPAM-assigning
@@ -295,21 +305,21 @@ func (config *AgentPolicyConfig) regenerateGatewayConfig(manager *Manager, tx st
 func updateEgressIPsConfig(
 	logger *slog.Logger,
 	db *statedb.DB,
-	table statedb.RWTable[*tables.EgressIPEntry],
+	table statedb.RWTable[*ent_tables.EgressIPEntry],
 	toUpsert, toDel sets.Set[gwEgressIPConfig],
 ) {
 	txn := db.WriteTxn(table)
 	defer txn.Abort()
 
 	for _, config := range toDel.UnsortedList() {
-		table.Delete(txn, &tables.EgressIPEntry{
+		table.Delete(txn, &ent_tables.EgressIPEntry{
 			Addr:      config.addr,
 			Interface: config.iface,
 		})
 	}
 
 	for _, config := range toUpsert.UnsortedList() {
-		entry := tables.EgressIPEntry{
+		entry := ent_tables.EgressIPEntry{
 			Addr:      config.addr,
 			Interface: config.iface,
 			Status:    reconciler.StatusPending(),
@@ -323,11 +333,27 @@ func updateEgressIPsConfig(
 // egressIfindexForIface returns the interface index to use for BPF egress
 // forwarding. If the device is a dummy interface, ifindex-based BPF forwarding
 // can't be used. In such cases, it returns 0 to fallback to fib_lookup based selection.
-func egressIfindexForIface(iface netlink.Link) uint32 {
-	if iface.Type() == "dummy" {
+func egressIfindexForIface(ifaceIndex int, ifaceType string) uint32 {
+	if ifaceType == "dummy" {
 		return 0
 	}
-	return uint32(iface.Attrs().Index)
+
+	return uint32(ifaceIndex)
+}
+
+func fetchLinkInfo(manager *Manager, name string) (ifaceName string, ifaceIndex int, ifaceType string, err error) {
+	dev, _, found := manager.deviceTable.Get(manager.db.ReadTxn(), tables.DeviceNameIndex.Query(name))
+	if found {
+		return dev.Name, dev.Index, dev.Type, nil
+	}
+
+	// Fall back to netlink, for (1) alternate interface name and (2) ignored devices.
+	iface, err := safenetlink.LinkByName(name)
+	if err != nil {
+		return "", 0, "", fmt.Errorf("failed to retrieve egress interface %s: %w", name, err)
+	}
+
+	return iface.Attrs().Name, iface.Attrs().Index, iface.Type(), nil
 }
 
 // deriveFromGroupConfig retrieves all the missing gateway configuration data
@@ -335,6 +361,8 @@ func egressIfindexForIface(iface netlink.Link) uint32 {
 func (gwc *gatewayConfig) deriveFromGroupConfig(manager *Manager, logger *slog.Logger, gc *groupConfig) error {
 	var err error
 	var egressIP4 netip.Addr
+	var ifaceType string
+	var ifaceIndex int
 
 	gwc.egressIP = EgressIPNotFoundIPv4
 
@@ -342,13 +370,13 @@ func (gwc *gatewayConfig) deriveFromGroupConfig(manager *Manager, logger *slog.L
 	case gc.iface != "":
 		// If the group config specifies an interface, use the first IPv4 assigned to that
 		// interface as egress IP
-		iface, err := safenetlink.LinkByName(gc.iface)
+
+		gwc.ifaceName, ifaceIndex, ifaceType, err = fetchLinkInfo(manager, gc.iface)
 		if err != nil {
-			return fmt.Errorf("failed to retrieve egress interface %s: %w", gc.iface, err)
+			return fmt.Errorf("failed to retrieve link info for egress interface %s: %w", gc.iface, err)
 		}
 
-		gwc.ifaceName = iface.Attrs().Name
-		gwc.egressIfindex = manager.ifindexResolver(iface)
+		gwc.egressIfindex = manager.ifindexResolver(ifaceIndex, ifaceType)
 
 		egressIP4, err = netdevice.GetIfaceFirstIPv4Address(gwc.ifaceName)
 		if err != nil {

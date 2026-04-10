@@ -77,7 +77,7 @@ func mapsDump(p params) script.Cmd {
 				lines := []string{}
 				p.PolicyMap.IterateWithCallback(func(k *egressmapha.EgressPolicyV2Key4, v *egressmapha.EgressPolicyV2Val4) {
 					lines = append(lines,
-						fmt.Sprintf("source_ip=%s dest_cidr=%s egress_ip=%s gateway_ips=%v", k.SourceIP, k.DestCIDR, v.EgressIP, slices.Collect(v.GetGatewayIPs())))
+						fmt.Sprintf("source_ip=%s dest_cidr=%s egress_ip=%s egress_ifindex=%d gateway_ips=%v", k.SourceIP, k.DestCIDR, v.EgressIP, v.EgressIfindex, slices.Collect(v.GetGatewayIPs())))
 				})
 				sort.Strings(lines)
 				for _, l := range lines {
