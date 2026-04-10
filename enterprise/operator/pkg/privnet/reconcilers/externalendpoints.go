@@ -81,7 +81,7 @@ func newExternalEndpoints(in struct {
 }
 
 func (e *ExternalEndpoints) registerReconciler() (reconciler.Reconciler[*tables.ExternalEndpoint], error) {
-	if !e.config.Enabled {
+	if !e.config.EnabledWithAutoExternalEndpoints() {
 		return nil, nil
 	}
 
