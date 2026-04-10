@@ -14,6 +14,7 @@ import (
 	"github.com/cilium/hive/cell"
 
 	"github.com/cilium/cilium/enterprise/operator/pkg/privnet/config"
+	"github.com/cilium/cilium/enterprise/operator/pkg/privnet/externalendpoints"
 	"github.com/cilium/cilium/enterprise/operator/pkg/privnet/reconcilers"
 	"github.com/cilium/cilium/enterprise/operator/pkg/privnet/webhook"
 	"github.com/cilium/cilium/operator/cmd"
@@ -33,5 +34,6 @@ var Cell = cell.Module(
 		func(lc *cmd.LeaderLifecycle) cell.Lifecycle { return lc },
 
 		reconcilers.LeaderCell,
+		externalendpoints.Cell,
 	),
 )

@@ -35,6 +35,7 @@ import (
 	"github.com/cilium/cilium/enterprise/operator/pkg/evpn"
 	"github.com/cilium/cilium/enterprise/operator/pkg/privnet"
 	"github.com/cilium/cilium/enterprise/operator/pkg/privnet/reconcilers"
+	"github.com/cilium/cilium/operator/cmd"
 	"github.com/cilium/cilium/pkg/hive"
 	k8sClient "github.com/cilium/cilium/pkg/k8s/client/testutils"
 	k8sTestutils "github.com/cilium/cilium/pkg/k8s/testutils"
@@ -82,6 +83,10 @@ func TestScript(t *testing.T) {
 			ctrlruntime.SetLogger(logr.New(logr.FromSlogHandler(log.Handler()).GetSink()))
 
 			h := hive.New(
+				cell.Provide(
+					func(lc cell.Lifecycle) *cmd.LeaderLifecycle { return &cmd.LeaderLifecycle{} },
+				),
+
 				k8sClient.FakeClientCell(),
 				cell.DecorateAll(k8sClient.NewFakeNADsClientset),
 				cell.DecorateAll(k8sClient.NewFakeDynamicClient),
