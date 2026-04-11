@@ -13,9 +13,13 @@ package egressgatewayha
 import (
 	"net/netip"
 	"testing"
+	"time"
 
 	"github.com/cilium/hive/hivetest"
 	"github.com/stretchr/testify/require"
+	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	v1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
 )
 
 func TestAllocateEgressIPsForGroup(t *testing.T) {
@@ -686,4 +690,126 @@ func TestEnsureZonesCoverage(t *testing.T) {
 			require.Equal(t, tc.expected.egressIPsOfInactiveGateways, egressIPsOfInactiveGateways)
 		})
 	}
+}
+
+// TestGetIEGPForStatusUpdateConditions verifies that getIEGPForStatusUpdate seeds
+// the returned policy's Conditions with the existing ones from the cached IEGP, so
+// that meta.SetStatusCondition can preserve LastTransitionTime across no-op
+// reconciliations. Without this, every reconcile would write a fresh timestamp,
+// defeating the status-equality short-circuit in updateGroupStatuses and causing
+// an endless UpdateStatus -> informer -> reconcile loop for IPAM IEGPs.
+func TestGetIEGPForStatusUpdateConditions(t *testing.T) {
+	const generation int64 = 3
+	prior := meta_v1.NewTime(time.Now().Add(-time.Hour).Truncate(time.Second))
+
+	newSatisfied := func(status meta_v1.ConditionStatus) meta_v1.Condition {
+		return meta_v1.Condition{
+			Type:               egwIPAMRequestSatisfied,
+			Status:             status,
+			ObservedGeneration: generation,
+			LastTransitionTime: meta_v1.Now(),
+			Reason:             "noreason",
+			Message:            "allocation requests satisfied",
+		}
+	}
+
+	existingSatisfied := meta_v1.Condition{
+		Type:               egwIPAMRequestSatisfied,
+		Status:             meta_v1.ConditionTrue,
+		ObservedGeneration: generation,
+		LastTransitionTime: prior,
+		Reason:             "noreason",
+		Message:            "allocation requests satisfied",
+	}
+
+	t.Run("no-op reconcile short-circuits updateGroupStatuses", func(t *testing.T) {
+		iegp := &v1.IsovalentEgressGatewayPolicy{
+			Status: v1.IsovalentEgressGatewayPolicyStatus{
+				Conditions: []meta_v1.Condition{existingSatisfied},
+			},
+		}
+
+		out := getIEGPForStatusUpdate(iegp, nil, []meta_v1.Condition{newSatisfied(meta_v1.ConditionTrue)})
+
+		// The cached and newly-built Conditions must be equal so that the early
+		// return in updateGroupStatuses fires. If this is false, the operator
+		// will call UpdateStatus on the IEGP every reconciliation and loop
+		// forever via the informer callback.
+		require.Equal(t, iegp.Status.Conditions, out.Status.Conditions,
+			"cached vs new conditions must be equal so updateGroupStatuses short-circuits")
+
+		// verify the cached IEGP still holds the original condition untouched.
+		// Otherwise the equality check above would pass simply because both sides
+		// alias the same backing array.
+		require.Equal(t, []meta_v1.Condition{existingSatisfied}, iegp.Status.Conditions,
+			"cached IEGP must not be mutated by getIEGPForStatusUpdate")
+	})
+
+	t.Run("status transition produces a distinct conditions slice", func(t *testing.T) {
+		iegp := &v1.IsovalentEgressGatewayPolicy{
+			Status: v1.IsovalentEgressGatewayPolicyStatus{
+				Conditions: []meta_v1.Condition{existingSatisfied},
+			},
+		}
+
+		out := getIEGPForStatusUpdate(iegp, nil, []meta_v1.Condition{newSatisfied(meta_v1.ConditionFalse)})
+
+		// When the status actually transitions the new conditions must differ
+		// from the cached ones, otherwise the short-circuit in
+		// updateGroupStatuses would swallow legitimate updates.
+		require.NotEqual(t, iegp.Status.Conditions, out.Status.Conditions,
+			"cached vs new conditions must differ on transition")
+		require.Len(t, out.Status.Conditions, 1)
+		require.Equal(t, meta_v1.ConditionFalse, out.Status.Conditions[0].Status)
+		require.False(t, out.Status.Conditions[0].LastTransitionTime.Equal(&prior),
+			"LastTransitionTime should be refreshed when Status transitions")
+
+		// Cached IEGP must still be untouched so the next reconcile can compare
+		// against the pre-update state.
+		require.Equal(t, []meta_v1.Condition{existingSatisfied}, iegp.Status.Conditions)
+	})
+
+	t.Run("appends new condition when none exists", func(t *testing.T) {
+		iegp := &v1.IsovalentEgressGatewayPolicy{}
+		cond := newSatisfied(meta_v1.ConditionTrue)
+
+		out := getIEGPForStatusUpdate(iegp, nil, []meta_v1.Condition{cond})
+		require.Equal(t, []meta_v1.Condition{cond}, out.Status.Conditions)
+	})
+
+	t.Run("drops stale conditions not in the new set", func(t *testing.T) {
+		// Simulate a recovery reconcile: the cached IEGP carries a failure
+		// condition plus an auxiliary egwIPAMPoolExhausted, then the allocation
+		// recovers and the new set only contains IPAMRequestSatisfied=True.
+		// The auxiliary condition must be pruned so callers asserting on a
+		// single-entry Conditions slice (e.g. TestEgressCIDRAllocation) keep
+		// working, and so stale status is not reported to users.
+		iegp := &v1.IsovalentEgressGatewayPolicy{
+			Status: v1.IsovalentEgressGatewayPolicyStatus{
+				Conditions: []meta_v1.Condition{
+					{
+						Type:               egwIPAMRequestSatisfied,
+						Status:             meta_v1.ConditionFalse,
+						ObservedGeneration: generation,
+						LastTransitionTime: prior,
+						Reason:             "noreason",
+						Message:            "allocation requests not satisfied",
+					},
+					{
+						Type:               egwIPAMPoolExhausted,
+						Status:             meta_v1.ConditionUnknown,
+						ObservedGeneration: generation,
+						LastTransitionTime: prior,
+						Reason:             "noreason",
+						Message:            "unable to fulfill allocations",
+					},
+				},
+			},
+		}
+
+		satisfied := newSatisfied(meta_v1.ConditionTrue)
+		out := getIEGPForStatusUpdate(iegp, nil, []meta_v1.Condition{satisfied})
+
+		require.Equal(t, []meta_v1.Condition{satisfied}, out.Status.Conditions)
+	})
 }

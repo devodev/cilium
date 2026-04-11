@@ -122,14 +122,45 @@ func getIEGPForStatusUpdate(iegp *Policy, groupStatuses []groupStatus, condition
 		Status: v1.IsovalentEgressGatewayPolicyStatus{
 			ObservedGeneration: iegp.GetGeneration(),
 			GroupStatuses:      iegpGroupStatuses,
+			Conditions:         buildStatusConditions(iegp.Status.Conditions, conditions),
 		},
 	}
 
-	for _, cond := range conditions {
-		meta.SetStatusCondition(&policy.Status.Conditions, cond)
+	return policy
+}
+
+// buildStatusConditions builds the Conditions slice for an IEGP status update.
+// It seeds the result with the cached conditions so that meta.SetStatusCondition
+// preserves LastTransitionTime on no-op transitions (only bumping it when Status
+// actually changes), and drops any cached conditions whose Type is not in the
+// new set — pruning stale entries like a lingering egwIPAMPoolExhausted after
+// the allocation recovers.
+//
+// Preserving LastTransitionTime is what lets the cmp.Equal short-circuit in
+// updateGroupStatuses fire on no-op reconciles; without it, a fresh timestamp
+// would be written every iteration, causing an endless UpdateStatus -> informer
+// -> reconcile loop for IPAM IEGPs.
+func buildStatusConditions(prev, next []meta_v1.Condition) []meta_v1.Condition {
+	if len(next) == 0 {
+		return nil
 	}
 
-	return policy
+	// Seed with the cached conditions so SetStatusCondition can detect a
+	// same-Status update and keep the existing LastTransitionTime.
+	out := append([]meta_v1.Condition(nil), prev...)
+	wantTypes := make(map[string]bool, len(next))
+	for _, cond := range next {
+		meta.SetStatusCondition(&out, cond)
+		wantTypes[cond.Type] = true
+	}
+
+	// Drop cached conditions whose Type isn't in the new set.
+	for _, p := range prev {
+		if !wantTypes[p.Type] {
+			meta.RemoveStatusCondition(&out, p.Type)
+		}
+	}
+	return out
 }
 
 func (gc *groupConfig) selectActiveGateways(config *PolicyConfig, status *groupStatus, availableHealthyGatewayIPs []netip.Addr) []netip.Addr {
