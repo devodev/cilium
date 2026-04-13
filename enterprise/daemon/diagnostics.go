@@ -82,6 +82,13 @@ func registerConditions(reg *diagnostics.Registry, db *statedb.DB, dbMetrics hiv
 			Description: "StateDB metrics indicate a potentially problematic access patterns",
 			Evaluator:   evalStateDB(db, dbMetrics),
 		},
+
+		diagnostics.Condition{
+			ID:          "endpoint_components_status",
+			SubSystem:   "Endpoint",
+			Description: "One or more endpoint components (BPF, Policy) are not healthy",
+			Evaluator:   evalEndpointComponentStatus,
+		},
 	)
 }
 
@@ -225,4 +232,32 @@ func evalStateDBPendingInitializers(db *statedb.DB) func(diagnostics.Environment
 		return
 	}
 
+}
+
+func evalEndpointComponentStatus(env diagnostics.Environment) (msg string, severity diagnostics.Severity) {
+	metricName := metrics.EndpointComponentStatus.Opts().ConfigName
+	allMetrics, err := env.MetricsMatchingLabels(metricName, nil)
+	if err != nil {
+		return err.Error(), diagnostics.OK
+	}
+
+	var failingComponents []string
+	for _, m := range allMetrics {
+		if m.Labels()[metrics.LabelStatus] == "OK" {
+			continue
+		}
+		stats, err := env.Gauge(metricName, m.Labels())
+		if err != nil {
+			continue
+		}
+		if stats.Avg_Latest > 0 {
+			failingComponents = append(failingComponents,
+				fmt.Sprintf("%s: %.0f", m.LabelsString(), stats.Avg_Latest))
+		}
+	}
+
+	if len(failingComponents) > 0 {
+		return fmt.Sprintf("Endpoints with component failures observed: [%s]", strings.Join(failingComponents, ", ")), diagnostics.Minor
+	}
+	return "All endpoint components OK", diagnostics.OK
 }
