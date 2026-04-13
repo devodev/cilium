@@ -84,10 +84,11 @@ func NADFor(network NetworkName, subnet SubnetName) string {
 	return fmt.Sprintf("%s-%s", network, subnet)
 }
 
-type VM struct {
-	ID          string
-	Name        VMName
-	Description string
+// DesiredVM represents the specification of a (possibly mocked) VM to be
+// automatically created in the testbed.
+type DesiredVM struct {
+	ID   string
+	Name VMName
 
 	NAD string
 
@@ -108,6 +109,36 @@ type VM struct {
 	Mock     bool
 }
 
+func (vm DesiredVM) ToVMs() []VM {
+	return []VM{{
+		Name:      vm.Name,
+		Interface: "eth0",
+		NetName:   vm.NetName,
+		NetSubnet: vm.NetSubnet,
+		NetIPv4:   vm.NetIPv4,
+		NetIPv6:   vm.NetIPv6,
+		NetMAC:    vm.NetMAC,
+		Kind:      vm.Kind,
+		Mock:      vm.Mock,
+	}}
+}
+
+// VM models the source and/or destination endpoint of a test scenario.
+type VM struct {
+	Name      VMName
+	Interface string
+
+	NetName   NetworkName
+	NetSubnet SubnetName
+
+	NetIPv4 netip.Addr
+	NetIPv6 netip.Addr
+	NetMAC  string
+
+	Kind VMKind
+	Mock bool
+}
+
 func (vm *VM) IP(family features.IPFamily) netip.Addr {
 	switch family {
 	case features.IPFamilyV6:
@@ -118,10 +149,10 @@ func (vm *VM) IP(family features.IPFamily) netip.Addr {
 }
 
 func (vm *VM) DescName() string {
-	if vm.Description == "" {
+	if vm.Interface == "" {
 		return vm.Name.String()
 	}
-	return fmt.Sprintf("%s [%s]", vm.Name, vm.Description)
+	return fmt.Sprintf("%s [%s]", vm.Name, vm.Interface)
 }
 
 func (vm *VM) ToNetworkAttachment() types.NetworkAttachment {
@@ -154,7 +185,7 @@ type NodeAttachment struct {
 type NetworkData struct {
 	Prefixes        []Subnet
 	INBs            []INBInfo
-	VMs             []VM
+	VMs             []DesiredVM
 	Unknown         []VM
 	NodeAttachments []NodeAttachment
 }
@@ -196,7 +227,7 @@ var networkTopology = map[NetworkName]NetworkData{
 				ClusterName:     "privnet-inb1",
 			},
 		},
-		VMs: []VM{
+		VMs: []DesiredVM{
 			{
 				ID:             "vm-A1",
 				Name:           ClientVM(NetworkA),
@@ -262,12 +293,12 @@ var networkTopology = map[NetworkName]NetworkData{
 				Kind:    VMKindUnknown,
 			},
 			{
-				Name:        "privnet-vm-net-a1",
-				NetName:     NetworkA,
-				Description: "alt-if",
-				NetIPv4:     netip.MustParseAddr("192.168.255.200"),
-				NetIPv6:     netip.MustParseAddr("fd10:0:255::200"),
-				Kind:        VMKindUnknown,
+				Name:      "privnet-vm-net-a1",
+				NetName:   NetworkA,
+				Interface: "alt-if",
+				NetIPv4:   netip.MustParseAddr("192.168.255.200"),
+				NetIPv6:   netip.MustParseAddr("fd10:0:255::200"),
+				Kind:      VMKindUnknown,
 			},
 		},
 	},
@@ -304,7 +335,7 @@ var networkTopology = map[NetworkName]NetworkData{
 				ClusterName:     "privnet-inb1",
 			},
 		},
-		VMs: []VM{
+		VMs: []DesiredVM{
 			{
 				ID:             "vm-B1",
 				Name:           ClientVM(NetworkB),
@@ -370,7 +401,7 @@ var networkTopology = map[NetworkName]NetworkData{
 				ClusterName:     "privnet-inb1",
 			},
 		},
-		VMs: []VM{
+		VMs: []DesiredVM{
 			{
 				Name:           ClientVM(NetworkC),
 				NetName:        NetworkC,
@@ -407,12 +438,12 @@ var networkTopology = map[NetworkName]NetworkData{
 				Kind:    VMKindUnknown,
 			},
 			{
-				Name:        "privnet-vm-net-c1",
-				NetName:     NetworkC,
-				Description: "alt-if",
-				NetIPv4:     netip.MustParseAddr("192.168.252.210"),
-				NetIPv6:     netip.MustParseAddr("fd10:0:252::210"),
-				Kind:        VMKindUnknown,
+				Name:      "privnet-vm-net-c1",
+				NetName:   NetworkC,
+				Interface: "alt-if",
+				NetIPv4:   netip.MustParseAddr("192.168.252.210"),
+				NetIPv6:   netip.MustParseAddr("fd10:0:252::210"),
+				Kind:      VMKindUnknown,
 			},
 		},
 	},
@@ -440,7 +471,7 @@ var networkTopology = map[NetworkName]NetworkData{
 				ClusterName:     "privnet-inb1",
 			},
 		},
-		VMs: []VM{
+		VMs: []DesiredVM{
 			{
 				Name:           ClientVM(NetworkD),
 				NetName:        NetworkD,
@@ -456,12 +487,12 @@ var networkTopology = map[NetworkName]NetworkData{
 		},
 		Unknown: []VM{
 			{
-				Name:        "privnet-vm-net-d1",
-				NetName:     NetworkD,
-				Description: "alt-if",
-				NetIPv4:     netip.MustParseAddr("192.168.252.210"),
-				NetIPv6:     netip.MustParseAddr("fd10:0:252::210"),
-				Kind:        VMKindUnknown,
+				Name:      "privnet-vm-net-d1",
+				NetName:   NetworkD,
+				Interface: "alt-if",
+				NetIPv4:   netip.MustParseAddr("192.168.252.210"),
+				NetIPv6:   netip.MustParseAddr("fd10:0:252::210"),
+				Kind:      VMKindUnknown,
 			},
 		},
 	},
@@ -484,7 +515,7 @@ var networkTopology = map[NetworkName]NetworkData{
 			},
 		},
 		INBs: []INBInfo{},
-		VMs: []VM{
+		VMs: []DesiredVM{
 			{
 				ID:             "",
 				Name:           VMName("client-dhcp-network-e"),
@@ -532,12 +563,12 @@ var networkTopology = map[NetworkName]NetworkData{
 		},
 		Unknown: []VM{
 			{
-				Name:        "privnet-vm-net-e1",
-				NetName:     NetworkE,
-				Description: "alt-if",
-				NetIPv4:     netip.MustParseAddr("192.168.10.200"),
-				NetIPv6:     netip.MustParseAddr("fd10:0:10::200"),
-				Kind:        VMKindUnknown,
+				Name:      "privnet-vm-net-e1",
+				NetName:   NetworkE,
+				Interface: "alt-if",
+				NetIPv4:   netip.MustParseAddr("192.168.10.200"),
+				NetIPv6:   netip.MustParseAddr("fd10:0:10::200"),
+				Kind:      VMKindUnknown,
 			},
 		},
 		NodeAttachments: []NodeAttachment{{Interface: "eth1", VlanID: 10}},

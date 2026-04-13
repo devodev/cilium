@@ -48,6 +48,7 @@ import (
 	"github.com/cilium/cilium/cilium-cli/k8s"
 	"github.com/cilium/cilium/cilium-cli/utils/features"
 	isovalentv1alpha1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
+	cslices "github.com/cilium/cilium/pkg/slices"
 )
 
 var (
@@ -364,7 +365,7 @@ func (t *TestRun) renderClusterVMs(ndata NetworkData) ([]k8s.Object, error) {
 
 	for _, vm := range ndata.VMs {
 		type vmData struct {
-			VM
+			DesiredVM
 			TestNamespace   string
 			VMImage         string
 			MockVMImage     string
@@ -374,7 +375,7 @@ func (t *TestRun) renderClusterVMs(ndata NetworkData) ([]k8s.Object, error) {
 			PlanID          k8stypes.UID
 		}
 		data := vmData{
-			VM:              vm,
+			DesiredVM:       vm,
 			TestNamespace:   t.params.TestNamespace,
 			VMImage:         t.params.VMImage,
 			MockVMImage:     t.params.MockVMImage,
@@ -655,7 +656,9 @@ func (t *TestRun) SetupAndValidate(ctx context.Context) (err error) {
 		}
 		vms = slices.Concat(vms, objs)
 
-		updateNetworkMap(t.vms, networkData.VMs)
+		updateNetworkMap(t.vms, slices.Concat(
+			cslices.Map(networkData.VMs, DesiredVM.ToVMs)...),
+		)
 
 		for _, vm := range networkData.VMs {
 			if vm.NAD != "" {
