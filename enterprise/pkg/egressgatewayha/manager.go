@@ -536,6 +536,10 @@ func (manager *Manager) onAddEgressPolicy(policy *Policy) error {
 	tx := manager.db.WriteTxn(manager.policyConfigsTable)
 	defer tx.Abort()
 
+	if prev, _, found := manager.policyConfigsTable.Get(tx, AgentIndex.Query(config.id)); found {
+		config.gatewayConfig = prev.gatewayConfig
+	}
+
 	config.updateMatchedEndpointIDs(manager.epDataStore)
 	hadPrev, err := manager.upsertPolicy(tx, config)
 	if err != nil {

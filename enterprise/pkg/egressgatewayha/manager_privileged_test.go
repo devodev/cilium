@@ -1985,3 +1985,41 @@ func TestPrivilegedEgressGatewayManagerIPAMWithVirtualIP(t *testing.T) {
 		{Name: policy1.name}: {"10.100.0.1"},
 	})
 }
+
+// TestPrivilegedOnAddEgressPolicyPreservesGatewayConfig verifies that an IEGP
+// Upsert (e.g. an operator status subresource rewrite) does not clear the
+// gatewayConfig that an earlier reconciliation populated. Otherwise a reader
+// such as the BGP CP's AdvertisedEgressIPs can observe a nil gatewayConfig in
+// the window before the next reconciliation runs, and withdraw the egress-IP
+// route.
+func TestPrivilegedOnAddEgressPolicyPreservesGatewayConfig(t *testing.T) {
+	k := setupEgressGatewayTestSuite(t)
+
+	policy1 := k.addPolicy(t, &policyParams{
+		name:             "policy-1",
+		uid:              policy1UID,
+		labels:           advertisePolicyLabels,
+		endpointLabels:   ep1Labels,
+		destinationCIDRs: []string{destCIDR},
+		egressGroups: []egressGroupParams{{
+			iface:             testInterface1,
+			nodeLabels:        nodeGroup1Labels,
+			activeGatewayIPs:  []string{node1IP},
+			healthyGatewayIPs: []string{node1IP},
+		}},
+	})
+
+	k.assertAdvertisedEgressIPs(t, k.manager, advertisePolicySelector, map[types.NamespacedName][]string{
+		{Name: policy1.name}: {egressIP1},
+	})
+
+	// Stop reconciliation so the next upsert cannot regenerate gatewayConfig
+	// behind us. addPolicy (helper, not k.addPolicy) just fires the Upsert
+	// event; k.addPolicy's waitForReconciliationRun would hang here.
+	k.manager.reconciliationTrigger.Shutdown()
+	addPolicy(t, nil, k.policies, policy1)
+
+	k.assertAdvertisedEgressIPs(t, k.manager, advertisePolicySelector, map[types.NamespacedName][]string{
+		{Name: policy1.name}: {egressIP1},
+	})
+}
