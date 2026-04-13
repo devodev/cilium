@@ -68,7 +68,7 @@ jobs:
         with:
           cache: false
           # renovate: datasource=golang-version depName=go
-          go-version: 1.26.1
+          go-version: 1.26.2
 
       - name: Run tests
         working-directory: ./enterprise/olm
@@ -99,7 +99,7 @@ jobs:
         with:
           cache: false
           # renovate: datasource=golang-version depName=go
-          go-version: 1.26.1
+          go-version: 1.26.2
 
       - name: Login to quay.io
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
@@ -109,7 +109,7 @@ jobs:
           password: ${{ secrets.QUAY_PASSWORD_CI }}
 
       - name: Login to registry.redhat.io for pulling images
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121
+        uses: docker/login-action@36864503dc2a3702db7dc554479e3e1a29bb8337
         with:
           registry: registry.redhat.io
           username: ${{ secrets.REDHAT_USERNAME_CI }}

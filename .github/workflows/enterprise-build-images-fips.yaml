@@ -45,7 +45,7 @@ concurrency:
 
 env:
   # renovate: datasource=golang-version depName=go
-  go_version: 1.26.1
+  go_version: 1.26.2
 
 # This workflow builds each platform as part of separate jobs and then merges the
 # built images into a manifest before pushing. This is done for two reasons:
@@ -306,7 +306,7 @@ jobs:
           fi
 
       - name: Build ${{ matrix.name }}
-        uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
         id: docker_build
         with:
           provenance: false
@@ -524,7 +524,7 @@ jobs:
 
       # Upload artifact digests
       - name: Upload artifact digests
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: image-digest ${{ matrix.name }}
           path: image-digest
@@ -565,14 +565,14 @@ jobs:
 
       # Upload artifact digests
       - name: Upload artifact digests
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: image-digest-output.txt-${{ needs.build-image-list.outputs.image_tag }}
           path: image-digest-output.txt
 
       # Upload artifact digests
       - name: Upload artifact digests
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: Makefile.digests-${{ needs.build-image-list.outputs.image_tag }}
           path: Makefile.digests
