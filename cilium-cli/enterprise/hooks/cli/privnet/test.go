@@ -53,11 +53,8 @@ var (
 	//go:embed manifests/privatenetwork.yaml
 	privateNetworkTemplate string
 
-	//go:embed manifests/vm-client.yaml
-	vmClientTemplate string
-
-	//go:embed manifests/vm-echo.yaml
-	vmEchoTemplate string
+	//go:embed manifests/vm.yaml
+	vmTemplate string
 
 	//go:embed manifests/vm-echo-script.py
 	vmEchoScript string
@@ -354,16 +351,6 @@ func (t *TestRun) renderClusterVMs(ndata NetworkData) ([]k8s.Object, error) {
 	var objs []k8s.Object
 
 	for _, vm := range ndata.VMs {
-		var tmpl string
-		switch vm.Kind {
-		case VMKindClient:
-			tmpl = vmClientTemplate
-		case VMKindEcho:
-			tmpl = vmEchoTemplate
-		default:
-			return nil, fmt.Errorf("unknown VM kind %s", vm.Kind)
-		}
-
 		type vmData struct {
 			VM
 			TestNamespace   string
@@ -382,7 +369,7 @@ func (t *TestRun) renderClusterVMs(ndata NetworkData) ([]k8s.Object, error) {
 			NeedsAnnotation: !t.webhookEnabled || vm.ID == "",
 			PlanID:          t.webhookPlanID,
 		}
-		vmYAML, err := renderTemplate(tmpl, data)
+		vmYAML, err := renderTemplate(vmTemplate, data)
 		if err != nil {
 			return nil, fmt.Errorf("failed rendering template for VM %s: %w", vm.Name, err)
 		}

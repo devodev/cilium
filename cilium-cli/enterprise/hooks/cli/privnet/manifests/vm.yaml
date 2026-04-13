@@ -18,18 +18,19 @@ spec:
       name: "{{ .Name }}"
       labels:
         name: "{{ .Name }}"
-        kind: echo
+        kind: "{{ .Kind }}"
       {{- if .NeedsAnnotation }}
       annotations:
-        "privnet.isovalent.com/network-attachment": '{"network":"{{ .NetName }}","ipv4":"{{ .NetIPv4 }}","ipv6":"{{ .NetIPv6 }}","mac":"{{ .NetMAC }}"}'
+        "privnet.isovalent.com/network-attachment": '{"network":"{{ .NetName }}","subnet":"{{ .NetSubnet }}", "ipv4":"{{ .NetIPv4 }}","ipv6":"{{ .NetIPv6 }}","mac":"{{ .NetMAC }}"}'
       {{- end }}
     spec:
+  {{- if .Affinity.Type }}
       affinity:
-  {{ if eq .Affinity.Type "same-node" }}
+  {{- if eq .Affinity.Type "same-node" }}
         podAffinity:
-  {{ else }}
+  {{- else }}
         podAntiAffinity:
-  {{ end }}
+  {{- end }}
           requiredDuringSchedulingIgnoredDuringExecution:
             - labelSelector:
                 matchExpressions:
@@ -38,6 +39,7 @@ spec:
                     values:
                       - {{ .Affinity.Target }}
               topologyKey: kubernetes.io/hostname
+  {{- end }}
       dnsPolicy: None
       dnsConfig:
         nameservers:
