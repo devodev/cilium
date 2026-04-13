@@ -145,7 +145,7 @@ function main() {
   merge_base=$(git merge-base "$upstream_commit" "$DOWNSTREAM_BRANCH")
   merge_commit=$(git rev-list "$merge_base"..."$DOWNSTREAM_BRANCH" \
                               --ancestry-path --merges --reverse \
-                 | head -n 1)
+                 | sed -n "1,1p")
 
   if [[ -z "$branch" ]]; then
     date="$(date --rfc-3339=date)"
