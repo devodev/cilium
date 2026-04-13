@@ -1,0 +1,172 @@
+#! --private-networks-enabled --private-networks-mode=local-access --privnet-test-dhcp-static-relay=false
+#
+# Test relaying a DHCP request from a pod via the local-access relay path and back.
+#
+#   +-----------+  DHCP DISCOVER/REQUEST  +-------------------+   DHCP OFFER/ACK   +--------------------+
+#   | pod0 netns| ----------------------> | privnet DHCP srv  | <-----------------> | dhcp-h-bcast netns |
+#   | (client)  | <---------------------- |                   |                     | (DHCP server)      |
+#   +-----------+   DHCP OFFER/ACK        +-------------------+                     +--------------------+
+
+# This tests needs to run privileged to set up a network namespace
+[!privileged] stop
+
+# Create the cilium_dhcp test interface, a separate DHCP server device, and add a workload.
+dhcp/link-new cilium_dhcp
+dhcp/veth-new dhcp-h-bcast dhcp-s-bcast 192.168.100.2/24 192.168.100.1/24
+dhcp/server-start dhcp-h-bcast dhcp-s-bcast 192.168.100.1 192.168.100.10
+dhcp/set-endpoint-ifindex cilium_dhcp endpoint.json
+privnet/epm-create endpoint.json
+db/insert devices device.yaml
+
+# Start the test application.
+hive/start
+k8s/add icpn.yaml pnna.yaml
+
+# Wait for the blue network.
+!* db/empty private-networks
+
+# Workload doesn't have IP assigned.
+db/cmp privnet-local-workloads local-workloads.before.table
+
+# Perform the DHCP exchange.
+* dhcp/exchange 100
+
+# Validate that DHCP lease table has updated and the LocalWorkload has been assigned an IP.
+db/cmp privnet-dhcp-leases dhcp-leases.table
+db/cmp privnet-local-workloads local-workloads.table
+
+# Endpoint table should now contain this endpoint.
+db/cmp privnet-endpoints endpoints.after.table
+
+# Check that endpoint slices was updated.
+* k8s/get isovalent.com.v1alpha1.privatenetworkendpointslices default/foobar-worker-1 -o endpointslices.actual.yaml
+sed 'resourceVersion: ".*"' 'resourceVersion: "<nr>"' endpointslices.actual.yaml
+* cmp endpointslices.expected.yaml endpointslices.actual.yaml
+
+# Check that the workload devmapping was updated with DHCP IPv4.
+db/cmp privnet-device-mappings devmappings.table
+
+# Force lease expiration and ensure LocalWorkload is cleared.
+db/insert privnet-dhcp-leases dhcp-lease-expired.yaml
+db/cmp privnet-dhcp-leases dhcp-leases.expired.table
+db/cmp privnet-local-workloads local-workloads.before.table
+db/cmp privnet-device-mappings devmappings.expired.table
+
+# Check that endpoint slice is now removed as there are no publishable local
+# workloads.
+!* k8s/get isovalent.com.v1alpha1.privatenetworkendpointslices default/foobar-worker-1
+
+-- dhcp-leases.table --
+Network        EndpointID   MAC                 IPv4            ServerID
+blue-network   100          02:00:00:00:00:01   192.168.100.10  192.168.100.1
+
+-- local-workloads.table --
+Endpoint          ID   Network        NetworkIPv4      PodIPv4
+default/pod-100   100  blue-network   192.168.100.10   10.244.5.112
+
+-- dhcp-leases.expired.table --
+Network        EndpointID   MAC                 IPv4            ServerID        RenewAt                 ExpireAt
+blue-network   100          02:00:00:00:00:01   192.168.100.10  192.168.100.1   2025-01-01T00:00:00Z    2025-01-01T00:00:01Z
+
+-- local-workloads.before.table --
+Endpoint          ID   Network        NetworkIPv4   PodIPv4
+default/pod-100   100  blue-network   0.0.0.0       10.244.5.112
+
+-- endpoints.after.table --
+Source                            Name      Network        Subnet    NetworkIP        NetworkMAC          PodIP
+default/default/foobar-worker-1   pod-100   blue-network   subnet1   192.168.100.10   02:00:00:00:00:01   10.244.5.112
+
+-- devmappings.table --
+Network        NetworkID   NetworkIPv4     Owner
+blue-network   0x1         192.168.100.10  lw-100
+blue-network   0x1         invalid IP      pnna-blue-network-na
+
+-- devmappings.expired.table --
+Network        NetworkID   NetworkIPv4   Owner
+blue-network   0x1         0.0.0.0       lw-100
+blue-network   0x1         invalid IP    pnna-blue-network-na
+
+-- endpointslices.expected.yaml --
+apiVersion: isovalent.com/v1alpha1
+endpoints:
+- activatedAt: "2025-06-20T15:58:07.000000Z"
+  endpoint:
+    addressing:
+      ipv4: 10.244.5.112
+    name: pod-100
+  flags:
+    external: true
+  interface:
+    addressing:
+      ipv4: 192.168.100.10
+    mac: "02:00:00:00:00:01"
+    network: blue-network
+kind: PrivateNetworkEndpointSlice
+metadata:
+  name: foobar-worker-1
+  namespace: default
+  ownerReferences:
+  - apiVersion: cilium.io/v2
+    kind: CiliumNode
+    name: foobar-worker-1
+    uid: a354cce5-e6dc-4cb1-8125-a3a1bf93fd8a
+  resourceVersion: "<nr>"
+nodeName: foobar-worker-1
+-- dhcp-lease-expired.yaml --
+network: blue-network
+endpointid: 100
+mac: "02:00:00:00:00:01"
+ipv4: 192.168.100.10
+serverid: 192.168.100.1
+obtainedat: 2025-01-01T00:00:00Z
+renewat: 2025-01-01T00:00:00Z
+expireat: 2025-01-01T00:00:01Z
+
+-- endpoint.json --
+{
+  "ID": 100,
+  "addressing": {
+    "ipv4": "10.244.5.112"
+  },
+  "mac": "02:00:00:00:00:01",
+  "k8s-pod-name": "pod-100",
+  "k8s-namespace": "default",
+  "properties": {
+    "property-without-bpf-endpoint": true,
+    "isovalent-privnet-activated-at": "2025-06-20T15:58:07.00000Z",
+    "isovalent-privnet-network": "blue-network",
+    "isovalent-privnet-subnet": "subnet1",
+    "isovalent-privnet-ipv4-addr": "0.0.0.0"
+  }
+}
+
+-- icpn.yaml --
+apiVersion: isovalent.com/v1alpha1
+kind: ClusterwidePrivateNetwork
+metadata:
+  name: blue-network
+spec:
+  routes: []
+  subnets:
+  - name: subnet1
+    cidrv4: 192.168.100.0/24
+    dhcp:
+      mode: broadcast
+
+-- pnna.yaml --
+apiVersion: isovalent.com/v1alpha1
+kind: PrivateNetworkNodeAttachment
+metadata:
+  name: blue-network-na
+spec:
+  privateNetworkRef:
+    name: blue-network
+  attachments:
+    - interface: dhcp-h-bcast
+
+-- device.yaml --
+index: 10
+name: dhcp-h-bcast
+type: veth
+operstatus: up
+selected: true

@@ -12,7 +12,6 @@ package dhcp
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -100,6 +99,20 @@ func newRelayFactory(p relayParams) (RelayFactory, error) {
 		return nil, nil
 	}
 
+	if p.PrivnetConfig.IsLocallyConnected() {
+		var relayNetNS *netns.NetNS
+		if p.TestCfg != nil {
+			relayNetNS = p.TestCfg.NetNS
+		}
+
+		return &localAccessRelayFactory{
+			log:     p.Log,
+			netns:   relayNetNS,
+			db:      p.DB,
+			subnets: p.Subnets,
+		}, nil
+	}
+
 	return &GRPCRelayFactory{
 		Log:     p.Log,
 		DB:      p.DB,
@@ -107,6 +120,43 @@ func newRelayFactory(p relayParams) (RelayFactory, error) {
 		Subnets: p.Subnets,
 		Factory: p.ConnFn,
 	}, nil
+}
+
+type localAccessRelayFactory struct {
+	log     *slog.Logger
+	netns   *netns.NetNS
+	db      *statedb.DB
+	subnets statedb.Table[tables.Subnet]
+}
+
+// RelayFor implements [RelayFactory].
+func (l *localAccessRelayFactory) RelayFor(lw *tables.LocalWorkload) (Relayer, error) {
+	subnet, _, found := l.subnets.Get(l.db.ReadTxn(), tables.SubnetsByNetworkAndName(tables.NetworkName(lw.Interface.Network), lw.Subnet))
+	if !found {
+		return nil, fmt.Errorf("subnet %q not found for network %q", lw.Subnet, lw.Interface.Network)
+	}
+	switch subnet.DHCP.Mode {
+	case v1alpha1.PrivateNetworkDHCPModeNone:
+		return nil, fmt.Errorf("DHCP disabled")
+	case v1alpha1.PrivateNetworkDHCPModeBroadcast:
+		return &broadcastRelay{log: l.log, netns: l.netns, ifname: subnet.EgressIfName}, nil
+	case v1alpha1.PrivateNetworkDHCPModeRelay:
+		if subnet.DHCP.Relay == nil {
+			return nil, fmt.Errorf("DHCP relay mode specified but target server unset")
+		}
+		addr, err := resolveServerAddr(subnet.DHCP.Relay.ServerAddress)
+		if err != nil {
+			return nil, err
+		}
+		return &unicastRelay{
+			serverAddr: addr,
+			option82:   subnet.DHCP.Relay.Option82,
+			log:        l.log,
+			netns:      l.netns,
+		}, nil
+	default:
+		return nil, fmt.Errorf("unknown DHCP mode %q", subnet.DHCP.Mode)
+	}
 }
 
 type registerServerParams struct {
@@ -137,7 +187,7 @@ func registerServer(p registerServerParams) error {
 	}
 
 	if p.RelayFactory == nil {
-		return fmt.Errorf("dhcp relay factory is required")
+		return fmt.Errorf("DHCP relay factory is required")
 	}
 
 	var relayNetNS *netns.NetNS
@@ -193,7 +243,7 @@ func newRelayForService(p relayForServiceParams) serviceRelayFactoryFunc {
 		switch mode {
 		case api.RelayRequest_RELAY:
 			if relayCfg == nil || relayCfg.GetServerAddress() == "" {
-				return nil, errors.New("dhcp server address missing")
+				return nil, fmt.Errorf("DHCP server address required in relay mode")
 			}
 			addr, err := resolveServerAddr(relayCfg.GetServerAddress())
 			if err != nil {
@@ -217,7 +267,7 @@ func newRelayForService(p relayForServiceParams) serviceRelayFactoryFunc {
 		case api.RelayRequest_BROADCAST:
 			ifName := iface
 			if ifName == "" {
-				return nil, errors.New("dhcp broadcast relay interface is required")
+				return nil, fmt.Errorf("DHCP broadcast interface required in broadcast mode")
 			}
 			return &broadcastRelay{log: p.Log, netns: relayNetNS, ifname: ifName}, nil
 		default:
