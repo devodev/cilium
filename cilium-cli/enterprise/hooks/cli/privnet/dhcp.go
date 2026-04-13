@@ -162,7 +162,7 @@ func parseIPv4FromIPOutput(output string) (netip.Addr, bool) {
 }
 
 func ipv4PrefixForNetworkSubnet(network NetworkName, subnet SubnetName) (netip.Prefix, bool) {
-	ndata, ok := networkTopology[network]
+	ndata, ok := networkTopology.Networks[network]
 	if !ok {
 		return netip.Prefix{}, false
 	}

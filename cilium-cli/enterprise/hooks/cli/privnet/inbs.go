@@ -177,5 +177,5 @@ func (t *TestRun) assertDegradedState(target NodeName, previous activeINBs) func
 
 func (t *TestRun) expectedStandby(network NetworkName) int {
 	// This is correct under the assumption that INB clusters have a single node.
-	return max(len(networkTopology[network].INBs)-1, 0)
+	return max(len(networkTopology.Networks[network].INBs)-1, 0)
 }

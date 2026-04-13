@@ -360,10 +360,10 @@ func (t *TestRun) renderClusterNetworkTopology(network NetworkName, ndata Networ
 	return append(objs, toK8sObjects(networkObjs)...), nil
 }
 
-func (t *TestRun) renderClusterVMs(ndata NetworkData) ([]k8s.Object, error) {
+func (t *TestRun) renderClusterVMs(vms []DesiredVM) ([]k8s.Object, error) {
 	var objs []k8s.Object
 
-	for _, vm := range ndata.VMs {
+	for _, vm := range vms {
 		type vmData struct {
 			DesiredVM
 			TestNamespace   string
@@ -639,32 +639,13 @@ func (t *TestRun) SetupAndValidate(ctx context.Context) (err error) {
 		return err
 	}
 
-	var (
-		nets, vms []k8s.Object
-		nads      = sets.New[string]()
-	)
-	for network, networkData := range networkTopology {
+	var nets []k8s.Object
+	for network, networkData := range networkTopology.Networks {
 		objs, err := t.renderClusterNetworkTopology(network, networkData)
 		if err != nil {
 			return err
 		}
 		nets = slices.Concat(nets, objs)
-
-		objs, err = t.renderClusterVMs(networkData)
-		if err != nil {
-			return err
-		}
-		vms = slices.Concat(vms, objs)
-
-		updateNetworkMap(t.vms, slices.Concat(
-			cslices.Map(networkData.VMs, DesiredVM.ToVMs)...),
-		)
-
-		for _, vm := range networkData.VMs {
-			if vm.NAD != "" {
-				nads.Insert(vm.NAD)
-			}
-		}
 	}
 
 	cms, err := t.renderConfigMap(echoServerConfigMapName, map[string]string{echoServerConfigMapKey: vmEchoScript})
@@ -674,6 +655,13 @@ func (t *TestRun) SetupAndValidate(ctx context.Context) (err error) {
 
 	if _, _, err := t.applyObjs(ctx, t.client, slices.Concat(nets, []k8s.Object{cms})); err != nil {
 		return err
+	}
+
+	var nads = sets.New[string]()
+	for _, vm := range networkTopology.VMs {
+		if vm.NAD != "" {
+			nads.Insert(vm.NAD)
+		}
 	}
 
 	// Wait for the NetworkAttachmentDefinitions to be generated, before trying
@@ -686,12 +674,21 @@ func (t *TestRun) SetupAndValidate(ctx context.Context) (err error) {
 		}
 	}
 
+	vms, err := t.renderClusterVMs(networkTopology.VMs)
+	if err != nil {
+		return err
+	}
+
+	updateNetworkMap(t.vms, slices.Concat(
+		cslices.Map(networkTopology.VMs, DesiredVM.ToVMs)...),
+	)
+
 	if _, _, err := t.applyObjs(ctx, t.client, vms); err != nil {
 		return err
 	}
 
 	// update network definitions in inb clients and collect unknown endpoints
-	for network, networkData := range networkTopology {
+	for network, networkData := range networkTopology.Networks {
 		err := t.applyINBNetworkTopology(ctx, network, networkData)
 		if err != nil {
 			return err
