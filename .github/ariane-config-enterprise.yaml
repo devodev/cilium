@@ -17,6 +17,7 @@ triggers:
     workflows:
     - enterprise-clustermesh-mixed-routing.yaml
     - enterprise-clustermesh-overlapping-podcidr.yaml
+    - enterprise-evpn.yaml
     - enterprise-fqdn-ha.yaml
     - enterprise-fqdn-ha-upgrade.yaml
     - enterprise-multi-network.yaml
@@ -49,6 +50,9 @@ triggers:
     - enterprise-multi-network.yaml
     depends-on:
     - /build-images
+  /ci-evpn:
+    workflows:
+      - enterprise-evpn.yaml
   /ci-fqdn-ha:
     workflows:
     - enterprise-fqdn-ha.yaml
@@ -156,6 +160,8 @@ workflows:
   enterprise-clustermesh-mixed-routing.yaml:
     paths-ignore-regex: ((bpf/complexity-tests|bpf/tests|test|Documentation|hubble|.github/actions/cl2-modules)/|(.github/renovate\.json5|README.rst|CODEOWNERS|stable.txt|.*\.md|.*_test\.go)$)
   enterprise-clustermesh-overlapping-podcidr.yaml:
+    paths-ignore-regex: ((bpf/complexity-tests|bpf/tests|test|Documentation|hubble|.github/actions/cl2-modules)/|(.github/renovate\.json5|README.rst|CODEOWNERS|stable.txt|.*\.md|.*_test\.go)$)
+  enterprise-evpn.yaml:
     paths-ignore-regex: ((bpf/complexity-tests|bpf/tests|test|Documentation|hubble|.github/actions/cl2-modules)/|(.github/renovate\.json5|README.rst|CODEOWNERS|stable.txt|.*\.md|.*_test\.go)$)
   enterprise-fqdn-ha.yaml:
     paths-ignore-regex: ((bpf/complexity-tests|bpf/tests|test|Documentation|hubble|.github/actions/cl2-modules)/|(.github/renovate\.json5|README.rst|CODEOWNERS|stable.txt|.*\.md|.*_test\.go)$)

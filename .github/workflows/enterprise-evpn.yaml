@@ -1,0 +1,265 @@
+name: Enterprise EVPN (ci-evpn)
+
+# Any change in triggers needs to be reflected in the concurrency group.
+on:
+  workflow_dispatch:
+    inputs:
+      PR-number:
+        description: "Pull request number."
+        required: true
+      context-ref:
+        description: "Context in which the workflow runs. If PR is from a fork, will be the PR target branch (general case). If PR is NOT from a fork, will be the PR branch itself (this allows committers to test changes to workflows directly from PRs)."
+        required: true
+      SHA:
+        description: "SHA under test (head of the PR branch)."
+        required: true
+      base-SHA:
+        description: "SHA of the base branch (target branch of the PR)."
+        required: false
+      extra-args:
+        description: "[JSON object] Arbitrary arguments passed from the trigger comment via regex capture group. Parse with 'fromJson(inputs.extra-args).argName' in workflow."
+        required: false
+        default: '{}'
+  # Run every 12 hours
+  schedule:
+    - cron: '0 */12 * * *'
+
+# By specifying the access of one of the scopes, all of those that are not
+# specified are set to 'none'.
+permissions:
+  # Required by the telemetry collection step
+  actions: read
+  # To be able to access the repository with actions/checkout
+  contents: read
+  # To allow retrieving information from the PR API
+  pull-requests: read
+  # To be able to set commit status
+  statuses: write
+
+concurrency:
+  # Structure:
+  # - Workflow name
+  # - Event type
+  # - A unique identifier depending on event type:
+  #   - schedule: SHA
+  #   - workflow_dispatch: PR number
+  #
+  # This structure ensures a unique concurrency group name is generated for each
+  # type of testing, such that re-runs will cancel the previous run.
+  group: |
+    ${{ github.workflow }}
+    ${{ github.event_name }}
+    ${{
+      (github.event_name == 'push' && github.sha) ||
+      (github.event_name == 'schedule' && github.sha) ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.PR-number)
+    }}
+  cancel-in-progress: true
+
+env:
+  containerlab_version: 0.74.3
+
+jobs:
+  commit-status-start:
+    name: Commit Status Start
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Set initial commit status
+        uses: cilium/cilium/.github/actions/set-commit-status@main
+        with:
+          sha: ${{ inputs.SHA || github.sha }}
+
+  wait-for-images:
+    name: Wait for images
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout context ref (trusted)
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ inputs.context-ref || github.sha }}
+          persist-credentials: false
+      - name: Wait for images
+        uses: ./.github/actions/wait-for-images
+        with:
+          SHA: ${{ inputs.SHA || github.sha }}
+          images: cilium-ci operator-generic-ci hubble-relay-ci
+
+  installation-and-connectivity:
+    name: Installation and Connectivity Test
+    needs: [wait-for-images]
+    runs-on: ${{ vars.GH_RUNNER_EXTRA_POWER }}
+    timeout-minutes: 60
+    env:
+      job_name: 'Installation and Connectivity Test'
+
+    strategy:
+      fail-fast: false
+      max-parallel: 16
+      matrix:
+        include:
+          - name: '1'
+            kernel: '5.15'
+          - name: '2'
+            kernel: '6.1'
+          - name: '3'
+            kernel: '6.18'
+          # TODO: Add RHEL kernel once we can use newer version than rhel8.10 as IPv4-via-IPv6-nexthop support seems to be missing there
+
+    steps:
+      - name: Collect Workflow Telemetry
+        uses: cilium/workflow-telemetry-action@b1a318f80a08acede58027afe1455d037379966f # v2.2.0
+        with:
+          comment_on_pr: false
+
+      - name: Checkout context ref (trusted)
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ inputs.context-ref || github.sha }}
+          persist-credentials: false
+
+      - name: Set Environment Variables
+        uses: ./.github/actions/set-env-variables
+
+      - name: Get Cilium's default values
+        id: default_vars
+        uses: ./.github/actions/helm-default
+        with:
+          image-tag: ${{ inputs.SHA || github.sha }}
+          chart-dir: ./untrusted/install/kubernetes/cilium
+
+      - name: Get connectivity test flags
+        id: e2e_config
+        uses: ./.github/actions/cli-test-config
+        with:
+          hubble: false
+          include-unsafe-tests: true
+
+      - name: Resolve full kernel version
+        id: kernel-version
+        uses: ./.github/actions/resolve-kernel-version
+        with:
+          kernel: ${{ matrix.kernel }}
+
+      - name: Install Cilium CLI
+        uses: cilium/cilium-cli@3ce83aa3b4ea3ce6d97023c4d83c22b73a4ed3b4 # v0.19.2
+        with:
+          skip-build: ${{ env.CILIUM_CLI_SKIP_BUILD }}
+          image-repo: ${{ env.CILIUM_CLI_IMAGE_REPO }}
+          image-tag: ${{ steps.default_vars.outputs.sha }}
+          repository: ${{ env.CILIUM_CLI_RELEASE_REPO }}
+          release-version: ${{ env.CILIUM_CLI_VERSION }}
+
+      - name: Provision K8s on LVH VM
+        uses: ./.github/actions/lvh-kind
+        with:
+          test-name: evpn
+          kernel: ${{ steps.kernel-version.outputs.full }}
+          kind-params: '1 2 evpn-cluster "" none dual'
+          kind-image: ${{ env.KIND_K8S_IMAGE }}
+
+      - name: Install containerlab in LVH VM
+        uses: cilium/little-vm-helper@ad43ff511dd5365a0011ae9f864ec959c36daebf # v0.0.28
+        with:
+          provision: 'false'
+          cmd: |
+            curl -L -o /tmp/containerlab.deb \
+            https://github.com/srl-labs/containerlab/releases/download/v${{ env.containerlab_version }}/containerlab_${{ env.containerlab_version }}_linux_amd64.deb
+            sudo apt install -y /tmp/containerlab.deb
+
+      # Warning: since this is a privileged workflow, subsequent workflow job
+      # steps must take care not to execute untrusted code.
+      - name: Checkout pull request branch (NOT TRUSTED)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ steps.default_vars.outputs.sha }}
+          persist-credentials: false
+          path: untrusted
+          sparse-checkout: |
+            install/kubernetes/cilium
+
+      - name: Deploy containerlab topology
+        uses: cilium/little-vm-helper@ad43ff511dd5365a0011ae9f864ec959c36daebf # v0.0.28
+        with:
+          provision: 'false'
+          cmd: |
+            cd /host/contrib/containerlab/enterprise/evpn && make deploy-lab
+
+      - name: Install Cilium
+        id: install-cilium
+        run: |
+          cilium install --values contrib/containerlab/enterprise/evpn/values.yaml ${{ steps.default_vars.outputs.cilium_install_defaults }}
+
+      - name: Wait for Cilium status to be ready
+        run: |
+          cilium status --wait --wait-duration=10m --interactive=false
+
+      - name: Deploy test configuration
+        run: |
+          cd contrib/containerlab/enterprise/evpn && make config
+
+      - name: Run EVPN connectivity tests
+        shell: bash
+        run: |
+          cilium evpn test --skip-cleanup-on-failure
+          # TODO: generate junits from these tests as well
+
+      - name: Run Cilium connectivity tests
+        run: |
+          mkdir -p cilium-junits
+
+          # Run only a limited subset of tests to reduce the amount of time required.
+          cilium connectivity test \
+            ${{ steps.e2e_config.outputs.test_flags }} \
+            --test='no-unexpected-packet-drops' \
+            --test='no-policies/' \
+            --test='no-policies-extra/' \
+            --test='allow-all-except-world/' \
+            --test='client-ingress/' \
+            --test='client-egress/' \
+            --test='check-log-errors' --log-check-levels=error \
+            --junit-file "cilium-junits/${{ env.job_name }} - cluster (${{ join(matrix.*, ', ') }}).xml" \
+            --junit-property github_job_step="Run tests - cluster (${{ join(matrix.*, ', ') }})"
+          # TODO: Also check warning-level logs once the "Netlink error received, restarting" warning is gone or whitelisted
+
+      - name: Fetch logs
+        if: ${{ !success() }}
+        uses: cilium/little-vm-helper@ad43ff511dd5365a0011ae9f864ec959c36daebf # v0.0.28
+        with:
+          provision: 'false'
+          cmd: |
+            set +e
+            set -x
+            # little-vm-helper wraps cmd in an unquoted heredoc, so escape shell
+            # substitutions here to defer expansion until execution inside the VM.
+            for container in \$(docker container ls --filter label="router=frr" --format "{{.Names}}" | sort); do
+              echo
+              echo "Collecting status from \${container}"
+              docker exec "\${container}" ip route show table all
+              docker exec "\${container}" ip -6 route show table all
+              docker exec "\${container}" vtysh -c "show bgp all"
+              docker exec "\${container}" vtysh -c "show bgp vrf vrf1 all"
+              docker exec "\${container}" vtysh -c "show bgp vrf vrf2 all"
+              docker exec "\${container}" vtysh -c "show bgp neighbors"
+              docker logs "\${container}"
+              docker exec "\${container}" cat /tmp/frr.log
+            done
+
+      - name: Run common post steps
+        if: ${{ always() }}
+        uses: ./.github/actions/post-logic
+        with:
+          artifacts_suffix: "enterprise-evpn-${{ matrix.name }}"
+          job_status: "${{ job.status }}"
+          capture_sysdump: true
+
+  merge-upload-and-status:
+    name: Merge Upload and Status
+    if: ${{ always() }}
+    needs: installation-and-connectivity
+    uses: ./.github/workflows/common-post-jobs.yaml
+    secrets: inherit
+    with:
+      context-ref: ${{ inputs.context-ref || github.sha }}
+      sha: ${{ github.event.pull_request.head.sha || github.sha }}
+      success: ${{ needs.installation-and-connectivity.result == 'success' }}
