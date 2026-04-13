@@ -1,0 +1,31 @@
+debug:
+  enabled: true
+
+devices:
+  - eth0
+  - net0
+
+ipv6:
+  enabled: true
+
+enterprise:
+  featureGate:
+    strict: false
+  bgpControlPlane:
+    enabled: true
+    routeImport:
+      enabled: true
+  privateNetworks:
+    enabled: true
+  evpn:
+    enabled: true
+    securityGroupTags:
+      enabled: true
+      defaultGroupID: 1000
+
+ipam:
+  mode: kubernetes
+
+kubeProxyReplacement: true
+k8sServiceHost: auto
+k8sServicePort: 6443

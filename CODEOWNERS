@@ -930,6 +930,7 @@ Makefile* @cilium/build
 /cilium-cli/enterprise/hooks/manifests/network-policy @isovalent/policy-identity-networking 
 /cilium-cli/enterprise/hooks/sysdump/timescape*.go @isovalent/timescape
 /cilium-cli/enterprise/hooks/policy.go @isovalent/policy-identity-networking 
+/contrib/containerlab/enterprise/evpn/ @isovalent/traffic-engineering
 /contrib/containerlab/enterprise/privnet/ @isovalent/private-networking
 /contrib/scripts/enterprise-check-api-code-gen.sh @isovalent/cilium-agent
 /contrib/scripts/enterprise-codeowners.sh @isovalent/core-structure

@@ -1,0 +1,45 @@
+---
+apiVersion: isovalent.com/v1alpha1
+kind: ClusterwidePrivateNetwork
+metadata:
+  name: network-a
+spec:
+  subnets:
+  - name: evpn-a
+    cidrv4: 192.168.100.0/24
+    cidrv6: fd10:0:100::0/64
+    routes:
+      - destination: 0.0.0.0/0
+        gateway: EVPN
+      - destination: ::/0
+        gateway: EVPN
+  - name: non-evpn-a
+    cidrv4: 192.168.101.0/24
+    cidrv6: fd10:0:101::0/64
+    routes:
+      - destination: 0.0.0.0/0
+        gateway: 1.2.3.4
+  vni: 100
+
+---
+apiVersion: isovalent.com/v1alpha1
+kind: ClusterwidePrivateNetwork
+metadata:
+  name: network-b
+spec:
+  subnets:
+    - name: evpn-b
+      cidrv4: 192.168.200.0/24
+      cidrv6: fd10:0:200::0/64
+      routes:
+        - destination: 0.0.0.0/0
+          gateway: EVPN
+        - destination: ::/0
+          gateway: EVPN
+    - name: non-evpn-b
+      cidrv4: 192.168.201.0/24
+      cidrv6: fd10:0:201::0/64
+      routes:
+        - destination: 0.0.0.0/0
+          gateway: 1.2.3.4
+  vni: 200

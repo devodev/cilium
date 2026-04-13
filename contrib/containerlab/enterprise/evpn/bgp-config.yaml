@@ -1,0 +1,125 @@
+---
+apiVersion: isovalent.com/v1
+kind: IsovalentBGPClusterConfig
+metadata:
+  name: tor-config
+spec:
+  bgpInstances:
+    - name: "cilium-rack0"
+      localASN: 65000
+      peers:
+        - name: "underlay"
+          autoDiscovery:
+            mode: Unnumbered
+            unnumbered:
+              interface: "net0"
+          peerConfigRef:
+            name: "underlay-peer-config"
+        - name: "evpn"
+          peerAddress: 100.64.0.1 # EVPN VTEP IP
+          peerConfigRef:
+            name: "evpn-peer-config"
+      vrfs:
+        - privateNetworkRef:
+            name: network-a
+          configRef: evpn-config
+        - privateNetworkRef:
+            name: network-b
+          configRef: evpn-config
+
+---
+apiVersion: isovalent.com/v1
+kind: IsovalentBGPPeerConfig
+metadata:
+  name: underlay-peer-config
+spec:
+  timers:
+    keepAliveTimeSeconds: 5
+    holdTimeSeconds: 15
+    connectRetryTimeSeconds: 1
+  families:
+    - afi: ipv4
+      safi: unicast
+      advertisements:
+        matchLabels:
+          advertise: "underlay"
+      importPolicyRef:
+        name: underlay-import
+
+---
+apiVersion: isovalent.com/v1
+kind: IsovalentBGPPeerConfig
+metadata:
+  name: evpn-peer-config
+spec:
+  timers:
+    keepAliveTimeSeconds: 5
+    holdTimeSeconds: 15
+    connectRetryTimeSeconds: 1
+  transport:
+    sourceInterface: lo # use VTEP IP as the source interface
+  ebgpMultihop: 5
+  families:
+    - afi: l2vpn
+      safi: evpn
+
+---
+apiVersion: isovalent.com/v1
+kind: IsovalentBGPAdvertisement
+metadata:
+  name: underlay-advertisements
+  labels:
+    advertise: underlay
+spec:
+  advertisements:
+    - advertisementType: "Interface"
+      interface:
+        name: lo  # VTEP IP
+
+---
+apiVersion: isovalent.com/v1
+kind: IsovalentBGPPolicy
+metadata:
+  name: underlay-import
+spec:
+  import:
+    statements:
+      - conditions:
+          prefixesV4:
+            matchType: Or
+            matches:
+              # VTEP subnet
+              - prefix: 100.64.0.0/24
+                minLen: 32
+                maxLen: 32
+        actions:
+          routeAction: Accept
+
+---
+apiVersion: isovalent.com/v1alpha1
+kind: IsovalentBGPVRFConfig
+metadata:
+  name: evpn-config
+spec:
+  families:
+    - afi: ipv6
+      safi: unicast
+      advertisements:
+        matchLabels:
+          advertise-to-evpn: "true"
+    - afi: ipv4
+      safi: unicast
+      advertisements:
+        matchLabels:
+          advertise-to-evpn: "true"
+
+---
+apiVersion: isovalent.com/v1
+kind: IsovalentBGPAdvertisement
+metadata:
+  name: evpn-advertisements
+  labels:
+    advertise-to-evpn: "true"
+spec:
+  advertisements:
+    - advertisementType: "PrivateNetwork"

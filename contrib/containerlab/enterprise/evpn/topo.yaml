@@ -1,0 +1,53 @@
+name: evpn-cluster
+# use custom mgmt network to not overlap with kind network
+mgmt:
+  network: evpn_mgmt
+  ipv4-subnet: 172.100.100.0/24
+  ipv6-subnet: 3fff:172:100:100::/64
+topology:
+  nodes:
+    tor:
+      kind: linux
+      image: quay.io/frrouting/frr:10.4.1
+      labels:
+        router: frr
+      binds:
+        - ./frr:/etc/frr
+      exec:
+        # set up VRFs
+        - /etc/frr/vrf-setup.sh
+        # set IPs on links to Cilium
+        - ip addr add 169.254.0.1/29 dev net0
+        - ip addr add 169.254.0.9/29 dev net1
+        - ip addr add 169.254.0.17/29 dev net2
+    cilium1:
+      kind: linux
+      image: alpine:3.23.4
+      network-mode: container:evpn-cluster-control-plane
+      exec:
+      # VTEP IP
+      - ip addr add 100.64.1.11/32 dev lo
+      # IP on the link to tor
+      - ip addr add 169.254.0.2/29 dev net0
+    cilium2:
+      kind: linux
+      image: alpine:3.23.4
+      network-mode: container:evpn-cluster-worker
+      exec:
+      # VTEP IP
+      - ip addr add 100.64.1.12/32 dev lo
+      # IP on the link to tor
+      - ip addr add 169.254.0.10/29 dev net0
+    cilium3:
+      kind: linux
+      image: alpine:3.23.4
+      network-mode: container:evpn-cluster-worker2
+      exec:
+        # VTEP IP
+        - ip addr add 100.64.1.13/32 dev lo
+        # IP on the link to tor
+        - ip addr add 169.254.0.18/29 dev net0
+  links:
+    - endpoints: ["tor:net0", "cilium1:net0"]
+    - endpoints: ["tor:net1", "cilium2:net0"]
+    - endpoints: ["tor:net2", "cilium3:net0"]
