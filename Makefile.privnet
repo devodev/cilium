@@ -366,7 +366,8 @@ kind-privnet-install-multus: kind-privnet-generate-multus-kustomization
 
 .PHONY: kind-privnet-uninstall-multus
 kind-privnet-uninstall-multus: kind-privnet-generate-multus-kustomization
-	$(QUIET) kubectl kustomize $(ROOT_DIR)/contrib/testing/privnet/multus | kubectl --context kind-privnet-cluster delete -f - --ignore-not-found
+	$(QUIET) kubectl kustomize $(ROOT_DIR)/contrib/testing/privnet/multus | \
+		kubectl --context kind-privnet-cluster delete -f - -l app.kubernetes.io/component!=crd --ignore-not-found
 	$(QUIET) kubectl --context kind-privnet-cluster wait pod -n kube-system -l app=multus --for delete >/dev/null
 
 .PHONY: kind-privnet-generate-multus-kustomization
