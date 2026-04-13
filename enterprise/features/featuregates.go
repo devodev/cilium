@@ -41,6 +41,8 @@ const (
 	logfieldFeature = "feature"
 )
 
+const UnsupportedMaturity = "Unsupported"
+
 var ErrUnsupportedFeatures = errors.New("Unsupported feature(s) enabled")
 
 func featureCheckError(id ID, feat YAMLFeature) error {
@@ -192,6 +194,8 @@ func NewGateChecker(log *slog.Logger, fcfg FeatureGatesConfig) (*gateChecker, er
 func (c *gateChecker) CheckFeatureGates(id ID, feat YAMLFeature) error {
 	level := FeaturesYaml.LevelByName[feat.Maturity]
 	switch {
+	case feat.Maturity == UnsupportedMaturity:
+		return featureCheckError(id, feat)
 	case level.Order <= c.minimumLevel.Order:
 		return nil
 	case c.approvedFeatures.Has(id):

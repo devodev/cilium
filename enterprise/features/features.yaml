@@ -37,10 +37,17 @@ maturity:
 
 - name: Alpha
   description: |
-    Alpha maturity features are either under active development or lack sufficient 
-    testing for production use. Alpha features are not supported for any level of 
+    Alpha maturity features are either under active development or lack sufficient
+    testing for production use. Alpha features are not supported for any level of
     use for Cilium Enterprise.
-  
+
+- name: Unsupported
+  description: |
+    Unsupported maturity indicates features that are not maintained, lack security
+    validation, or have been deprecated. These features are strictly ineligible
+    for Cilium Enterprise support and cannot be enabled through feature gates or
+    configuration overrides under any circumstances.
+
 #
 # Feature declarations
 #

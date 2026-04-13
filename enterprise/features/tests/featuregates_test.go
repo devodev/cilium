@@ -39,7 +39,9 @@ func TestFeatureGates_MinimumMaturity(t *testing.T) {
 			err := gc.CheckFeatureGates(id, feat)
 			level := features.FeaturesYaml.LevelByName[feat.Maturity]
 
-			if level.Order <= minimum.Order {
+			if feat.Maturity == features.UnsupportedMaturity {
+				assert.Error(t, err, "expected Unsupported feature %q to always fail", id)
+			} else if level.Order <= minimum.Order {
 				assert.NoError(t, err, "expected feature %q to pass (maturity %s/%d) with minimum %s/%d", id, level.Name, level.Order, minimum.Name, minimum.Order)
 			} else {
 				assert.Error(t, err, "expected feature %q to fail (maturity %s/%d) with minimum %s/%d", id, level.Name, level.Order, minimum.Name, minimum.Order)
@@ -51,7 +53,8 @@ func TestFeatureGates_MinimumMaturity(t *testing.T) {
 func TestFeatureGates_FeatureGate(t *testing.T) {
 	log := hivetest.Logger(t)
 
-	// Check that each feature can be approved  with a feature gate.
+	// Check that each feature can be approved with a feature gate,
+	// except Unsupported features which must always be rejected.
 	for id, feat := range features.FeaturesYaml.Features {
 		gc, err := features.NewGateChecker(log, features.FeatureGatesConfig{
 			ApprovedFeatures:   []string{id},
@@ -60,7 +63,11 @@ func TestFeatureGates_FeatureGate(t *testing.T) {
 		})
 		if assert.NoError(t, err, "newGateChecker") {
 			err = gc.CheckFeatureGates(id, feat)
-			assert.NoError(t, err, "expected feature %q to pass when added to gates", id)
+			if feat.Maturity == features.UnsupportedMaturity {
+				assert.Error(t, err, "expected Unsupported feature %q to fail even when approved", id)
+			} else {
+				assert.NoError(t, err, "expected feature %q to pass when added to gates", id)
+			}
 		}
 	}
 }
