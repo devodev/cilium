@@ -5,7 +5,7 @@ go 1.25.0
 godebug default=go1.23
 
 require (
-	github.com/cert-manager/cert-manager v1.20.1
+	github.com/cert-manager/cert-manager v1.20.2
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/go-logr/logr v1.4.3
 	github.com/onsi/ginkgo/v2 v2.28.1
