@@ -99,42 +99,35 @@ func newRelayFactory(p relayParams) (RelayFactory, error) {
 		return nil, nil
 	}
 
-	if p.PrivnetConfig.IsLocallyConnected() {
-		var relayNetNS *netns.NetNS
-		if p.TestCfg != nil {
-			relayNetNS = p.TestCfg.NetNS
-		}
-
-		return &localAccessRelayFactory{
-			log:     p.Log,
-			netns:   relayNetNS,
-			db:      p.DB,
-			subnets: p.Subnets,
-		}, nil
+	var relayNetNS *netns.NetNS
+	if p.TestCfg != nil {
+		relayNetNS = p.TestCfg.NetNS
 	}
 
-	return &GRPCRelayFactory{
-		Log:     p.Log,
-		DB:      p.DB,
-		INBs:    p.INBs,
-		Subnets: p.Subnets,
-		Factory: p.ConnFn,
+	return &localRelayFactory{
+		log:     p.Log,
+		netns:   relayNetNS,
+		db:      p.DB,
+		subnets: p.Subnets,
+		grpc: GRPCRelayFactory{
+			Log:     p.Log,
+			DB:      p.DB,
+			INBs:    p.INBs,
+			Subnets: p.Subnets,
+			Factory: p.ConnFn,
+		},
 	}, nil
 }
 
-type localAccessRelayFactory struct {
+type localRelayFactory struct {
 	log     *slog.Logger
 	netns   *netns.NetNS
 	db      *statedb.DB
 	subnets statedb.Table[tables.Subnet]
+	grpc    GRPCRelayFactory
 }
 
-// RelayFor implements [RelayFactory].
-func (l *localAccessRelayFactory) RelayFor(lw *tables.LocalWorkload) (Relayer, error) {
-	subnet, _, found := l.subnets.Get(l.db.ReadTxn(), tables.SubnetsByNetworkAndName(tables.NetworkName(lw.Interface.Network), lw.Subnet))
-	if !found {
-		return nil, fmt.Errorf("subnet %q not found for network %q", lw.Subnet, lw.Interface.Network)
-	}
+func (l *localRelayFactory) relayForSubnet(subnet tables.Subnet) (Relayer, error) {
 	switch subnet.DHCP.Mode {
 	case v1alpha1.PrivateNetworkDHCPModeNone:
 		return nil, fmt.Errorf("DHCP disabled")
@@ -157,6 +150,30 @@ func (l *localAccessRelayFactory) RelayFor(lw *tables.LocalWorkload) (Relayer, e
 	default:
 		return nil, fmt.Errorf("unknown DHCP mode %q", subnet.DHCP.Mode)
 	}
+}
+
+func (l *localRelayFactory) RelayFor(lw *tables.LocalWorkload) (Relayer, error) {
+	if lw == nil {
+		return nil, fmt.Errorf("local workload is nil")
+	}
+
+	subnet, _, found := l.subnets.Get(l.db.ReadTxn(), tables.SubnetsByNetworkAndName(tables.NetworkName(lw.Interface.Network), lw.Subnet))
+	if !found {
+		return nil, fmt.Errorf("subnet %q not found for network %q", lw.Subnet, lw.Interface.Network)
+	}
+
+	if subnet.EgressIfIndex != 0 {
+		if subnet.EgressIfName == "" {
+			return nil, fmt.Errorf("subnet %q in network %q has egress ifindex %d but no egress interface name",
+				lw.Subnet,
+				lw.Interface.Network,
+				subnet.EgressIfIndex,
+			)
+		}
+		return l.relayForSubnet(subnet)
+	}
+
+	return l.grpc.RelayFor(lw)
 }
 
 type registerServerParams struct {
