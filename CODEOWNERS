@@ -1047,6 +1047,7 @@ Makefile* @cilium/build
 /pkg/bgp/**/enterprise_* @isovalent/traffic-engineering
 /pkg/clustermesh/**/enterprise_* @isovalent/clustermesh
 /pkg/datapath/**/enterprise*.go @isovalent/cilium-datapath
+/pkg/datapath/config/enterprise_evpn* @isovalent/traffic-engineering
 /pkg/datapath/ipcache/enterprise_listener.go @isovalent/clustermesh
 /pkg/endpoint/enterprise_endpoint.go @isovalent/private-networking
 /pkg/fqdn/**/*enterprise* @isovalent/dns-proxy
