@@ -47,6 +47,10 @@ const (
 	egressGatewayPrefix                 = "egw.isovalent.com"
 	nodeEgressGatewayKey                = egressGatewayPrefix + "/node"
 	nodeEgressGatewayUnschedulableValue = "unschedulable"
+
+	selectionTypePrimary            = "primary"
+	selectionTypeAzAffinityPrimary  = "azAffinityPrimary"
+	selectionTypeAzAffinityBackfill = "azAffinityBackfill"
 )
 
 // affinityZoneNoZone is the name of an "internal-only" affinity zone used to group together all
@@ -163,7 +167,7 @@ func buildStatusConditions(prev, next []meta_v1.Condition) []meta_v1.Condition {
 	return out
 }
 
-func (gc *groupConfig) selectActiveGateways(config *PolicyConfig, status *groupStatus, availableHealthyGatewayIPs []netip.Addr) []netip.Addr {
+func (gc *groupConfig) selectActiveGateways(logger *slog.Logger, config *PolicyConfig, status *groupStatus, availableHealthyGatewayIPs []netip.Addr) []netip.Addr {
 	// Selects the active GWs from a list of the healthy GWs with random probability
 	// using a uid as a seed to make the result deterministic. The result is used for the
 	// non AZ affinity case.
@@ -174,18 +178,22 @@ func (gc *groupConfig) selectActiveGateways(config *PolicyConfig, status *groupS
 	if status != nil {
 		currentActiveGWs = status.activeGatewayIPs
 	}
-	return doSelection(currentActiveGWs, availableHealthyGatewayIPs, string(config.uid), gc.maxGatewayNodes)
+	return doSelection(logger.With(logfieldSelectionType, selectionTypePrimary),
+		currentActiveGWs, availableHealthyGatewayIPs, string(config.uid), gc.maxGatewayNodes)
 }
 
-func (gc *groupConfig) selectActiveGatewaysByAZ(config *PolicyConfig, status *groupStatus,
+func (gc *groupConfig) selectActiveGatewaysByAZ(logger *slog.Logger, config *PolicyConfig, status *groupStatus,
 	availableByZone zoneToAvailable, availableHealthyGatewayIPsByAZ map[string][]netip.Addr, selectionMetrics *gatewaySelectionMetrics, groupIndex int) map[string][]netip.Addr {
 	activeGatewayIPsByAZ := make(map[string][]netip.Addr)
+	logger = logger.With(logfieldAffinityMode, config.azAffinity.toString())
+
 	// nonLocalActiveGatewayIPs is a helper that returns, given a particular AZ, a slice of non local gateways for
 	// that AZ.
 	//
 	// This function selects active non-local GWs from a list of healthy non-local GWs with random probability
 	// using a target zone name as a seed to make the result deterministic.
-	nonLocalActiveGatewayIPs := func(targetAz string, maxGW int, currentActiveNonLocalGWs []netip.Addr, availableHealthyGatewayIPsByAZ map[string][]netip.Addr) []netip.Addr {
+	nonLocalActiveGatewayIPs := func(logger *slog.Logger, targetAz string, neededGatewayNodes int, currentActiveNonLocalGWs []netip.Addr,
+		availableHealthyGatewayIPsByAZ map[string][]netip.Addr) []netip.Addr {
 		// sort the AZs lexicographically
 		sortedAZs := slices.Collect(maps.Keys(availableHealthyGatewayIPsByAZ))
 		slices.Sort(sortedAZs)
@@ -197,7 +205,12 @@ func (gc *groupConfig) selectActiveGatewaysByAZ(config *PolicyConfig, status *gr
 			}
 		}
 
-		return selectActiveGWs(targetAz, maxGW, currentActiveNonLocalGWs, healthyNonLocalGWs)
+		logger.Info("selecting active gateways",
+			logfieldStatusActiveGatewayIPs, currentActiveNonLocalGWs,
+			logfieldGatewaySelectionKey, targetAz,
+			logfieldsNeededGateways, neededGatewayNodes)
+
+		return selectActiveGWs(targetAz, neededGatewayNodes, currentActiveNonLocalGWs, healthyNonLocalGWs)
 	}
 
 	// doBackfillForAZ makes a selection of gateways for a particular az to attempt
@@ -206,7 +219,7 @@ func (gc *groupConfig) selectActiveGatewaysByAZ(config *PolicyConfig, status *gr
 	// Inputs:
 	// * current activeGatewayIPsByAZ
 	// * prev activeGatewayIPsByAZ
-	doBackfillForAZ := func(az string) []netip.Addr {
+	doBackfillForAZ := func(logger *slog.Logger, az string) []netip.Addr {
 		var currentNonLocalActiveGWs []netip.Addr
 		if status != nil {
 			currentNonLocalActiveGWs = selectCurrentNonLocalActiveByAZ(
@@ -219,7 +232,7 @@ func (gc *groupConfig) selectActiveGatewaysByAZ(config *PolicyConfig, status *gr
 		// nodes. We don't attempt to backfill unless we have 0 active selected but guard against negatives
 		// regardless.
 		needed := max(gc.maxGatewayNodes-len(activeGatewayIPsByAZ[az]), 0)
-		return nonLocalActiveGatewayIPs(az, needed, currentNonLocalActiveGWs, availableHealthyGatewayIPsByAZ)
+		return nonLocalActiveGatewayIPs(logger, az, needed, currentNonLocalActiveGWs, availableHealthyGatewayIPsByAZ)
 	}
 
 	// if AZ affinity is enabled,
@@ -227,12 +240,17 @@ func (gc *groupConfig) selectActiveGatewaysByAZ(config *PolicyConfig, status *gr
 	// If the selected active GW list is not enough, choose from the non-local active GW list later
 	// according to the azAffinity config.
 	for az, healthyGatewayIPs := range availableHealthyGatewayIPsByAZ {
+		logger := logger.With(logfields.Zone, az)
+
 		var currentLocalActiveGWs []netip.Addr
 		if status != nil {
 			currentLocalActiveGWs = status.activeGatewayIPsByAZ[az]
 		}
-		activeGatewayIPsByAZ[az] = doSelection(currentLocalActiveGWs, healthyGatewayIPs, az, gc.maxGatewayNodes)
+		activeGatewayIPsByAZ[az] = doSelection(logger.With(logfieldSelectionType, selectionTypeAzAffinityPrimary),
+			currentLocalActiveGWs, healthyGatewayIPs, az, gc.maxGatewayNodes)
 		selectionMetrics.activeGatewaysByAZ[az] = activeGatewaysByMetrics{local: len(activeGatewayIPsByAZ[az]), remote: 0}
+
+		logger = logger.With(logfieldSelectionType, selectionTypeAzAffinityBackfill)
 
 		// next do a second pass to populate the per-AZ list of active gateways
 		switch config.azAffinity {
@@ -242,13 +260,13 @@ func (gc *groupConfig) selectActiveGatewaysByAZ(config *PolicyConfig, status *gr
 			// only if there are no local gateways for any groupConfig in this policy
 			// do we pick the ones from the other AZs
 			if len(activeGatewayIPsByAZ[az]) == 0 && !availableByZone.hasAvailableGateways(az) {
-				activeGatewayIPsByAZ[az] = doBackfillForAZ(az)
+				activeGatewayIPsByAZ[az] = doBackfillForAZ(logger, az)
 				// if zero in this AZ, but policyScoped AZ was not empty we skip doBackfillForAZ
 				selectionMetrics.activeGatewaysByAZ[az] = activeGatewaysByMetrics{local: 0, remote: len(activeGatewayIPsByAZ[az])}
 			}
 		case azAffinityLocalPriority:
 			if gc.maxGatewayNodes != 0 && len(activeGatewayIPsByAZ[az]) < gc.maxGatewayNodes {
-				nonLocalActiveGWs := doBackfillForAZ(az)
+				nonLocalActiveGWs := doBackfillForAZ(logger, az)
 				activeGatewayIPsByAZ[az] = append(activeGatewayIPsByAZ[az], nonLocalActiveGWs...)
 
 				selectionMetrics.activeGatewaysByAZ[az] = activeGatewaysByMetrics{
@@ -782,18 +800,26 @@ type activeGatewaysByMetrics struct {
 
 // updateGroupStatuses updates the list of active and healthy gateway IPs in the
 // IEGP k8s resource for the receiver PolicyConfig
-func (config *PolicyConfig) updateGroupStatuses(operatorManager *OperatorManager, tx statedb.WriteTxn) error {
+func (config *PolicyConfig) updateGroupStatuses(logger *slog.Logger, operatorManager *OperatorManager, tx statedb.WriteTxn) error {
+	logger = logger.With(logfields.IsovalentEgressGatewayPolicyName, config.id.Name)
+
 	haveSeenLatestIEGP := config.groupStatusesGeneration == config.generation
 
 	groupStatuses := make([]groupStatus, 0, len(config.groupConfigs))
 	selectionMetricsList := make([]gatewaySelectionMetrics, 0, len(config.groupConfigs))
 
-	allAZs, policyHealthyGatewayIPs := config.preComputePolicyHealthyGateways(operatorManager)
+	allAZs, policyHealthyGatewayIPs := config.preComputePolicyHealthyGateways(logger, operatorManager)
 
 	for i, gc := range config.groupConfigs {
+		logger := logger.With(logfieldGroupIndex, i)
+
 		var status *groupStatus
 		if haveSeenLatestIEGP && i < len(config.groupStatuses) {
 			status = &config.groupStatuses[i]
+
+			logger.Info("using current status for active gateway selection",
+				logfieldStatusActiveGatewayIPs, status.activeGatewayIPs,
+				logfieldStatusActiveGatewayIPsByAZ, status.activeGatewayIPsByAZ)
 		}
 
 		sm := gatewaySelectionMetrics{
@@ -809,11 +835,11 @@ func (config *PolicyConfig) updateGroupStatuses(operatorManager *OperatorManager
 
 		if config.azAffinity.enabled() {
 			availableHealthyGatewayIPsByAZ, availByZone := computeAvailableHealthyGatewaysByAZ(allAZs, policyHealthyGatewayIPs, i)
-			gs.activeGatewayIPsByAZ = gc.selectActiveGatewaysByAZ(config, status,
+			gs.activeGatewayIPsByAZ = gc.selectActiveGatewaysByAZ(logger, config, status,
 				availByZone, availableHealthyGatewayIPsByAZ, &sm, i)
 		}
 
-		gs.activeGatewayIPs = gc.selectActiveGateways(config, status,
+		gs.activeGatewayIPs = gc.selectActiveGateways(logger, config, status,
 			computeAvailableHealthyGatewayIPs(healthyGatewayNodes))
 
 		sm.activeGateways = len(gs.activeGatewayIPs)
@@ -841,11 +867,7 @@ func (config *PolicyConfig) updateGroupStatuses(operatorManager *OperatorManager
 	// status of the corresponding IEGP k8s resource
 	iegp, ok := operatorManager.policyCache[config.id]
 	if !ok {
-		operatorManager.logger.Error(
-			"Cannot find cached policy, group statuses will not be updated",
-			logfields.IsovalentEgressGatewayPolicyName, config.id.Name,
-		)
-
+		logger.Error("Cannot find cached policy, group statuses will not be updated")
 		return nil
 	}
 
@@ -862,7 +884,6 @@ func (config *PolicyConfig) updateGroupStatuses(operatorManager *OperatorManager
 		return nil
 	}
 
-	logger := operatorManager.logger.With(logfields.IsovalentEgressGatewayPolicyName, config.id.Name)
 	logger.Debug("Updating policy", logfields.Status, newIEGP.Status)
 
 	updatedIEGP, err := operatorManager.clientset.IsovalentV1().IsovalentEgressGatewayPolicies().

@@ -440,7 +440,7 @@ func Test_preComputePolicyHealthyGatewaysWithAZAffinity(t *testing.T) {
 				healthchecker: hc,
 			}
 
-			azs, actual := tt.policyConfig.preComputePolicyHealthyGateways(m)
+			azs, actual := tt.policyConfig.preComputePolicyHealthyGateways(hivetest.Logger(t), m)
 			require.Len(t, actual, len(tt.expectedGWs))
 			for i, gw := range actual {
 				expected := tt.expectedGWs[i]

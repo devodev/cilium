@@ -13,6 +13,7 @@ import (
 
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/statedb"
+	"github.com/google/uuid"
 	"github.com/spf13/pflag"
 	core_v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -190,7 +191,8 @@ func newEgressGatewayOperatorManager(p OperatorParams) *OperatorManager {
 					operatorManager.Lock()
 					defer operatorManager.Unlock()
 					tx := operatorManager.db.WriteTxn(operatorManager.policyConfigsTable)
-					operatorManager.reconcileLocked(tx)
+					logger := operatorManager.logger.With(logfieldReconcileTraceID, uuid.New().String())
+					operatorManager.reconcileLocked(logger, tx)
 					tx.Commit()
 				},
 			})
@@ -521,9 +523,9 @@ func (operatorManager *OperatorManager) regenerateGatewayNodesList(tx statedb.Re
 	operatorManager.gatewayNodeDataStore = nodes
 }
 
-func (operatorManager *OperatorManager) updatePolicesGroupStatuses(tx statedb.WriteTxn) {
+func (operatorManager *OperatorManager) updatePolicesGroupStatuses(logger *slog.Logger, tx statedb.WriteTxn) {
 	for config := range operatorManager.policyConfigsTable.All(tx) {
-		err := config.updateGroupStatuses(operatorManager, tx)
+		err := config.updateGroupStatuses(logger, operatorManager, tx)
 		if err != nil {
 			operatorManager.reconciliationTrigger.TriggerWithReason("retry after error")
 		}
@@ -611,7 +613,7 @@ func (operatorManager *OperatorManager) updateEgressCIDRConflicts(tx statedb.Rea
 
 // Whenever it encounters an error, it will just log it and move to the next
 // item, in order to reconcile as many states as possible.
-func (operatorManager *OperatorManager) reconcileLocked(tx statedb.WriteTxn) {
+func (operatorManager *OperatorManager) reconcileLocked(logger *slog.Logger, tx statedb.WriteTxn) {
 	var healthyNodes, activeNodes sets.Set[string]
 
 	if !operatorManager.allCachesSynced {
@@ -650,5 +652,5 @@ func (operatorManager *OperatorManager) reconcileLocked(tx statedb.WriteTxn) {
 	operatorManager.healthchecker.UpdateNodeList(operatorManager.gatewayNodeDataStore, healthyNodes, activeNodes)
 
 	operatorManager.updateEgressCIDRConflicts(tx)
-	operatorManager.updatePolicesGroupStatuses(tx)
+	operatorManager.updatePolicesGroupStatuses(logger, tx)
 }

@@ -12,8 +12,10 @@ package egressgatewayha
 
 import (
 	"fmt"
+	"log/slog"
 	"net/netip"
 	"slices"
+	"strings"
 
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	nodeTypes "github.com/cilium/cilium/pkg/node/types"
@@ -50,6 +52,12 @@ type gatewayNodeIP struct {
 	available bool
 }
 
+func (gni *gatewayNodeIP) toStringCompact() string {
+	selecting := strings.ReplaceAll(fmt.Sprintf("%v", gni.selectingGroupIndices), " ", ",")
+	return fmt.Sprintf("{%s,%v,%q,%v}",
+		gni.ip, selecting, gni.zone, gni.available)
+}
+
 func (gni *gatewayNodeIP) selectsGroupIndex(index int) bool {
 	return slices.Contains(gni.selectingGroupIndices, index)
 }
@@ -70,7 +78,7 @@ func parseNodeIP(n nodeTypes.Node) netip.Addr {
 	return nodeIP
 }
 
-func (config *PolicyConfig) preComputePolicyHealthyGateways(operatorManager *OperatorManager) (
+func (config *PolicyConfig) preComputePolicyHealthyGateways(logger *slog.Logger, operatorManager *OperatorManager) (
 	allAZs sets.Set[string], policyHealthyGatewayIPs []gatewayNodeIP) {
 	allAZs = sets.New[string]()
 
@@ -85,12 +93,14 @@ func (config *PolicyConfig) preComputePolicyHealthyGateways(operatorManager *Ope
 
 	logInvalidNodes := func(gn gatewayNodeIP) {
 		if config.azAffinity.enabled() && !gn.zoneOK() {
-			operatorManager.logger.Warn(
+			logger.Warn(
 				fmt.Sprintf("AZ affinity is enabled but node is missing %s label. Node will be ignored", core_v1.LabelTopologyZone),
 				logfields.NodeName, gn.Node.Name,
 			)
 		}
 	}
+
+	var unreachable []netip.Addr
 
 	var policyHealthyGateways []gatewayNodeIP
 	for _, n := range operatorManager.nodes {
@@ -105,7 +115,12 @@ func (config *PolicyConfig) preComputePolicyHealthyGateways(operatorManager *Ope
 
 		recordZone(gn)
 
-		if !gn.ip.IsValid() || !gn.isSelected() || !operatorManager.nodeIsReachable(gn.Node.Name) {
+		if !gn.ip.IsValid() || !gn.isSelected() {
+			continue
+		}
+
+		if !operatorManager.nodeIsReachable(gn.Node.Name) {
+			unreachable = append(unreachable, gn.ip)
 			continue
 		}
 
@@ -113,6 +128,9 @@ func (config *PolicyConfig) preComputePolicyHealthyGateways(operatorManager *Ope
 
 		policyHealthyGateways = append(policyHealthyGateways, gn)
 	}
+
+	logger.Info("skipped unreachable nodes", logfieldPolicyUnreachableGatewayIPs, unreachable)
+	logPolicyHealthyGatewayIPs(logger, policyHealthyGateways)
 
 	return allAZs, policyHealthyGateways
 }
@@ -183,20 +201,32 @@ func computeAvailableHealthyGatewaysByAZ(allAZs sets.Set[string], policyHealthyG
 
 // doSelection performs an active gateway selection, given a status active (i.e. currently active) and available set.
 // Priority is given to current status active to ensure stability across selections and selectionKey.
-func doSelection(statusActiveGateways, availableHealthyGatewayIPs []netip.Addr, selectionKey string, maxGatewayNodes int) []netip.Addr {
+func doSelection(logger *slog.Logger, statusActiveGateways, availableHealthyGatewayIPs []netip.Addr, selectionKey string, neededGatewayNodes int) []netip.Addr {
 	var currentLocalActiveGWs []netip.Addr
+	// statusNotAvailable is nodes that were previously in the statuses active set but
+	// are no longer available for stable selection due zone change or not being available.
+	var statusNotAvailable []netip.Addr
 	if len(statusActiveGateways) != 0 {
 		// we have to reverify they're still local and active.
 		availableForReselection := sets.New(availableHealthyGatewayIPs...).Has
 		for _, activeGW := range statusActiveGateways {
 			if !availableForReselection(activeGW) {
+				// track just for tracing.
+				statusNotAvailable = append(statusNotAvailable, activeGW)
 				continue
 			}
 			currentLocalActiveGWs = append(currentLocalActiveGWs, activeGW)
 		}
 	}
+
+	logger.Info("selecting active gateways",
+		logfieldStatusActiveGatewayIPs, statusActiveGateways,
+		logfieldStatusNotAvailable, statusNotAvailable,
+		logfieldGatewaySelectionKey, selectionKey,
+		logfieldsNeededGateways, neededGatewayNodes)
+
 	// seed with zone
-	return selectActiveGWs(selectionKey, maxGatewayNodes, currentLocalActiveGWs, availableHealthyGatewayIPs)
+	return selectActiveGWs(selectionKey, neededGatewayNodes, currentLocalActiveGWs, availableHealthyGatewayIPs)
 }
 
 // selectCurrentNonLocalActiveByAZ re-selects from a set of currently active gateways.
