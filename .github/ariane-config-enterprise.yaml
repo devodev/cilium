@@ -27,6 +27,7 @@ triggers:
     - enterprise-ingress-policy.yaml
     - enterprise-standalone-egress-gateway.yaml
     - enterprise-kind-hubble-rbac.yaml
+    - enterprise-privnet.yaml
     depends-on:
     - /build-images
   /backport (.+):
@@ -134,6 +135,11 @@ triggers:
     - enterprise-kind-hubble-rbac.yaml
     depends-on:
     - /build-images
+  /ci-privnet:
+    workflows:
+      - enterprise-privnet.yaml
+    depends-on:
+      - /build-images
   /build-images: #this trigger is not meant to be used in comments, as oss build workflows are not triggered by Ariane. Having this trigger allows us to have others depend on oss images workflow though.
     workflows:
     - enterprise-build-images-ci.yaml
@@ -183,6 +189,8 @@ workflows:
     paths-regex: (enterprise/olm/)
   enterprise-kind-integrated-timescape.yaml:
     paths-ignore-regex: (Documentation/|test/)
+  enterprise-privnet.yaml:
+    paths-ignore-regex: ((bpf/complexity-tests|bpf/tests|test|Documentation|hubble|.github/actions/cl2-modules)/|(.github/renovate\.json5|README.rst|CODEOWNERS|stable.txt|.*\.md|.*_test\.go)$)
 
 feedback:
   verbose: true

@@ -861,6 +861,7 @@ Makefile* @cilium/build
 /.github/workflows/enterprise-multi-network.yaml @isovalent/multi-network
 /.github/workflows/enterprise-multicast.yaml @isovalent/traffic-engineering
 /.github/workflows/enterprise-panda-scale.yaml @isovalent/scalability-performance
+/.github/workflows/enterprise-privnet.yaml @isovalent/private-networking
 /.github/workflows/enterprise-release-cilium-cli.yaml @isovalent/cli
 /.github/workflows/enterprise-*srv6*.yaml @isovalent/traffic-engineering
 /.github/workflows/enterprise-fqdn-ha-perf.yaml @isovalent/dns-proxy @isovalent/scalability-performance

@@ -1,0 +1,475 @@
+name: Enterprise Private Networks (ci-privnet)
+
+# Any change in triggers needs to be reflected in the concurrency group.
+on:
+  workflow_dispatch:
+    inputs:
+      PR-number:
+        description: "Pull request number."
+        required: true
+      context-ref:
+        description: "Context in which the workflow runs. If PR is from a fork, will be the PR target branch (general case). If PR is NOT from a fork, will be the PR branch itself (this allows committers to test changes to workflows directly from PRs)."
+        required: true
+      SHA:
+        description: "SHA under test (head of the PR branch)."
+        required: true
+      base-SHA:
+        description: "SHA of the base branch (target branch of the PR)."
+        required: false
+      extra-args:
+        description: "[JSON object] Arbitrary arguments passed from the trigger comment via regex capture group. Parse with 'fromJson(inputs.extra-args).argName' in workflow."
+        required: false
+        default: '{}'
+  # Run every 8 hours
+  schedule:
+    - cron: '0 */8 * * *'
+
+# By specifying the access of one of the scopes, all of those that are not
+# specified are set to 'none'.
+permissions:
+  # Required by the telemetry collection step
+  actions: read
+  # To be able to access the repository with actions/checkout
+  contents: read
+  # To allow retrieving information from the PR API
+  pull-requests: read
+  # To be able to set commit status
+  statuses: write
+
+concurrency:
+  # Structure:
+  # - Workflow name
+  # - Event type
+  # - A unique identifier depending on event type:
+  #   - schedule: SHA
+  #   - workflow_dispatch: PR number
+  #
+  # This structure ensures a unique concurrency group name is generated for each
+  # type of testing, such that re-runs will cancel the previous run.
+  group: |
+    ${{ github.workflow }}
+    ${{ github.event_name }}
+    ${{
+      (github.event_name == 'schedule' && github.sha) ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.PR-number)
+    }}
+  cancel-in-progress: true
+
+env:
+  # renovate: datasource=github-releases depName=srl-labs/containerlab
+  CONTAINERLAB_VERSION: 0.74.3
+
+  # renovate: datasource=github-releases depName=cert-manager/cert-manager
+  CERT_MANAGER_VERSION: v1.17.2
+
+jobs:
+  commit-status-start:
+    name: Commit Status Start
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Set initial commit status
+        uses: cilium/cilium/.github/actions/set-commit-status@main
+        with:
+          sha: ${{ inputs.SHA || github.sha }}
+
+  wait-for-images:
+    name: Wait for images
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout context ref (trusted)
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ inputs.context-ref || github.sha }}
+          persist-credentials: false
+
+      - name: Wait for images
+        uses: ./.github/actions/wait-for-images
+        with:
+          SHA: ${{ inputs.SHA || github.sha }}
+          images: cilium-ci operator-generic-ci clustermesh-apiserver-ci
+
+  installation-and-connectivity:
+    name: Installation and Connectivity Test
+    needs: [wait-for-images]
+    runs-on: ${{ vars.GH_RUNNER_EXTRA_POWER }}
+    timeout-minutes: 60
+    env:
+      job_name: 'Installation and Connectivity Test'
+
+    strategy:
+      fail-fast: false
+      max-parallel: 16
+      matrix:
+        include:
+          - name: '1'
+            k8s-routing-mode: 'tunnel'
+          - name: '2'
+            k8s-routing-mode: 'native'
+
+    steps:
+      - name: Collect Workflow Telemetry
+        uses: cilium/workflow-telemetry-action@b1a318f80a08acede58027afe1455d037379966f # v2.2.0
+        with:
+          comment_on_pr: false
+
+      - name: Checkout context ref (trusted)
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ inputs.context-ref || github.sha }}
+          persist-credentials: false
+
+      - name: Set Environment Variables
+        uses: ./.github/actions/set-env-variables
+
+      - name: Get Cilium's default values
+        id: default_vars
+        uses: ./.github/actions/helm-default
+        with:
+          image-tag: ${{ inputs.SHA || github.sha }}
+          chart-dir: ./untrusted/install/kubernetes/cilium
+
+      - name: Get connectivity test flags
+        id: e2e_config
+        uses: ./.github/actions/cli-test-config
+        with:
+          hubble: false
+          include-unsafe-tests: true
+
+      - name: Set up job variables
+        id: vars
+        run: |
+          CILIUM_INSTALL_DEFAULTS="${{ steps.default_vars.outputs.cilium_install_defaults }} \
+            --set ipv4.enabled=true \
+            --set ipv6.enabled=true \
+            --set tunnelProtocol=vxlan \
+            --set enterprise.clustermesh.mixedRoutingMode.enabled=true \
+            --set kubeProxyReplacement=true \
+            --set socketLB.enabled=true \
+            --set socketLB.hostNamespaceOnly=true \
+            --set bpf.masquerade=true \
+            --set ipam.mode=kubernetes \
+            --set clustermesh.useAPIServer=true \
+            --set clustermesh.apiserver.tls.auto.method=certmanager \
+            --set clustermesh.apiserver.tls.auto.certManagerIssuerRef.group=cert-manager.io \
+            --set clustermesh.apiserver.tls.auto.certManagerIssuerRef.kind=Issuer \
+            --set clustermesh.apiserver.tls.auto.certManagerIssuerRef.name=cilium \
+            --set clustermesh.config.enabled=true \
+            --set extraConfig.clustermesh-sync-timeout=10m \
+            --set hubble.enabled=true \
+            --set hubble.eventBufferCapacity=65535 \
+            --set hubble.tls.auto.method=certmanager \
+            --set hubble.tls.auto.certManagerIssuerRef.group=cert-manager.io \
+            --set hubble.tls.auto.certManagerIssuerRef.kind=Issuer \
+            --set hubble.tls.auto.certManagerIssuerRef.name=cilium \
+            --set enterprise.privateNetworks.enabled=true \
+            --set enterprise.privateNetworks.api.tls.enabled=true \
+            --set enterprise.privateNetworks.api.tls.method=certmanager \
+            --set enterprise.privateNetworks.api.tls.certmanager.issuerRef.group=cert-manager.io \
+            --set enterprise.privateNetworks.api.tls.certmanager.issuerRef.kind=Issuer \
+            --set enterprise.privateNetworks.api.tls.certmanager.issuerRef.name=cilium \
+          "
+
+          CILIUM_INSTALL_K8S=" \
+            --set cni.exclusive=false \
+            --set cni.confPath=/etc/cni/net.d/delegates \
+            --set enterprise.privateNetworks.networkAttachmentDefinitions.enabled=true \
+          "
+
+          if [ "${{ matrix.k8s-routing-mode }}" = "native" ]; then
+            CILIUM_INSTALL_K8S+=" \
+              --set routingMode=native \
+              --set autoDirectNodeRoutes=true \
+              --set ipv4NativeRoutingCIDR=10.196.0.0/16 \
+              --set ipv6NativeRoutingCIDR=fd00:10:196::/48 \
+            "
+          else
+            CILIUM_INSTALL_K8S+=" \
+              --set routingMode=tunnel \
+            "
+          fi
+
+          CILIUM_INSTALL_WEBHOOK=" \
+            --set enterprise.privateNetworks.webhook.enabled=true \
+            --set enterprise.privateNetworks.webhook.vms.networkBinding=isovalent-networking
+            --set enterprise.privateNetworks.webhook.vms.inventory.url=http://privnet-inventory:8000 \
+            --set enterprise.privateNetworks.webhook.vms.inventory.caBundle.configMap.name= \
+            --set enterprise.privateNetworks.webhook.tls.method=certmanager \
+            --set enterprise.privateNetworks.webhook.tls.certmanager.issuerRef.group=cert-manager.io \
+            --set enterprise.privateNetworks.webhook.tls.certmanager.issuerRef.kind=Issuer \
+            --set enterprise.privateNetworks.webhook.tls.certmanager.issuerRef.name=cilium \
+          "
+
+          CILIUM_INSTALL_INB=" \
+            --set enterprise.privateNetworks.mode=bridge \
+            --set routingMode=tunnel \
+            --set devices={eth+} \
+          "
+
+          # Run only a limited subset of tests to reduce the amount of time required.
+          CONNECTIVITY_TEST_DEFAULTS=" \
+            ${{ steps.e2e_config.outputs.test_flags }} \
+            --force-deploy \
+            --test='no-unexpected-packet-drops' \
+            --test='check-log-errors' \
+            --test='no-policies/' \
+            --test='no-policies-extra/' \
+            --test='allow-all-except-world/' \
+            --test='client-ingress/' \
+            --test='client-egress/' \
+            --test='cluster-entity-multi-cluster/' \
+            --test='health/' \
+          "
+
+          echo cilium_install_defaults=${CILIUM_INSTALL_DEFAULTS} >> $GITHUB_OUTPUT
+          echo cilium_install_defaults_webhook=${CILIUM_INSTALL_WEBHOOK} >> $GITHUB_OUTPUT
+          echo cilium_install_defaults_k8s=${CILIUM_INSTALL_K8S} >> $GITHUB_OUTPUT
+          echo cilium_install_defaults_inb=${CILIUM_INSTALL_INB} >> $GITHUB_OUTPUT
+          echo connectivity_test_defaults=${CONNECTIVITY_TEST_DEFAULTS} >> $GITHUB_OUTPUT
+
+      - name: Install Cilium CLI
+        uses: cilium/cilium-cli@3ce83aa3b4ea3ce6d97023c4d83c22b73a4ed3b4 # v0.19.2
+        with:
+          skip-build: ${{ env.CILIUM_CLI_SKIP_BUILD }}
+          image-repo: ${{ env.CILIUM_CLI_IMAGE_REPO }}
+          image-tag: ${{ steps.default_vars.outputs.sha }}
+          repository: ${{ env.CILIUM_CLI_RELEASE_REPO }}
+          release-version: ${{ env.CILIUM_CLI_VERSION }}
+
+      - name: Install containerlab
+        run: |
+          curl -L -o /tmp/containerlab.deb \
+            https://github.com/srl-labs/containerlab/releases/download/v${{ env.CONTAINERLAB_VERSION }}/containerlab_${{ env.CONTAINERLAB_VERSION }}_linux_amd64.deb
+          sudo apt install -y /tmp/containerlab.deb
+
+      - name: Setup the test environment
+        run: |
+          PRIVNET_KIND_IMAGE=${{ env.KIND_K8S_IMAGE }} make kind-privnet-up
+
+      - name: Deploy the Multus and Forklift CRDs
+        run: |
+          make kind-privnet-multus-crds
+          make kind-privnet-forklift-crds
+
+      - name: Install cert-manager CRDs and create Cilium's issuer
+        run: |
+          # Generate the Cilium CA key and certificate
+          openssl genrsa 4096 > cilium-ca-key.pem
+          openssl req -new -x509 -nodes -days 1 -key cilium-ca-key.pem -out cilium-ca-crt.pem -subj "/CN=Cilium CA/"
+
+          cat << EOF > issuer.yaml
+          apiVersion: cert-manager.io/v1
+          kind: Issuer
+          metadata:
+            name: cilium
+            namespace: kube-system
+          spec:
+            ca:
+              secretName: cilium-root-ca
+          EOF
+
+          for ctx in kind-privnet-cluster kind-privnet-inb0 kind-privnet-inb1; do
+            # Install the cert-manager CRDs
+            CRD_URL="https://github.com/cert-manager/cert-manager/releases/download/${{ env.CERT_MANAGER_VERSION }}/cert-manager.crds.yaml"
+            kubectl --context $ctx apply -f $CRD_URL
+
+            # Create the Cilium CA secret
+            kubectl --context $ctx create -n kube-system secret tls cilium-root-ca \
+              --key=cilium-ca-key.pem --cert=cilium-ca-crt.pem
+
+            # Create the cert-manager issuer
+            kubectl --context $ctx apply -f issuer.yaml
+          done
+
+      - name: Set clustermesh connection parameters
+        id: clustermesh-vars
+        run: |
+          IP1=$(kubectl --context kind-privnet-cluster get nodes \
+            privnet-cluster-worker -o wide --no-headers | awk '{ print $6 }')
+          IP2=$(kubectl --context kind-privnet-inb0 get nodes \
+            privnet-inb0-control-plane -o wide --no-headers | awk '{ print $6 }')
+          IP3=$(kubectl --context kind-privnet-inb1 get nodes \
+            privnet-inb1-control-plane -o wide --no-headers | awk '{ print $6 }')
+
+          echo "config_cluster= \
+            --set clustermesh.config.clusters[0].name=privnet-cluster \
+            --set clustermesh.config.clusters[0].ips={$IP1} \
+            --set clustermesh.config.clusters[0].port=32379 \
+          " >> $GITHUB_OUTPUT
+
+          echo "config_inbs= \
+            --set clustermesh.config.clusters[0].name=privnet-inb0 \
+            --set clustermesh.config.clusters[0].ips={$IP2} \
+            --set clustermesh.config.clusters[0].port=32380 \
+            --set clustermesh.config.clusters[1].name=privnet-inb1 \
+            --set clustermesh.config.clusters[1].ips={$IP3} \
+            --set clustermesh.config.clusters[1].port=32381 \
+          " >> $GITHUB_OUTPUT
+
+      # Warning: since this is a privileged workflow, subsequent workflow job
+      # steps must take care not to execute untrusted code.
+      - name: Checkout pull request branch (NOT TRUSTED)
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ steps.default_vars.outputs.sha }}
+          persist-credentials: false
+          path: untrusted
+          sparse-checkout: |
+            install/kubernetes/cilium
+
+      - name: Install Cilium in the main cluster
+        id: install-cilium
+        run: |
+          cilium install --context=kind-privnet-cluster \
+            --set cluster.name=privnet-cluster --set cluster.id=1 \
+            --set clustermesh.apiserver.service.nodePort=32379 \
+            ${{ steps.vars.outputs.cilium_install_defaults }} \
+            ${{ steps.vars.outputs.cilium_install_defaults_k8s }} \
+            ${{ steps.vars.outputs.cilium_install_defaults_webhook }} \
+            ${{ steps.clustermesh-vars.outputs.config_inbs }}
+
+      - name: Install Cilium in INB0
+        run: |
+          cilium install --context=kind-privnet-inb0 \
+            --set cluster.name=privnet-inb0 --set cluster.id=2 \
+            --set clustermesh.apiserver.service.nodePort=32380 \
+            ${{ steps.vars.outputs.cilium_install_defaults }} \
+            ${{ steps.vars.outputs.cilium_install_defaults_inb }} \
+            ${{ steps.clustermesh-vars.outputs.config_cluster }}
+
+      - name: Install Cilium in INB1
+        run: |
+          cilium install --context=kind-privnet-inb1 \
+            --set cluster.name=privnet-inb1 --set cluster.id=3 \
+            --set clustermesh.apiserver.service.nodePort=32381 \
+            ${{ steps.vars.outputs.cilium_install_defaults }} \
+            ${{ steps.vars.outputs.cilium_install_defaults_inb }} \
+            ${{ steps.clustermesh-vars.outputs.config_cluster }}
+
+      - name: Install Multus
+        run: |
+          make kind-privnet-install-multus
+
+      - name: Install cert-manager
+        run: |
+          for ctx in kind-privnet-cluster kind-privnet-inb0 kind-privnet-inb1; do
+            helm --kube-context $ctx install \
+              cert-manager oci://quay.io/jetstack/charts/cert-manager \
+              --namespace cert-manager \
+              --create-namespace \
+              --version ${{ env.CERT_MANAGER_VERSION }} \
+              --set crds.enabled=false
+          done
+
+
+      - name: Wait for Cilium status to be ready
+        run: |
+          for context in kind-privnet-cluster kind-privnet-inb0 kind-privnet-inb1; do
+            cilium --context ${context} status --wait --wait-duration=5m --interactive=false
+            cilium --context ${context} clustermesh status --wait --wait-duration=5m
+          done
+
+      - name: Install KubeVirt
+        run: |
+          PRIVNET_KIND_IMAGE_LOAD_IMAGE_ARCHIVE=true make kind-privnet-kubevirt
+
+      - name: Setup the dependencies
+        run: |
+          make kind-privnet-test-namespace
+          make kind-privnet-deploy-external-endpoints
+          make kind-privnet-deploy-forklift-resources
+
+      - name: Run Private Network connectivity tests
+        shell: bash
+        run: |
+          # The privnet tests don't create any junit artifacts, but the regular connectivity tests will
+          mkdir -p cilium-junits
+
+          cilium --context=kind-privnet-cluster \
+            --inb-contexts=kind-privnet-inb0,kind-privnet-inb1 \
+            --test-namespace=cilium-test \
+            privnet test
+
+      - name: Run Cilium connectivity tests - cluster (${{ join(matrix.*, ', ') }})
+        run: |
+          cilium --context=kind-privnet-cluster connectivity test \
+            ${{ steps.vars.outputs.connectivity_test_defaults }} \
+            --junit-file "cilium-junits/${{ env.job_name }} - cluster (${{ join(matrix.*, ', ') }}).xml" \
+            --junit-property github_job_step="Run tests - cluster (${{ join(matrix.*, ', ') }})"
+
+      - name: Run Cilium connectivity tests - clustermesh (${{ join(matrix.*, ', ') }})
+        run: |
+          cilium --context=kind-privnet-cluster connectivity test \
+            --multi-cluster=kind-privnet-inb0 \
+            ${{ steps.vars.outputs.connectivity_test_defaults }} \
+            --junit-file "cilium-junits/${{ env.job_name }} - clustermesh (${{ join(matrix.*, ', ') }}).xml" \
+            --junit-property github_job_step="Run tests - clustermesh (${{ join(matrix.*, ', ') }})"
+
+      - name: Run Cilium connectivity tests - INB0 (${{ join(matrix.*, ', ') }})
+        run: |
+          cilium --context=kind-privnet-inb0 connectivity test \
+            ${{ steps.vars.outputs.connectivity_test_defaults }} \
+            --junit-file "cilium-junits/${{ env.job_name }} - INB0 (${{ join(matrix.*, ', ') }}).xml" \
+            --junit-property github_job_step="Run tests - INB0 (${{ join(matrix.*, ', ') }})"
+
+      - name: Run Cilium connectivity tests - INB1 (${{ join(matrix.*, ', ') }})
+        run: |
+          cilium --context=kind-privnet-inb1 connectivity test \
+            ${{ steps.vars.outputs.connectivity_test_defaults }} \
+            --junit-file "cilium-junits/${{ env.job_name }} - INB1 (${{ join(matrix.*, ', ') }}).xml" \
+            --junit-property github_job_step="Run tests - INB1 (${{ join(matrix.*, ', ') }})"
+
+      - name: Features tested
+        uses: ./.github/actions/feature-status
+        with:
+          title: "Summary of all features tested"
+          json-filename: "${{ env.job_name }} ${{ matrix.name }}"
+
+      - name: Fetch artifacts
+        if: ${{ !success() }}
+        shell: bash {0} # Disable default fail-fast behavior so that all commands run independently
+        run: |
+          for context in kind-privnet-cluster kind-privnet-inb0 kind-privnet-inb1; do
+            echo "Collecting status from ${context}"
+
+            kubectl --context ${context} get pods --all-namespaces -o wide
+            cilium --context ${context} status
+            cilium --context ${context} clustermesh status
+
+            kubectl --context ${context} -n cilium-test logs --all-containers -l kubevirt.io=virt-launcher
+            kubectl --context ${context} -n kubevirt logs --all-containers -l app.kubernetes.io/component=kubevirt
+            cilium --context ${context} sysdump --output-filename cilium-sysdump-${{ matrix.name }}-${context}-final
+          done
+
+          docker ps
+          for container in $(docker container ls --filter=label=containerlab --format "{{.Names}}" | sort); do
+            echo -e "\nCollecting status from ${container}"
+
+            docker exec ${container} ip -d link
+            docker exec ${container} ip address
+            docker exec ${container} ss -tnl
+          done
+
+          echo
+          /sbin/bridge link
+          /sbin/bridge vlan
+
+      - name: Run common post steps
+        if: ${{ always() }}
+        uses: ./.github/actions/post-logic
+        with:
+          artifacts_suffix: "enterprise-privnet-${{ matrix.name }}"
+          job_status: "${{ job.status }}"
+          capture_sysdump: false
+          capture_features_tested: false
+
+  merge-upload-and-status:
+    name: Merge Upload and Status
+    if: ${{ always() }}
+    needs: installation-and-connectivity
+    uses: ./.github/workflows/common-post-jobs.yaml
+    secrets: inherit
+    with:
+      context-ref: ${{ inputs.context-ref || github.sha }}
+      sha: ${{ github.event.pull_request.head.sha || github.sha }}
+      success: ${{ needs.installation-and-connectivity.result == 'success' }}
