@@ -25,7 +25,7 @@ spec:
       {{- end }}
     spec:
       affinity:
-  {{ if eq .Affinity "same-node" }}
+  {{ if eq .Affinity.Type "same-node" }}
         podAffinity:
   {{ else }}
         podAntiAffinity:
@@ -33,10 +33,10 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             - labelSelector:
                 matchExpressions:
-                  - key: kind
+                  - key: name
                     operator: In
                     values:
-                      - "client"
+                      - {{ .Affinity.Target }}
               topologyKey: kubernetes.io/hostname
       dnsPolicy: None
       dnsConfig:

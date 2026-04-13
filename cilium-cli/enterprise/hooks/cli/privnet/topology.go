@@ -22,12 +22,17 @@ type INBInfo struct {
 	ClusterName     string
 }
 
-type VMAffinity string
+type VMAffinityType string
 
 var (
-	SameNode  VMAffinity = "same-node"
-	OtherNode VMAffinity = "other-node"
+	SameNode  VMAffinityType = "same-node"
+	OtherNode VMAffinityType = "other-node"
 )
+
+type VMAffinity struct {
+	Type   VMAffinityType
+	Target VMName
+}
 
 type VMKind string
 
@@ -190,7 +195,6 @@ var networkTopology = map[NetworkName]NetworkData{
 				NetIPv6Gateway: netip.MustParseAddr("fe80::100"),
 				NetDNSServer:   netip.MustParseAddr("192.168.250.254"),
 				NetMAC:         "f2:54:1c:1f:84:94",
-				Affinity:       SameNode,
 				Kind:           VMKindClient,
 			},
 			{
@@ -204,7 +208,7 @@ var networkTopology = map[NetworkName]NetworkData{
 				NetIPv6Gateway: netip.MustParseAddr("fe80::100"),
 				NetDNSServer:   netip.MustParseAddr("192.168.250.254"),
 				NetMAC:         "de:a9:fd:7d:af:bf",
-				Affinity:       SameNode,
+				Affinity:       VMAffinity{SameNode, ClientVM(NetworkA)},
 				Kind:           VMKindEcho,
 			},
 			{
@@ -218,7 +222,7 @@ var networkTopology = map[NetworkName]NetworkData{
 				NetIPv6Gateway: netip.MustParseAddr("fe80::100"),
 				NetDNSServer:   netip.MustParseAddr("192.168.250.254"),
 				NetMAC:         "be:68:f6:fc:6a:4a",
-				Affinity:       OtherNode,
+				Affinity:       VMAffinity{OtherNode, ClientVM(NetworkA)},
 				Kind:           VMKindEcho,
 			},
 			{
@@ -233,7 +237,6 @@ var networkTopology = map[NetworkName]NetworkData{
 				NetIPv6Gateway: netip.MustParseAddr("fe80::100"),
 				NetDNSServer:   netip.MustParseAddr("192.168.250.254"),
 				NetMAC:         "02:00:00:e6:bb:ff",
-				Affinity:       SameNode,
 				Kind:           VMKindClient,
 			},
 		},
@@ -300,7 +303,6 @@ var networkTopology = map[NetworkName]NetworkData{
 				NetIPv6Gateway: netip.MustParseAddr("fe80::100"),
 				NetDNSServer:   netip.MustParseAddr("192.168.251.254"),
 				NetMAC:         "42:f9:eb:33:4d:54",
-				Affinity:       OtherNode,
 				Kind:           VMKindClient,
 			},
 			{
@@ -313,7 +315,7 @@ var networkTopology = map[NetworkName]NetworkData{
 				NetIPv6Gateway: netip.MustParseAddr("fe80::100"),
 				NetDNSServer:   netip.MustParseAddr("192.168.251.254"),
 				NetMAC:         "0e:13:85:69:e9:f7",
-				Affinity:       OtherNode,
+				Affinity:       VMAffinity{OtherNode, ClientVM(NetworkB)},
 				Kind:           VMKindEcho,
 			},
 			{
@@ -326,7 +328,6 @@ var networkTopology = map[NetworkName]NetworkData{
 				NetIPv6Gateway: netip.MustParseAddr("fe80::100"),
 				NetDNSServer:   netip.MustParseAddr("192.168.253.254"),
 				NetMAC:         "42:f9:eb:33:1a:83",
-				Affinity:       OtherNode,
 				Kind:           VMKindClient,
 			},
 		},
@@ -367,7 +368,6 @@ var networkTopology = map[NetworkName]NetworkData{
 				NetIPv6Gateway: netip.MustParseAddr("fe80::100"),
 				NetDNSServer:   netip.MustParseAddr("192.168.252.254"),
 				NetMAC:         "52:1f:62:0a:ff:07",
-				Affinity:       SameNode,
 				Kind:           VMKindClient,
 			},
 			{
@@ -379,7 +379,7 @@ var networkTopology = map[NetworkName]NetworkData{
 				NetIPv6Gateway: netip.MustParseAddr("fe80::100"),
 				NetDNSServer:   netip.MustParseAddr("192.168.252.254"),
 				NetMAC:         "5e:ae:22:a7:37:87",
-				Affinity:       OtherNode,
+				Affinity:       VMAffinity{OtherNode, ClientVM(NetworkC)},
 				Kind:           VMKindEcho,
 			},
 		},
@@ -435,7 +435,6 @@ var networkTopology = map[NetworkName]NetworkData{
 				NetIPv4Gateway: netip.MustParseAddr("169.254.0.100"),
 				NetDNSServer:   netip.MustParseAddr("192.168.252.254"),
 				NetMAC:         "d2:32:c6:44:58:86",
-				Affinity:       SameNode,
 				Kind:           VMKindClient,
 			},
 		},
@@ -482,7 +481,6 @@ var networkTopology = map[NetworkName]NetworkData{
 				NetIPv6Gateway: netip.MustParseAddr("fe80::100"),
 				NetDNSServer:   netip.MustParseAddr("192.168.10.254"),
 				NetMAC:         "02:42:ac:11:00:02",
-				Affinity:       SameNode,
 				Kind:           VMKindClient,
 			},
 			{
@@ -496,7 +494,7 @@ var networkTopology = map[NetworkName]NetworkData{
 				NetIPv6Gateway: netip.MustParseAddr("fe80::100"),
 				NetDNSServer:   netip.MustParseAddr("192.168.10.254"),
 				NetMAC:         "4e:7c:b2:91:d3:08",
-				Affinity:       SameNode,
+				Affinity:       VMAffinity{SameNode, VMName("client-dhcp-network-e")},
 				Kind:           VMKindEcho,
 			},
 			{
@@ -510,7 +508,7 @@ var networkTopology = map[NetworkName]NetworkData{
 				NetIPv6Gateway: netip.MustParseAddr("fe80::100"),
 				NetDNSServer:   netip.MustParseAddr("192.168.10.254"),
 				NetMAC:         "a6:f1:3e:c4:58:2b",
-				Affinity:       OtherNode,
+				Affinity:       VMAffinity{OtherNode, VMName("client-dhcp-network-e")},
 				Kind:           VMKindEcho,
 			},
 		},
