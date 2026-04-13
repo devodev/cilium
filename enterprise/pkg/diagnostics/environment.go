@@ -90,10 +90,10 @@ func (e *environment) Gauge(name string, labels prometheus.Labels) (stats GaugeS
 		return
 	}
 
-	gs, found := e.cond.Samplers.Get(sample.key())
+	gs, found := e.cond.GaugeSamplers.Get(sample.key())
 	if !found {
 		gs = newGaugeSampler(e.now)
-		e.cond.Samplers = e.cond.Samplers.Set(sample.key(), gs)
+		e.cond.GaugeSamplers = e.cond.GaugeSamplers.Set(sample.key(), gs)
 	}
 	gs.observe(e.now, sample)
 
@@ -114,10 +114,10 @@ func (e *environment) Histogram(name string, labels prometheus.Labels) (stats Hi
 		return
 	}
 
-	hs, found := e.cond.Samplers.Get(sample.key())
+	hs, found := e.cond.HistogramSamplers.Get(sample.key())
 	if !found {
 		hs = newHistogramSampler(e.now)
-		e.cond.Samplers = e.cond.Samplers.Set(sample.key(), hs)
+		e.cond.HistogramSamplers = e.cond.HistogramSamplers.Set(sample.key(), hs)
 	}
 	hs.observe(e.now, sample)
 
@@ -125,6 +125,29 @@ func (e *environment) Histogram(name string, labels prometheus.Labels) (stats Hi
 	stats.P50_24h, stats.P50_4h, stats.P50_1h, stats.P50_Latest = hs.Percentiles(0.5)
 	stats.P90_24h, stats.P90_4h, stats.P90_1h, stats.P90_Latest = hs.Percentiles(0.9)
 	stats.P99_24h, stats.P99_4h, stats.P99_1h, stats.P99_Latest = hs.Percentiles(0.99)
+	return
+}
+
+func (e *environment) Counter(name string, labels prometheus.Labels) (stats CounterStats, err error) {
+	var sample Metric
+	sample, err = e.Metric(name, labels)
+	if err != nil {
+		return
+	}
+
+	if sample.Raw.Counter == nil {
+		err = fmt.Errorf("%q is not a counter metric", name)
+		return
+	}
+
+	cs, found := e.cond.CounterSamplers.Get(sample.key())
+	if !found {
+		cs = newCounterSampler(e.now)
+		e.cond.CounterSamplers = e.cond.CounterSamplers.Set(sample.key(), cs)
+	}
+	cs.observe(e.now, sample)
+
+	stats.Count_24h, stats.Count_4h, stats.Count_1h, stats.Count_Latest = cs.Increments()
 	return
 }
 
@@ -222,6 +245,7 @@ func unmarshalDesc(desc *prometheus.Desc) (out desc) {
 
 type FakeEnvironment struct {
 	FakeGauge                 GaugeStats
+	FakeCounter               CounterStats
 	FakeHistogram             HistogramStats
 	FakeInterval              time.Duration
 	FakeMetric                Metric
@@ -238,6 +262,11 @@ func (f *FakeEnvironment) Gauge(name string, labels prometheus.Labels) (stats Ga
 // Histogram implements Environment.
 func (f *FakeEnvironment) Histogram(name string, labels prometheus.Labels) (stats HistogramStats, err error) {
 	return f.FakeHistogram, nil
+}
+
+// Counter implements Environment.
+func (f *FakeEnvironment) Counter(name string, labels prometheus.Labels) (stats CounterStats, err error) {
+	return f.FakeCounter, nil
 }
 
 // Interval implements Environment.

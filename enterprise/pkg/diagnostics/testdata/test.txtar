@@ -59,7 +59,9 @@ diagnostics_simulated_failure   Failed 0s ago (DEBUG): Simulated failure trigger
     "Severity": 0,
     "Message": ""
   },
-  "Samplers": [
+  "GaugeSamplers": [],
+  "CounterSamplers": [],
+  "HistogramSamplers": [
     {
       "k": "cilium_diagnostics_controller_duration_seconds[]",
       "v": {
@@ -102,5 +104,7 @@ diagnostics_simulated_failure   Failed 0s ago (DEBUG): Simulated failure trigger
     "Severity": 1,
     "Message": "Simulated failure triggered"
   },
-  "Samplers": []
+  "GaugeSamplers": [],
+  "CounterSamplers": [],
+  "HistogramSamplers": []
 }

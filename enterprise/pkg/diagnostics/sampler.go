@@ -31,14 +31,6 @@ import (
 // added every hour. This gives us historical averages with very minimal
 // memory usage.
 
-type sampler interface {
-	observe(t time.Time, x Metric)
-
-	Status() string
-	Averages() (h24, h4, h1, latest float64)
-	Percentiles(p float64) (h24, h4, h1, latest float64)
-}
-
 type histogramSampler struct {
 	// ring of samples taken every hour.
 	samples ring[Metric]
@@ -323,10 +315,6 @@ func (gs *gaugeSampler) Averages() (h24, h4, h1, latest float64) {
 	return
 }
 
-func (gs *gaugeSampler) Percentiles(p float64) (h24, h4, h1, latest float64) {
-	return
-}
-
 func (gs *gaugeSampler) Status() string {
 	h24, h4, h1, latest := gs.Averages()
 	return fmt.Sprintf("%d/%d (24h:%s 4h:%s 1h:%s 0h:%s)", gs.samples.count, len(gs.samples.ring),
@@ -342,6 +330,80 @@ func (gs *gaugeSampler) MarshalJSON() ([]byte, error) {
 	out.Type = "Gauge"
 	out.Count = gs.samples.count
 	out.Avg_24h, out.Avg_4h, out.Avg_1h, out.Avg_Latest = gs.Averages()
+	return json.Marshal(&out)
+}
+
+type counterSampler struct {
+	// ring of samples taken every hour.
+	samples ring[float64]
+
+	// Keep the last count observed by the sampler.
+	count float64
+	next  time.Time
+}
+
+func newCounterSampler(now time.Time) *counterSampler {
+	// Keep a ring of 24 "counter snapshots" to which we push once an hour
+	cs := &counterSampler{}
+	cs.samples.init(24)
+	cs.next = now.Add(time.Hour)
+	return cs
+}
+
+func (cs *counterSampler) observe(now time.Time, x Metric) {
+	if x.Raw.Counter == nil {
+		return
+	}
+	val := x.Raw.Counter.GetValue()
+	if now.After(cs.next) {
+		cs.next = now.Add(time.Hour)
+		cs.samples.push(cs.count)
+	}
+	cs.count = val
+}
+
+// Increments return the increments on counter metric over last 24, 4, 1 hours.
+func (cs *counterSampler) Increments() (h24, h4, h1, latest int64) {
+	samples := slices.Collect(cs.samples.all())
+	if len(samples) == 24 {
+		h24 = int64(cs.count - samples[23])
+	} else {
+		h24 = int64(cs.count)
+	}
+	if len(samples) >= 4 {
+		h4 = int64(cs.count - samples[3])
+	} else {
+		h4 = int64(cs.count)
+	}
+	if len(samples) >= 2 {
+		h1 = int64(cs.count - samples[1])
+	} else {
+		h1 = int64(cs.count)
+	}
+	if len(samples) > 0 {
+		latest = int64(cs.count - samples[0])
+	} else {
+		latest = int64(cs.count)
+	}
+	return
+}
+
+func (cs *counterSampler) Status() string {
+	h24, h4, h1, latest := cs.Increments()
+	return fmt.Sprintf("%d/%d (24h:%d 4h:%d 1h:%d 0h:%d)",
+		cs.samples.count, len(cs.samples.ring),
+		h24, h4, h1, latest)
+}
+
+func (cs *counterSampler) MarshalJSON() ([]byte, error) {
+	var out struct {
+		Type  string
+		Count int
+		CounterStats
+	}
+	out.Type = "Counter"
+	out.Count = cs.samples.count
+	out.Count_24h, out.Count_4h, out.Count_1h, out.Count_Latest = cs.Increments()
 	return json.Marshal(&out)
 }
 

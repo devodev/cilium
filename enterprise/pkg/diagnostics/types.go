@@ -185,6 +185,10 @@ type GaugeStats struct {
 	Avg_24h, Avg_4h, Avg_1h, Avg_Latest float64
 }
 
+type CounterStats struct {
+	Count_24h, Count_4h, Count_1h, Count_Latest int64
+}
+
 // Environment for evaluating a condition.
 //
 // Provides access to common sources like metrics and the user-configurable
@@ -208,6 +212,9 @@ type Environment interface {
 	// Gauge returns the 24h/4h/1h/latest averages and 50th/90/99th percentiles
 	// for the given gauge (or summary).
 	Gauge(name string, labels prometheus.Labels) (stats GaugeStats, err error)
+
+	// Counter returns the 24h/4h/1h/latest count recorded for the given counter.
+	Counter(name string, labels prometheus.Labels) (stats CounterStats, err error)
 
 	// UserConstant returns the value configured by the user. To be used
 	// to override constants for e.g. thresholds. If the value is not found
@@ -257,7 +264,9 @@ type ConditionStatus struct {
 	Latest      Evaluation
 	LastFailure Evaluation
 
-	Samplers part.Map[string, sampler]
+	GaugeSamplers     part.Map[string, *gaugeSampler]
+	CounterSamplers   part.Map[string, *counterSampler]
+	HistogramSamplers part.Map[string, *histogramSampler]
 }
 
 // TableHeader implements statedb.TableWritable.

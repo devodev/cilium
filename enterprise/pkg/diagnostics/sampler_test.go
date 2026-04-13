@@ -162,6 +162,55 @@ func TestGaugeSampler(t *testing.T) {
 	assert.Equal(t, 1.0, avgLatest, "latest")
 }
 
+func TestCounterSampler(t *testing.T) {
+	now := time.Now()
+	sampler := newCounterSampler(now)
+	now = now.Add(1 * time.Second)
+
+	f := func(v float64) *float64 { return &v }
+
+	val := 0.0
+	feed := func(hours int, x float64) {
+		for range hours {
+			val += x
+			sampler.observe(now, Metric{
+				Name:  "foo",
+				Value: val,
+				Raw:   &dto.Metric{Counter: &dto.Counter{Value: f(val)}},
+			})
+			now = now.Add(time.Hour + time.Second)
+		}
+	}
+
+	verifyCounterIncrements := func(countH24, countH4, countH1, countLatest int64) {
+		h24, h4, h1, latest := sampler.Increments()
+		assert.Equal(t, countH24, h24)
+		assert.Equal(t, countH4, h4)
+		assert.Equal(t, countH1, h1)
+		assert.Equal(t, countLatest, latest)
+	}
+
+	// Non-counter observations should be ignored.
+	sampler.observe(now, Metric{
+		Name: "foo",
+		Raw:  &dto.Metric{Gauge: &dto.Gauge{Value: f(999.0)}},
+	})
+	assert.Equal(t, float64(0), sampler.count)
+	verifyCounterIncrements(0, 0, 0, 0)
+
+	feed(21, 8.0)
+	verifyCounterIncrements(168, 32, 16, 8)
+
+	feed(3, 4.0)
+	verifyCounterIncrements(180, 20, 8, 4)
+
+	feed(2, 1.0)
+	verifyCounterIncrements(166, 10, 2, 1)
+
+	feed(1, 5.0)
+	verifyCounterIncrements(163, 11, 6, 5)
+}
+
 func TestRing(t *testing.T) {
 	var r ring[int]
 	r.init(5)
