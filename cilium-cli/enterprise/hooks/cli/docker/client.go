@@ -34,7 +34,10 @@ func (e ExitError) Error() string { return e.Err.Error() }
 func (e ExitError) ExitCode() int { return e.Code }
 
 func NewClient() (*Client, error) {
-	cli, err := docker_client.NewClientWithOpts(docker_client.FromEnv)
+	cli, err := docker_client.NewClientWithOpts(
+		docker_client.FromEnv,
+		docker_client.WithAPIVersionNegotiation(),
+	)
 	if err != nil {
 		return nil, err
 	}
