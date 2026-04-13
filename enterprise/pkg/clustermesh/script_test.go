@@ -38,11 +38,10 @@ import (
 	"github.com/cilium/cilium/pkg/clustermesh/clustercfg"
 	"github.com/cilium/cilium/pkg/clustermesh/common"
 	cmtypes "github.com/cilium/cilium/pkg/clustermesh/types"
-	fakeTypes "github.com/cilium/cilium/pkg/datapath/fake/types"
 	"github.com/cilium/cilium/pkg/datapath/iptables/ipset"
+	ipsecFake "github.com/cilium/cilium/pkg/datapath/linux/ipsec/fake"
+	ipsecTypes "github.com/cilium/cilium/pkg/datapath/linux/ipsec/types"
 	"github.com/cilium/cilium/pkg/datapath/tables"
-	"github.com/cilium/cilium/pkg/datapath/types"
-	dpTypes "github.com/cilium/cilium/pkg/datapath/types"
 	"github.com/cilium/cilium/pkg/dial"
 	envoyCfg "github.com/cilium/cilium/pkg/envoy/config"
 	"github.com/cilium/cilium/pkg/hive"
@@ -68,6 +67,7 @@ import (
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/source"
 	"github.com/cilium/cilium/pkg/time"
+	fakeTypes "github.com/cilium/cilium/pkg/wireguard/fake"
 	wgTypes "github.com/cilium/cilium/pkg/wireguard/types"
 )
 
@@ -133,8 +133,8 @@ func TestScript(t *testing.T) {
 						KubeProxyReplacement: true,
 					}
 				},
-				func() dpTypes.IPsecConfig {
-					return fakeTypes.IPsecConfig{}
+				func() ipsecTypes.Config {
+					return ipsecFake.Config{}
 				},
 				func() store.Factory {
 					return storeFactory
@@ -142,7 +142,7 @@ func TestScript(t *testing.T) {
 				func() *loadbalancer.TestConfig {
 					return &loadbalancer.TestConfig{}
 				},
-				func() wgTypes.WireguardConfig { return fakeTypes.WireguardConfig{} },
+				func() wgTypes.Config { return fakeTypes.Config{} },
 				NewClusterMeshMetricsNoop,
 				func() cm.RemoteIdentityWatcher {
 					return dummyRemoteIdentityWatcher{}
@@ -287,12 +287,12 @@ func (d dummyNodeManager) NodeUpdated(n nodeTypes.Node) {
 }
 
 // Subscribe implements manager.NodeManager.
-func (d dummyNodeManager) Subscribe(types.NodeHandler) {
+func (d dummyNodeManager) Subscribe(node.Handler) {
 	panic("unimplemented")
 }
 
 // Unsubscribe implements manager.NodeManager.
-func (d dummyNodeManager) Unsubscribe(types.NodeHandler) {
+func (d dummyNodeManager) Unsubscribe(node.Handler) {
 	panic("unimplemented")
 }
 

@@ -27,10 +27,10 @@ import (
 	"github.com/cilium/cilium/pkg/bpf"
 	"github.com/cilium/cilium/pkg/cgroups"
 	"github.com/cilium/cilium/pkg/common"
+	ipsec "github.com/cilium/cilium/pkg/datapath/linux/ipsec/types"
 	"github.com/cilium/cilium/pkg/datapath/linux/probes"
 	datapathOption "github.com/cilium/cilium/pkg/datapath/option"
 	datapathTables "github.com/cilium/cilium/pkg/datapath/tables"
-	datapath "github.com/cilium/cilium/pkg/datapath/types"
 	"github.com/cilium/cilium/pkg/defaults"
 	"github.com/cilium/cilium/pkg/endpointmanager"
 	"github.com/cilium/cilium/pkg/envoy"
@@ -1195,8 +1195,8 @@ type daemonConfigParams struct {
 	K8sClientConfig k8sClient.Config
 	KPRConfig       kpr.KPRConfig
 	KPRInitializer  kprinitializer.KPRInitializer
-	IPSecConfig     datapath.IPsecConfig
-	WireguardConfig wgTypes.WireguardConfig
+	IPSecConfig     ipsec.Config
+	WireguardConfig wgTypes.Config
 }
 
 type daemonParams struct {
@@ -1211,10 +1211,10 @@ type daemonParams struct {
 
 	Clientset           k8sClient.Clientset
 	KVStoreClient       kvstore.Client
-	WGAgent             wgTypes.WireguardAgent
+	WGAgent             wgTypes.Agent
 	LocalNodeStore      *node.LocalNodeStore
 	K8sWatcher          *watchers.K8sWatcher
-	NodeHandler         datapath.NodeHandler
+	NodeHandler         node.Handler
 	EndpointManager     endpointmanager.EndpointManager
 	EndpointRestorer    *endpointRestorer
 	IdentityAllocator   identitycell.CachingIdentityAllocator
@@ -1223,7 +1223,7 @@ type daemonParams struct {
 	DB                  *statedb.DB
 	Devices             statedb.Table[*datapathTables.Device]
 	DirectRoutingDevice datapathTables.DirectRoutingDevice
-	IPsecAgent          datapath.IPsecAgent
+	IPsecAgent          ipsec.Agent
 	SyncHostIPs         *syncHostIPs
 	NodeDiscovery       *nodediscovery.NodeDiscovery
 	IPAMInitializer     *ipamcell.IPAMInitializer

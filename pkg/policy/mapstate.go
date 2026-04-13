@@ -439,7 +439,7 @@ func (ms *mapState) lookup(key Key) (mapStateEntry, bool) {
 		// This also needs to reflect the logic in bpf/lib/policy.h __account_and_check().
 		if !entry.AuthRequirement.IsExplicit() &&
 			other.AuthRequirement.AuthType() > entry.AuthRequirement.AuthType() &&
-			other.AllowPrecedence() >= entry.AllowPrecedence() {
+			other.Precedence.AllowPrecedence() >= entry.Precedence.AllowPrecedence() {
 			entry.AuthRequirement = other.AuthRequirement.AsDerived()
 		}
 		return entry
@@ -647,7 +647,7 @@ func PassEntry(priority, tierPriority, nextTierPriority types.Priority, derivedF
 	return mapStateEntry{
 		passes: &passMetas{{
 			precedence:        priority.ToPassPrecedence(),
-			tierMaxPrecedence: tierPriority.ToTierMaxPrecedence(),
+			tierMaxPrecedence: tierPriority.ToDenyPrecedence(),
 			tierMinPrecedence: nextTierPriority.ToPassPrecedence() + 0x100,
 		}},
 		MapStateEntry:    types.InvalidEntry(),
@@ -1519,7 +1519,7 @@ func (ms *mapState) authPreferredInsert(newKey Key, newEntry mapStateEntry, feat
 		if !derived && !newEntryHasExplicitAuth &&
 			!k.PortProtoIsEqual(newKey) &&
 			v.AuthRequirement.IsExplicit() &&
-			v.AllowPrecedence() >= newEntry.AllowPrecedence() {
+			v.Precedence.AllowPrecedence() >= newEntry.Precedence.AllowPrecedence() {
 			// AuthType from the most specific covering key is applied to 'newEntry' as
 			// derived auth type.
 			newEntry.AuthRequirement = v.AuthRequirement.AsDerived()
@@ -1627,7 +1627,7 @@ type MapChange struct {
 // need to be added/deleted for that identity are accumulated before 'SyncMapChanges' is called, so
 // that when the changes are applied, all keys for that identity are applied at the same time.
 func (mc *MapChanges) AccumulateMapChanges(tier types.Tier, basePriority types.Priority, adds, deletes []identity.NumericIdentity, keys []Key, value mapStateEntry) {
-	tierMaxPrecedence := basePriority.ToTierMaxPrecedence()
+	tierMaxPrecedence := basePriority.ToDenyPrecedence()
 	mc.mutex.Lock()
 	defer mc.mutex.Unlock()
 	for _, id := range adds {

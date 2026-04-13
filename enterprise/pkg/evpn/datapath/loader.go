@@ -25,7 +25,6 @@ import (
 	"github.com/cilium/cilium/pkg/datapath/config"
 	"github.com/cilium/cilium/pkg/datapath/linux/safenetlink"
 	"github.com/cilium/cilium/pkg/datapath/loader"
-	datapath "github.com/cilium/cilium/pkg/datapath/types"
 	"github.com/cilium/cilium/pkg/option"
 )
 
@@ -51,7 +50,7 @@ func (o *evpnObjects) Close() {
 	_ = o.ToEvpn.Close()
 }
 
-func replaceEvpnDatapath(ctx context.Context, logger *slog.Logger, lnc *datapath.LocalNodeConfiguration, evpnCfg evpnConfig.Config, privnetCfg privnetConfig.Config) error {
+func replaceEvpnDatapath(ctx context.Context, logger *slog.Logger, lnc *config.Config, evpnCfg evpnConfig.Config, privnetCfg privnetConfig.Config) error {
 	device, err := safenetlink.LinkByName(evpnCfg.VxlanDevice)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve link for interface %s: %w", evpnCfg.VxlanDevice, err)

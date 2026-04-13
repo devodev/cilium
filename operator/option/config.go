@@ -17,9 +17,6 @@ import (
 )
 
 const (
-	// EndpointGCIntervalDefault is the default time for the CEP GC
-	EndpointGCIntervalDefault = 5 * time.Minute
-
 	// PprofAddressOperator is the default value for pprof in the operator
 	PprofAddressOperator = "localhost"
 
@@ -34,17 +31,8 @@ const (
 )
 
 const (
-	// EndpointGCInterval is the interval between attempts of the CEP GC
-	// controller.
-	// Note that only one node per cluster should run this, and most iterations
-	// will simply return.
-	EndpointGCInterval = "cilium-endpoint-gc-interval"
-
 	// SyncK8sServices synchronizes k8s services into the kvstore
 	SyncK8sServices = "synchronize-k8s-services"
-
-	// UnmanagedPodWatcherInterval is the interval to check for unmanaged kube-dns pods (0 to disable)
-	UnmanagedPodWatcherInterval = "unmanaged-pod-watcher-interval"
 
 	// IPAM options
 
@@ -60,22 +48,6 @@ const (
 
 	// IPAMAutoCreateCiliumPodIPPools contains pre-defined IP pools to be auto-created on startup.
 	IPAMAutoCreateCiliumPodIPPools = "auto-create-cilium-pod-ip-pools"
-
-	// ClusterPoolIPv4CIDR is the cluster's IPv4 CIDR to allocate
-	// individual PodCIDR ranges from when using the ClusterPool ipam mode.
-	ClusterPoolIPv4CIDR = "cluster-pool-ipv4-cidr"
-
-	// ClusterPoolIPv6CIDR is the cluster's IPv6 CIDR to allocate
-	// individual PodCIDR ranges from when using the ClusterPool ipam mode.
-	ClusterPoolIPv6CIDR = "cluster-pool-ipv6-cidr"
-
-	// NodeCIDRMaskSizeIPv4 is the IPv4 podCIDR mask size that will be used
-	// per node.
-	NodeCIDRMaskSizeIPv4 = "cluster-pool-ipv4-mask-size"
-
-	// NodeCIDRMaskSizeIPv6 is the IPv6 podCIDR mask size that will be used
-	// per node.
-	NodeCIDRMaskSizeIPv6 = "cluster-pool-ipv6-mask-size"
 
 	// AWS options
 
@@ -182,25 +154,12 @@ const (
 	// CiliumPodLabels specifies the pod labels that Cilium pods is running
 	// with.
 	CiliumPodLabels = "cilium-pod-labels"
-
-	// PodRestartSelector specify the labels contained in the pod that needs to be restarted before the node can be de-stained
-	// default values: k8s-app=kube-dns
-	PodRestartSelector = "pod-restart-selector"
 )
 
 // OperatorConfig is the configuration used by the operator.
 type OperatorConfig struct {
-	// EndpointGCInterval is the interval between attempts of the CEP GC
-	// controller.
-	// Note that only one node per cluster should run this, and most iterations
-	// will simply return.
-	EndpointGCInterval time.Duration
-
 	// SyncK8sServices synchronizes k8s services into the kvstore
 	SyncK8sServices bool
-
-	// UnmanagedPodWatcherInterval is the interval to check for unmanaged kube-dns pods (0 to disable)
-	UnmanagedPodWatcherInterval int
 
 	// LeaderElectionLeaseDuration is the duration that non-leader candidates will wait to
 	// force acquire leadership in Cilium Operator HA deployment.
@@ -232,22 +191,6 @@ type OperatorConfig struct {
 
 	// IPAM Operator options
 
-	// ClusterPoolIPv4CIDR is the cluster IPv4 podCIDR that should be used to
-	// allocate pods in the node.
-	ClusterPoolIPv4CIDR []string
-
-	// ClusterPoolIPv6CIDR is the cluster IPv6 podCIDR that should be used to
-	// allocate pods in the node.
-	ClusterPoolIPv6CIDR []string
-
-	// NodeCIDRMaskSizeIPv4 is the IPv4 podCIDR mask size that will be used
-	// per node.
-	NodeCIDRMaskSizeIPv4 int
-
-	// NodeCIDRMaskSizeIPv6 is the IPv6 podCIDR mask size that will be used
-	// per node.
-	NodeCIDRMaskSizeIPv6 int
-
 	// IPAMAutoCreateCiliumPodIPPools contains pre-defined IP pools to be auto-created on startup.
 	IPAMAutoCreateCiliumPodIPPools map[string]string
 
@@ -270,20 +213,11 @@ type OperatorConfig struct {
 	// CiliumPodLabels specifies the pod labels that Cilium pods is running
 	// with.
 	CiliumPodLabels string
-
-	// PodRestartSelector specify the labels contained in the pod that needs to be restarted before the node can be de-stained
-	PodRestartSelector string
 }
 
 // Populate sets all options with the values from viper.
 func (c *OperatorConfig) Populate(logger *slog.Logger, vp *viper.Viper) {
-	c.EndpointGCInterval = vp.GetDuration(EndpointGCInterval)
 	c.SyncK8sServices = vp.GetBool(SyncK8sServices)
-	c.UnmanagedPodWatcherInterval = vp.GetInt(UnmanagedPodWatcherInterval)
-	c.NodeCIDRMaskSizeIPv4 = vp.GetInt(NodeCIDRMaskSizeIPv4)
-	c.NodeCIDRMaskSizeIPv6 = vp.GetInt(NodeCIDRMaskSizeIPv6)
-	c.ClusterPoolIPv4CIDR = vp.GetStringSlice(ClusterPoolIPv4CIDR)
-	c.ClusterPoolIPv6CIDR = vp.GetStringSlice(ClusterPoolIPv6CIDR)
 	c.LeaderElectionLeaseDuration = vp.GetDuration(LeaderElectionLeaseDuration)
 	c.LeaderElectionRenewDeadline = vp.GetDuration(LeaderElectionRenewDeadline)
 	c.LeaderElectionRetryPeriod = vp.GetDuration(LeaderElectionRetryPeriod)
@@ -298,7 +232,6 @@ func (c *OperatorConfig) Populate(logger *slog.Logger, vp *viper.Viper) {
 		c.ProxyStreamIdleTimeoutSeconds = DefaultProxyStreamIdleTimeoutSeconds
 	}
 	c.CiliumPodLabels = vp.GetString(CiliumPodLabels)
-	c.PodRestartSelector = vp.GetString(PodRestartSelector)
 
 	c.CiliumK8sNamespace = vp.GetString(CiliumK8sNamespace)
 

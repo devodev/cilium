@@ -10,12 +10,12 @@
 Cilium is a networking, observability, and security solution with an eBPF-based
 dataplane. It provides a simple flat Layer 3 network with the ability to span
 multiple clusters in either a native routing or overlay mode. It is L7-protocol
-aware and can enforce network policies on L3-L7 using an identity based security
+aware and can enforce network policies on L3-L7 using an identity-based security
 model that is decoupled from network addressing.
 
 Cilium implements distributed load balancing for traffic between pods and to
 external services, and is able to fully replace kube-proxy, using efficient
-hash tables in eBPF allowing for almost unlimited scale. It also supports
+hash tables in eBPF, allowing for almost unlimited scale. It also supports
 advanced functionality like integrated ingress and egress gateway, bandwidth
 management and service mesh, and provides deep network and security visibility and monitoring.
 
@@ -50,17 +50,17 @@ The Cilium community maintains minor stable releases for the last three minor
 Cilium versions. Older Cilium stable versions from minor releases prior to that
 are considered EOL.
 
-For upgrades to new minor releases please consult the `Cilium Upgrade Guide`_.
+For upgrades to new minor releases, please consult the `Cilium Upgrade Guide`_.
 
 Listed below are the actively maintained release branches along with their latest
 patch release, corresponding image pull tags and their release notes:
 
 +---------------------------------------------------------+------------+------------------------------------+----------------------------------------------------------------------------+
-| `v1.19 <https://github.com/cilium/cilium/tree/v1.19>`__ | 2026-02-17 | ``quay.io/cilium/cilium:v1.19.1``  | `Release Notes <https://github.com/cilium/cilium/releases/tag/v1.19.1>`__  |
+| `v1.19 <https://github.com/cilium/cilium/tree/v1.19>`__ | 2026-03-20 | ``quay.io/cilium/cilium:v1.19.2``  | `Release Notes <https://github.com/cilium/cilium/releases/tag/v1.19.2>`__  |
 +---------------------------------------------------------+------------+------------------------------------+----------------------------------------------------------------------------+
-| `v1.18 <https://github.com/cilium/cilium/tree/v1.18>`__ | 2026-02-12 | ``quay.io/cilium/cilium:v1.18.7``  | `Release Notes <https://github.com/cilium/cilium/releases/tag/v1.18.7>`__  |
+| `v1.18 <https://github.com/cilium/cilium/tree/v1.18>`__ | 2026-03-20 | ``quay.io/cilium/cilium:v1.18.8``  | `Release Notes <https://github.com/cilium/cilium/releases/tag/v1.18.8>`__  |
 +---------------------------------------------------------+------------+------------------------------------+----------------------------------------------------------------------------+
-| `v1.17 <https://github.com/cilium/cilium/tree/v1.17>`__ | 2026-02-12 | ``quay.io/cilium/cilium:v1.17.13`` | `Release Notes <https://github.com/cilium/cilium/releases/tag/v1.17.13>`__ |
+| `v1.17 <https://github.com/cilium/cilium/tree/v1.17>`__ | 2026-03-20 | ``quay.io/cilium/cilium:v1.17.14`` | `Release Notes <https://github.com/cilium/cilium/releases/tag/v1.17.14>`__ |
 +---------------------------------------------------------+------------+------------------------------------+----------------------------------------------------------------------------+
 
 Architectures
@@ -81,8 +81,8 @@ on this is available on `Cilium SBOM`_.
 Development
 ===========
 
-For development and testing purpose, the Cilium community publishes snapshots,
-early release candidates (RC) and CI container images build from the `main
+For development and testing purposes, the Cilium community publishes snapshots,
+early release candidates (RC) and CI container images built from the `main
 branch <https://github.com/cilium/cilium/commits/main>`_. These images are
 not for use in production.
 
@@ -95,7 +95,7 @@ corresponding image pull tags and their release notes where applicable:
 +----------------------------------------------------------------------------+------------+-----------------------------------------+---------------------------------------------------------------------------------+
 | `main <https://github.com/cilium/cilium/commits/main>`__                   | daily      | ``quay.io/cilium/cilium-ci:latest``     | N/A                                                                             |
 +----------------------------------------------------------------------------+------------+-----------------------------------------+---------------------------------------------------------------------------------+
-| `v1.20.0-pre.0 <https://github.com/cilium/cilium/commits/v1.20.0-pre.0>`__ | 2026-03-02 | ``quay.io/cilium/cilium:v1.20.0-pre.0`` | `Release Notes <https://github.com/cilium/cilium/releases/tag/v1.20.0-pre.0>`__ |
+| `v1.20.0-pre.1 <https://github.com/cilium/cilium/commits/v1.20.0-pre.1>`__ | 2026-04-01 | ``quay.io/cilium/cilium:v1.20.0-pre.1`` | `Release Notes <https://github.com/cilium/cilium/releases/tag/v1.20.0-pre.1>`__ |
 +----------------------------------------------------------------------------+------------+-----------------------------------------+---------------------------------------------------------------------------------+
 
 Functionality Overview
@@ -173,8 +173,8 @@ manipulated whenever a container is started anywhere in the cluster.
 In order to avoid this situation which limits scale, Cilium assigns a
 security identity to groups of application containers which share identical
 security policies. The identity is then associated with all network packets
-emitted by the application containers, allowing to validate the identity at
-the receiving node.
+emitted by the application containers, allowing the identity to be validated 
+at the receiving node.
 
 * **Identity-based security** removes reliance on brittle IP addresses.
 

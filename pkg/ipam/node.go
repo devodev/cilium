@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"net/netip"
 	"slices"
 	"sync/atomic"
 
@@ -387,6 +388,19 @@ func calculateExcessIPs(availableIPs, usedIPs, preAllocate, minAllocate, maxAbov
 	return
 }
 
+// poolRequestedIPv4 returns the total IPv4 address demand from the "default"
+// pool in Spec.IPAM.Pools.Requested, if present. This field is written by
+// agents using the multi-pool allocator. Agents using the CRD allocator do
+// not populate this field.
+func poolRequestedIPv4(resource *v2.CiliumNode) (int, bool) {
+	for _, req := range resource.Spec.IPAM.Pools.Requested {
+		if req.Pool == defaults.IPAMDefaultIPPool {
+			return req.Needed.IPv4Addrs, true
+		}
+	}
+	return 0, false
+}
+
 func (n *Node) requirePoolMaintenance() {
 	n.mutex.Lock()
 	n.ipv4Alloc.waitingForPoolMaintenance = true
@@ -407,12 +421,6 @@ func (n *Node) InstanceID() (id string) {
 	}
 	n.mutex.RUnlock()
 	return
-}
-
-func (n *Node) instanceAPISync(ctx context.Context, instanceID string) (time.Time, bool) {
-	syncTime := n.manager.instancesAPI.InstanceSync(ctx, instanceID)
-	success := !syncTime.IsZero()
-	return syncTime, success
 }
 
 // UpdatedResource is called when an update to the CiliumNode has been
@@ -484,16 +492,34 @@ func (n *Node) recalculate(ctx context.Context) {
 	}
 
 	n.ipv4Alloc.available = a
-	n.stats.IPv4.UsedIPs = len(n.resource.Status.IPAM.Used)
 	if stats.AssignedStaticIP != "" {
 		n.stats.IPv4.AssignedStaticIP = stats.AssignedStaticIP
 	}
 
 	n.stats.IPv4.AvailableIPs = len(n.ipv4Alloc.available)
-	n.stats.IPv4.NeededIPs = calculateNeededIPs(n.stats.IPv4.AvailableIPs, n.stats.IPv4.UsedIPs, n.getPreAllocate(), n.getMinAllocate(), n.getMaxAllocate())
-	n.stats.IPv4.ExcessIPs = calculateExcessIPs(n.stats.IPv4.AvailableIPs, n.stats.IPv4.UsedIPs, n.getPreAllocate(), n.getMinAllocate(), n.getMaxAboveWatermark())
 	n.stats.IPv4.RemainingInterfaces = stats.RemainingAvailableInterfaceCount
 	n.stats.IPv4.Capacity = stats.NodeCapacity
+
+	// Starting with 1.20, agents use the multi-pool allocator in ENI IPAM mode
+	// and write their demand to Spec.IPAM.Pools.Requested (and stop writing
+	// Status.IPAM.Used).
+	//
+	// 1.19 agents still use the CRD allocator and communicate their IP usage via
+	// Status.IPAM.Used.
+	//
+	// Both those logic branches exist in order to offer a smooth upgrade/downgrade path
+	// between 1.19 and 1.20: an operator upgraded to 1.20 will still honor the API
+	// contract expected by 1.19 agents.
+	if requested, ok := poolRequestedIPv4(n.resource); ok && len(n.resource.Status.IPAM.Used) == 0 {
+		// The agent's demand is computed as inUse + preAllocate (linear
+		// pre-allocation). Subtracting preAllocate recovers exact usage.
+		n.stats.IPv4.UsedIPs = max(0, requested-n.getPreAllocate())
+	} else {
+		n.stats.IPv4.UsedIPs = len(n.resource.Status.IPAM.Used)
+	}
+	n.stats.IPv4.NeededIPs = calculateNeededIPs(n.stats.IPv4.AvailableIPs, n.stats.IPv4.UsedIPs, n.getPreAllocate(), n.getMinAllocate(), n.getMaxAllocate())
+	n.stats.IPv4.ExcessIPs = calculateExcessIPs(n.stats.IPv4.AvailableIPs, n.stats.IPv4.UsedIPs, n.getPreAllocate(), n.getMinAllocate(), n.getMaxAboveWatermark())
+
 	scopedLog.Debug(
 		"Recalculated needed addresses",
 		logfields.Available, n.stats.IPv4.AvailableIPs,
@@ -550,6 +576,77 @@ func (n *Node) Pool() (pool ipamTypes.AllocationMap) {
 	maps.Copy(pool, n.ipv4Alloc.available)
 	n.mutex.RUnlock()
 	return
+}
+
+// buildPoolAllocated constructs Spec.IPAM.Pools.Allocated from the ENI state
+// on the CiliumNode.
+//
+// Secondary IPs are represented as /32 CIDRs and delegated prefixes as /28 CIDRs
+// Addresses that are covered by a prefix are omitted to avoid overlap, only addresses
+// outside any prefix (e.g. the ENI primary IP with UsePrimaryAddress) are
+// written as /32 CIDRs.
+//
+// Returns nil if the node has no ENI status (non-ENI IPAM modes).
+func (n *Node) buildPoolAllocated(node *v2.CiliumNode) []ipamTypes.IPAMPoolAllocation {
+	if len(node.Status.ENI.ENIs) == 0 {
+		return nil
+	}
+
+	var cidrs []ipamTypes.IPAMCIDR
+	for _, eni := range node.Status.ENI.ENIs {
+		if eni.IsExcludedBySpec(node.Spec.ENI) {
+			continue
+		}
+
+		var prefixes []netip.Prefix
+		for _, p := range eni.Prefixes {
+			cidrs = append(cidrs, ipamTypes.IPAMCIDR(p))
+			if parsed, err := netip.ParsePrefix(p); err == nil {
+				prefixes = append(prefixes, parsed)
+			}
+		}
+
+		// In parseENI (pkg/aws/ec2), we currently use PrefixToIps to flatten each prefixes
+		// into 16 individual IPs and append those IPs to the ENI Addresses field.
+		// Here we need to apply a reverse logic to only advertise as /32 CIDRs in the pool
+		// regular secondary addresses (or the ENI primary IP when using UsePrimaryAddress)
+		// and not addresses that are already being advertised through a /28 CIDR.
+		for _, addr := range eni.Addresses {
+			if addressCoveredByPrefix(addr, prefixes) {
+				continue
+			}
+			cidrs = append(cidrs, ipamTypes.IPAMCIDR(addr+"/32"))
+		}
+	}
+
+	if len(cidrs) == 0 {
+		return nil
+	}
+
+	return []ipamTypes.IPAMPoolAllocation{
+		{
+			Pool:  defaults.IPAMDefaultIPPool,
+			CIDRs: cidrs,
+		},
+	}
+}
+
+// addressCoveredByPrefix returns true if the given IP address string falls
+// within any of the provided prefixes.
+func addressCoveredByPrefix(addr string, prefixes []netip.Prefix) bool {
+	if len(prefixes) == 0 {
+		return false
+	}
+	ip, err := netip.ParseAddr(addr)
+	if err != nil {
+		return false
+	}
+	for _, p := range prefixes {
+		if p.Contains(ip) {
+			return true
+		}
+	}
+	return false
 }
 
 // ResourceCopy returns a deep copy of the CiliumNode custom resource
@@ -1173,6 +1270,15 @@ func (n *Node) syncToAPIServer() error {
 	for retry := range maxRetries {
 		node.Spec.IPAM.Pool = pool
 		n.logger.Load().Debug("Updating node in apiserver", logfields.PoolSize, len(node.Spec.IPAM.Pool))
+
+		// Dual-write: populate Spec.IPAM.Pools.Allocated alongside
+		// Spec.IPAM.Pool for the ENI multi-pool migration
+		// (https://github.com/cilium/design-cfps/pull/87).
+		// 1.20 agents read CIDRs from Pools.Allocated; 1.19 agents continue
+		// to use Pool. This dual-write will be removed in 1.21
+		if allocated := n.buildPoolAllocated(node); allocated != nil {
+			node.Spec.IPAM.Pools.Allocated = allocated
+		}
 
 		// The PreAllocate value is added here rather than where the CiliumNode
 		// resource is created ((*NodeDiscovery).mutateNodeResource() inside

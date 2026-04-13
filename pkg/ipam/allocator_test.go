@@ -13,10 +13,10 @@ import (
 	"github.com/cilium/hive/hivetest"
 	"github.com/stretchr/testify/require"
 
-	fakeTypes "github.com/cilium/cilium/pkg/datapath/fake/types"
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	"github.com/cilium/cilium/pkg/k8s/resource"
 	"github.com/cilium/cilium/pkg/node"
+	fakenode "github.com/cilium/cilium/pkg/node/fake"
 )
 
 type ownerMock struct{}
@@ -31,6 +31,8 @@ func (o *ownerMock) UpdateCiliumNodeResource() {}
 type resourceMock struct{}
 
 func (rm *resourceMock) Observe(ctx context.Context, next func(resource.Event[*ciliumv2.CiliumNode]), complete func(error)) {
+	<-ctx.Done()
+	complete(ctx.Err())
 }
 
 func (rm *resourceMock) Events(ctx context.Context, opts ...resource.EventsOpt) <-chan resource.Event[*ciliumv2.CiliumNode] {
@@ -54,7 +56,7 @@ func (f *fakeMTU) GetRouteMTU() int {
 var mtuMock = fakeMTU{}
 
 func TestAllocatedIPDump(t *testing.T) {
-	fakeAddressing := fakeTypes.NewNodeAddressing()
+	fakeAddressing := fakenode.NewAddressing()
 	localNodeStore := node.NewTestLocalNodeStore(node.LocalNode{})
 	ipam := NewIPAM(NewIPAMParams{
 		Logger:         hivetest.Logger(t),
@@ -84,7 +86,7 @@ func TestExpirationTimer(t *testing.T) {
 	ip := net.ParseIP("1.1.1.1")
 	timeout := 50 * time.Millisecond
 
-	fakeAddressing := fakeTypes.NewNodeAddressing()
+	fakeAddressing := fakenode.NewAddressing()
 	localNodeStore := node.NewTestLocalNodeStore(node.LocalNode{})
 	ipam := NewIPAM(NewIPAMParams{
 		Logger:         hivetest.Logger(t),
@@ -160,7 +162,7 @@ func TestExpirationTimer(t *testing.T) {
 func TestAllocateNextWithExpiration(t *testing.T) {
 	timeout := 50 * time.Millisecond
 
-	fakeAddressing := fakeTypes.NewNodeAddressing()
+	fakeAddressing := fakenode.NewAddressing()
 	localNodeStore := node.NewTestLocalNodeStore(node.LocalNode{})
 	fakeMetadata := fakeMetadataFunc(func(owner string, family Family) (pool string, err error) { return "some-pool", nil })
 	ipam := NewIPAM(NewIPAMParams{

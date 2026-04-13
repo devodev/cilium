@@ -15,8 +15,8 @@ import (
 
 	"github.com/spf13/pflag"
 
+	ipsecTypes "github.com/cilium/cilium/pkg/datapath/linux/ipsec/types"
 	"github.com/cilium/cilium/pkg/datapath/tunnel"
-	dpTypes "github.com/cilium/cilium/pkg/datapath/types"
 	"github.com/cilium/cilium/pkg/kpr"
 	"github.com/cilium/cilium/pkg/option"
 	wgTypes "github.com/cilium/cilium/pkg/wireguard/types"
@@ -60,7 +60,7 @@ func (def Config) Flags(flags *pflag.FlagSet) {
 	flags.Bool(EnablePhantomServices, def.EnablePhantomServices, "Enable phantom services handling")
 }
 
-func (cfg Config) Validate(dcfg *option.DaemonConfig, kprConfig kpr.KPRConfig, wgConfig wgTypes.WireguardConfig, ipsecConfig dpTypes.IPsecConfig) error {
+func (cfg Config) Validate(dcfg *option.DaemonConfig, kprConfig kpr.KPRConfig, wgConfig wgTypes.Config, ipsecConfig ipsecTypes.Config) error {
 	if !cfg.EnableClusterAwareAddressing {
 		if cfg.EnableInterClusterSNAT {
 			return fmt.Errorf("%s depends on %s", EnableInterClusterSNAT, EnableClusterAwareAddressing)
@@ -82,7 +82,7 @@ func (cfg Config) Validate(dcfg *option.DaemonConfig, kprConfig kpr.KPRConfig, w
 	incompatibilities := map[string]bool{
 		option.EnableEndpointRoutes:         dcfg.EnableEndpointRoutes,
 		option.EnableEndpointHealthChecking: dcfg.EnableEndpointHealthChecking,
-		dpTypes.EnableIPSec:                 ipsecConfig.Enabled(),
+		option.EnableIPSec:                  ipsecConfig.Enabled(),
 		wgTypes.EnableWireguard:             wgConfig.Enabled(),
 	}
 

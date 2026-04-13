@@ -244,7 +244,6 @@
 /pkg/crypto/certificatemanager @isovalent/service-mesh @isovalent/service-mesh
 /pkg/crypto/certloader @isovalent/hubble
 /pkg/datapath/ @isovalent/cni
-/pkg/datapath/fake/types/ipsec.go @isovalent/encryption
 /pkg/datapath/ipcache/ @isovalent/policy-identity-networking
 /pkg/datapath/linux/config/ @isovalent/networking-framework
 /pkg/datapath/linux/ipsec/ @isovalent/encryption
@@ -254,8 +253,6 @@
 /pkg/datapath/linux/requirements.go @isovalent/networking-framework
 /pkg/datapath/loader/ @isovalent/networking-framework
 /pkg/datapath/loader/verifier_load_test.go @isovalent/cni
-/pkg/datapath/types/ipsec.go @isovalent/encryption
-/pkg/datapath/types/loader.go @isovalent/networking-framework
 /pkg/datapath/sockets/ @isovalent/isovalent-loadbalancer
 /pkg/defaults @isovalent/cni
 /pkg/debug @isovalent/cni
@@ -375,7 +372,6 @@
 /standalone-dns-proxy/ @isovalent/dns-proxy
 /test/k8s/services.go @isovalent/isovalent-loadbalancer
 /test/k8s/lrp.go @isovalent/isovalent-loadbalancer
-/test/k8s/datapath_configuration.go @isovalent/cni
 /test/k8s/chaos.go @isovalent/policy-identity-networking
 /test/k8s/net_policies.go @isovalent/policy-identity-networking
 /test/k8s/hubble.go @isovalent/hubble
@@ -386,6 +382,8 @@
 /test/k8s/pod_mac_address.go @isovalent/sig-k8s
 /tools/complexity-diff @isovalent/networking-framework
 /tools/dpgen @isovalent/networking-framework
+/tools/envoy-bootstrap-locality @isovalent/service-mesh
+/tools/stackwhere @isovalent/networking-framework
 /.github/**/*enterprise* @isovalent/infrastructure
 /.github/ISSUE_TEMPLATE/enterprise_hubble_cli_release_template.md @isovalent/hubble
 /.github/enterprise/.grype.yaml @isovalent/security

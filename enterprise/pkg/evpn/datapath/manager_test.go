@@ -29,13 +29,14 @@ import (
 	evpnConfig "github.com/cilium/cilium/enterprise/pkg/evpn/config"
 	privnetConfig "github.com/cilium/cilium/enterprise/pkg/privnet/config"
 	"github.com/cilium/cilium/pkg/bpf"
+	"github.com/cilium/cilium/pkg/datapath/config"
 	"github.com/cilium/cilium/pkg/datapath/linux/safenetlink"
 	"github.com/cilium/cilium/pkg/datapath/linux/sysctl"
 	"github.com/cilium/cilium/pkg/datapath/loader"
 	"github.com/cilium/cilium/pkg/datapath/loader/metrics"
 	"github.com/cilium/cilium/pkg/datapath/tables"
-	datapathTypes "github.com/cilium/cilium/pkg/datapath/types"
 	"github.com/cilium/cilium/pkg/endpoint/regeneration"
+	endpointTypes "github.com/cilium/cilium/pkg/endpoint/types"
 	"github.com/cilium/cilium/pkg/endpointmanager"
 	"github.com/cilium/cilium/pkg/testutils"
 	"github.com/cilium/cilium/pkg/testutils/netns"
@@ -59,19 +60,19 @@ func (f *fakeOrchestrator) DatapathInitialized() <-chan struct{} {
 	return f.initCh
 }
 
-func (f *fakeOrchestrator) ReloadDatapath(ctx context.Context, ep datapathTypes.Endpoint, stats *metrics.SpanStat) (string, error) {
+func (f *fakeOrchestrator) ReloadDatapath(ctx context.Context, ep endpointTypes.Endpoint, stats *metrics.SpanStat) (string, error) {
 	return "", nil
 }
 
-func (f *fakeOrchestrator) EndpointHash(cfg datapathTypes.EndpointConfiguration) (string, error) {
+func (f *fakeOrchestrator) EndpointHash(cfg endpointTypes.Config) (string, error) {
 	return "", nil
 }
 
-func (f *fakeOrchestrator) WriteEndpointConfig(w io.Writer, cfg datapathTypes.EndpointConfiguration) error {
+func (f *fakeOrchestrator) WriteEndpointConfig(w io.Writer, cfg endpointTypes.Config) error {
 	return nil
 }
 
-func (f *fakeOrchestrator) Unload(ep datapathTypes.Endpoint) {}
+func (f *fakeOrchestrator) Unload(ep endpointTypes.Endpoint) {}
 
 type fakeHealth struct {
 	okCount       atomic.Int32
@@ -143,7 +144,7 @@ func TestManagerRunEnabled(t *testing.T) {
 		VxlanPort:    testVXLANPort,
 	}
 	m, db, devices := newTestManager(t, cfg)
-	lnc := datapathTypes.LocalNodeConfiguration{DeviceMTU: testDeviceMTU}
+	lnc := config.Config{DeviceMTU: testDeviceMTU}
 	m.NodeConfigurationChanged(lnc)
 
 	txn := db.WriteTxn(devices)
@@ -170,7 +171,7 @@ func TestManagerRunEnabled(t *testing.T) {
 		return 1, nil
 	}
 
-	replaceEvpnDatapathFn = func(ctx context.Context, logger *slog.Logger, lnc *datapathTypes.LocalNodeConfiguration, evpnCfg evpnConfig.Config, privnetCfg privnetConfig.Config) error {
+	replaceEvpnDatapathFn = func(ctx context.Context, logger *slog.Logger, lnc *config.Config, evpnCfg evpnConfig.Config, privnetCfg privnetConfig.Config) error {
 		replaceCalled.Store(true)
 		require.Equal(t, testDeviceName, evpnCfg.VxlanDevice)
 		require.Equal(t, testDeviceMTU, lnc.DeviceMTU)
@@ -281,7 +282,7 @@ func TestPrivilegedManagerDeviceRecreateAndCleanup(t *testing.T) {
 			return ifIndex, nil
 		}
 		origReplace := replaceEvpnDatapathFn
-		replaceEvpnDatapathFn = func(ctx context.Context, logger *slog.Logger, cfgIn *datapathTypes.LocalNodeConfiguration, evpnCfg evpnConfig.Config, privnetCfg privnetConfig.Config) error {
+		replaceEvpnDatapathFn = func(ctx context.Context, logger *slog.Logger, cfgIn *config.Config, evpnCfg evpnConfig.Config, privnetCfg privnetConfig.Config) error {
 			// create mock bpffs links dir and calls map pins
 			link, err := safenetlink.LinkByName(evpnCfg.VxlanDevice)
 			if err != nil {
@@ -302,7 +303,7 @@ func TestPrivilegedManagerDeviceRecreateAndCleanup(t *testing.T) {
 			replaceEvpnDatapathFn = origReplace
 		})
 
-		lnc := datapathTypes.LocalNodeConfiguration{DeviceMTU: testDeviceMTU}
+		lnc := config.Config{DeviceMTU: testDeviceMTU}
 		m.NodeConfigurationChanged(lnc)
 
 		prevIfIdx := 0
@@ -313,7 +314,7 @@ func TestPrivilegedManagerDeviceRecreateAndCleanup(t *testing.T) {
 			}
 			if i > 1 {
 				// use different vxlan port to test change with no recreate
-				lnc := datapathTypes.LocalNodeConfiguration{DeviceMTU: 1400}
+				lnc := config.Config{DeviceMTU: 1400}
 				m.NodeConfigurationChanged(lnc)
 			}
 

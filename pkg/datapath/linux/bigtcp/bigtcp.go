@@ -12,11 +12,12 @@ import (
 	"github.com/cilium/statedb"
 	"github.com/vishvananda/netlink"
 
+	"github.com/cilium/cilium/pkg/datapath/linux/bigtcp/types"
+	ipsec "github.com/cilium/cilium/pkg/datapath/linux/ipsec/types"
 	"github.com/cilium/cilium/pkg/datapath/linux/probes"
 	"github.com/cilium/cilium/pkg/datapath/linux/safenetlink"
 	"github.com/cilium/cilium/pkg/datapath/tables"
 	"github.com/cilium/cilium/pkg/datapath/tunnel"
-	"github.com/cilium/cilium/pkg/datapath/types"
 	"github.com/cilium/cilium/pkg/loadbalancer"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/option"
@@ -27,7 +28,7 @@ const (
 	bigTCPMaxSize  = 196608
 )
 
-var defaultUserConfig = types.BigTCPUserConfig{
+var defaultUserConfig = UserConfig{
 	EnableIPv6BIGTCP: false,
 	EnableIPv4BIGTCP: false,
 }
@@ -38,24 +39,35 @@ var Cell = cell.Module(
 
 	cell.Config(defaultUserConfig),
 	cell.Provide(newBIGTCP,
-		func(c types.BigTCPUserConfig) types.BigTCPConfig { return c }),
-	cell.Invoke(func(*Configuration) {}),
+		func(c UserConfig) Features { return c }),
+	cell.Invoke(func(Config) {}),
 )
 
-func newDefaultConfiguration(userConfig types.BigTCPUserConfig) *Configuration {
-	return &Configuration{
-		BigTCPUserConfig: userConfig,
-		groIPv4MaxSize:   0,
-		gsoIPv4MaxSize:   0,
-		groIPv6MaxSize:   0,
-		gsoIPv6MaxSize:   0,
+// Config will never confuse anyone. After all, it is similar but not
+// identical to bigtcp.Config.
+type Config interface {
+	Features
+
+	GetGROIPv6MaxSize() int
+	GetGSOIPv6MaxSize() int
+	GetGROIPv4MaxSize() int
+	GetGSOIPv4MaxSize() int
+}
+
+func newDefaultConfiguration(userConfig UserConfig) *config {
+	return &config{
+		UserConfig:     userConfig,
+		groIPv4MaxSize: 0,
+		gsoIPv4MaxSize: 0,
+		groIPv6MaxSize: 0,
+		gsoIPv6MaxSize: 0,
 	}
 }
 
 // Configuration is the BIG TCP configuration. The values are finalized after
 // BIG TCP has started and must not be read before that.
-type Configuration struct {
-	types.BigTCPUserConfig
+type config struct {
+	UserConfig
 
 	// gsoIPv{4,6}MaxSize is the GSO maximum size used when configuring
 	// devices.
@@ -78,19 +90,19 @@ type Configuration struct {
 	groIPv6MaxSize int
 }
 
-func (c *Configuration) GetGROIPv6MaxSize() int {
+func (c *config) GetGROIPv6MaxSize() int {
 	return c.groIPv6MaxSize
 }
 
-func (c *Configuration) GetGSOIPv6MaxSize() int {
+func (c *config) GetGSOIPv6MaxSize() int {
 	return c.gsoIPv6MaxSize
 }
 
-func (c *Configuration) GetGROIPv4MaxSize() int {
+func (c *config) GetGROIPv4MaxSize() int {
 	return c.groIPv4MaxSize
 }
 
-func (c *Configuration) GetGSOIPv4MaxSize() int {
+func (c *config) GetGSOIPv4MaxSize() int {
 	return c.gsoIPv4MaxSize
 }
 
@@ -236,15 +248,15 @@ type params struct {
 
 	Log          *slog.Logger
 	DaemonConfig *option.DaemonConfig
-	UserConfig   types.BigTCPUserConfig
-	IPsecConfig  types.IPsecConfig
+	UserConfig   UserConfig
+	IPsecConfig  ipsec.Config
 	LBConfig     loadbalancer.Config
 	TunnelConfig tunnel.Config
 	DB           *statedb.DB
 	Devices      statedb.Table[*tables.Device]
 }
 
-func validateConfig(cfg types.BigTCPUserConfig, daemonCfg *option.DaemonConfig, ipsecCfg types.IPsecConfig, dsrDispatch string, bigtcpTunnel bool) error {
+func validateConfig(cfg UserConfig, daemonCfg *option.DaemonConfig, ipsecCfg ipsec.Config, dsrDispatch string, bigtcpTunnel bool) error {
 	if cfg.EnableIPv6BIGTCP || cfg.EnableIPv4BIGTCP {
 		// Check all configurations where Cilium creates tunnel devices
 		// that don't support BIG TCP.
@@ -270,7 +282,7 @@ func validateConfig(cfg types.BigTCPUserConfig, daemonCfg *option.DaemonConfig, 
 	return nil
 }
 
-func newBIGTCP(lc cell.Lifecycle, p params) (*Configuration, error) {
+func newBIGTCP(lc cell.Lifecycle, p params) (Config, error) {
 	bigtcpTunnel := supportsBIGTCPTunnel(p.Log)
 	p.Log.Info("Probed kernel support for BIG TCP for UDP tunnels",
 		logfields.State, bigtcpTunnel,
@@ -296,18 +308,18 @@ type netdevParams struct {
 	groMaxSizeIPv4 int
 }
 
-func startBIGTCP(p params, cfg *Configuration) error {
+func startBIGTCP(p params, cfg *config) error {
 	var err error
 
 	nativeDevices, _ := tables.SelectedDevices(p.Devices, p.DB.ReadTxn())
 	deviceNames := tables.DeviceNames(nativeDevices)
 
 	if p.UserConfig.EnableIPv4BIGTCP && !supportsBIGTCPIPv4(p.Log) {
-		p.Log.Warn("Cannot enable --" + types.EnableIPv4BIGTCPFlag + ", needs kernel 6.3 or newer")
+		p.Log.Warn("Cannot enable --" + enableIPv4BIGTCPFlag + ", needs kernel 6.3 or newer")
 		p.UserConfig.EnableIPv4BIGTCP = false
 	}
 	if p.UserConfig.EnableIPv6BIGTCP && !supportsBIGTCPIPv6(p.Log) {
-		p.Log.Warn("Cannot enable --" + types.EnableIPv6BIGTCPFlag + ", needs kernel 5.19 or newer")
+		p.Log.Warn("Cannot enable --" + enableIPv6BIGTCPFlag + ", needs kernel 5.19 or newer")
 		p.UserConfig.EnableIPv6BIGTCP = false
 	}
 

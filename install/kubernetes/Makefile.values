@@ -39,8 +39,8 @@ export CILIUM_NODEINIT_DIGEST:=sha256:bf1944bbdfd073bbb2b8d9c5baa315267a552aec69
 
 # renovate: datasource=docker
 export CILIUM_ENVOY_REPO:=quay.io/cilium/cilium-envoy
-export CILIUM_ENVOY_VERSION:=v1.36.5-1773729229-f15b6334115ed4d8027b2460a8eb1f6c611660f0
-export CILIUM_ENVOY_DIGEST:=sha256:70cf6a84a5518bdc501b4fa96eafaf8a8d88517fa2cf42e65977680c3f6f1462
+export CILIUM_ENVOY_VERSION:=v1.36.5-1775137579-2b3493aca96923190423ccec7e4dbc5f074ccad4
+export CILIUM_ENVOY_DIGEST:=sha256:df144744740f91dc55ca39367f61c9a214a989d543c6f91319ccd686ddd7477f
 
 # renovate: datasource=docker
 export HUBBLE_UI_BACKEND_REPO:=quay.io/cilium/hubble-ui-backend
@@ -66,3 +66,8 @@ export SPIRE_SERVER_DIGEST:=sha256:27c7d356768b8641c569745e1121328affeb4aaabe0c9
 export SPIRE_AGENT_REPO:=ghcr.io/spiffe/spire-agent
 export SPIRE_AGENT_VERSION:=1.14.4
 export SPIRE_AGENT_DIGEST:=sha256:f93996a9396ec4042a48042085c2abf1a0f8f0f3b339571e06ebfebbf94bb830
+
+# renovate: datasource=docker
+export ZTUNNEL_REPO:=quay.io/cilium/ztunnel
+export ZTUNNEL_VERSION:=v1.0.0
+export ZTUNNEL_DIGEST:=sha256:884de5adde400e39f58e36c7a729f7690466ca4a8eb4c2a8daa9c1c025115b24

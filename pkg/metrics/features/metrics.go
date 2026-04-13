@@ -5,12 +5,15 @@ package features
 
 import (
 	"fmt"
+	"reflect"
+
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/cilium/cilium/pkg/clustermesh"
 	"github.com/cilium/cilium/pkg/clustermesh/types"
+	ipsec "github.com/cilium/cilium/pkg/datapath/linux/ipsec/types"
 	datapathOption "github.com/cilium/cilium/pkg/datapath/option"
 	"github.com/cilium/cilium/pkg/datapath/tunnel"
-	datapath "github.com/cilium/cilium/pkg/datapath/types"
 	"github.com/cilium/cilium/pkg/defaults"
 	ipamOption "github.com/cilium/cilium/pkg/ipam/option"
 	"github.com/cilium/cilium/pkg/kpr"
@@ -969,10 +972,11 @@ func NewMetrics(withDefaults bool, withEnvVersion bool) Metrics {
 }
 
 type featureMetrics interface {
-	update(params enabledFeatures, config *option.DaemonConfig, lbConfig loadbalancer.Config, kprCfg kpr.KPRConfig, wgCfg wgTypes.WireguardConfig, ipsecCfg datapath.IPsecConfig)
+	update(params enabledFeatures, config *option.DaemonConfig, lbConfig loadbalancer.Config, kprCfg kpr.KPRConfig, wgCfg wgTypes.Config, ipsecCfg ipsec.Config)
+	toGatherer() (prometheus.Gatherer, error)
 }
 
-func (m Metrics) update(params enabledFeatures, config *option.DaemonConfig, lbConfig loadbalancer.Config, kprCfg kpr.KPRConfig, wgCfg wgTypes.WireguardConfig, ipsecCfg datapath.IPsecConfig) {
+func (m Metrics) update(params enabledFeatures, config *option.DaemonConfig, lbConfig loadbalancer.Config, kprCfg kpr.KPRConfig, wgCfg wgTypes.Config, ipsecCfg ipsec.Config) {
 	networkMode := networkModeDirectRouting
 	if config.TunnelingEnabled() {
 		switch params.TunnelProtocol() {
@@ -1091,11 +1095,11 @@ func (m Metrics) update(params enabledFeatures, config *option.DaemonConfig, lbC
 
 	var bigTCPProto string
 	switch {
-	case params.BigTCPConfig().IsIPv4Enabled() && params.BigTCPConfig().IsIPv6Enabled():
+	case params.BigTCPFeatures().IsIPv4Enabled() && params.BigTCPFeatures().IsIPv6Enabled():
 		bigTCPProto = advConnBigTCPDualStack
-	case params.BigTCPConfig().IsIPv4Enabled():
+	case params.BigTCPFeatures().IsIPv4Enabled():
 		bigTCPProto = advConnBigTCPIPv4
-	case params.BigTCPConfig().IsIPv6Enabled():
+	case params.BigTCPFeatures().IsIPv6Enabled():
 		bigTCPProto = advConnBigTCPIPv6
 	}
 
@@ -1120,4 +1124,22 @@ func (m Metrics) update(params enabledFeatures, config *option.DaemonConfig, lbC
 	if params.IsDynamicConfigSourceKindNodeConfig() {
 		m.ACLBCiliumNodeConfigEnabled.Set(1)
 	}
+}
+
+func (m Metrics) toGatherer() (prometheus.Gatherer, error) {
+	rv := reflect.ValueOf(m)
+	reg := prometheus.NewPedanticRegistry()
+	for i := 0; i < rv.NumField(); i++ {
+		if !rv.Field(i).CanInterface() {
+			continue
+		}
+		c, ok := rv.Field(i).Interface().(prometheus.Collector)
+		if !ok {
+			continue
+		}
+		if err := reg.Register(c); err != nil {
+			return nil, fmt.Errorf("registering metric: %w", err)
+		}
+	}
+	return reg, nil
 }

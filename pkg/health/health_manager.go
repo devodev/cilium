@@ -16,9 +16,10 @@ import (
 	"github.com/cilium/cilium/api/v1/models"
 	"github.com/cilium/cilium/daemon/infraendpoints"
 	"github.com/cilium/cilium/pkg/controller"
+	"github.com/cilium/cilium/pkg/datapath/connector"
 	"github.com/cilium/cilium/pkg/datapath/linux/bigtcp"
 	"github.com/cilium/cilium/pkg/datapath/linux/sysctl"
-	datapath "github.com/cilium/cilium/pkg/datapath/types"
+	loader "github.com/cilium/cilium/pkg/datapath/loader/types"
 	"github.com/cilium/cilium/pkg/endpoint"
 	endpointcreator "github.com/cilium/cilium/pkg/endpoint/creator"
 	"github.com/cilium/cilium/pkg/endpointmanager"
@@ -56,10 +57,10 @@ type ciliumHealthManager struct {
 	logger           *slog.Logger
 	healthSpec       *healthApi.Spec
 	sysctl           sysctl.Sysctl
-	loader           datapath.Loader
-	connectorConfig  datapath.ConnectorConfig
+	loader           loader.Loader
+	connectorConfig  connector.Config
 	mtuConfig        mtu.MTU
-	bigTCPConfig     *bigtcp.Configuration
+	bigTCPConfig     bigtcp.Config
 	endpointCreator  endpointcreator.EndpointCreator
 	endpointManager  endpointmanager.EndpointManager
 	k8sClientSet     k8sClient.Clientset
@@ -81,10 +82,10 @@ type ciliumHealthParams struct {
 	JobGroup               job.Group
 	HealthSpec             *healthApi.Spec
 	Sysctl                 sysctl.Sysctl
-	Loader                 datapath.Loader
-	ConnectorConfig        datapath.ConnectorConfig
+	Loader                 loader.Loader
+	ConnectorConfig        connector.Config
 	MtuConfig              mtu.MTU
-	BigTCPConfig           *bigtcp.Configuration
+	BigTCPConfig           bigtcp.Config
 	EndpointCreator        endpointcreator.EndpointCreator
 	EndpointManager        endpointmanager.EndpointManager
 	EndpointRestorePromise promise.Promise[endpointstate.Restorer]

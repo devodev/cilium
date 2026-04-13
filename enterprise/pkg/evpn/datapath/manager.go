@@ -23,10 +23,11 @@ import (
 
 	evpnConfig "github.com/cilium/cilium/enterprise/pkg/evpn/config"
 	privnetConfig "github.com/cilium/cilium/enterprise/pkg/privnet/config"
+	"github.com/cilium/cilium/pkg/datapath/config"
 	"github.com/cilium/cilium/pkg/datapath/linux/sysctl"
 	"github.com/cilium/cilium/pkg/datapath/tables"
-	datapathTypes "github.com/cilium/cilium/pkg/datapath/types"
 	"github.com/cilium/cilium/pkg/endpoint/regeneration"
+	endpointTypes "github.com/cilium/cilium/pkg/endpoint/types"
 	"github.com/cilium/cilium/pkg/endpointmanager"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	nodeManager "github.com/cilium/cilium/pkg/node/manager"
@@ -57,9 +58,9 @@ type manager struct {
 	evpnConfig    evpnConfig.Config
 	privnetConfig privnetConfig.Config
 
-	orchestrator    datapathTypes.Orchestrator
+	orchestrator    endpointTypes.Orchestrator
 	endpointManager endpointmanager.EndpointManager
-	nodeConfig      atomic.Pointer[datapathTypes.LocalNodeConfiguration]
+	nodeConfig      atomic.Pointer[config.Config]
 
 	db      *statedb.DB
 	devices statedb.Table[*tables.Device]
@@ -79,7 +80,7 @@ type managerIn struct {
 	EVPNConfig    evpnConfig.Config
 	PrivnetConfig privnetConfig.Config
 
-	Orchestrator       datapathTypes.Orchestrator
+	Orchestrator       endpointTypes.Orchestrator
 	EndpointManager    endpointmanager.EndpointManager
 	Fence              regeneration.Fence
 	NodeConfigNotifier *nodeManager.NodeConfigNotifier
@@ -130,7 +131,7 @@ func registerManager(in managerIn) error {
 	return nil
 }
 
-func (m *manager) NodeConfigurationChanged(cfg datapathTypes.LocalNodeConfiguration) error {
+func (m *manager) NodeConfigurationChanged(cfg config.Config) error {
 	cfgCopy := cfg
 	m.nodeConfig.Store(&cfgCopy)
 	select {

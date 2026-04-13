@@ -25,7 +25,6 @@ import (
 	dpipc "github.com/cilium/cilium/pkg/datapath/ipcache"
 	linuxdatapath "github.com/cilium/cilium/pkg/datapath/linux"
 	"github.com/cilium/cilium/pkg/datapath/tunnel"
-	datapath "github.com/cilium/cilium/pkg/datapath/types"
 	"github.com/cilium/cilium/pkg/ipcache"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	ipcmap "github.com/cilium/cilium/pkg/maps/ipcache"
@@ -137,7 +136,7 @@ func (mgr *manager) configureLocalNode(lns *node.LocalNodeStore) {
 	})
 }
 
-func (mgr *manager) setupNodeManager(nh datapath.NodeHandler, cm *clustermesh.ClusterMesh, nomgr nodemanager.NodeManager) {
+func (mgr *manager) setupNodeManager(nh node.Handler, cm *clustermesh.ClusterMesh, nomgr nodemanager.NodeManager) {
 	// The downstream is configured here to avoid a circular dependency in Hive.
 	mgr.nodes.downstream = nomgr
 

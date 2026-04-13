@@ -18,13 +18,14 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/cilium/cilium/pkg/cidr"
-	fakeTypes "github.com/cilium/cilium/pkg/datapath/fake/types"
+	"github.com/cilium/cilium/pkg/datapath/config"
 	"github.com/cilium/cilium/pkg/datapath/linux/ipsec"
+	fakeipsec "github.com/cilium/cilium/pkg/datapath/linux/ipsec/fake"
+	ipsecTypes "github.com/cilium/cilium/pkg/datapath/linux/ipsec/types"
 	"github.com/cilium/cilium/pkg/datapath/linux/linux_defaults"
 	"github.com/cilium/cilium/pkg/datapath/linux/route"
 	"github.com/cilium/cilium/pkg/datapath/linux/safenetlink"
 	dpTunnel "github.com/cilium/cilium/pkg/datapath/tunnel"
-	datapath "github.com/cilium/cilium/pkg/datapath/types"
 	"github.com/cilium/cilium/pkg/defaults"
 	"github.com/cilium/cilium/pkg/idpool"
 	ipamOption "github.com/cilium/cilium/pkg/ipam/option"
@@ -54,7 +55,7 @@ type linuxNodeHandler struct {
 
 	mutex             lock.RWMutex
 	isInitialized     bool
-	nodeConfig        datapath.LocalNodeConfiguration
+	nodeConfig        config.Config
 	datapathConfig    DatapathConfiguration
 	nodes             map[nodeTypes.Identity]*nodeTypes.Node
 	ipsecUpdateNeeded map[nodeTypes.Identity]bool
@@ -70,19 +71,19 @@ type linuxNodeHandler struct {
 
 	ipsecMetricCollector prometheus.Collector
 	ipsecMetricOnce      sync.Once
-	ipsecAgent           datapath.IPsecAgent
+	ipsecAgent           ipsecTypes.Agent
 
 	enableEncapsulation func(node *nodeTypes.Node) bool
 
 	kprCfg kpr.KPRConfig
 
-	ipsecCfg datapath.IPsecConfig
+	ipsecCfg ipsecTypes.Config
 }
 
 var (
-	_ datapath.NodeHandler             = (*linuxNodeHandler)(nil)
-	_ datapath.NodeConfigChangeHandler = (*linuxNodeHandler)(nil)
-	_ datapath.NodeIDHandler           = (*linuxNodeHandler)(nil)
+	_ node.Handler         = (*linuxNodeHandler)(nil)
+	_ config.ChangeHandler = (*linuxNodeHandler)(nil)
+	_ node.IDHandler       = (*linuxNodeHandler)(nil)
 )
 
 // NewNodeHandler returns a new node handler to handle node events and
@@ -95,15 +96,15 @@ func NewNodeHandler(
 	nodeManager manager.NodeManager,
 	nodeConfigNotifier *manager.NodeConfigNotifier,
 	kprCfg kpr.KPRConfig,
-	ipsecAgent datapath.IPsecAgent,
+	ipsecAgent ipsecTypes.Agent,
 	localNodeStore *node.LocalNodeStore,
-) (datapath.NodeHandler, datapath.NodeIDHandler) {
+) (node.Handler, node.IDHandler) {
 	datapathConfig := DatapathConfiguration{
 		HostDevice:   defaults.HostDevice,
 		TunnelDevice: tunnelConfig.DeviceName(),
 	}
 
-	handler := newNodeHandler(log, datapathConfig, nodeMap, kprCfg, ipsecAgent, fakeTypes.IPsecConfig{}, localNodeStore)
+	handler := newNodeHandler(log, datapathConfig, nodeMap, kprCfg, ipsecAgent, fakeipsec.Config{}, localNodeStore)
 
 	nodeManager.Subscribe(handler)
 	nodeConfigNotifier.Subscribe(handler)
@@ -125,14 +126,14 @@ func newNodeHandler(
 	datapathConfig DatapathConfiguration,
 	nodeMap nodemap.MapV2,
 	kprCfg kpr.KPRConfig,
-	ipsecAgent datapath.IPsecAgent,
-	ipsecCfg datapath.IPsecConfig,
+	ipsecAgent ipsecTypes.Agent,
+	ipsecCfg ipsecTypes.Config,
 	localNodeStore *node.LocalNodeStore,
 ) *linuxNodeHandler {
 	return &linuxNodeHandler{
 		log:                  log,
 		datapathConfig:       datapathConfig,
-		nodeConfig:           datapath.LocalNodeConfiguration{},
+		nodeConfig:           config.Config{},
 		nodes:                map[nodeTypes.Identity]*nodeTypes.Node{},
 		localNodeStore:       localNodeStore,
 		nodeMap:              nodeMap,
@@ -689,7 +690,7 @@ func (n *linuxNodeHandler) replaceHostRules() error {
 }
 
 // NodeConfigurationChanged is called when the LocalNodeConfiguration has changed
-func (n *linuxNodeHandler) NodeConfigurationChanged(newConfig datapath.LocalNodeConfiguration) error {
+func (n *linuxNodeHandler) NodeConfigurationChanged(newConfig config.Config) error {
 	n.mutex.Lock()
 	defer n.mutex.Unlock()
 

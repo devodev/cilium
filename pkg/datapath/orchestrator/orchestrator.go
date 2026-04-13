@@ -16,15 +16,20 @@ import (
 	"github.com/cilium/stream"
 	"github.com/spf13/pflag"
 
+	"github.com/cilium/cilium/pkg/datapath/config"
+	"github.com/cilium/cilium/pkg/datapath/connector"
+	"github.com/cilium/cilium/pkg/datapath/iptables"
 	"github.com/cilium/cilium/pkg/datapath/linux/bigtcp"
+	ipsec "github.com/cilium/cilium/pkg/datapath/linux/ipsec/types"
 	"github.com/cilium/cilium/pkg/datapath/linux/sysctl"
 	"github.com/cilium/cilium/pkg/datapath/loader/metrics"
+	loader "github.com/cilium/cilium/pkg/datapath/loader/types"
 	"github.com/cilium/cilium/pkg/datapath/tables"
 	"github.com/cilium/cilium/pkg/datapath/tunnel"
-	datapath "github.com/cilium/cilium/pkg/datapath/types"
 	"github.com/cilium/cilium/pkg/datapath/xdp"
 	"github.com/cilium/cilium/pkg/defaults"
 	"github.com/cilium/cilium/pkg/endpoint/regeneration"
+	endpoint "github.com/cilium/cilium/pkg/endpoint/types"
 	"github.com/cilium/cilium/pkg/endpointmanager"
 	"github.com/cilium/cilium/pkg/kpr"
 	"github.com/cilium/cilium/pkg/loadbalancer"
@@ -79,7 +84,7 @@ type orchestrator struct {
 	initDone              bool
 	dpInitialized         chan struct{}
 	trigger               chan reinitializeRequest
-	latestLocalNodeConfig atomic.Pointer[datapath.LocalNodeConfiguration]
+	latestLocalNodeConfig atomic.Pointer[config.Config]
 }
 
 type reinitializeRequest struct {
@@ -92,11 +97,11 @@ type orchestratorParams struct {
 
 	Config              Config
 	Log                 *slog.Logger
-	Loader              datapath.Loader
+	Loader              loader.Loader
 	TunnelConfig        tunnel.Config
 	OldMTU              mtu.MTU
 	MTU                 statedb.Table[mtu.RouteMTU]
-	IPTablesManager     datapath.IptablesManager
+	IPTablesManager     iptables.Manager
 	Proxy               *proxy.Proxy
 	DB                  *statedb.DB
 	Devices             statedb.Table[*tables.Device]
@@ -114,10 +119,10 @@ type orchestratorParams struct {
 	KPRConfig           kpr.KPRConfig
 	SvcRouteConfig      svcrouteconfig.RoutesConfig
 	MaglevConfig        maglev.Config
-	WgAgent             wgTypes.WireguardAgent
-	IPsecConfig         datapath.IPsecConfig
-	BIGTCPConfig        *bigtcp.Configuration
-	ConnectorConfig     datapath.ConnectorConfig
+	WgAgent             wgTypes.Agent
+	IPsecConfig         ipsec.Config
+	BIGTCPConfig        bigtcp.Config
+	ConnectorConfig     connector.Config
 }
 
 func newOrchestrator(params orchestratorParams) *orchestrator {
@@ -311,7 +316,7 @@ func (o *orchestrator) Reinitialize(ctx context.Context) error {
 	return <-errChan
 }
 
-func (o *orchestrator) reinitialize(ctx context.Context, req reinitializeRequest, localNodeConfig *datapath.LocalNodeConfiguration) error {
+func (o *orchestrator) reinitialize(ctx context.Context, req reinitializeRequest, localNodeConfig *config.Config) error {
 	if req.ctx != nil {
 		ctx = req.ctx
 	}
@@ -362,7 +367,7 @@ func (o *orchestrator) reinitialize(ctx context.Context, req reinitializeRequest
 	return nil
 }
 
-func (o *orchestrator) ReloadDatapath(ctx context.Context, ep datapath.Endpoint, stats *metrics.SpanStat) (string, error) {
+func (o *orchestrator) ReloadDatapath(ctx context.Context, ep endpoint.Endpoint, stats *metrics.SpanStat) (string, error) {
 	select {
 	case <-o.dpInitialized:
 	case <-ctx.Done():
@@ -372,17 +377,17 @@ func (o *orchestrator) ReloadDatapath(ctx context.Context, ep datapath.Endpoint,
 	return o.params.Loader.ReloadDatapath(ctx, ep, o.latestLocalNodeConfig.Load(), stats)
 }
 
-func (o *orchestrator) EndpointHash(cfg datapath.EndpointConfiguration) (string, error) {
+func (o *orchestrator) EndpointHash(cfg endpoint.Config) (string, error) {
 	<-o.dpInitialized
 	return o.params.Loader.EndpointHash(cfg, o.latestLocalNodeConfig.Load())
 }
 
-func (o *orchestrator) Unload(ep datapath.Endpoint) {
+func (o *orchestrator) Unload(ep endpoint.Endpoint) {
 	<-o.dpInitialized
 	o.params.Loader.Unload(ep)
 }
 
-func (o *orchestrator) WriteEndpointConfig(w io.Writer, cfg datapath.EndpointConfiguration) error {
+func (o *orchestrator) WriteEndpointConfig(w io.Writer, cfg endpoint.Config) error {
 	<-o.dpInitialized
-	return o.params.Loader.WriteEndpointConfig(w, cfg, o.latestLocalNodeConfig.Load())
+	return o.params.Loader.WriteEndpointConfig(w, cfg)
 }

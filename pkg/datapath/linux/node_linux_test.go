@@ -19,19 +19,20 @@ import (
 	"github.com/vishvananda/netlink"
 
 	"github.com/cilium/cilium/pkg/cidr"
-	fakeTypes "github.com/cilium/cilium/pkg/datapath/fake/types"
+	"github.com/cilium/cilium/pkg/datapath/config"
 	"github.com/cilium/cilium/pkg/datapath/linux/ipsec"
+	fakeipsec "github.com/cilium/cilium/pkg/datapath/linux/ipsec/fake"
 	"github.com/cilium/cilium/pkg/datapath/linux/linux_defaults"
 	"github.com/cilium/cilium/pkg/datapath/linux/route"
 	"github.com/cilium/cilium/pkg/datapath/linux/sysctl"
 	"github.com/cilium/cilium/pkg/datapath/tables"
-	datapath "github.com/cilium/cilium/pkg/datapath/types"
 	"github.com/cilium/cilium/pkg/ip"
 	"github.com/cilium/cilium/pkg/kpr"
 	nodemapfake "github.com/cilium/cilium/pkg/maps/nodemap/fake"
 	"github.com/cilium/cilium/pkg/mtu"
 	"github.com/cilium/cilium/pkg/node"
 	nodeaddressing "github.com/cilium/cilium/pkg/node/addressing"
+	fakenode "github.com/cilium/cilium/pkg/node/fake"
 	nodeTypes "github.com/cilium/cilium/pkg/node/types"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/testutils"
@@ -48,17 +49,17 @@ type nodeSuite struct {
 
 	// nodeConfigTemplate is the partially filled template for local node configuration.
 	// copy it, don't mutate it.
-	nodeConfigTemplate datapath.LocalNodeConfiguration
+	nodeConfigTemplate config.Config
 }
 
 func setup(tb testing.TB, family string) *nodeSuite {
 	switch family {
 	case "IPv4":
-		return setupNodeSuite(tb, fakeTypes.NewIPv4OnlyNodeAddressing(), false, true)
+		return setupNodeSuite(tb, fakenode.NewIPv4OnlyAddressing(), false, true)
 	case "IPv6":
-		return setupNodeSuite(tb, fakeTypes.NewIPv6OnlyNodeAddressing(), true, false)
+		return setupNodeSuite(tb, fakenode.NewIPv6OnlyAddressing(), true, false)
 	case "dual":
-		return setupNodeSuite(tb, fakeTypes.NewNodeAddressing(), true, true)
+		return setupNodeSuite(tb, fakenode.NewAddressing(), true, true)
 	}
 
 	tb.Fatalf("unknown family: %s", family)
@@ -73,7 +74,7 @@ const (
 
 var families = []string{"IPv4", "IPv6", "dual"}
 
-func setupNodeSuite(tb testing.TB, addressing datapath.NodeAddressing, enableIPv6, enableIPv4 bool) *nodeSuite {
+func setupNodeSuite(tb testing.TB, addressing node.Addressing, enableIPv6, enableIPv4 bool) *nodeSuite {
 	testutils.PrivilegedTest(tb)
 
 	rlimit.RemoveMemlock()
@@ -106,7 +107,7 @@ func setupNodeSuite(tb testing.TB, addressing datapath.NodeAddressing, enableIPv
 	}
 	devHost := mustSetupDevice(tb, s.ns, hostDevice, ips...)
 
-	s.nodeConfigTemplate = datapath.LocalNodeConfiguration{
+	s.nodeConfigTemplate = config.Config{
 		Devices:             []*tables.Device{devExt, devHost},
 		DirectRoutingDevice: devHost,
 		NodeIPv4:            ip.AddrFromIP(addressing.IPv4().PrimaryExternal()),
@@ -180,7 +181,7 @@ func mustDeleteNode(tb testing.TB, ns *netns.NetNS, lnh *linuxNodeHandler, node 
 	}))
 }
 
-func mustConfigureNode(tb testing.TB, ns *netns.NetNS, lnh *linuxNodeHandler, nodeConfig datapath.LocalNodeConfiguration) {
+func mustConfigureNode(tb testing.TB, ns *netns.NetNS, lnh *linuxNodeHandler, nodeConfig config.Config) {
 	tb.Helper()
 	require.NoError(tb, ns.Do(func() error {
 		return lnh.NodeConfigurationChanged(nodeConfig)
@@ -250,7 +251,7 @@ func testUpdateNodeRoute(t *testing.T, family string) {
 	log := hivetest.Logger(t)
 	lns := node.NewTestLocalNodeStore(node.LocalNode{})
 
-	lnh := newNodeHandler(log, dpConfig, nodemapfake.NewFakeNodeMapV2(), kpr.KPRConfig{}, ipsec.NewTestIPsecAgent(t), fakeTypes.IPsecConfig{}, lns)
+	lnh := newNodeHandler(log, dpConfig, nodemapfake.NewFakeNodeMapV2(), kpr.KPRConfig{}, ipsec.NewTestIPsecAgent(t), fakeipsec.Config{}, lns)
 	mustConfigureNode(t, s.ns, lnh, s.nodeConfigTemplate)
 
 	if s.enableIPv4 {
@@ -292,7 +293,7 @@ func testAuxiliaryPrefixes(t *testing.T, family string) {
 	log := hivetest.Logger(t)
 	lns := node.NewTestLocalNodeStore(node.LocalNode{})
 
-	lnh := newNodeHandler(log, dpConfig, nodemapfake.NewFakeNodeMapV2(), kpr.KPRConfig{}, ipsec.NewTestIPsecAgent(t), fakeTypes.IPsecConfig{}, lns)
+	lnh := newNodeHandler(log, dpConfig, nodemapfake.NewFakeNodeMapV2(), kpr.KPRConfig{}, ipsec.NewTestIPsecAgent(t), fakeipsec.Config{}, lns)
 	nodeConfig := s.nodeConfigTemplate
 	nodeConfig.AuxiliaryPrefixes = []*cidr.CIDR{net1, net2}
 	mustConfigureNode(t, s.ns, lnh, nodeConfig)
@@ -369,7 +370,7 @@ func commonNodeUpdateEncapsulation(t *testing.T, family string, encap bool, over
 	dpConfig := DatapathConfiguration{HostDevice: hostDevice}
 	log := hivetest.Logger(t)
 	lns := node.NewTestLocalNodeStore(node.LocalNode{})
-	lnh := newNodeHandler(log, dpConfig, nodemapfake.NewFakeNodeMapV2(), kpr.KPRConfig{}, ipsec.NewTestIPsecAgent(t), fakeTypes.IPsecConfig{}, lns)
+	lnh := newNodeHandler(log, dpConfig, nodemapfake.NewFakeNodeMapV2(), kpr.KPRConfig{}, ipsec.NewTestIPsecAgent(t), fakeipsec.Config{}, lns)
 
 	lnh.OverrideEnableEncapsulation(override)
 
@@ -531,7 +532,7 @@ func testNodeUpdateIDs(t *testing.T, family string) {
 	dpConfig := DatapathConfiguration{HostDevice: hostDevice}
 	log := hivetest.Logger(t)
 	lns := node.NewTestLocalNodeStore(node.LocalNode{})
-	lnh := newNodeHandler(log, dpConfig, nodeMap, kpr.KPRConfig{}, ipsec.NewTestIPsecAgent(t), fakeTypes.IPsecConfig{}, lns)
+	lnh := newNodeHandler(log, dpConfig, nodeMap, kpr.KPRConfig{}, ipsec.NewTestIPsecAgent(t), fakeipsec.Config{}, lns)
 
 	mustConfigureNode(t, s.ns, lnh, s.nodeConfigTemplate)
 
@@ -684,7 +685,7 @@ func testNodeChurnXFRMLeaksSubnetMode(t *testing.T, family string) {
 	testNodeChurnXFRMLeaksWithConfig(t, s, config)
 }
 
-func testNodeChurnXFRMLeaksWithConfig(t *testing.T, s *nodeSuite, config datapath.LocalNodeConfiguration) {
+func testNodeChurnXFRMLeaksWithConfig(t *testing.T, s *nodeSuite, config config.Config) {
 	log := hivetest.Logger(t)
 	keys := bytes.NewReader([]byte("6+ rfc4106(gcm(aes)) 44434241343332312423222114131211f4f3f2f1 128\n"))
 
@@ -694,7 +695,7 @@ func testNodeChurnXFRMLeaksWithConfig(t *testing.T, s *nodeSuite, config datapat
 
 	dpConfig := DatapathConfiguration{HostDevice: hostDevice}
 	lns := node.NewTestLocalNodeStore(node.LocalNode{})
-	lnh := newNodeHandler(log, dpConfig, nodemapfake.NewFakeNodeMapV2(), kpr.KPRConfig{}, a, fakeTypes.IPsecConfig{}, lns)
+	lnh := newNodeHandler(log, dpConfig, nodemapfake.NewFakeNodeMapV2(), kpr.KPRConfig{}, a, fakeipsec.Config{}, lns)
 
 	mustConfigureNode(t, s.ns, lnh, config)
 
@@ -785,7 +786,7 @@ func testNodeUpdateDirectRouting(t *testing.T, family string) {
 	dpConfig := DatapathConfiguration{HostDevice: hostDevice}
 	log := hivetest.Logger(t)
 	lns := node.NewTestLocalNodeStore(node.LocalNode{})
-	lnh := newNodeHandler(log, dpConfig, nodemapfake.NewFakeNodeMapV2(), kpr.KPRConfig{}, ipsec.NewTestIPsecAgent(t), fakeTypes.IPsecConfig{}, lns)
+	lnh := newNodeHandler(log, dpConfig, nodemapfake.NewFakeNodeMapV2(), kpr.KPRConfig{}, ipsec.NewTestIPsecAgent(t), fakeipsec.Config{}, lns)
 
 	nodeConfig := s.nodeConfigTemplate
 	nodeConfig.Devices = append(slices.Clone(nodeConfig.Devices), dev1, dev2)
@@ -1018,7 +1019,7 @@ func testNodeValidationDirectRouting(t *testing.T, family string) {
 	dpConfig := DatapathConfiguration{HostDevice: hostDevice}
 	log := hivetest.Logger(t)
 	lns := node.NewTestLocalNodeStore(node.LocalNode{})
-	lnh := newNodeHandler(log, dpConfig, nodemapfake.NewFakeNodeMapV2(), kpr.KPRConfig{}, ipsec.NewTestIPsecAgent(t), fakeTypes.IPsecConfig{}, lns)
+	lnh := newNodeHandler(log, dpConfig, nodemapfake.NewFakeNodeMapV2(), kpr.KPRConfig{}, ipsec.NewTestIPsecAgent(t), fakeipsec.Config{}, lns)
 
 	nodeConfig := s.nodeConfigTemplate
 	nodeConfig.EnableEncapsulation = false
@@ -1162,7 +1163,7 @@ func testNodePodCIDRsChurnIPSec(t *testing.T, family string) {
 	log := hivetest.Logger(t)
 	a := ipsec.NewTestIPsecAgent(t)
 	lns := node.NewTestLocalNodeStore(node.LocalNode{})
-	lnh := newNodeHandler(log, dpConfig, nodemapfake.NewFakeNodeMapV2(), kpr.KPRConfig{}, a, fakeTypes.IPsecConfig{}, lns)
+	lnh := newNodeHandler(log, dpConfig, nodemapfake.NewFakeNodeMapV2(), kpr.KPRConfig{}, a, fakeipsec.Config{}, lns)
 
 	nodeConfig := s.nodeConfigTemplate
 	nodeConfig.Devices = append(slices.Clone(nodeConfig.Devices), dev1, dev2)

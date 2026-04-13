@@ -10,13 +10,14 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	datapath "github.com/cilium/cilium/pkg/datapath/types"
+	"github.com/cilium/cilium/pkg/datapath/config"
+	endpoint "github.com/cilium/cilium/pkg/endpoint/types"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/testutils"
 )
 
 var (
-	dummyNodeCfg = datapath.LocalNodeConfiguration{}
+	dummyNodeCfg = config.Config{}
 )
 
 // TestHashDatapath is done in this package just for easy access to dummy
@@ -67,11 +68,11 @@ func TestHashTemplate(t *testing.T) {
 	cfg := configWriterForTest(t)
 
 	// Error from ConfigWriter is forwarded.
-	_, err := base.hashTemplate(fakeConfigWriter{}, nil, nil)
+	_, err := base.hashTemplate(fakeConfigWriter{}, nil)
 	require.Error(t, err)
 
 	// Hashing the endpoint gives a hash distinct from the base.
-	a, err := base.hashTemplate(cfg, &localNodeConfig, &ep)
+	a, err := base.hashTemplate(cfg, &ep)
 	require.NoError(t, err)
 	require.NotEqual(t, base.String(), a)
 
@@ -80,14 +81,14 @@ func TestHashTemplate(t *testing.T) {
 	// This is the key to avoiding recompilation per endpoint; static
 	// data substitution is performed via pkg/elf instead.
 	ep.Id++
-	b, err := base.hashTemplate(cfg, &localNodeConfig, &ep)
+	b, err := base.hashTemplate(cfg, &ep)
 	require.NoError(t, err)
 	require.Equal(t, a, b)
 }
 
 type fakeConfigWriter []byte
 
-func (fc fakeConfigWriter) WriteNodeConfig(w io.Writer, lnc *datapath.LocalNodeConfiguration) error {
+func (fc fakeConfigWriter) WriteNodeConfig(w io.Writer, lnc *config.Config) error {
 	if lnc == nil {
 		return errors.New("LocalNodeConfiguration is nil")
 	}
@@ -99,10 +100,10 @@ func (fc fakeConfigWriter) WriteNetdevConfig(w io.Writer, opts *option.IntOption
 	return errors.New("not implemented")
 }
 
-func (fc fakeConfigWriter) WriteTemplateConfig(w io.Writer, _ *datapath.LocalNodeConfiguration, cfg datapath.EndpointConfiguration) error {
+func (fc fakeConfigWriter) WriteTemplateConfig(w io.Writer, cfg endpoint.Config) error {
 	return errors.New("not implemented")
 }
 
-func (fc fakeConfigWriter) WriteEndpointConfig(w io.Writer, _ *datapath.LocalNodeConfiguration, cfg datapath.EndpointConfiguration) error {
+func (fc fakeConfigWriter) WriteEndpointConfig(w io.Writer, cfg endpoint.Config) error {
 	return errors.New("not implemented")
 }

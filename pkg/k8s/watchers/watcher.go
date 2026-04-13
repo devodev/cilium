@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
-	"sync"
 
 	"k8s.io/apimachinery/pkg/util/runtime"
 
@@ -53,7 +52,7 @@ type endpointManager interface {
 	GetEndpoints() []*endpoint.Endpoint
 	GetHostEndpoint() *endpoint.Endpoint
 	GetEndpointsByPodName(string) []*endpoint.Endpoint
-	UpdatePolicyMaps(context.Context, *sync.WaitGroup) *sync.WaitGroup
+	UpdatePolicyMaps(context.Context) error
 }
 
 type nodeManager interface {
@@ -200,7 +199,7 @@ var ciliumResourceToGroupMapping = map[string]watcherInfo{
 	synced.CRDResourceName(v2alpha1.BGPNCName):          {skip, ""}, // Handled in BGP control plane
 	synced.CRDResourceName(v2alpha1.BGPNCOName):         {skip, ""}, // Handled in BGP control plane
 	synced.CRDResourceName(v2alpha1.LBIPPoolName):       {skip, ""}, // Handled in LB IPAM
-	synced.CRDResourceName(v2alpha1.CNCName):            {skip, ""}, // Handled by init directly
+	synced.CRDResourceName(cilium_v2.CNCName):           {skip, ""}, // Handled by init directly
 	synced.CRDResourceName(cilium_v2.CCGName):           {waitOnly, k8sAPIGroupCiliumCIDRGroupV2},
 	synced.CRDResourceName(v2alpha1.L2AnnouncementName): {skip, ""}, // Handled by L2 announcement directly
 	synced.CRDResourceName(v2alpha1.CPIPName):           {skip, ""}, // Handled by multi-pool IPAM allocator

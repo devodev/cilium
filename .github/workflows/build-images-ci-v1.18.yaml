@@ -45,6 +45,9 @@ jobs:
     outputs:
       sha: ${{ steps.tag.outputs.sha }}
     strategy:
+      # Only fail-fast on pull_request_target events. For push and merge_group events, we want to run all builds even
+      # if some of them fail, to make sure one of the image is not broken accidentally and the PR is still merged.
+      fail-fast: ${{ github.event_name != 'pull_request_target' }}
       matrix:
         include:
           - name: cilium
@@ -134,7 +137,7 @@ jobs:
              gc=false
 
       - name: Login to quay.io for CI
-        uses: docker/login-action@b45d80f862d83dbcd57f89517bcf500b2ab88fb2 # v4.0.0
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME_CI }}
@@ -253,7 +256,7 @@ jobs:
           fi
 
       - name: Install Cosign
-        uses: sigstore/cosign-installer@ba7bc0a3fef59531c69a25acd34668d6d3fe6f22 # v4.1.0
+        uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4.1.1
 
       - name: CI Build ${{ matrix.name }}
         uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
@@ -439,7 +442,9 @@ jobs:
     name: Post test comment for Renovate PRs after images built
     runs-on: ubuntu-24.04
     needs: pre-comment
-    environment: "Trigger CI from renovate PRs"
+    environment:
+      name: "Trigger CI from renovate PRs"
+      deployment: false
     if: ${{
          github.event_name == 'pull_request_target' &&
          github.event.pull_request.user.login == vars.RENOVATE_BOT_USERNAME

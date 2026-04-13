@@ -132,7 +132,7 @@ type engineParams struct {
 	Registry  job.Registry
 	Health    cell.Health
 	Tunnel    tunnel.Config
-	Wireguard wgTypes.WireguardConfig
+	Wireguard wgTypes.Config
 	Fence     regeneration.Fence
 
 	IdentityChanges stream.Observable[IdentityChangeBatch]

@@ -26,11 +26,11 @@ import (
 	k8sTesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/util/workqueue"
 
-	"github.com/cilium/cilium/pkg/datapath/fake"
-	fakeTypes "github.com/cilium/cilium/pkg/datapath/fake/types"
+	ipsecTypes "github.com/cilium/cilium/pkg/datapath/linux/ipsec/fake"
+	ipsecConfigTypes "github.com/cilium/cilium/pkg/datapath/linux/ipsec/types"
 	"github.com/cilium/cilium/pkg/datapath/linux/sysctl"
+	fake "github.com/cilium/cilium/pkg/datapath/linux/sysctl/fake"
 	"github.com/cilium/cilium/pkg/datapath/tunnel"
-	dpTypes "github.com/cilium/cilium/pkg/datapath/types"
 	"github.com/cilium/cilium/pkg/ebpf"
 	"github.com/cilium/cilium/pkg/hive"
 	"github.com/cilium/cilium/pkg/k8s"
@@ -207,8 +207,8 @@ func newFixture(t *testing.T, ctx context.Context, req *require.Assertions, init
 		}),
 
 		// fake IPSec config with encrypted overlay enabled
-		cell.Provide(func() dpTypes.IPsecConfig {
-			return fakeTypes.IPsecConfig{
+		cell.Provide(func() ipsecConfigTypes.Config {
+			return ipsecTypes.Config{
 				EncryptedOverlay: true,
 			}
 		}),

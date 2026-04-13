@@ -403,6 +403,7 @@ Makefile* @cilium/build
 /Documentation/reference-guides/xfrm/ @cilium/ipsec @cilium/docs-structure
 /Documentation/check-build.sh @cilium/docs-structure
 /Documentation/check-cmdref.sh @cilium/docs-structure
+/Documentation/check-feature-metrics.sh @cilium/docs-structure
 /Documentation/check-crd-compat-table.sh @cilium/docs-structure
 /Documentation/check-examples.sh @cilium/docs-structure
 /Documentation/check-helmvalues.sh @cilium/docs-structure
@@ -476,6 +477,7 @@ Makefile* @cilium/build
 /Documentation/security/threat-model.rst @cilium/security @cilium/docs-structure
 /Documentation/spelling_wordlist.txt @cilium/docs-structure
 /Documentation/update-cmdref.sh @cilium/docs-structure
+/Documentation/update-feature-metrics.sh @cilium/docs-structure
 /Documentation/update-spelling_wordlist.sh @cilium/docs-structure
 /Documentation/yaml.config @cilium/docs-structure
 /examples/ @cilium/docs-structure
@@ -566,7 +568,6 @@ Makefile* @cilium/build
 /pkg/crypto/certificatemanager @cilium/envoy @cilium/sig-servicemesh
 /pkg/crypto/certloader @cilium/sig-hubble
 /pkg/datapath/ @cilium/sig-datapath
-/pkg/datapath/fake/types/ipsec.go @cilium/ipsec
 /pkg/datapath/ipcache/ @cilium/ipcache
 /pkg/datapath/linux/config/ @cilium/loader
 /pkg/datapath/linux/ipsec/ @cilium/ipsec
@@ -576,8 +577,6 @@ Makefile* @cilium/build
 /pkg/datapath/linux/requirements.go @cilium/loader
 /pkg/datapath/loader/ @cilium/loader
 /pkg/datapath/loader/verifier_load_test.go @cilium/sig-datapath
-/pkg/datapath/types/ipsec.go @cilium/ipsec
-/pkg/datapath/types/loader.go @cilium/loader
 /pkg/datapath/sockets/ @cilium/sig-lb
 /pkg/defaults @cilium/sig-agent
 /pkg/debug @cilium/sig-agent
@@ -711,8 +710,6 @@ Makefile* @cilium/build
 # Service handling tests
 /test/k8s/services.go @cilium/sig-lb @cilium/ci-structure
 /test/k8s/lrp.go @cilium/sig-lb
-# Datapath tests
-/test/k8s/datapath_configuration.go @cilium/sig-datapath @cilium/ci-structure
 # Policy tests
 /test/k8s/chaos.go @cilium/sig-policy
 /test/k8s/net_policies.go @cilium/sig-policy @cilium/ci-structure
@@ -729,7 +726,9 @@ Makefile* @cilium/build
 /tools/ @cilium/contributing
 /tools/complexity-diff @cilium/loader
 /tools/dpgen @cilium/loader
+/tools/envoy-bootstrap-locality @cilium/envoy
 /tools/metricslint @cilium/metrics
+/tools/stackwhere @cilium/loader
 /USERS.md @cilium/community
 /go.sum @cilium/vendor
 /go.mod @cilium/vendor

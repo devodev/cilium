@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/cilium/cilium/pkg/datapath/linux/config/defines"
+	"github.com/cilium/cilium/pkg/datapath/tunnel"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/time"
 	"github.com/cilium/cilium/pkg/wireguard/types"
@@ -24,15 +25,15 @@ var Cell = cell.Module(
 
 var OperatorCell = cell.Config(defaultEnableConfig)
 
-// newWireguardAgent returns the [*Agent] as an interface [types.WireguardAgent]
+// newWireguardAgent returns the [*Agent] as an interface [types.Agent]
 // and the map of macros [defines.NodeOut] for datapath compilation.
 func newWireguardAgent(p params) (out struct {
 	cell.Out
-	types.WireguardAgent
+	types.Agent
 	defines.NodeOut
 }) {
-	out.WireguardAgent = newAgent(p)
-	if out.WireguardAgent.Enabled() {
+	out.Agent = newAgent(p)
+	if out.Agent.Enabled() {
 		out.NodeDefines = map[string]string{
 			"ENABLE_WIREGUARD": "1",
 		}
@@ -43,13 +44,13 @@ func newWireguardAgent(p params) (out struct {
 	return
 }
 
-// newWireguardConfig returns the [Config] as an interface [types.WireguardConfig].
-func newWireguardConfig(c Config) types.WireguardConfig {
+// newWireguardConfig returns the [Config] as an interface [types.Config].
+func newWireguardConfig(c Config) types.Config {
 	return c
 }
 
 // buildConfigFrom creates the [Config] from [UserConfig] and [option.DaemonConfig].
-func buildConfigFrom(uc UserConfig, dc *option.DaemonConfig) Config {
+func buildConfigFrom(uc UserConfig, dc *option.DaemonConfig, tunnelConfig tunnel.Config) Config {
 	return Config{
 		UserConfig: uc,
 
@@ -58,6 +59,7 @@ func buildConfigFrom(uc UserConfig, dc *option.DaemonConfig) Config {
 		EnableIPv6:       dc.EnableIPv6,
 		TunnelingEnabled: dc.TunnelingEnabled(),
 		EncryptNode:      dc.EncryptNode,
+		UnderlayProtocol: tunnelConfig.UnderlayProtocol(),
 	}
 }
 
@@ -93,6 +95,7 @@ type Config struct {
 	EnableIPv6       bool
 	TunnelingEnabled bool
 	EncryptNode      bool
+	UnderlayProtocol tunnel.UnderlayProtocol
 }
 
 var defaultEnableConfig = EnableConfig{
@@ -103,7 +106,7 @@ type EnableConfig struct {
 	EnableWireguard bool
 }
 
-// Returns true when enabled. Implements [types.WireguardConfig].
+// Returns true when enabled. Implements [types.Config].
 func (c EnableConfig) Enabled() bool {
 	return c.EnableWireguard
 }

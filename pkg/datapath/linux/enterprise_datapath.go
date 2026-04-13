@@ -11,13 +11,13 @@
 package linux
 
 import (
-	datapath "github.com/cilium/cilium/pkg/datapath/types"
+	"github.com/cilium/cilium/pkg/node"
 	"github.com/cilium/cilium/pkg/node/types"
 )
 
 // InjectCEEnableEncapsulation overrides the function used to determine whether
 // native routing or tunnel encapsulation should be used for the given node.
-func InjectCEEnableEncapsulation(nh datapath.NodeHandler, fn func(node *types.Node) bool) {
+func InjectCEEnableEncapsulation(nh node.Handler, fn func(node *types.Node) bool) {
 	nodeHandler, ok := nh.(*linuxNodeHandler)
 	if !ok {
 		return

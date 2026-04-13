@@ -14,12 +14,13 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/cilium/cilium/api/v1/models"
-	fakeTypes "github.com/cilium/cilium/pkg/datapath/fake/types"
+	fakeipsec "github.com/cilium/cilium/pkg/datapath/linux/ipsec/fake"
 	"github.com/cilium/cilium/pkg/endpoint"
 	"github.com/cilium/cilium/pkg/identity/identitymanager"
 	"github.com/cilium/cilium/pkg/maps/ctmap"
 	testidentity "github.com/cilium/cilium/pkg/testutils/identity"
 	testipcache "github.com/cilium/cilium/pkg/testutils/ipcache"
+	fakewireguard "github.com/cilium/cilium/pkg/wireguard/fake"
 )
 
 // fakeCheck detects endpoints as unhealthy if they have an even EndpointID.
@@ -52,8 +53,8 @@ func TestMarkAndSweep(t *testing.T) {
 			NamedPortsGetter: testipcache.NewMockIPCache(),
 			Allocator:        testidentity.NewMockIdentityAllocator(nil),
 			CTMapGC:          ctmap.NewFakeGCRunner(),
-			WgConfig:         &fakeTypes.WireguardConfig{},
-			IPSecConfig:      fakeTypes.IPsecConfig{},
+			WgConfig:         &fakewireguard.Config{},
+			IPSecConfig:      fakeipsec.Config{},
 			Logger:           logger,
 			IdentityManager:  identitymanager.NewIDManager(logger),
 			PolicyRepo:       s.repo,

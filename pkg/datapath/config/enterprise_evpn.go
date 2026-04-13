@@ -15,14 +15,13 @@ import (
 
 	evpnConfig "github.com/cilium/cilium/enterprise/pkg/evpn/config"
 	privnetConfig "github.com/cilium/cilium/enterprise/pkg/privnet/config"
-	datapath "github.com/cilium/cilium/pkg/datapath/types"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/mac"
 	"github.com/cilium/cilium/pkg/option"
 )
 
 // EvpnBase returns a [BPFEvpnBase].
-func EvpnBase(lnc *datapath.LocalNodeConfiguration, link netlink.Link) any {
+func EvpnBase(lnc *Config, link netlink.Link) any {
 	cfg := NewBPFEvpnBase(NodeConfig(lnc))
 
 	cfg.InterfaceIfIndex = uint32(link.Attrs().Index)
@@ -38,7 +37,7 @@ func EvpnBase(lnc *datapath.LocalNodeConfiguration, link netlink.Link) any {
 }
 
 // EvpnEnterprise returns a [BPFEvpnEnterprise].
-func EvpnEnterprise(lnc *datapath.LocalNodeConfiguration, evpnCfg evpnConfig.Config, privnetCfg privnetConfig.Config) any {
+func EvpnEnterprise(lnc *Config, evpnCfg evpnConfig.Config, privnetCfg privnetConfig.Config) any {
 	cfg := NewBPFEvpnEnterprise()
 
 	cfg.EVPNEnable = evpnCfg.Enabled
