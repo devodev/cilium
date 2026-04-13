@@ -849,7 +849,7 @@ func (config *PolicyConfig) updateGroupStatuses(operatorManager *OperatorManager
 		return nil
 	}
 
-	newIEGP := getIEGPForStatusUpdate(operatorManager.policyCache[config.id], groupStatuses, conditions)
+	newIEGP := getIEGPForStatusUpdate(iegp, groupStatuses, conditions)
 
 	// if the IEGP's status is already up to date, that is:
 	// - ObservedGeneration is already equal to the IEGP Generation
