@@ -38,6 +38,8 @@ func init() {
 		"privnet_device_val":           {privnet.DeviceVal{}},
 		"privnet_subnet_key":           {privnet.SubnetKey{}},
 		"privnet_subnet_val":           {privnet.SubnetVal{}},
+		"privnet_cidr_identity_key":    {privnet.CIDRIdentityKey{}},
+		"privnet_cidr_identity":        {privnet.CIDRIdentityVal{}},
 		"vni_key":                      {vniMap.VNIKey{}},
 		"vni_val":                      {vniMap.VNIVal{}},
 		"evpn_fib_key":                 {evpn.FIBKey{}},
@@ -51,7 +53,11 @@ func init() {
 	toCheck["policy_verdict_notify"] = []any{monitor.EnterprisePolicyVerdictNotify{}}
 
 	for size, str := range map[string][]any{
-		"__u32": {extepspolicy.Value{}},
+		"__u32": {
+			extepspolicy.Value{},
+			privnet.CTMapsKey{},
+			privnet.CTMapsValue{},
+		},
 	} {
 		toCheckSizes[size] = append(toCheckSizes[size], str...)
 	}
