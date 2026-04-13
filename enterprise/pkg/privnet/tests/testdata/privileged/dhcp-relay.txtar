@@ -57,9 +57,11 @@ db/cmp privnet-device-mappings devmappings.table
 
 # Force lease expiration and ensure LocalWorkload is cleared
 db/insert privnet-dhcp-leases dhcp-lease-expired.yaml
-db/cmp privnet-dhcp-leases dhcp-leases.expired.table
 db/cmp privnet-local-workloads local-workloads.before.table
 db/cmp privnet-device-mappings devmappings.expired.table
+
+# Leases should be empty now
+* db/empty privnet-dhcp-leases
 
 # Check that endpoint slice is now removed as there are no publishable local
 # workloads.
@@ -72,10 +74,6 @@ blue-network   100          02:00:00:00:00:01   192.168.100.10  192.168.100.1
 -- local-workloads.table --
 Endpoint          ID   Network        NetworkIPv4      PodIPv4
 default/pod-100   100  blue-network   192.168.100.10   10.244.5.112
-
--- dhcp-leases.expired.table --
-Network        EndpointID   MAC                 IPv4            ServerID        RenewAt                 ExpireAt
-blue-network   100          02:00:00:00:00:01   192.168.100.10  192.168.100.1   2025-01-01T00:00:00Z    2025-01-01T00:00:01Z
 
 -- endpointslices.expected.yaml --
 apiVersion: isovalent.com/v1alpha1
