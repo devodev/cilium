@@ -22,7 +22,7 @@ gobgp/add-route -s server0 -c rt:65001:100,rtrmac:aa:bb:cc:dd:ee:ff,encap:vxlan 
 gobgp/add-route -s server0 -c rt:65001:200,rtrmac:11:22:33:44:55:66,encap:vxlan EVPN[5][65001:200][single-homed][0][10.0.1.0/24][0.0.0.0][200] 100.64.2.1
 
 # Ensure routes are imported into the BGP LocRIB
-bgp/routes-extended --no-age loc l2vpn evpn
+bgp/routes --no-age loc l2vpn evpn
 * cmp stdout bgp-locrib.expected
 
 # Ensure routes are imported into the Cilium RIB in the right VRFs, including the leaked routes
@@ -33,7 +33,7 @@ rib/list
 gobgp/delete-server server0
 
 # Ensure routes are removed from the BGP LocRIB
-bgp/routes-extended -o bgp-locrib-empty.actual --no-age loc l2vpn evpn
+bgp/routes -o bgp-locrib-empty.actual --no-age loc l2vpn evpn
 * cmp bgp-locrib-empty.expected bgp-locrib-empty.actual
 
 # Ensure routes are removed from the Cilium RIB

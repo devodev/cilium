@@ -14,7 +14,7 @@ k8s/add cilium-node.yaml bgp-node-config.yaml bgp-peer-config-v4.yaml bgp-peer-c
 * bgptest/sync-oss-resources
 
 # Check that the policy is applied as expected
-bgp/route-policies-extended -o bgp-policy.actual
+bgp/route-policies -o bgp-policy.actual
 * cmp bgp-policy.expected bgp-policy.actual
 
 # Wait for peering to be established
@@ -68,11 +68,11 @@ gobgp/routes -s v6 -o gobgp-rib-v6.actual ipv6 unicast
 * cmp gobgp-rib-v6.expected gobgp-rib-v6.actual
 
 # Ensure expected v4 routes are imported
-bgp/routes-extended -o bgp-rib-v4.actual --no-age loc ipv4 unicast
+bgp/routes -o bgp-rib-v4.actual --no-age loc ipv4 unicast
 * cmp bgp-rib-v4.expected bgp-rib-v4.actual
 
 # Ensure expected v6 routes are imported
-bgp/routes-extended -o bgp-rib-v6.actual --no-age loc ipv6 unicast
+bgp/routes -o bgp-rib-v6.actual --no-age loc ipv6 unicast
 * cmp bgp-rib-v6.expected bgp-rib-v6.actual
 
 # Ensure routes are written into the RIB
@@ -83,9 +83,9 @@ gobgp/delete-server v4
 gobgp/delete-server v6
 
 # Ensure routes are deleted
-bgp/routes-extended -o bgp-rib-v4.actual --no-age loc ipv4 unicast
+bgp/routes -o bgp-rib-v4.actual --no-age loc ipv4 unicast
 * cmp bgp-rib-empty.expected bgp-rib-v4.actual
-bgp/routes-extended -o bgp-rib-v6.actual --no-age loc ipv6 unicast
+bgp/routes -o bgp-rib-v6.actual --no-age loc ipv6 unicast
 * cmp bgp-rib-empty.expected bgp-rib-v6.actual
 
 # Ensure routes are removed from the RIB

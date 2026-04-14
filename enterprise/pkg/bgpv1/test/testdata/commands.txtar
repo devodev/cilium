@@ -40,27 +40,27 @@ bgp/peers --no-uptime -o bgp-peers.actual
 * cmp bgp-peers.expected bgp-peers.actual
 
 # Test IPv4 loc-rib
-bgp/routes-extended loc ipv4 unicast --no-age -o bgp-routes-loc-ipv4-unicast.actual
+bgp/routes loc ipv4 unicast --no-age -o bgp-routes-loc-ipv4-unicast.actual
 * cmp bgp-routes-loc-ipv4-unicast.expected bgp-routes-loc-ipv4-unicast.actual
 
 # Test IPv6 loc-rib
-bgp/routes-extended loc ipv6 unicast --no-age -o bgp-routes-loc-ipv6-unicast.actual
+bgp/routes loc ipv6 unicast --no-age -o bgp-routes-loc-ipv6-unicast.actual
 * cmp bgp-routes-loc-ipv6-unicast.expected bgp-routes-loc-ipv6-unicast.actual
 
 # Test IPv4 adj-rib-out
-bgp/routes-extended out ipv4 unicast --no-age -o bgp-routes-out-ipv4-unicast.actual
+bgp/routes out ipv4 unicast --no-age -o bgp-routes-out-ipv4-unicast.actual
 * cmp bgp-routes-out-ipv4-unicast.expected bgp-routes-out-ipv4-unicast.actual
 
 # Test IPv6 adj-rib-out
-bgp/routes-extended out ipv6 unicast --no-age -o bgp-routes-out-ipv6-unicast.actual
+bgp/routes out ipv6 unicast --no-age -o bgp-routes-out-ipv6-unicast.actual
 * cmp bgp-routes-out-ipv6-unicast.expected bgp-routes-out-ipv6-unicast.actual
 
 # Test IPv4 adj-rib-in
-bgp/routes-extended in ipv4 unicast --no-age -o bgp-routes-in-ipv4-unicast.actual
+bgp/routes in ipv4 unicast --no-age -o bgp-routes-in-ipv4-unicast.actual
 * cmp bgp-routes-in-ipv4-unicast.expected bgp-routes-in-ipv4-unicast.actual
 
 # Test IPv6 adj-rib-in
-bgp/routes-extended in ipv6 unicast --no-age -o bgp-routes-in-ipv6-unicast.actual
+bgp/routes in ipv6 unicast --no-age -o bgp-routes-in-ipv6-unicast.actual
 * cmp bgp-routes-in-ipv6-unicast.expected bgp-routes-in-ipv6-unicast.actual
 
 -- cilium-node.yaml --

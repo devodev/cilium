@@ -120,7 +120,6 @@ func TestPrivilegedScript(t *testing.T) {
 	setup := func(t testing.TB, args []string) *script.Engine {
 		var (
 			err        error
-			bgpMgr     agent.BGPRouterManager
 			lbWriter   *writer.Writer
 			egwMgrMock *egwManagerMock
 		)
@@ -259,10 +258,6 @@ func TestPrivilegedScript(t *testing.T) {
 			cell.Invoke(func() {
 				types.SetName(testNodeName)
 			}),
-			cell.Invoke(func(m agent.BGPRouterManager) {
-				bgpMgr = m
-			}),
-
 			cell.Provide(
 				func() *egwManagerMock {
 					return egwMgrMock
@@ -270,7 +265,6 @@ func TestPrivilegedScript(t *testing.T) {
 				BGPTestScriptCmds,
 			),
 			cell.Invoke(func(m agent.BGPRouterManager) {
-				bgpMgr = m
 				m.(*manager.BGPRouterManager).DestroyRouterOnStop(true) // fully destroy GoBGP server on Stop()
 			}),
 			cell.Invoke(func(w *writer.Writer) {
@@ -317,7 +311,6 @@ func TestPrivilegedScript(t *testing.T) {
 		maps.Insert(cmds, maps.All(script.DefaultCmds()))
 		maps.Insert(cmds, maps.All(commands.GoBGPScriptCmds(gobgpCmdCtx)))
 		maps.Insert(cmds, maps.All(CEEGoBGPScriptCmds(gobgpCmdCtx)))
-		maps.Insert(cmds, maps.All(commands.BGPScriptCmds(bgpMgr)))
 		maps.Insert(cmds, maps.All(commands.SvcScriptCmds(lbWriter)))
 
 		return &script.Engine{

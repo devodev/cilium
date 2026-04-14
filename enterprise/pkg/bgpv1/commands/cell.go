@@ -11,19 +11,22 @@
 package commands
 
 import (
-	"github.com/cilium/hive"
 	"github.com/cilium/hive/cell"
-	"github.com/cilium/hive/script"
 
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/agent"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/manager/reconcilerv2"
+	ossCommands "github.com/cilium/cilium/pkg/bgp/commands"
 )
 
-var Cell = cell.Provide(BGPCommands)
-
-func BGPCommands(bgpMgr agent.EnterpriseBGPRouterManager, errorPathStore *reconcilerv2.ErrorPathStore) hive.ScriptCmdsOut {
-	return hive.NewScriptCmds(map[string]script.Cmd{
-		"bgp/routes-extended":         BGPRoutesExtendedCmd(bgpMgr, errorPathStore),
-		"bgp/route-policies-extended": BGPPRoutePolicies(bgpMgr),
-	})
-}
+// Override the OSS BGP commands with the enterprise-extended versions
+var Cell = cell.DecorateAll(
+	func(
+		bgpMgr agent.EnterpriseBGPRouterManager,
+		errorPathStore *reconcilerv2.ErrorPathStore,
+		ossCmds ossCommands.BGPCommands,
+	) ossCommands.BGPCommands {
+		ossCmds["bgp/routes"] = BGPRoutesExtendedCmd(bgpMgr, errorPathStore)
+		ossCmds["bgp/route-policies"] = BGPPRoutePolicies(bgpMgr)
+		return ossCmds
+	},
+)

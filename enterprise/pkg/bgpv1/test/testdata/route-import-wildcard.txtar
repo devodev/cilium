@@ -14,7 +14,7 @@ k8s/add cilium-node.yaml bgp-node-config.yaml bgp-peer-config-v4.yaml bgp-peer-c
 * bgptest/sync-oss-resources
 
 # Check that the policy is applied as expected
-bgp/route-policies-extended -o bgp-policy.actual
+bgp/route-policies -o bgp-policy.actual
 * cmp bgp-policy.expected bgp-policy.actual
 
 # Wait for peering to be established
@@ -130,13 +130,13 @@ instance0   allow-local                                import                   
 instance0   import-user-defined-peer-v4-ipv4-unicast   import   10.100.101.1         ipv4/unicast     0.0.0.0/0 (0..32)                                   accept       
 instance0   import-user-defined-peer-v6-ipv6-unicast   import   fd00:10:100:101::1   ipv6/unicast     ::/0 (0..128)                                       accept       
 -- bgp-rib-v4.expected --
-Instance    Prefix        NextHop        Best   Age
-instance0   0.0.0.0/0     10.100.101.1   true   -
-            10.0.0.0/24   10.100.101.1   true   -
+Instance    Peer      Prefix        NextHop        Best   Age   Error
+instance0   peer-v4   0.0.0.0/0     10.100.101.1   true   -     -
+                      10.0.0.0/24   10.100.101.1   true   -     -
 -- bgp-rib-v6.expected --
-Instance    Prefix      NextHop              Best   Age
-instance0   ::/0        fd00:10:100:101::1   true   -
-            fd00::/64   fd00:10:100:101::1   true   -
+Instance    Peer      Prefix      NextHop              Best   Age   Error
+instance0   peer-v6   ::/0        fd00:10:100:101::1   true   -     -
+                      fd00::/64   fd00:10:100:101::1   true   -     -
 -- desired-routes.expected --
 Owner           Table        Prefix            Priority   AD    Selected   Nexthop              Src    Device   MultiPath   MTU    Scope      Type
 bgp-instance0   main (254)   ::/0              none       200   true       fd00:10:100:101::1   none   none     none        none   universe   unicast

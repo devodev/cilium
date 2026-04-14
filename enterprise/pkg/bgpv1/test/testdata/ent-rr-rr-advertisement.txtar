@@ -221,14 +221,14 @@ spec:
         - { key: "true", operator: In, values: [ advertise ] }
 
 -- cilium-routes.expected --
-Instance          Prefix          NextHop             Best   Age
-route-reflector   10.244.1.0/24   0.0.0.0             true   -
-                  10.244.2.0/24   10.99.102.2         true   -
-                  10.244.3.0/24   fc00:10:99:102::2   true   -
-                  10.244.4.0/24   10.99.102.3         true   -
-                  10.244.5.0/24   fc00:10:99:102::3   true   -
-                  10.244.6.0/24   10.99.102.2         true   -
-                                  fc00:10:99:102::2   true   -
+Instance          Peer        Prefix          NextHop             Best   Age   Error
+route-reflector   (self)      10.244.1.0/24   0.0.0.0             true   -     -
+                  client-v4   10.244.2.0/24   10.99.102.2         true   -     -
+                              10.244.6.0/24   10.99.102.2         true   -     -
+                  client-v6   10.244.3.0/24   fc00:10:99:102::2   true   -     -
+                              10.244.6.0/24   fc00:10:99:102::2   true   -     -
+                  rr-v4       10.244.4.0/24   10.99.102.3         true   -     -
+                  rr-v6       10.244.5.0/24   fc00:10:99:102::3   true   -     -
 -- client-v4-routes.expected --
 Prefix          NextHop       Attrs
 10.244.1.0/24   10.99.102.1   [{Origin: i} {AsPath: } {LocalPref: 100} {Originator: 1.0.0.1} {ClusterList: [255.0.0.1]}]
