@@ -84,6 +84,7 @@ type SubnetName string
 const (
 	SubnetName0 = SubnetName("subnet-0")
 	SubnetName1 = SubnetName("subnet-1")
+	SubnetName2 = SubnetName("subnet-2")
 )
 
 func (n SubnetName) String() string {
@@ -443,6 +444,25 @@ var networkTopology = struct {
 			},
 			NodeAttachments: []NodeAttachment{{Interface: "eth1", VlanID: 10}},
 		},
+		NetworkF: {
+			Prefixes: []Subnet{
+				{
+					Name:   SubnetName0,
+					CIDRv4: "192.168.254.0/27",
+					CIDRv6: "fd10:0:254:1::/64",
+				},
+				{
+					Name:   SubnetName1,
+					CIDRv4: "192.168.254.32/27",
+					CIDRv6: "fd10:0:254:2::/64",
+				},
+				{
+					Name:   SubnetName2,
+					CIDRv4: "192.168.254.64/27",
+					CIDRv6: "fd10:0:254:3::/64",
+				},
+			},
+		},
 	},
 
 	VMs: []DesiredVM{
@@ -459,6 +479,30 @@ var networkTopology = struct {
 					DNSServer: netip.MustParseAddr("192.168.250.254"),
 					MAC:       "f2:54:1c:1f:84:94",
 				},
+				{
+					Network: NetworkF,
+					NAD:     NADFor(NetworkF, SubnetName0),
+					IPv4:    netip.MustParseAddr("192.168.254.1"),
+					IPv6:    netip.MustParseAddr("fd10:0:254:1::1"),
+					Routes:  slices.Concat(newVMRoutes("192.168.254.0/27", 1), newVMRoutes("fd10:0:254:1::0/64", 1)),
+					MAC:     "f2:54:1c:1f:84:95",
+				},
+				{
+					Network: NetworkF,
+					NAD:     NADFor(NetworkF, SubnetName1),
+					IPv4:    netip.MustParseAddr("192.168.254.33"),
+					IPv6:    netip.MustParseAddr("fd10:0:254:2::33"),
+					Routes:  slices.Concat(newVMRoutes("192.168.254.32/27", 2), newVMRoutes("fd10:0:254:2::0/64", 2)),
+					MAC:     "f2:54:1c:1f:84:96",
+				},
+				{
+					Network: NetworkF,
+					NAD:     NADFor(NetworkF, SubnetName2),
+					IPv4:    netip.MustParseAddr("192.168.254.65"),
+					IPv6:    netip.MustParseAddr("fd10:0:254:3::65"),
+					Routes:  slices.Concat(newVMRoutes("192.168.254.64/27", 3), newVMRoutes("fd10:0:254:3::0/64", 3)),
+					MAC:     "f2:54:1c:1f:84:97",
+				},
 			},
 			Kind: VMKindClient,
 		},
@@ -474,6 +518,14 @@ var networkTopology = struct {
 					Routes:    slices.Concat(newVMRoutes("0.0.0.0/0", 0), newVMRoutes("::/0", 0)),
 					DNSServer: netip.MustParseAddr("192.168.250.254"),
 					MAC:       "de:a9:fd:7d:af:bf",
+				},
+				{
+					Network: NetworkF,
+					NAD:     NADFor(NetworkF, SubnetName0),
+					IPv4:    netip.MustParseAddr("192.168.254.2"),
+					IPv6:    netip.MustParseAddr("fd10:0:254:1::2"),
+					Routes:  slices.Concat(newVMRoutes("192.168.254.0/27", 1), newVMRoutes("fd10:0:254:1::0/64", 1)),
+					MAC:     "de:a9:fd:7d:af:be",
 				},
 			},
 			Affinity: VMAffinity{SameNode, ClientVM(NetworkA)},
@@ -497,15 +549,25 @@ var networkTopology = struct {
 			Kind:     VMKindEcho,
 		},
 		{
-			Name: VMName("client-dhcp-network-a"),
+			Name: VMName("client-dhcp-network-b-a"),
 			Interfaces: []Interface{
+				{
+					Network:   NetworkB,
+					Subnet:    SubnetName1,
+					NAD:       NADFor(NetworkB, SubnetName1),
+					IPv4:      netip.MustParseAddr("0.0.0.0"), /* zero or missing IPv4 signals use of DHCP */
+					IPv6:      netip.MustParseAddr("fd10:0:253::15"),
+					Routes:    newVMRoutes("::/0", 0),
+					DNSServer: netip.MustParseAddr("192.168.253.254"),
+					MAC:       "02:00:00:e6:bb:fe",
+				},
 				{
 					Network:   NetworkA,
 					Subnet:    SubnetName0,
 					NAD:       NADFor(NetworkA, SubnetName0),
 					IPv4:      netip.MustParseAddr("0.0.0.0"), /* zero or missing IPv4 signals use of DHCP */
 					IPv6:      netip.MustParseAddr("fd10:0:250::15"),
-					Routes:    newVMRoutes("::/0", 0),
+					Routes:    slices.Concat(newVMRoutes("192.168.250.0/24", 1), newVMRoutes("fd10:0:250::/64", 1)),
 					DNSServer: netip.MustParseAddr("192.168.250.254"),
 					MAC:       "02:00:00:e6:bb:ff",
 				},
@@ -539,6 +601,14 @@ var networkTopology = struct {
 					Routes:    slices.Concat(newVMRoutes("0.0.0.0/0", 0), newVMRoutes("::/0", 0)),
 					DNSServer: netip.MustParseAddr("192.168.251.254"),
 					MAC:       "0e:13:85:69:e9:f7",
+				},
+				{
+					Network: NetworkF,
+					NAD:     NADFor(NetworkF, SubnetName1),
+					IPv4:    netip.MustParseAddr("192.168.254.34"),
+					IPv6:    netip.MustParseAddr("fd10:0:254:2::34"),
+					Routes:  slices.Concat(newVMRoutes("192.168.254.32/27", 1), newVMRoutes("fd10:0:254:2::0/64", 1)),
+					MAC:     "0e:13:85:69:e9:f8",
 				},
 			},
 			Affinity: VMAffinity{OtherNode, ClientVM(NetworkB)},
@@ -583,6 +653,14 @@ var networkTopology = struct {
 					IPv6:      netip.MustParseAddr("fd10:0:252::22"),
 					DNSServer: netip.MustParseAddr("192.168.252.254"),
 					MAC:       "5e:ae:22:a7:37:87",
+				},
+				{
+					Network: NetworkF,
+					NAD:     NADFor(NetworkF, SubnetName2),
+					IPv4:    netip.MustParseAddr("192.168.254.66"),
+					IPv6:    netip.MustParseAddr("fd10:0:254:3::66"),
+					Routes:  newVMRoutes("fd10:0:254:3::0/64", 1),
+					MAC:     "5e:ae:22:a7:37:88",
 				},
 			},
 			Affinity: VMAffinity{OtherNode, ClientVM(NetworkC)},

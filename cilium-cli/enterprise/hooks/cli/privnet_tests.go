@@ -102,7 +102,6 @@ func newCmdPrivNetTest() *cobra.Command {
 			}()
 
 			vmClientA := t.VM(privnet.NetworkA, privnet.ClientVM(privnet.NetworkA))
-			vmClientADHCP := t.VM(privnet.NetworkA, privnet.VMName("client-dhcp-network-a"))
 			vmEchoA := t.VM(privnet.NetworkA, privnet.EchoVM(privnet.NetworkA))
 			vmEchoOtherA := t.VM(privnet.NetworkA, privnet.EchoOtherVM(privnet.NetworkA))
 
@@ -118,8 +117,12 @@ func newCmdPrivNetTest() *cobra.Command {
 			externalTarget := params.ExternalTarget
 			externalIPTarget := params.ExternalIPTarget
 
-			// DHCP validation for network-a via inb0.
-			t.Run(ctx, privnet.NewDHCP(t, vmClientADHCP), privnet.ExpectationOK)
+			// DHCP validation for network-a and network-b via inb0.
+			for idx, net := range []privnet.NetworkName{privnet.NetworkB, privnet.NetworkA} {
+				t.Run(ctx, privnet.NewDHCP(t,
+					t.VM(net, privnet.VMName("client-dhcp-network-b-a").ForInterface(fmt.Sprintf("eth%d", idx))),
+				), privnet.ExpectationOK)
+			}
 
 			t.Run(ctx, privnet.NewClientToEcho(t, vmClientA, vmEchoA), privnet.ExpectationOK)
 			t.Run(ctx, privnet.NewClientToEcho(t, vmClientA, vmEchoOtherA), privnet.ExpectationOK)
@@ -127,6 +130,25 @@ func newCmdPrivNetTest() *cobra.Command {
 			t.Run(ctx, privnet.NewClientToEcho(t, vmClientA, vmEchoOtherB), privnet.ExpectationCurlTimeout)
 			t.Run(ctx, privnet.NewClientToEcho(t, vmClientB, vmEchoOtherB), privnet.ExpectationOK)
 			t.Run(ctx, privnet.NewClientToEcho(t, vmClientC, vmEchoOtherC), privnet.ExpectationOK)
+
+			// Test connectivity via secondary interfaces
+			t.Run(ctx, privnet.NewClientToEcho(t,
+				t.VM(privnet.NetworkF, privnet.ClientVM(privnet.NetworkA).ForInterface("eth1")),
+				t.VM(privnet.NetworkF, privnet.EchoVM(privnet.NetworkA).ForInterface("eth1")),
+				privnet.WithNetworkOverride(privnet.NetworkA),
+			), privnet.ExpectationOK)
+
+			t.Run(ctx, privnet.NewClientToEcho(t,
+				t.VM(privnet.NetworkF, privnet.ClientVM(privnet.NetworkA).ForInterface("eth2")),
+				t.VM(privnet.NetworkF, privnet.EchoOtherVM(privnet.NetworkB).ForInterface("eth1")),
+				privnet.WithNetworkOverride(privnet.NetworkB),
+			), privnet.ExpectationOK)
+
+			t.Run(ctx, privnet.NewClientToEcho(t,
+				t.VM(privnet.NetworkF, privnet.ClientVM(privnet.NetworkA).ForInterface("eth3")),
+				t.VM(privnet.NetworkF, privnet.EchoOtherVM(privnet.NetworkC).ForInterface("eth1")),
+				privnet.WithNetworkOverride(privnet.NetworkC),
+			), privnet.ExpectationOK)
 
 			// Traffic to world with DNS resolution should not be allowed from private network, since it does not have
 			// a route for it.
@@ -205,6 +227,26 @@ func newCmdPrivNetTest() *cobra.Command {
 				t.PolicyFor(vmExtA1, "allow-ingress-l4.yaml", privnet.WithPolicyPort(privnet.EchoServerPort)),
 				t.PolicyFor(vmExtA2, "allow-ingress-all-endpoints.yaml"),
 				t.PolicyFor(vmExtA2, "deny-egress.yaml"),
+
+				t.PolicyFor(
+					// All secondary interfaces are attached to the same network, hence this policy applies to all of them.
+					t.VM(privnet.NetworkF, privnet.ClientVM(privnet.NetworkA).ForInterface("eth1")),
+					"allow-egress-endpoint.yaml",
+					privnet.WithPolicyPeer(t.VM(privnet.NetworkF, privnet.EchoVM(privnet.NetworkA).ForInterface("eth1"))),
+				),
+
+				t.PolicyFor(
+					// All secondary interfaces are attached to the same network, hence this policy applies to all of them.
+					t.VM(privnet.NetworkF, privnet.ClientVM(privnet.NetworkA).ForInterface("eth1")),
+					"allow-egress-endpoint.yaml",
+					privnet.WithPolicyPeer(t.VM(privnet.NetworkF, privnet.EchoOtherVM(privnet.NetworkB).ForInterface("eth1"))),
+				),
+
+				t.PolicyFor(
+					t.VM(privnet.NetworkF, privnet.EchoVM(privnet.NetworkA).ForInterface("eth1")),
+					"allow-ingress-l4.yaml",
+					privnet.WithPolicyPort(privnet.EchoServerPort),
+				),
 			)
 
 			// egress allowed by toEndpoints, ingress allowed by toPorts
@@ -228,12 +270,25 @@ func newCmdPrivNetTest() *cobra.Command {
 			// egress denied by catch-all
 			t.Run(ctx, privnet.NewClientToEcho(t, vmExtA2, vmEchoA), privnet.ExpectationCurlTimeout)
 
+			// egress allowed by toEndpoints, ingress allowed by toPorts
+			t.Run(ctx, privnet.NewClientToEcho(t,
+				t.VM(privnet.NetworkF, privnet.ClientVM(privnet.NetworkA).ForInterface("eth1")),
+				t.VM(privnet.NetworkF, privnet.EchoVM(privnet.NetworkA).ForInterface("eth1")),
+				privnet.WithNetworkOverride(privnet.NetworkA),
+			), privnet.ExpectationOK)
+
 			//
 			// Network B
 			//
 			t.ApplyPolicies(ctx,
 				t.PolicyFor(vmClientB, "allow-egress-endpoint.yaml", privnet.WithPolicyPeer(vmEchoOtherB)),
 				t.PolicyFor(vmExtB1, "allow-egress-endpoint.yaml", privnet.WithPolicyPeer(vmClientB)),
+
+				t.PolicyFor(
+					t.VM(privnet.NetworkF, privnet.EchoOtherVM(privnet.NetworkB).ForInterface("eth1")),
+					"allow-ingress-l4.yaml",
+					privnet.WithPolicyPort(privnet.EchoServerPort+1),
+				),
 			)
 
 			// egress allowed by toEndpoints, ingress allowed because no policy
@@ -242,6 +297,13 @@ func newCmdPrivNetTest() *cobra.Command {
 			t.Run(ctx, privnet.NewClientToEcho(t, vmClientB, vmExtB1), privnet.ExpectationCurlTimeout)
 			// egress denied by toEndpoints (only matches client-b)
 			t.Run(ctx, privnet.NewClientToEcho(t, vmExtB1, vmEchoOtherB), privnet.ExpectationCurlTimeout)
+
+			// egress allowed by toEndpoints, ingress denied by toPorts
+			t.Run(ctx, privnet.NewClientToEcho(t,
+				t.VM(privnet.NetworkF, privnet.ClientVM(privnet.NetworkA).ForInterface("eth2")),
+				t.VM(privnet.NetworkF, privnet.EchoOtherVM(privnet.NetworkB).ForInterface("eth1")),
+				privnet.WithNetworkOverride(privnet.NetworkB),
+			), privnet.ExpectationCurlTimeout)
 
 			//
 			// Network C
@@ -263,6 +325,13 @@ func newCmdPrivNetTest() *cobra.Command {
 			t.Run(ctx, privnet.NewClientToEcho(t, vmExtC1, vmEchoA), privnet.ExpectationOK)
 			// ingress denied by fromCIDR
 			t.Run(ctx, privnet.NewClientToEcho(t, vmExtC1, vmEchoOtherA), privnet.ExpectationCurlTimeout)
+
+			// egress denied by toEndpoints
+			t.Run(ctx, privnet.NewClientToEcho(t,
+				t.VM(privnet.NetworkF, privnet.ClientVM(privnet.NetworkA).ForInterface("eth3")),
+				t.VM(privnet.NetworkF, privnet.EchoOtherVM(privnet.NetworkC).ForInterface("eth1")),
+				privnet.WithNetworkOverride(privnet.NetworkC),
+			), privnet.ExpectationCurlTimeout)
 
 			//
 			// Network D

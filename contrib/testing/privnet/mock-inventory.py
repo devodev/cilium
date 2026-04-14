@@ -97,6 +97,10 @@ data = {
         "render": render_network,
         "name": "network-c",
     },
+    "network-04": {
+        "render": render_network,
+        "name": "network-f",
+    },
     "vm-A0": {
         "render": render_vm,
         "name": "test-webhook",
@@ -119,6 +123,24 @@ data = {
                 "ip4": "192.168.250.10",
                 "ip6": "fd10:0:250::10",
                 "mac": "f2:54:1c:1f:84:94",
+            },
+            {
+                "netID": "network-04",
+                "ip4": "192.168.254.1",
+                "ip6": "fd10:0:254:1::1",
+                "mac": "f2:54:1c:1f:84:95",
+            },
+            {
+                "netID": "network-04",
+                "ip4": "192.168.254.33",
+                "ip6": "fd10:0:254:2::33",
+                "mac": "f2:54:1c:1f:84:96",
+            },
+            {
+                "netID": "network-04",
+                "ip4": "192.168.254.65",
+                "ip6": "fd10:0:254:3::65",
+                "mac": "f2:54:1c:1f:84:97",
             }
         ],
         "dns": dns_server,
@@ -132,6 +154,12 @@ data = {
                 "ip4": "192.168.250.20",
                 "ip6": "fd10:0:250::20",
                 "mac": "de:a9:fd:7d:af:bf",
+            },
+            {
+                "netID": "network-04",
+                "ip4": "192.168.254.2",
+                "ip6": "fd10:0:254:1::2",
+                "mac": "de:a9:fd:7d:af:be",
             }
         ],
         "dns": dns_server,

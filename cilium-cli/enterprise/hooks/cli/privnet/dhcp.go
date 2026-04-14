@@ -211,7 +211,7 @@ func (s *dhcpScenario) validateLeaseOnNode(ctx context.Context, agent check.Pod,
 }
 
 func (s *dhcpScenario) validateConnectivity(ctx context.Context) error {
-	dst := s.t.VM(s.vm.NetName, EchoVM(s.vm.NetName))
+	dst := s.t.VM(s.vm.NetName, EchoOtherVM(s.vm.NetName))
 	dstIP := dst.IP(features.IPFamilyV4)
 
 	_, _, err := s.t.vmExec(ctx, s.vm,

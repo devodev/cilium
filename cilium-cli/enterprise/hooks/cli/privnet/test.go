@@ -78,6 +78,7 @@ const (
 	NetworkC = "network-c"
 	NetworkD = "network-d"
 	NetworkE = "network-e"
+	NetworkF = "network-f"
 
 	EchoServerPort = 8000
 )
