@@ -230,10 +230,7 @@ int privnet_icmp_from_overlay_nat_src_dst_v4_check(struct __ctx_buff *ctx)
 	privnet_v4_del_endpoint_entry(NET_ID, SUBNET_ID, V4_NET_IP_1, V4_POD_IP_1);
 	privnet_v4_del_subnet_entry(NET_ID, SUBNET_V4, SUBNET_V4_LEN);
 
-	/* cilium_device_del_entry(NETDEV_IFINDEX); */
-	__u32 key = NETDEV_IFINDEX;
-
-	map_delete_elem(&cilium_devices, &key);
+	cilium_device_del_entry(NETDEV_IFINDEX);
 
 	/* packets are redirected to netdev device */
 	assert_status_code(ctx, TC_ACT_REDIRECT);
@@ -304,15 +301,7 @@ int privnet_icmp_from_overlay_to_local_endpoint_v6_check(struct __ctx_buff *ctx)
 {
 	test_init();
 
-	/* endpoint_v6_del_entry is not defined upstream. Let's keep things
-	 * simple and open-code it here.
-	 */
-	struct endpoint_key key = {
-		.ip6 = *((const union v6addr *)v6_ep_ip),
-		.family = ENDPOINT_KEY_IPV6,
-	};
-
-	map_delete_elem(&cilium_lxc, &key);
+	endpoint_v6_del_entry((const union v6addr *)v6_ep_ip);
 
 	assert_status_code(ctx, CTX_ACT_OK);
 
@@ -354,10 +343,7 @@ int privnet_icmp_from_overlay_nat_src_unknown_dst_v4_check(struct __ctx_buff *ct
 	privnet_v4_del_endpoint_entry(NET_ID, SUBNET_ID, V4_NET_IP_1, V4_POD_IP_1);
 	privnet_v4_del_subnet_entry(NET_ID, SUBNET_V4, SUBNET_V4_LEN);
 
-	/* cilium_device_del_entry(NETDEV_IFINDEX); */
-	__u32 key = NETDEV_IFINDEX;
-
-	map_delete_elem(&cilium_devices, &key);
+	cilium_device_del_entry(NETDEV_IFINDEX);
 
 	/* packets are redirected to netdev device */
 	assert_status_code(ctx, TC_ACT_REDIRECT);
@@ -416,10 +402,7 @@ int privnet_icmpv6_from_overlay_nat_src_unknown_dst_v6_check(struct __ctx_buff *
 				      (const union v6addr *)V6_POD_IP_1);
 	privnet_v6_del_subnet_entry(NET_ID, SUBNET_V6, SUBNET_V6_LEN);
 
-	/* cilium_device_del_entry(NETDEV_IFINDEX); */
-	__u32 key = NETDEV_IFINDEX;
-
-	map_delete_elem(&cilium_devices, &key);
+	cilium_device_del_entry(NETDEV_IFINDEX);
 
 	/* packets are redirected to netdev device */
 	assert_status_code(ctx, TC_ACT_REDIRECT);
