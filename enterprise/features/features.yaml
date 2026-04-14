@@ -286,7 +286,7 @@ features:
       ipv6.enabled: false
 
   DatapathIPModeIPv6:
-    maturity: Beta
+    maturity: Limited
     description: |
       IPv6-only datapath, enabled by having ipv6-enabled set to true and ipv4-enabled set to false
     flags:

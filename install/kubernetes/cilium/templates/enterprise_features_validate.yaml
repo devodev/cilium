@@ -143,12 +143,12 @@ WARNING: A Limited feature DatapathIPModeDualStack was enabled, but it is not an
   {{- end -}}
 {{- end -}}
 {{- if (and (eq "false" (print .ipv4.enabled)) (eq "true" (print .ipv6.enabled)) ) -}}
-  {{- if (and (gt (get $featureMaturityLevels "Beta") $minimumMaturityOrder) (not (has "DatapathIPModeIPv6" .enterprise.featureGate.approved))) -}}
+  {{- if (and (gt (get $featureMaturityLevels "Limited") $minimumMaturityOrder) (not (has "DatapathIPModeIPv6" .enterprise.featureGate.approved))) -}}
     {{- if $strictFeatureGates -}}
-      {{- fail "\nBeta feature: DatapathIPModeIPv6 was enabled, but is not an approved feature. Please contact Isovalent Support for more information on how to grant an exception." -}}
+      {{- fail "\nLimited feature: DatapathIPModeIPv6 was enabled, but is not an approved feature. Please contact Isovalent Support for more information on how to grant an exception." -}}
     {{- else -}}
       {{ $fails = true }}
-WARNING: A Beta feature DatapathIPModeIPv6 was enabled, but it is not an approved feature.
+WARNING: A Limited feature DatapathIPModeIPv6 was enabled, but it is not an approved feature.
     {{- end -}}
   {{- end -}}
 {{- end -}}
