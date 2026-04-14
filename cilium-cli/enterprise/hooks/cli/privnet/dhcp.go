@@ -42,7 +42,7 @@ func NewDHCP(t *TestRun, vm VM) Scenario {
 }
 
 func (s *dhcpScenario) Run(ctx context.Context, _ Expectation, _ ...features.IPFamily) {
-	s.t.log.Info(fmt.Sprintf("🧐 Running DHCP validation for %s", s.vm.Name))
+	s.t.log.Info(fmt.Sprintf("🧐 Running DHCP validation for %s", s.vm.DescName()))
 
 	ip4, err := s.waitForAssignedIPv4(ctx)
 	if err != nil {
@@ -91,7 +91,7 @@ func (s *dhcpScenario) waitForAssignedIPv4(ctx context.Context) (netip.Addr, err
 	var lastErr error
 	for {
 		stdout, stderr, err := s.t.vmExec(ctx, s.vm,
-			[]string{"/bin/sh", "-c", "ip -j -4 addr show dev eth0"})
+			[]string{"ip", "-j", "-4", "addr", "show", "dev", s.vm.Interface})
 
 		exitCode, ok := extractExitCode(err)
 		switch {
@@ -101,7 +101,7 @@ func (s *dhcpScenario) waitForAssignedIPv4(ctx context.Context) (netip.Addr, err
 				return ip4, nil
 			}
 			if !hasIPv4 {
-				lastErr = fmt.Errorf("no IPv4 address found on eth0")
+				lastErr = fmt.Errorf("no IPv4 address found on %s", s.vm.Interface)
 			} else {
 				lastErr = fmt.Errorf("IPv4 address still 0.0.0.0 (DHCP lease not acquired)")
 			}
@@ -128,7 +128,7 @@ func (s *dhcpScenario) waitForAssignedIPv4(ctx context.Context) (netip.Addr, err
 			if lastErr == nil {
 				lastErr = ctx.Err()
 			}
-			return netip.Addr{}, fmt.Errorf("timed out waiting for IPv4 address on eth0: %w", lastErr)
+			return netip.Addr{}, fmt.Errorf("timed out waiting for IPv4 address on %s: %w", s.vm.Interface, lastErr)
 		}
 	}
 }
