@@ -36,6 +36,26 @@ func (e Expectation) String() string {
 	return "➡️"
 }
 
+type options struct {
+	network NetworkName
+}
+
+func renderOptions(opts ...opt) options {
+	var options options
+
+	for _, opt := range opts {
+		opt(&options)
+	}
+
+	return options
+}
+
+type opt func(*options)
+
+func WithNetworkOverride(network NetworkName) opt {
+	return func(o *options) { o.network = network }
+}
+
 type Scenario interface {
 	Name() string
 	Run(ctx context.Context, exp Expectation, overrideIPFamilies ...features.IPFamily)

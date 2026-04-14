@@ -11,6 +11,7 @@
 package privnet
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -26,14 +27,17 @@ type clientToEcho struct {
 
 	src VM
 	dst VM
+
+	opts options
 }
 
-func NewClientToEcho(t *TestRun, src, dst VM) Scenario {
+func NewClientToEcho(t *TestRun, src, dst VM, opts ...opt) Scenario {
 	name := fmt.Sprintf("curl-%s-to-%s", src.Name, dst.Name)
 	return &clientToEcho{
 		scenario: scenario{t: t, name: name},
 		src:      src,
 		dst:      dst,
+		opts:     renderOptions(opts...),
 	}
 }
 
@@ -76,7 +80,7 @@ func (s *clientToEcho) run(ctx context.Context, exp Expectation, family features
 	}
 
 	expected := map[string]string{
-		"network":   s.dst.NetName.String(),
+		"network":   cmp.Or(s.opts.network, s.dst.NetName).String(),
 		"client-ip": srcIP.String(),
 	}
 	if !maps.Equal(response, expected) {
