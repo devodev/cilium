@@ -18,6 +18,8 @@ import (
 	"net/netip"
 	"time"
 
+	"sigs.k8s.io/yaml"
+
 	"github.com/cilium/cilium/cilium-cli/connectivity/check"
 	"github.com/cilium/cilium/cilium-cli/defaults"
 	"github.com/cilium/cilium/cilium-cli/utils/features"
@@ -181,7 +183,7 @@ func ipv4PrefixForNetwork(network NetworkName) (netip.Prefix, bool) {
 func (s *dhcpScenario) validateLeaseOnNode(ctx context.Context, agent check.Pod, ip4 netip.Addr) error {
 	stdout, err := agent.K8sClient.ExecInPod(ctx, agent.Pod.Namespace, agent.Pod.Name,
 		defaults.AgentContainerName,
-		[]string{"cilium-dbg", "shell", "--", "db/show", "privnet-dhcp-leases", "--format=json"},
+		[]string{"cilium-dbg", "shell", "--", "db/show", "privnet-dhcp-leases", "--format=yaml"},
 	)
 	if err != nil {
 		return fmt.Errorf("retrieving DHCP leases: %w", err)
@@ -189,8 +191,8 @@ func (s *dhcpScenario) validateLeaseOnNode(ctx context.Context, agent check.Pod,
 
 	for item := range bytes.SplitSeq(stdout.Bytes(), []byte("\n---")) {
 		var lease tables.DHCPLease
-		if err := json.Unmarshal(item, &lease); err != nil {
-			continue
+		if err := yaml.Unmarshal(item, &lease); err != nil {
+			return fmt.Errorf("failed to unmarshal lease information: %w", err)
 		}
 		if lease.Network != tables.NetworkName(s.vm.NetName) {
 			continue
