@@ -47,6 +47,7 @@ import (
 	"github.com/cilium/cilium/cilium-cli/enterprise/hooks/utils"
 	"github.com/cilium/cilium/cilium-cli/k8s"
 	"github.com/cilium/cilium/cilium-cli/utils/features"
+	"github.com/cilium/cilium/enterprise/pkg/privnet/types"
 	isovalentv1alpha1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
 	cslices "github.com/cilium/cilium/pkg/slices"
 )
@@ -192,7 +193,7 @@ func updateNetworkMap(target map[NetworkName]map[VMName]VM, vms []VM) {
 			inner = make(map[VMName]VM)
 			target[vm.NetName] = inner
 		}
-		inner[vm.Name] = vm
+		inner[vm.UniqueName()] = vm
 	}
 }
 
@@ -667,8 +668,10 @@ func (t *TestRun) SetupAndValidate(ctx context.Context) (err error) {
 
 	var nads = sets.New[string]()
 	for _, vm := range networkTopology.VMs {
-		if vm.NAD != "" {
-			nads.Insert(vm.NAD)
+		for _, iface := range vm.Interfaces {
+			if iface.NAD != "" {
+				nads.Insert(iface.NAD)
+			}
 		}
 	}
 
@@ -710,6 +713,10 @@ func (t *TestRun) SetupAndValidate(ctx context.Context) (err error) {
 
 	for _, vms := range t.vms {
 		for vmName, vm := range vms {
+			if vm.Kind == VMKindSecondary {
+				continue
+			}
+
 			var wait = t.waitForVMToBeReady
 			if vm.Mock {
 				wait = t.waitForMockVMToBeReady
@@ -998,9 +1005,33 @@ func renderTemplate(templ string, data any) (string, error) {
 			pad := strings.Repeat(" ", spaces)
 			return strings.ReplaceAll(v, "\n", "\n"+pad)
 		},
-		"formatPrimaryNetworkAttachment": func(vm VM) (string, error) {
-			out, err := json.MarshalIndent(vm.ToNetworkAttachment(), "", "  ")
+		"formatPrimaryNetworkAttachment": func(ifaces []Interface) (string, error) {
+			if len(ifaces) == 0 {
+				return "", errors.New("no interface provided")
+			}
+
+			out, err := json.MarshalIndent(ifaces[0].ToNetworkAttachment(0), "", "  ")
 			return string(out), err
+		},
+		"formatSecondaryNetworkAttachments": func(ifaces []Interface) (string, error) {
+			if len(ifaces) <= 1 {
+				return "", nil
+			}
+
+			var attachments = make([]types.NetworkAttachment, 0, len(ifaces)-1)
+			for idx, iface := range ifaces[1:] {
+				attachments = append(attachments, iface.ToNetworkAttachment(uint(idx+1)))
+			}
+
+			out, err := json.MarshalIndent(attachments, "", "  ")
+			return string(out), err
+		},
+		"formatMultusNetworks": func(ifaces []Interface) (out string) {
+			for idx, iface := range ifaces[1:] {
+				out += fmt.Sprintf("%s@%s,", iface.NAD, iface.Name(uint(idx+1)))
+			}
+
+			return strings.TrimRight(out, ",")
 		},
 	}).Parse(templ)
 	if err != nil {

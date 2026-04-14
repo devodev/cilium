@@ -22,7 +22,14 @@ spec:
         vm.kubevirt.io/name: {{ .Name }}
       annotations:
         privnet.isovalent.com/network-attachment: |-
-          {{ formatPrimaryNetworkAttachment .VM | indent 10 }}
+          {{ formatPrimaryNetworkAttachment .Interfaces | indent 10 }}
+        {{- with ( formatSecondaryNetworkAttachments .Interfaces ) }}
+        privnet.isovalent.com/secondary-network-attachments: |-
+          {{ . | indent 10 }}
+        {{- end }}
+        {{- with ( formatMultusNetworks .Interfaces ) }}
+        k8s.v1.cni.cncf.io/networks: {{ . }}
+        {{- end }}
     spec:
   {{- if .Affinity.Type }}
       affinity:
@@ -44,7 +51,11 @@ spec:
       dnsPolicy: None
       dnsConfig:
         nameservers:
-        - {{ .NetDNSServer }}
+        {{- range .Interfaces }}
+        {{- if .DNSServer.IsValid }}
+        - {{ .DNSServer }}
+        {{- end }}
+        {{- end }}
       containers:
       - name: compute
         command:
@@ -52,7 +63,7 @@ spec:
         - /mnt/scripts/echoserver.py
         env:
         - name: CILIUM_PRIVNET_NETWORK
-          value: {{ .NetName }}
+          value: {{ ( index .Interfaces 0 ).Network }}
         - name: CILIUM_PRIVNET_PORT
           value: "{{ .ServePort }}"
         image: "{{ .MockVMImage }}"

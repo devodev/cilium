@@ -13,6 +13,7 @@ package privnet
 import (
 	"fmt"
 	"net/netip"
+	"slices"
 
 	"github.com/cilium/cilium/cilium-cli/utils/features"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/types"
@@ -39,16 +40,25 @@ type VMAffinity struct {
 type VMKind string
 
 var (
-	VMKindClient  VMKind = "client"
-	VMKindEcho    VMKind = "echo"
-	VMKindExtern  VMKind = "extern"
-	VMKindUnknown VMKind = "unknown"
+	VMKindClient    VMKind = "client"
+	VMKindEcho      VMKind = "echo"
+	VMKindSecondary VMKind = "secondary"
+	VMKindExtern    VMKind = "extern"
+	VMKindUnknown   VMKind = "unknown"
 )
 
 type VMName string
 
 func (n VMName) String() string {
 	return string(n)
+}
+
+func (n VMName) ForInterface(ifname string) VMName {
+	if ifname == "" || ifname == "eth0" {
+		return n
+	}
+
+	return VMName(fmt.Sprintf("%s-%s", n, ifname))
 }
 
 func ClientVM(network NetworkName) VMName {
@@ -85,45 +95,49 @@ func NADFor(network NetworkName, subnet SubnetName) string {
 }
 
 // DesiredVM represents the specification of a (possibly mocked) VM to be
-// automatically created in the testbed.
+// automatically created in the testbed. A DesiredVM can be composed of
+// one or multiple network interfaces.
 type DesiredVM struct {
 	ID   string
 	Name VMName
 
-	NAD string
+	Interfaces []Interface
 
-	NetName   NetworkName
-	NetSubnet SubnetName
-
-	NetIPv4 netip.Addr
-	NetIPv6 netip.Addr
-
-	NetIPv4Gateway netip.Addr
-	NetIPv6Gateway netip.Addr // workaround for lack of RA in KubeVirt
-
-	NetDNSServer netip.Addr
-
-	NetMAC   string
 	Affinity VMAffinity
 	Kind     VMKind
 	Mock     bool
 }
 
 func (vm DesiredVM) ToVMs() []VM {
-	return []VM{{
-		Name:      vm.Name,
-		Interface: "eth0",
-		NetName:   vm.NetName,
-		NetSubnet: vm.NetSubnet,
-		NetIPv4:   vm.NetIPv4,
-		NetIPv6:   vm.NetIPv6,
-		NetMAC:    vm.NetMAC,
-		Kind:      vm.Kind,
-		Mock:      vm.Mock,
-	}}
+	var vms = make([]VM, 0, len(vm.Interfaces))
+
+	for idx, iface := range vm.Interfaces {
+		var kind = vm.Kind
+		if idx > 0 {
+			kind = VMKindSecondary
+		}
+
+		vms = append(vms, VM{
+			Name:      vm.Name,
+			Interface: iface.Name(uint(idx)),
+			Kind:      kind,
+			Mock:      vm.Mock,
+
+			NetName:   iface.Network,
+			NetSubnet: iface.Subnet,
+			NetIPv4:   iface.IPv4,
+			NetIPv6:   iface.IPv6,
+			NetMAC:    iface.MAC,
+		})
+	}
+
+	return vms
 }
 
-// VM models the source and/or destination endpoint of a test scenario.
+// VM models the source and/or destination endpoint of a test scenario. Each
+// VM instance univocally maps to a single VM network interface; in other words,
+// a single DesiredVM encompassing N network interfaces gets mapped to N VM
+// VM instances, one for each network interface.
 type VM struct {
 	Name      VMName
 	Interface string
@@ -155,13 +169,37 @@ func (vm *VM) DescName() string {
 	return fmt.Sprintf("%s [%s]", vm.Name, vm.Interface)
 }
 
-func (vm *VM) ToNetworkAttachment() types.NetworkAttachment {
+func (vm *VM) UniqueName() VMName {
+	return vm.Name.ForInterface(vm.Interface)
+}
+
+type Interface struct {
+	Network NetworkName
+	Subnet  SubnetName
+
+	NAD string
+	MAC string
+
+	IPv4 netip.Addr
+	IPv6 netip.Addr
+
+	Routes []Route
+
+	DNSServer netip.Addr
+}
+
+func (i Interface) Name(idx uint) string {
+	return fmt.Sprintf("eth%d", idx)
+}
+
+func (i Interface) ToNetworkAttachment(idx uint) types.NetworkAttachment {
 	return types.NetworkAttachment{
-		Network: string(vm.NetName),
-		Subnet:  string(vm.NetSubnet),
-		IPv4:    vm.NetIPv4,
-		IPv6:    vm.NetIPv6,
-		MAC:     mac.MustParseMAC(vm.NetMAC),
+		Network:   string(i.Network),
+		Subnet:    string(i.Subnet),
+		Interface: i.Name(idx),
+		IPv4:      i.IPv4,
+		IPv6:      i.IPv6,
+		MAC:       mac.MustParseMAC(i.MAC),
 	}
 }
 
@@ -187,6 +225,21 @@ type NetworkData struct {
 	INBs            []INBInfo
 	Unknown         []VM
 	NodeAttachments []NodeAttachment
+}
+
+func newVMRoutes(d string, ifidx uint) []Route {
+	var dest = netip.MustParsePrefix(d)
+
+	var tmpl = "169.254.0.1%02d"
+	if dest.Addr().Is6() {
+		tmpl = "fe80::1%02d"
+	}
+
+	var gw = netip.MustParseAddr(fmt.Sprintf(tmpl, ifidx))
+	return []Route{
+		{Destination: netip.PrefixFrom(gw, gw.BitLen())},
+		{Destination: dest, Gateway: gw},
+	}
 }
 
 var networkTopology = struct {
@@ -394,179 +447,213 @@ var networkTopology = struct {
 
 	VMs: []DesiredVM{
 		{
-			ID:             "vm-A1",
-			Name:           ClientVM(NetworkA),
-			NetName:        NetworkA,
-			NAD:            NADFor(NetworkA, SubnetName0),
-			NetIPv4:        netip.MustParseAddr("192.168.250.10"),
-			NetIPv6:        netip.MustParseAddr("fd10:0:250::10"),
-			NetIPv4Gateway: netip.MustParseAddr("169.254.0.100"),
-			NetIPv6Gateway: netip.MustParseAddr("fe80::100"),
-			NetDNSServer:   netip.MustParseAddr("192.168.250.254"),
-			NetMAC:         "f2:54:1c:1f:84:94",
-			Kind:           VMKindClient,
+			ID:   "vm-A1",
+			Name: ClientVM(NetworkA),
+			Interfaces: []Interface{
+				{
+					Network:   NetworkA,
+					NAD:       NADFor(NetworkA, SubnetName0),
+					IPv4:      netip.MustParseAddr("192.168.250.10"),
+					IPv6:      netip.MustParseAddr("fd10:0:250::10"),
+					Routes:    slices.Concat(newVMRoutes("0.0.0.0/0", 0), newVMRoutes("::/0", 0)),
+					DNSServer: netip.MustParseAddr("192.168.250.254"),
+					MAC:       "f2:54:1c:1f:84:94",
+				},
+			},
+			Kind: VMKindClient,
 		},
 		{
-			ID:             "vm-A2",
-			Name:           EchoVM(NetworkA),
-			NetName:        NetworkA,
-			NAD:            NADFor(NetworkA, SubnetName0),
-			NetIPv4:        netip.MustParseAddr("192.168.250.20"),
-			NetIPv6:        netip.MustParseAddr("fd10:0:250::20"),
-			NetIPv4Gateway: netip.MustParseAddr("169.254.0.100"),
-			NetIPv6Gateway: netip.MustParseAddr("fe80::100"),
-			NetDNSServer:   netip.MustParseAddr("192.168.250.254"),
-			NetMAC:         "de:a9:fd:7d:af:bf",
-			Affinity:       VMAffinity{SameNode, ClientVM(NetworkA)},
-			Kind:           VMKindEcho,
+			ID:   "vm-A2",
+			Name: EchoVM(NetworkA),
+			Interfaces: []Interface{
+				{
+					Network:   NetworkA,
+					NAD:       NADFor(NetworkA, SubnetName0),
+					IPv4:      netip.MustParseAddr("192.168.250.20"),
+					IPv6:      netip.MustParseAddr("fd10:0:250::20"),
+					Routes:    slices.Concat(newVMRoutes("0.0.0.0/0", 0), newVMRoutes("::/0", 0)),
+					DNSServer: netip.MustParseAddr("192.168.250.254"),
+					MAC:       "de:a9:fd:7d:af:bf",
+				},
+			},
+			Affinity: VMAffinity{SameNode, ClientVM(NetworkA)},
+			Kind:     VMKindEcho,
 		},
 		{
-			ID:             "vm-A3",
-			Name:           EchoOtherVM(NetworkA),
-			NetName:        NetworkA,
-			NAD:            NADFor(NetworkA, SubnetName0),
-			NetIPv4:        netip.MustParseAddr("192.168.250.21"),
-			NetIPv6:        netip.MustParseAddr("fd10:0:250::21"),
-			NetIPv4Gateway: netip.MustParseAddr("169.254.0.100"),
-			NetIPv6Gateway: netip.MustParseAddr("fe80::100"),
-			NetDNSServer:   netip.MustParseAddr("192.168.250.254"),
-			NetMAC:         "be:68:f6:fc:6a:4a",
-			Affinity:       VMAffinity{OtherNode, ClientVM(NetworkA)},
-			Kind:           VMKindEcho,
+			ID:   "vm-A3",
+			Name: EchoOtherVM(NetworkA),
+			Interfaces: []Interface{
+				{
+					Network:   NetworkA,
+					NAD:       NADFor(NetworkA, SubnetName0),
+					IPv4:      netip.MustParseAddr("192.168.250.21"),
+					IPv6:      netip.MustParseAddr("fd10:0:250::21"),
+					Routes:    slices.Concat(newVMRoutes("0.0.0.0/0", 0), newVMRoutes("::/0", 0)),
+					DNSServer: netip.MustParseAddr("192.168.250.254"),
+					MAC:       "be:68:f6:fc:6a:4a",
+				},
+			},
+			Affinity: VMAffinity{OtherNode, ClientVM(NetworkA)},
+			Kind:     VMKindEcho,
 		},
 		{
-			Name:           VMName("client-dhcp-network-a"),
-			NetName:        NetworkA,
-			NetSubnet:      SubnetName0,
-			NAD:            NADFor(NetworkA, SubnetName0),
-			NetIPv4:        netip.MustParseAddr("0.0.0.0"), /* zero or missing IPv4 signals use of DHCP */
-			NetIPv6:        netip.MustParseAddr("fd10:0:250::15"),
-			NetIPv4Gateway: netip.MustParseAddr("169.254.0.100"),
-			NetIPv6Gateway: netip.MustParseAddr("fe80::100"),
-			NetDNSServer:   netip.MustParseAddr("192.168.250.254"),
-			NetMAC:         "02:00:00:e6:bb:ff",
-			Kind:           VMKindClient,
+			Name: VMName("client-dhcp-network-a"),
+			Interfaces: []Interface{
+				{
+					Network:   NetworkA,
+					Subnet:    SubnetName0,
+					NAD:       NADFor(NetworkA, SubnetName0),
+					IPv4:      netip.MustParseAddr("0.0.0.0"), /* zero or missing IPv4 signals use of DHCP */
+					IPv6:      netip.MustParseAddr("fd10:0:250::15"),
+					Routes:    newVMRoutes("::/0", 0),
+					DNSServer: netip.MustParseAddr("192.168.250.254"),
+					MAC:       "02:00:00:e6:bb:ff",
+				},
+			},
+			Kind: VMKindClient,
 		},
 		{
-			ID:             "vm-B1",
-			Name:           ClientVM(NetworkB),
-			NetName:        NetworkB,
-			NAD:            NADFor(NetworkB, SubnetName0),
-			NetIPv4:        netip.MustParseAddr("192.168.251.10"),
-			NetIPv6:        netip.MustParseAddr("fd10:0:251::10"),
-			NetIPv4Gateway: netip.MustParseAddr("169.254.0.100"),
-			NetIPv6Gateway: netip.MustParseAddr("fe80::100"),
-			NetDNSServer:   netip.MustParseAddr("192.168.251.254"),
-			NetMAC:         "42:f9:eb:33:4d:54",
-			Kind:           VMKindClient,
+			ID:   "vm-B1",
+			Name: ClientVM(NetworkB),
+			Interfaces: []Interface{
+				{
+					Network:   NetworkB,
+					NAD:       NADFor(NetworkB, SubnetName0),
+					IPv4:      netip.MustParseAddr("192.168.251.10"),
+					IPv6:      netip.MustParseAddr("fd10:0:251::10"),
+					Routes:    slices.Concat(newVMRoutes("0.0.0.0/0", 0), newVMRoutes("::/0", 0)),
+					DNSServer: netip.MustParseAddr("192.168.251.254"),
+					MAC:       "42:f9:eb:33:4d:54",
+				},
+			},
+			Kind: VMKindClient,
 		},
 		{
-			Name:           EchoOtherVM(NetworkB),
-			NetName:        NetworkB,
-			NAD:            NADFor(NetworkB, SubnetName0),
-			NetIPv4:        netip.MustParseAddr("192.168.251.22"),
-			NetIPv6:        netip.MustParseAddr("fd10:0:251::22"),
-			NetIPv4Gateway: netip.MustParseAddr("169.254.0.100"),
-			NetIPv6Gateway: netip.MustParseAddr("fe80::100"),
-			NetDNSServer:   netip.MustParseAddr("192.168.251.254"),
-			NetMAC:         "0e:13:85:69:e9:f7",
-			Affinity:       VMAffinity{OtherNode, ClientVM(NetworkB)},
-			Kind:           VMKindEcho,
+			Name: EchoOtherVM(NetworkB),
+			Interfaces: []Interface{
+				{
+					Network:   NetworkB,
+					NAD:       NADFor(NetworkB, SubnetName0),
+					IPv4:      netip.MustParseAddr("192.168.251.22"),
+					IPv6:      netip.MustParseAddr("fd10:0:251::22"),
+					Routes:    slices.Concat(newVMRoutes("0.0.0.0/0", 0), newVMRoutes("::/0", 0)),
+					DNSServer: netip.MustParseAddr("192.168.251.254"),
+					MAC:       "0e:13:85:69:e9:f7",
+				},
+			},
+			Affinity: VMAffinity{OtherNode, ClientVM(NetworkB)},
+			Kind:     VMKindEcho,
 		},
 		{
-			Name:           ClientVM(NetworkB) + "-2",
-			NetName:        NetworkB,
-			NAD:            NADFor(NetworkB, SubnetName1),
-			NetIPv4:        netip.MustParseAddr("192.168.253.10"),
-			NetIPv6:        netip.MustParseAddr("fd10:0:253::10"),
-			NetIPv4Gateway: netip.MustParseAddr("169.254.0.100"),
-			NetIPv6Gateway: netip.MustParseAddr("fe80::100"),
-			NetDNSServer:   netip.MustParseAddr("192.168.253.254"),
-			NetMAC:         "42:f9:eb:33:1a:83",
-			Kind:           VMKindClient,
-			Mock:           true,
+			Name: ClientVM(NetworkB) + "-2",
+			Interfaces: []Interface{
+				{
+					Network:   NetworkB,
+					NAD:       NADFor(NetworkB, SubnetName1),
+					IPv4:      netip.MustParseAddr("192.168.253.10"),
+					IPv6:      netip.MustParseAddr("fd10:0:253::10"),
+					DNSServer: netip.MustParseAddr("192.168.253.254"),
+					MAC:       "42:f9:eb:33:1a:83",
+				},
+			},
+			Kind: VMKindClient,
+			Mock: true,
 		},
 		{
-			Name:           ClientVM(NetworkC),
-			NetName:        NetworkC,
-			NAD:            NADFor(NetworkC, SubnetName0),
-			NetIPv4:        netip.MustParseAddr("192.168.252.10"),
-			NetIPv6:        netip.MustParseAddr("fd10:0:252::10"),
-			NetIPv4Gateway: netip.MustParseAddr("169.254.0.100"),
-			NetIPv6Gateway: netip.MustParseAddr("fe80::100"),
-			NetDNSServer:   netip.MustParseAddr("192.168.252.254"),
-			NetMAC:         "52:1f:62:0a:ff:07",
-			Kind:           VMKindClient,
-			Mock:           true,
+			Name: ClientVM(NetworkC),
+			Interfaces: []Interface{
+				{
+					Network:   NetworkC,
+					NAD:       NADFor(NetworkC, SubnetName0),
+					IPv4:      netip.MustParseAddr("192.168.252.10"),
+					IPv6:      netip.MustParseAddr("fd10:0:252::10"),
+					DNSServer: netip.MustParseAddr("192.168.252.254"),
+					MAC:       "52:1f:62:0a:ff:07",
+				},
+			},
+			Kind: VMKindClient,
+			Mock: true,
 		},
 		{
-			Name:           EchoOtherVM(NetworkC),
-			NetName:        NetworkC,
-			NetIPv4:        netip.MustParseAddr("192.168.252.22"),
-			NetIPv6:        netip.MustParseAddr("fd10:0:252::22"),
-			NetIPv4Gateway: netip.MustParseAddr("169.254.0.100"),
-			NetIPv6Gateway: netip.MustParseAddr("fe80::100"),
-			NetDNSServer:   netip.MustParseAddr("192.168.252.254"),
-			NetMAC:         "5e:ae:22:a7:37:87",
-			Affinity:       VMAffinity{OtherNode, ClientVM(NetworkC)},
-			Kind:           VMKindEcho,
-			Mock:           true,
+			Name: EchoOtherVM(NetworkC),
+			Interfaces: []Interface{
+				{
+					Network:   NetworkC,
+					IPv4:      netip.MustParseAddr("192.168.252.22"),
+					IPv6:      netip.MustParseAddr("fd10:0:252::22"),
+					DNSServer: netip.MustParseAddr("192.168.252.254"),
+					MAC:       "5e:ae:22:a7:37:87",
+				},
+			},
+			Affinity: VMAffinity{OtherNode, ClientVM(NetworkC)},
+			Kind:     VMKindEcho,
+			Mock:     true,
 		},
 		{
-			Name:           ClientVM(NetworkD),
-			NetName:        NetworkD,
-			NetIPv4:        netip.MustParseAddr("192.168.252.10"),
-			NetIPv6:        netip.MustParseAddr("fd10:0:252::10"),
-			NetIPv6Gateway: netip.MustParseAddr("fe80::100"),
-			NetIPv4Gateway: netip.MustParseAddr("169.254.0.100"),
-			NetDNSServer:   netip.MustParseAddr("192.168.252.254"),
-			NetMAC:         "d2:32:c6:44:58:86",
-			Kind:           VMKindClient,
-			Mock:           true,
+			Name: ClientVM(NetworkD),
+			Interfaces: []Interface{
+				{
+					Network:   NetworkD,
+					IPv4:      netip.MustParseAddr("192.168.252.10"),
+					IPv6:      netip.MustParseAddr("fd10:0:252::10"),
+					DNSServer: netip.MustParseAddr("192.168.252.254"),
+					MAC:       "d2:32:c6:44:58:86",
+				},
+			},
+			Kind: VMKindClient,
+			Mock: true,
 		},
 		{
-			ID:             "",
-			Name:           VMName("client-dhcp-network-e"),
-			NetName:        NetworkE,
-			NetSubnet:      SubnetName0,
-			NAD:            NADFor(NetworkE, SubnetName0),
-			NetIPv4:        netip.MustParseAddr("0.0.0.0"), /* zero or missing IPv4 signals use of DHCP */
-			NetIPv6:        netip.MustParseAddr("fd10:0:10::15"),
-			NetIPv4Gateway: netip.MustParseAddr("169.254.0.100"),
-			NetIPv6Gateway: netip.MustParseAddr("fe80::100"),
-			NetDNSServer:   netip.MustParseAddr("192.168.10.254"),
-			NetMAC:         "02:42:ac:11:00:02",
-			Kind:           VMKindClient,
+			ID:   "",
+			Name: VMName("client-dhcp-network-e"),
+			Interfaces: []Interface{
+				{
+					Network:   NetworkE,
+					Subnet:    SubnetName0,
+					NAD:       NADFor(NetworkE, SubnetName0),
+					IPv4:      netip.MustParseAddr("0.0.0.0"), /* zero or missing IPv4 signals use of DHCP */
+					IPv6:      netip.MustParseAddr("fd10:0:10::15"),
+					Routes:    newVMRoutes("::/0", 0),
+					DNSServer: netip.MustParseAddr("192.168.10.254"),
+					MAC:       "02:42:ac:11:00:02",
+				},
+			},
+
+			Kind: VMKindClient,
 		},
 		{
-			ID:             "",
-			Name:           EchoVM(NetworkE),
-			NetName:        NetworkE,
-			NAD:            NADFor(NetworkE, SubnetName0),
-			NetIPv4:        netip.MustParseAddr("192.168.10.10"),
-			NetIPv6:        netip.MustParseAddr("fd10:0:10::10"),
-			NetIPv4Gateway: netip.MustParseAddr("169.254.0.100"),
-			NetIPv6Gateway: netip.MustParseAddr("fe80::100"),
-			NetDNSServer:   netip.MustParseAddr("192.168.10.254"),
-			NetMAC:         "4e:7c:b2:91:d3:08",
-			Affinity:       VMAffinity{SameNode, VMName("client-dhcp-network-e")},
-			Kind:           VMKindEcho,
-			Mock:           true,
+			ID:   "",
+			Name: EchoVM(NetworkE),
+			Interfaces: []Interface{
+				{
+					Network:   NetworkE,
+					NAD:       NADFor(NetworkE, SubnetName0),
+					IPv4:      netip.MustParseAddr("192.168.10.10"),
+					IPv6:      netip.MustParseAddr("fd10:0:10::10"),
+					DNSServer: netip.MustParseAddr("192.168.10.254"),
+					MAC:       "4e:7c:b2:91:d3:08",
+				},
+			},
+			Affinity: VMAffinity{SameNode, VMName("client-dhcp-network-e")},
+			Kind:     VMKindEcho,
+			Mock:     true,
 		},
 		{
-			ID:             "",
-			Name:           EchoOtherVM(NetworkE),
-			NetName:        NetworkE,
-			NAD:            NADFor(NetworkE, SubnetName0),
-			NetIPv4:        netip.MustParseAddr("192.168.10.21"),
-			NetIPv6:        netip.MustParseAddr("fd10:0:10::21"),
-			NetIPv4Gateway: netip.MustParseAddr("169.254.0.100"),
-			NetIPv6Gateway: netip.MustParseAddr("fe80::100"),
-			NetDNSServer:   netip.MustParseAddr("192.168.10.254"),
-			NetMAC:         "a6:f1:3e:c4:58:2b",
-			Affinity:       VMAffinity{OtherNode, VMName("client-dhcp-network-e")},
-			Kind:           VMKindEcho,
-			Mock:           true,
+			ID:   "",
+			Name: EchoOtherVM(NetworkE),
+			Interfaces: []Interface{
+				{
+					Network:   NetworkE,
+					NAD:       NADFor(NetworkE, SubnetName0),
+					IPv4:      netip.MustParseAddr("192.168.10.21"),
+					IPv6:      netip.MustParseAddr("fd10:0:10::21"),
+					DNSServer: netip.MustParseAddr("192.168.10.254"),
+					MAC:       "a6:f1:3e:c4:58:2b",
+				},
+			},
+			Affinity: VMAffinity{OtherNode, VMName("client-dhcp-network-e")},
+			Kind:     VMKindEcho,
+			Mock:     true,
 		},
 	},
 }

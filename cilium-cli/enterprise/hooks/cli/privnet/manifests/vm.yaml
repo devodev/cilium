@@ -22,7 +22,11 @@ spec:
       {{- if .NeedsAnnotation }}
       annotations:
         privnet.isovalent.com/network-attachment: |-
-          {{ formatPrimaryNetworkAttachment .VM | indent 10 }}
+          {{ formatPrimaryNetworkAttachment .Interfaces | indent 10 }}
+        {{- with ( formatSecondaryNetworkAttachments .Interfaces ) }}
+        privnet.isovalent.com/secondary-network-attachments: |-
+          {{ . | indent 10 }}
+        {{- end }}
       {{- end }}
     spec:
   {{- if .Affinity.Type }}
@@ -44,7 +48,11 @@ spec:
       dnsPolicy: None
       dnsConfig:
         nameservers:
-        - {{ .NetDNSServer }}
+        {{- range .Interfaces }}
+        {{- if .DNSServer.IsValid }}
+        - {{ .DNSServer }}
+        {{- end }}
+        {{- end }}
       domain:
         devices:
           disks:
@@ -58,23 +66,29 @@ spec:
               bus: sata
             name: echoserver
           interfaces:
-          - name: default
-            macAddress: {{ .NetMAC }}
+          {{- range $index, $iface := .Interfaces }}
+          - name: eth{{ $index }}
+            macAddress: {{ $iface.MAC }}
             binding:
               name: isovalent-networking
+          {{- end }}
           rng: {}
         resources:
           requests:
             memory: 256M
       networks:
-      - name: default
-        {{- if .NAD }}
+      {{- range $index, $iface := .Interfaces }}
+      - name: eth{{ $index }}
+        {{- if $iface.NAD }}
         multus:
-          networkName: "{{ .TestNamespace }}/{{ .NAD }}"
+          networkName: "{{ $.TestNamespace }}/{{ $iface.NAD }}"
+          {{- if eq $index 0 }}
           default: true
+          {{- end }}
         {{- else }}
         pod: {}
         {{- end }}
+      {{- end }}
       readinessProbe:
         exec:
           command:
@@ -116,6 +130,21 @@ stringData:
     - [ "/dev/disk/by-label/echoserver", "/mnt/scripts", "iso9660", "ro,nofail" ]
     write_files:
     - content: |
+        #! /bin/sh -e
+
+        case $IFACE in
+        {{- range $index, $iface := .Interfaces }}
+          eth{{ $index }})
+            {{- range $iface.Routes }}
+            ip {{ if .Destination.Addr.Is4 }}-4{{ else }}-6{{ end }} route add {{ .Destination }}
+              {{- if .Gateway.IsValid }} via {{ .Gateway }}{{ end }} dev eth{{ $index }}
+            {{- end }}
+            ;;
+        {{- end }}
+        esac
+      path: /etc/network/if-up.d/routes
+      permissions: '0755'
+    - content: |
         #!/sbin/openrc-run
 
         description="Serve http server echoing client IP"
@@ -131,7 +160,7 @@ stringData:
         }
 
         start_pre() {
-            export CILIUM_PRIVNET_NETWORK={{ .NetName }}
+            export CILIUM_PRIVNET_NETWORK={{ ( index .Interfaces 0 ).Network }}
             export CILIUM_PRIVNET_PORT={{ .ServePort }}
         }
       path: /etc/init.d/echoserver
@@ -147,21 +176,25 @@ stringData:
       path: /run/scripts/ready.sh
       permissions: '0755'
     runcmd:
+    # The script configuring the routes is written after starting the
+    # networking service the first time. Hence, we need to restart it.
+    - [rc-service, networking, restart]
     - [rc-service, echoserver, start]
     - [rc-update, add, echoserver]
   networkData: |
     version: 2
     ethernets:
-      eth0:
+    {{- range $index, $iface := .Interfaces }}
+      eth{{ $index }}:
         {{- /* The subnet is set only if DHCP is enabled. */}}
-        {{- if .NetSubnet }}
+        {{- if $iface.Subnet }}
         dhcp4: true
-        addresses: [ {{ .NetIPv6 }}/128 ]
-        gateway6: {{ .NetIPv6Gateway }}
+        addresses: [ {{ $iface.IPv6 }}/128 ]
         {{- else }}
-        addresses: [ {{ .NetIPv4 }}/32, {{ .NetIPv6 }}/128 ]
-        gateway4: {{ .NetIPv4Gateway }}
-        gateway6: {{ .NetIPv6Gateway }}
+        addresses: [ {{ $iface.IPv4 }}/32, {{ $iface.IPv6 }}/128 ]
+        {{- if $iface.DNSServer.IsValid }}
         nameservers:
-          addresses: [ {{ .NetDNSServer }} ]
+          addresses: [ {{ $iface.DNSServer }} ]
         {{- end }}
+        {{- end }}
+    {{- end }}
