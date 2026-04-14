@@ -12,6 +12,7 @@ package encryptionpolicymap
 
 import (
 	"fmt"
+	"log/slog"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
@@ -187,4 +188,17 @@ func NewEncryptionPolicyVal(encrypt bool, prefixLen uint32) EncryptionPolicyVal 
 
 func NewEncryptionPolicyValRaw(flags policyEntryFlags) EncryptionPolicyVal {
 	return EncryptionPolicyVal{Flags: flags}
+}
+
+func (v *EncryptionPolicyVal) IsEncrypt() bool {
+	return v.Flags&0x1 != 0
+}
+
+func OpenPinnedPolicyMap(log *slog.Logger) (*PolicyMap, error) {
+	m, err := bpf.OpenMap(bpf.MapPath(log, PolicyMapName), &EncryptionPolicyKey{}, &EncryptionPolicyVal{})
+	if err != nil {
+		return nil, err
+	}
+
+	return &PolicyMap{m}, nil
 }
