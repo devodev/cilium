@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Name }}
+  namespace: "{{ .TestNamespace }}"
+  labels:
+    app.kubernetes.io/part-of: cilium-cli-privnet
+data:
+  {{- range $key, $value := .Data }}
+  {{ $key }}: |
+    {{ $value | indent 4 }}
+  {{- end }}

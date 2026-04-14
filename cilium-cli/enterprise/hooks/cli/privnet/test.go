@@ -62,6 +62,9 @@ var (
 
 	//go:embed manifests/nodeattachment.yaml
 	nodeAttachmentTemplate string
+
+	//go:embed manifests/configmap.yaml
+	configMapTemplate string
 )
 
 const (
@@ -72,6 +75,11 @@ const (
 	NetworkE = "network-e"
 
 	EchoServerPort = 8000
+)
+
+const (
+	echoServerConfigMapName = "echoserver-script"
+	echoServerConfigMapKey  = "echoserver.py"
 )
 
 type NodeName string
@@ -356,7 +364,7 @@ func (t *TestRun) renderClusterVMs(ndata NetworkData) ([]k8s.Object, error) {
 			VM
 			TestNamespace   string
 			VMImage         string
-			Script          string
+			ScriptConfigMap string
 			ServePort       int
 			NeedsAnnotation bool
 			PlanID          k8stypes.UID
@@ -365,7 +373,7 @@ func (t *TestRun) renderClusterVMs(ndata NetworkData) ([]k8s.Object, error) {
 			VM:              vm,
 			TestNamespace:   t.params.TestNamespace,
 			VMImage:         t.params.VMImage,
-			Script:          vmEchoScript,
+			ScriptConfigMap: echoServerConfigMapName,
 			ServePort:       EchoServerPort,
 			NeedsAnnotation: !t.webhookEnabled || vm.ID == "",
 			PlanID:          t.webhookPlanID,
@@ -383,6 +391,30 @@ func (t *TestRun) renderClusterVMs(ndata NetworkData) ([]k8s.Object, error) {
 	}
 
 	return objs, nil
+}
+
+func (t *TestRun) renderConfigMap(name string, data map[string]string) (k8s.Object, error) {
+	var params = struct {
+		Name          string
+		TestNamespace string
+		Data          map[string]string
+	}{
+		Name:          name,
+		TestNamespace: t.params.TestNamespace,
+		Data:          data,
+	}
+
+	manifest, err := renderTemplate(configMapTemplate, params)
+	if err != nil {
+		return nil, fmt.Errorf("failed rendering template for ConfigMap %s: %w", name, err)
+	}
+
+	obj, err := objectFromYAML(manifest)
+	if err != nil {
+		return nil, fmt.Errorf("failed deserializing manifest for ConfigMap %s: %w", name, err)
+	}
+
+	return obj, nil
 }
 
 type attachmentTemplateData struct {
@@ -602,7 +634,12 @@ func (t *TestRun) SetupAndValidate(ctx context.Context) (err error) {
 		}
 	}
 
-	if _, _, err := t.applyObjs(ctx, t.client, nets); err != nil {
+	cms, err := t.renderConfigMap(echoServerConfigMapName, map[string]string{echoServerConfigMapKey: vmEchoScript})
+	if err != nil {
+		return err
+	}
+
+	if _, _, err := t.applyObjs(ctx, t.client, slices.Concat(nets, []k8s.Object{cms})); err != nil {
 		return err
 	}
 

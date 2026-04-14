@@ -54,6 +54,9 @@ spec:
           - disk:
               bus: virtio
             name: cloudinitdisk
+          - cdrom:
+              bus: sata
+            name: echoserver
           interfaces:
           - name: default
             macAddress: {{ .NetMAC }}
@@ -92,22 +95,25 @@ spec:
       - containerDisk:
           image: "{{ .VMImage }}"
         name: containerdisk
+      - configMap:
+          name: {{ .ScriptConfigMap }}
+          volumeLabel: echoserver
+        name: echoserver
       - cloudInitNoCloud:
           userData: |-
             #cloud-config
             password: alpine
             chpasswd: { expire: False }
             manage_etc_hosts: true
+            mounts:
+            - [ "/dev/disk/by-label/echoserver", "/mnt/scripts", "iso9660", "ro,nofail" ]
             write_files:
-            - content: |
-                {{ .Script | indent 16 }}
-              path: /run/scripts/echoserver.py
             - content: |
                 #!/sbin/openrc-run
 
                 description="Serve http server echoing client IP"
                 command="/usr/bin/python3"
-                command_args="/run/scripts/echoserver.py"
+                command_args="/mnt/scripts/echoserver.py"
                 pidfile="/run/echoserver.pid"
                 supervisor="supervise-daemon"
                 command_background="yes"
