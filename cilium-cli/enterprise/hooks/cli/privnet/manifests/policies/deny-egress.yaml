@@ -1,7 +1,7 @@
 apiVersion: isovalent.com/v1alpha1
 kind: IsovalentNetworkPolicy
 metadata:
-  name: deny-egress-{{ .SubjectName }}
+  name: deny-egress-{{ .SubjectName }}-{{ .Interface }}
   namespace: {{ .TestNamespace }}
   labels:
     app.kubernetes.io/part-of: cilium-cli-privnet

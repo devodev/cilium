@@ -1,7 +1,7 @@
 apiVersion: isovalent.com/v1alpha1
 kind: IsovalentNetworkPolicy
 metadata:
-  name: allow-egress-l4-{{ .SubjectName }}-on-tcp-{{ .Port }}
+  name: allow-egress-l4-{{ .SubjectName }}-{{ .Interface }}-on-tcp-{{ .Port }}
   namespace: {{ .TestNamespace }}
   labels:
     app.kubernetes.io/part-of: cilium-cli-privnet

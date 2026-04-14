@@ -11,6 +11,7 @@
 package privnet
 
 import (
+	"cmp"
 	"embed"
 	"net/netip"
 )
@@ -25,6 +26,7 @@ type PolicyParams struct {
 	TestNamespace string
 
 	SubjectName string
+	Interface   string
 	Network     string
 
 	Port     uint16
@@ -63,6 +65,7 @@ func (t *TestRun) PolicyFor(subject VM, manifest string, opts ...PolicyOpt) Poli
 		TestNamespace: t.params.TestNamespace,
 
 		SubjectName: subject.Name.String(),
+		Interface:   cmp.Or(subject.Interface, "any"),
 		Network:     subject.NetName.String(),
 	}
 	if subject.Kind == VMKindExtern {

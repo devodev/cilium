@@ -1,7 +1,7 @@
 apiVersion: isovalent.com/v1alpha1
 kind: IsovalentNetworkPolicy
 metadata:
-  name: allow-egress-cidr-{{ .SubjectName }}
+  name: allow-egress-cidr-{{ .SubjectName }}-{{ .Interface }}
   namespace: {{ .TestNamespace }}
   labels:
     app.kubernetes.io/part-of: cilium-cli-privnet
