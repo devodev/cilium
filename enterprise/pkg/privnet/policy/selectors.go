@@ -121,8 +121,12 @@ func rewriteRuleSelectors(rule *policyTypes.PolicyEntry) {
 		}
 
 		peerLabelSelector := peerEndpointSelector.GetLabelSelector()
-		if hasNetworkSelector(peerLabelSelector) {
-			continue // leave selectors that have their own network selectors unmodified
+		if isWildcard(peerLabelSelector) || hasNetworkSelector(peerLabelSelector) {
+			// Leave selectors that have their own network selectors unmodified.
+			// Also leave wild card selectors unmodified, as otherwise we break
+			// the BPF map optimization were we can write the special ANY identity
+			// instead of enumerating all identities in the policy map.
+			continue
 		}
 
 		// Rewrite peer selector to contain the subject network constraint

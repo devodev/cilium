@@ -82,6 +82,7 @@ func Test_rewriteRuleSelectors(t *testing.T) {
 				L3: []policyTypes.Selector{
 					policyTypes.NewLabelSelectorFromLabels(appBarLabel),
 					policyTypes.NewLabelSelectorFromLabels(appQuxLabel, networkLabelBlue),
+					policyTypes.WildcardSelector,
 				},
 			},
 			want: &policyTypes.PolicyEntry{
@@ -102,6 +103,8 @@ func Test_rewriteRuleSelectors(t *testing.T) {
 					),
 					// Assert network requirement unchanged
 					policyTypes.NewLabelSelectorFromLabels(appQuxLabel, networkLabelBlue),
+					// Assert wildcard selector is unmodified
+					policyTypes.WildcardSelector,
 				},
 			},
 		},
@@ -112,6 +115,7 @@ func Test_rewriteRuleSelectors(t *testing.T) {
 				L3: []policyTypes.Selector{
 					policyTypes.NewLabelSelectorFromLabels(appBarLabel),
 					policyTypes.NewLabelSelectorFromLabels(appQuxLabel, networkLabelGreen),
+					policyTypes.WildcardSelector,
 				},
 			},
 			want: &policyTypes.PolicyEntry{
@@ -120,6 +124,8 @@ func Test_rewriteRuleSelectors(t *testing.T) {
 					// Assert bar label is added to peers (if absent)
 					policyTypes.NewLabelSelectorFromLabels(appBarLabel, networkLabelBlue),
 					policyTypes.NewLabelSelectorFromLabels(appQuxLabel, networkLabelGreen),
+					// Assert wildcard selector is unmodified
+					policyTypes.WildcardSelector,
 				},
 			},
 		},
