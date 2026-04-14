@@ -93,62 +93,75 @@ spec:
           volumeLabel: echoserver
         name: echoserver
       - cloudInitNoCloud:
-          userData: |-
-            #cloud-config
-            password: alpine
-            chpasswd: { expire: False }
-            manage_etc_hosts: true
-            mounts:
-            - [ "/dev/disk/by-label/echoserver", "/mnt/scripts", "iso9660", "ro,nofail" ]
-            write_files:
-            - content: |
-                #!/sbin/openrc-run
-
-                description="Serve http server echoing client IP"
-                command="/usr/bin/python3"
-                command_args="/mnt/scripts/echoserver.py"
-                pidfile="/run/echoserver.pid"
-                supervisor="supervise-daemon"
-                command_background="yes"
-
-                depend() {
-                    need localmount
-                    need net
-                }
-
-                start_pre() {
-                    export CILIUM_PRIVNET_NETWORK={{ .NetName }}
-                    export CILIUM_PRIVNET_PORT={{ .ServePort }}
-                }
-              path: /etc/init.d/echoserver
-              permissions: '0755'
-            - content: |
-                #! /bin/sh -e
-
-                # Check whether the hostname has been set correctly.
-                [ $(hostname) = "{{ .Name }}" ]
-
-                # Check whether the echo server is running.
-                curl --fail --max-time 1 localhost:{{ .ServePort }}
-              path: /run/scripts/ready.sh
-              permissions: '0755'
-            runcmd:
-            - [rc-service, echoserver, start]
-            - [rc-update, add, echoserver]
-          networkData: |
-            version: 2
-            ethernets:
-              eth0:
-                {{- /* The subnet is set only if DHCP is enabled. */}}
-                {{- if .NetSubnet }}
-                dhcp4: true
-                addresses: [ {{ .NetIPv6 }}/128 ]
-                gateway6: {{ .NetIPv6Gateway }}
-                {{- else }}
-                addresses: [ {{ .NetIPv4 }}/32, {{ .NetIPv6 }}/128 ]
-                gateway4: {{ .NetIPv4Gateway }}
-                gateway6: {{ .NetIPv6Gateway }}
-                nameservers:
-                  addresses: [ {{ .NetDNSServer }} ]
-                {{- end }}
+          secretRef:
+            name: {{ .Name }}-cloud-init
+          networkDataSecretRef:
+            name: {{ .Name }}-cloud-init
         name: cloudinitdisk
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: "{{ .Name }}-cloud-init"
+  namespace: "{{ .TestNamespace }}"
+  labels:
+    app.kubernetes.io/part-of: cilium-cli-privnet
+stringData:
+  userData: |
+    #cloud-config
+    password: alpine
+    chpasswd: { expire: False }
+    manage_etc_hosts: true
+    mounts:
+    - [ "/dev/disk/by-label/echoserver", "/mnt/scripts", "iso9660", "ro,nofail" ]
+    write_files:
+    - content: |
+        #!/sbin/openrc-run
+
+        description="Serve http server echoing client IP"
+        command="/usr/bin/python3"
+        command_args="/mnt/scripts/echoserver.py"
+        pidfile="/run/echoserver.pid"
+        supervisor="supervise-daemon"
+        command_background="yes"
+
+        depend() {
+            need localmount
+            need net
+        }
+
+        start_pre() {
+            export CILIUM_PRIVNET_NETWORK={{ .NetName }}
+            export CILIUM_PRIVNET_PORT={{ .ServePort }}
+        }
+      path: /etc/init.d/echoserver
+      permissions: '0755'
+    - content: |
+        #! /bin/sh -e
+
+        # Check whether the hostname has been set correctly.
+        [ $(hostname) = "{{ .Name }}" ]
+
+        # Check whether the echo server is running.
+        curl --fail --max-time 1 localhost:{{ .ServePort }}
+      path: /run/scripts/ready.sh
+      permissions: '0755'
+    runcmd:
+    - [rc-service, echoserver, start]
+    - [rc-update, add, echoserver]
+  networkData: |
+    version: 2
+    ethernets:
+      eth0:
+        {{- /* The subnet is set only if DHCP is enabled. */}}
+        {{- if .NetSubnet }}
+        dhcp4: true
+        addresses: [ {{ .NetIPv6 }}/128 ]
+        gateway6: {{ .NetIPv6Gateway }}
+        {{- else }}
+        addresses: [ {{ .NetIPv4 }}/32, {{ .NetIPv6 }}/128 ]
+        gateway4: {{ .NetIPv4Gateway }}
+        gateway6: {{ .NetIPv6Gateway }}
+        nameservers:
+          addresses: [ {{ .NetDNSServer }} ]
+        {{- end }}

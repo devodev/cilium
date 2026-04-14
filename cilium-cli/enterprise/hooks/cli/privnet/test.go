@@ -147,23 +147,31 @@ func NewTestRun(
 	}
 }
 
-func objectFromYAML(yamlStr string) (*unstructured.Unstructured, error) {
+func objectsFromYAML(yamlStr string) (out []k8s.Object, err error) {
 	decoder := yamlutil.NewYAMLOrJSONDecoder(strings.NewReader(yamlStr), 100)
 
-	var rawObj k8sruntime.RawExtension
-	if err := decoder.Decode(&rawObj); err != nil {
-		return nil, fmt.Errorf("failed decoding YAML: %w", err)
-	}
-	obj, _, err := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme).Decode(rawObj.Raw, nil, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed deserializing YAML: %w", err)
-	}
-	unstructuredMap, err := k8sruntime.DefaultUnstructuredConverter.ToUnstructured(obj)
-	if err != nil {
-		return nil, fmt.Errorf("failed converting YAML to unstructured object: %w", err)
+	for chunk := range strings.SplitSeq(yamlStr, "\n---") {
+		if strings.TrimSpace(chunk) == "" {
+			continue
+		}
+
+		var rawObj k8sruntime.RawExtension
+		if err := decoder.Decode(&rawObj); err != nil {
+			return nil, fmt.Errorf("failed decoding YAML: %w", err)
+		}
+		obj, _, err := yaml.NewDecodingSerializer(unstructured.UnstructuredJSONScheme).Decode(rawObj.Raw, nil, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed deserializing YAML: %w", err)
+		}
+		unstructuredMap, err := k8sruntime.DefaultUnstructuredConverter.ToUnstructured(obj)
+		if err != nil {
+			return nil, fmt.Errorf("failed converting YAML to unstructured object: %w", err)
+		}
+
+		out = append(out, &unstructured.Unstructured{Object: unstructuredMap})
 	}
 
-	return &unstructured.Unstructured{Object: unstructuredMap}, nil
+	return out, nil
 }
 
 // toK8sObjects converts a slice of specific k8s objects to a slice of generic k8s objects.
@@ -394,18 +402,18 @@ func (t *TestRun) renderClusterVMs(vms []DesiredVM) ([]k8s.Object, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed rendering template for VM %s: %w", vm.Name, err)
 		}
-		vmObj, err := objectFromYAML(vmYAML)
+		vmObjs, err := objectsFromYAML(vmYAML)
 		if err != nil {
 			return nil, fmt.Errorf("failed deserializing manifest for VM %s: %w", vm.Name, err)
 		}
 
-		objs = append(objs, vmObj)
+		objs = append(objs, vmObjs...)
 	}
 
 	return objs, nil
 }
 
-func (t *TestRun) renderConfigMap(name string, data map[string]string) (k8s.Object, error) {
+func (t *TestRun) renderConfigMap(name string, data map[string]string) ([]k8s.Object, error) {
 	var params = struct {
 		Name          string
 		TestNamespace string
@@ -421,12 +429,12 @@ func (t *TestRun) renderConfigMap(name string, data map[string]string) (k8s.Obje
 		return nil, fmt.Errorf("failed rendering template for ConfigMap %s: %w", name, err)
 	}
 
-	obj, err := objectFromYAML(manifest)
+	objs, err := objectsFromYAML(manifest)
 	if err != nil {
 		return nil, fmt.Errorf("failed deserializing manifest for ConfigMap %s: %w", name, err)
 	}
 
-	return obj, nil
+	return objs, nil
 }
 
 type attachmentTemplateData struct {
@@ -653,7 +661,7 @@ func (t *TestRun) SetupAndValidate(ctx context.Context) (err error) {
 		return err
 	}
 
-	if _, _, err := t.applyObjs(ctx, t.client, slices.Concat(nets, []k8s.Object{cms})); err != nil {
+	if _, _, err := t.applyObjs(ctx, t.client, slices.Concat(nets, cms)); err != nil {
 		return err
 	}
 
