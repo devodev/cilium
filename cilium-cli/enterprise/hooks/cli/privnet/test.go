@@ -555,9 +555,6 @@ func (t *TestRun) ExternalVM(network NetworkName, vmName VMName) VM {
 func (t *TestRun) AllExternalVMs(network NetworkName) iter.Seq[VM] {
 	return maps.Values(t.ext[network])
 }
-func (t *TestRun) ExtVM(network NetworkName, vmName VMName) VM {
-	return t.ext[network][vmName]
-}
 
 func (t *TestRun) UnknownVM(network NetworkName, vmName VMName) VM {
 	return t.unk[network][vmName]

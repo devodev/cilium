@@ -140,8 +140,8 @@ func newCmdPrivNetTest() *cobra.Command {
 
 			// Test multi subnet privnet communication
 			vmClientB2 := t.VM(privnet.NetworkB, privnet.ClientVM(privnet.NetworkB)+"-2")
-			vmEchoExtB1 := t.ExtVM(privnet.NetworkB, "privnet-vm-net-b1")
-			vmEchoExtB2 := t.ExtVM(privnet.NetworkB, "privnet-vm-net-b2")
+			vmEchoExtB1 := t.ExternalVM(privnet.NetworkB, "privnet-vm-net-b1")
+			vmEchoExtB2 := t.ExternalVM(privnet.NetworkB, "privnet-vm-net-b2")
 
 			// Network B subnet-2 has default route via the INB, which can exit to the world.
 			t.Run(ctx, privnet.NewClientToWorld(t, vmClientB2, externalTarget), privnet.ExpectationOK)
