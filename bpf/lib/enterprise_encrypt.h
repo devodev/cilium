@@ -219,7 +219,7 @@ host_wg_encrypt_hook(struct __ctx_buff *ctx, __be16 proto, __u32 src_sec_identit
 
 	__u8 l4_proto;
 	__u32 l4_off = 0;
-	int ret = 0;
+	int ret __maybe_unused = 0;
 
 	if (!eth_is_supported_ethertype(proto))
 		return DROP_UNSUPPORTED_L2;
