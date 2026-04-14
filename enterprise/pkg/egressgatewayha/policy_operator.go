@@ -331,7 +331,7 @@ func excludeCurrentActiveGWsFromHealthyGWs(currentActiveGWs, healthyGWs []netip.
 	return result
 }
 
-func (config *PolicyConfig) allocateEgressIPs(operatorManager *OperatorManager, groupStatuses []groupStatus) ([]groupStatus, []meta_v1.Condition) {
+func (config *PolicyConfig) allocateEgressIPs(logger *slog.Logger, operatorManager *OperatorManager, groupStatuses []groupStatus) ([]groupStatus, []meta_v1.Condition) {
 	egressCIDRs := make([]netip.Prefix, 0, len(config.egressCIDRs))
 	for _, cidr := range config.egressCIDRs {
 		// detect conflicting CIDRs
@@ -414,7 +414,7 @@ func (config *PolicyConfig) allocateEgressIPs(operatorManager *OperatorManager, 
 			activeGWs[affinityZoneNoZone] = groupStatuses[i].activeGatewayIPs
 		}
 
-		groupStatuses[i].egressIPByGatewayIP, err = allocateEgressIPsForGroup(operatorManager.logger, egressPool, activeGWs, prevEgressIPs, groupStatuses[i].healthyGatewayIPs)
+		groupStatuses[i].egressIPByGatewayIP, err = allocateEgressIPsForGroup(logger, egressPool, activeGWs, prevEgressIPs, groupStatuses[i].healthyGatewayIPs)
 		if err != nil {
 			operatorManager.health.Degraded(fmt.Sprintf("unable to fulfill allocations for policy %s", config.id), err)
 			return groupStatuses, conditionsForFailure(config.generation, []meta_v1.Condition{
@@ -853,7 +853,7 @@ func (config *PolicyConfig) updateGroupStatuses(logger *slog.Logger, operatorMan
 
 	var conditions []meta_v1.Condition
 	if len(config.egressCIDRs) > 0 {
-		groupStatuses, conditions = config.allocateEgressIPs(operatorManager, groupStatuses)
+		groupStatuses, conditions = config.allocateEgressIPs(logger, operatorManager, groupStatuses)
 
 		// when using egw IPAM, a gateway should not be considered active if a valid egress IP
 		// cannot be assigned. Therefore, we remove each gateway IP without an egress IP from
