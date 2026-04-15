@@ -50,7 +50,7 @@ func (s *dhcpScenario) Run(ctx context.Context, _ Expectation, _ ...features.IPF
 		return
 	}
 
-	prefix, ok := ipv4PrefixForNetwork(s.vm.NetName)
+	prefix, ok := ipv4PrefixForNetworkSubnet(s.vm.NetName, s.vm.NetSubnet)
 	if !ok {
 		s.fail(features.IPFamilyAny, "missing IPv4 prefix for network %s", s.vm.NetName)
 		return
@@ -163,12 +163,16 @@ func parseIPv4FromIPOutput(output string) (netip.Addr, bool) {
 	return netip.Addr{}, false
 }
 
-func ipv4PrefixForNetwork(network NetworkName) (netip.Prefix, bool) {
+func ipv4PrefixForNetworkSubnet(network NetworkName, subnet SubnetName) (netip.Prefix, bool) {
 	ndata, ok := networkTopology[network]
 	if !ok {
 		return netip.Prefix{}, false
 	}
 	for _, p := range ndata.Prefixes {
+		if p.Name != subnet {
+			continue
+		}
+
 		pfx, err := netip.ParsePrefix(p.CIDRv4)
 		if err != nil {
 			continue
