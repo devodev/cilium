@@ -1740,6 +1740,14 @@
      - Enable strict feature gate validation. Will cause agent and/or operator to not start if non-approved features are enabled. In non-strict mode failure will be logged as a warning.
      - bool
      - ``true``
+   * - :spelling:ignore:`enterprise.gatewayAPI.deployment.dataplane.defaultReplicas`
+     - Default number of Envoy replicas for the deployment-based Gateway API implementation.
+     - int
+     - ``2``
+   * - :spelling:ignore:`enterprise.gatewayAPI.deployment.enabled`
+     - Enable the deployment-based Gateway API implementation in the enterprise operator.
+     - bool
+     - ``false``
    * - :spelling:ignore:`enterprise.healthServerWithoutActiveChecks.enabled`
      - Enable health server without active health checks.
      - bool

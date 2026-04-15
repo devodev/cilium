@@ -20,6 +20,7 @@ import (
 	"github.com/cilium/cilium/enterprise/operator/pkg/bfd"
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2"
 	"github.com/cilium/cilium/enterprise/operator/pkg/evpn"
+	enterprisegatewayapi "github.com/cilium/cilium/enterprise/operator/pkg/gateway-api"
 	"github.com/cilium/cilium/enterprise/operator/pkg/lb"
 	"github.com/cilium/cilium/enterprise/operator/pkg/multinetwork"
 	"github.com/cilium/cilium/enterprise/operator/pkg/networkpolicy"
@@ -76,7 +77,11 @@ var (
 
 			wafpolicy.Cell,
 
+			// Isovalent Loadbalancer controlplane
 			lb.Cell,
+
+			// Enterprise Gateway API extensions & controllers
+			enterprisegatewayapi.Cell,
 
 			networkpolicy.Cell,
 			networkpolicy.SecretSyncCell,

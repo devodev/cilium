@@ -481,6 +481,8 @@ contributors across the globe, there is almost always someone available to help.
 | enterprise.evpn.vxlanPort | int | `4789` | EVPN Vxlan port number |
 | enterprise.featureGate.approved | list | `[]` | List of features that are approved. |
 | enterprise.featureGate.strict | bool | `true` | Enable strict feature gate validation. Will cause agent and/or operator to not start if non-approved features are enabled. In non-strict mode failure will be logged as a warning. |
+| enterprise.gatewayAPI.deployment.dataplane.defaultReplicas | int | `2` | Default number of Envoy replicas for the deployment-based Gateway API implementation. |
+| enterprise.gatewayAPI.deployment.enabled | bool | `false` | Enable the deployment-based Gateway API implementation in the enterprise operator. |
 | enterprise.healthServerWithoutActiveChecks.enabled | bool | `false` | Enable health server without active health checks. |
 | enterprise.inspection.enabled | bool | `false` | Enable passive inspection for pod traffic. When enabled, a clone of packets leaving and entering pods is redirected to a dedicated dummy interface ("cilium_inspect") for passive inspection. |
 | enterprise.loadbalancer.enabled | bool | `false` | Enables Loadbalancer mode (Control Plane) |

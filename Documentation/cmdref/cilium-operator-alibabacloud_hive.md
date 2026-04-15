@@ -65,6 +65,11 @@ cilium-operator-alibabacloud hive [flags]
       --feature-gates-minimum-maturity string                               Minimum feature maturity level to approve a feature (default "Stable")
       --feature-gates-strict                                                If enabled agent will refuse to start if feature gates do not pass (default true)
       --fqdn-group-min-query-interval duration                              Minimum interval between two consecutive queries when resolving a FQDN belonging to an IsovalentFQDNGroup (default 1m0s)
+      --gateway-api-deployment-controller-enabled                           Enable the enterprise Gateway API deployment-based controller.
+      --gateway-api-deployment-dataplane-default-envoy-admin-port int       Default Envoy admin port for the deployment-based Gateway API dataplane implementation. (default 9901)
+      --gateway-api-deployment-dataplane-default-envoy-image string         Default Envoy image for the deployment-based Gateway API dataplane implementation.
+      --gateway-api-deployment-dataplane-default-envoy-log-level string     Default Envoy log level for the deployment-based Gateway API dataplane implementation. (default "error")
+      --gateway-api-deployment-dataplane-default-replicas int               Default number of Envoy replicas for the deployment-based Gateway API dataplane implementation. (default 2)
       --gateway-api-hostnetwork-enabled                                     Exposes Gateway listeners on the host network.
       --gateway-api-hostnetwork-nodelabelselector string                    Label selector that matches the nodes where the gateway listeners should be exposed. It's a list of comma-separated key-value label pairs. e.g. 'kubernetes.io/os=linux,kubernetes.io/hostname=kind-worker'
       --gateway-api-secrets-namespace string                                Namespace having tls secrets used by CEC for Gateway API (default "cilium-secrets")

@@ -147,6 +147,14 @@ enterprise:
       # -- Enable support for Gateway API in ILB
       enabled: false
 
+  gatewayAPI:
+    deployment:
+      # -- Enable the deployment-based Gateway API implementation in the enterprise operator.
+      enabled: false
+      dataplane:
+        # -- Default number of Envoy replicas for the deployment-based Gateway API implementation.
+        defaultReplicas: 2
+
   waf:
     # -- Enable WAF policy validation and default WAF settings in the enterprise operator.
     enabled: false

@@ -2511,6 +2511,27 @@
           },
           "type": "object"
         },
+        "gatewayAPI": {
+          "properties": {
+            "deployment": {
+              "properties": {
+                "dataplane": {
+                  "properties": {
+                    "defaultReplicas": {
+                      "type": "integer"
+                    }
+                  },
+                  "type": "object"
+                },
+                "enabled": {
+                  "type": "boolean"
+                }
+              },
+              "type": "object"
+            }
+          },
+          "type": "object"
+        },
         "healthServerWithoutActiveChecks": {
           "properties": {
             "enabled": {
