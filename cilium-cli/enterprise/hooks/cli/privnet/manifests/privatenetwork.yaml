@@ -6,8 +6,8 @@ metadata:
     app.kubernetes.io/part-of: cilium-cli-privnet
 spec:
   subnets:
-    {{- range $index, $subnet := .Prefixes }}
-    - name: subnet-{{ $index }}
+    {{- range $subnet := .Prefixes }}
+    - name: {{ $subnet.Name }}
       cidrv4: {{ $subnet.CIDRv4 }}
       cidrv6: {{ $subnet.CIDRv6 }}
       {{- if $subnet.Routes }}

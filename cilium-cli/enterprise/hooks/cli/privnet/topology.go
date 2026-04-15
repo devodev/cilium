@@ -64,6 +64,11 @@ func (n NetworkName) String() string {
 
 type SubnetName string
 
+const (
+	SubnetName0 = SubnetName("subnet-0")
+	SubnetName1 = SubnetName("subnet-1")
+)
+
 func (n SubnetName) String() string {
 	return string(n)
 }
@@ -80,7 +85,7 @@ type VM struct {
 	NAD string
 
 	NetName   NetworkName
-	NetSubnet string
+	NetSubnet SubnetName
 
 	NetIPv4 netip.Addr
 	NetIPv6 netip.Addr
@@ -117,6 +122,7 @@ type Route struct {
 }
 
 type Subnet struct {
+	Name   SubnetName
 	CIDRv4 string
 	CIDRv6 string
 	Routes []Route
@@ -139,6 +145,7 @@ var networkTopology = map[NetworkName]NetworkData{
 	NetworkA: {
 		Prefixes: []Subnet{
 			{
+				Name:   SubnetName0,
 				CIDRv4: "192.168.250.0/24",
 				CIDRv6: "fd10:0:250::0/64",
 				Routes: []Route{
@@ -176,7 +183,7 @@ var networkTopology = map[NetworkName]NetworkData{
 				ID:             "vm-A1",
 				Name:           ClientVM(NetworkA),
 				NetName:        NetworkA,
-				NAD:            NADFor(NetworkA, "subnet-0"),
+				NAD:            NADFor(NetworkA, SubnetName0),
 				NetIPv4:        netip.MustParseAddr("192.168.250.10"),
 				NetIPv6:        netip.MustParseAddr("fd10:0:250::10"),
 				NetIPv4Gateway: netip.MustParseAddr("169.254.0.100"),
@@ -190,7 +197,7 @@ var networkTopology = map[NetworkName]NetworkData{
 				ID:             "vm-A2",
 				Name:           EchoVM(NetworkA),
 				NetName:        NetworkA,
-				NAD:            NADFor(NetworkA, "subnet-0"),
+				NAD:            NADFor(NetworkA, SubnetName0),
 				NetIPv4:        netip.MustParseAddr("192.168.250.20"),
 				NetIPv6:        netip.MustParseAddr("fd10:0:250::20"),
 				NetIPv4Gateway: netip.MustParseAddr("169.254.0.100"),
@@ -204,7 +211,7 @@ var networkTopology = map[NetworkName]NetworkData{
 				ID:             "vm-A3",
 				Name:           EchoOtherVM(NetworkA),
 				NetName:        NetworkA,
-				NAD:            NADFor(NetworkA, "subnet-0"),
+				NAD:            NADFor(NetworkA, SubnetName0),
 				NetIPv4:        netip.MustParseAddr("192.168.250.21"),
 				NetIPv6:        netip.MustParseAddr("fd10:0:250::21"),
 				NetIPv4Gateway: netip.MustParseAddr("169.254.0.100"),
@@ -218,8 +225,8 @@ var networkTopology = map[NetworkName]NetworkData{
 				ID:             "",
 				Name:           VMName("client-dhcp-network-a"),
 				NetName:        NetworkA,
-				NetSubnet:      "subnet-0",
-				NAD:            NADFor(NetworkA, "subnet-0"),
+				NetSubnet:      SubnetName0,
+				NAD:            NADFor(NetworkA, SubnetName0),
 				NetIPv4:        netip.MustParseAddr("0.0.0.0"), /* zero or missing IPv4 signals use of DHCP */
 				NetIPv6:        netip.MustParseAddr("fd10:0:250::15"),
 				NetIPv4Gateway: netip.MustParseAddr("169.254.0.100"),
@@ -251,10 +258,12 @@ var networkTopology = map[NetworkName]NetworkData{
 	NetworkB: {
 		Prefixes: []Subnet{
 			{
+				Name:   SubnetName0,
 				CIDRv4: "192.168.251.0/24",
 				CIDRv6: "fd10:0:251::/64",
 			},
 			{
+				Name:   SubnetName1,
 				CIDRv4: "192.168.253.0/24",
 				CIDRv6: "fd10:0:253::/64",
 				Routes: []Route{
@@ -284,7 +293,7 @@ var networkTopology = map[NetworkName]NetworkData{
 				ID:             "vm-B1",
 				Name:           ClientVM(NetworkB),
 				NetName:        NetworkB,
-				NAD:            NADFor(NetworkB, "subnet-0"),
+				NAD:            NADFor(NetworkB, SubnetName0),
 				NetIPv4:        netip.MustParseAddr("192.168.251.10"),
 				NetIPv6:        netip.MustParseAddr("fd10:0:251::10"),
 				NetIPv4Gateway: netip.MustParseAddr("169.254.0.100"),
@@ -297,7 +306,7 @@ var networkTopology = map[NetworkName]NetworkData{
 			{
 				Name:           EchoOtherVM(NetworkB),
 				NetName:        NetworkB,
-				NAD:            NADFor(NetworkB, "subnet-0"),
+				NAD:            NADFor(NetworkB, SubnetName0),
 				NetIPv4:        netip.MustParseAddr("192.168.251.22"),
 				NetIPv6:        netip.MustParseAddr("fd10:0:251::22"),
 				NetIPv4Gateway: netip.MustParseAddr("169.254.0.100"),
@@ -310,7 +319,7 @@ var networkTopology = map[NetworkName]NetworkData{
 			{
 				Name:           ClientVM(NetworkB) + "-2",
 				NetName:        NetworkB,
-				NAD:            NADFor(NetworkB, "subnet-1"),
+				NAD:            NADFor(NetworkB, SubnetName1),
 				NetIPv4:        netip.MustParseAddr("192.168.253.10"),
 				NetIPv6:        netip.MustParseAddr("fd10:0:253::10"),
 				NetIPv4Gateway: netip.MustParseAddr("169.254.0.100"),
@@ -325,6 +334,7 @@ var networkTopology = map[NetworkName]NetworkData{
 	NetworkC: {
 		Prefixes: []Subnet{
 			{
+				Name:   SubnetName0,
 				CIDRv4: "192.168.252.0/24",
 				CIDRv6: "fd10:0:252::/64",
 				Routes: []Route{
@@ -350,7 +360,7 @@ var networkTopology = map[NetworkName]NetworkData{
 				ID:             "vm-C1",
 				Name:           ClientVM(NetworkC),
 				NetName:        NetworkC,
-				NAD:            NADFor(NetworkC, "subnet-0"),
+				NAD:            NADFor(NetworkC, SubnetName0),
 				NetIPv4:        netip.MustParseAddr("192.168.252.10"),
 				NetIPv6:        netip.MustParseAddr("fd10:0:252::10"),
 				NetIPv4Gateway: netip.MustParseAddr("169.254.0.100"),
@@ -394,6 +404,7 @@ var networkTopology = map[NetworkName]NetworkData{
 	NetworkD: {
 		Prefixes: []Subnet{
 			{
+				Name:   SubnetName0,
 				CIDRv4: "192.168.252.0/24",
 				CIDRv6: "fd10:0:252::/64",
 				Routes: []Route{
@@ -442,6 +453,7 @@ var networkTopology = map[NetworkName]NetworkData{
 	NetworkE: {
 		Prefixes: []Subnet{
 			{
+				Name:   SubnetName0,
 				CIDRv4: "192.168.10.0/24",
 				CIDRv6: "fd10:0:10::/64",
 				Routes: []Route{
@@ -462,8 +474,8 @@ var networkTopology = map[NetworkName]NetworkData{
 				ID:             "",
 				Name:           VMName("client-dhcp-network-e"),
 				NetName:        NetworkE,
-				NetSubnet:      "subnet-0",
-				NAD:            NADFor(NetworkE, "subnet-0"),
+				NetSubnet:      SubnetName0,
+				NAD:            NADFor(NetworkE, SubnetName0),
 				NetIPv4:        netip.MustParseAddr("0.0.0.0"), /* zero or missing IPv4 signals use of DHCP */
 				NetIPv6:        netip.MustParseAddr("fd10:0:10::15"),
 				NetIPv4Gateway: netip.MustParseAddr("169.254.0.100"),
@@ -477,7 +489,7 @@ var networkTopology = map[NetworkName]NetworkData{
 				ID:             "",
 				Name:           EchoVM(NetworkE),
 				NetName:        NetworkE,
-				NAD:            NADFor(NetworkE, "subnet-0"),
+				NAD:            NADFor(NetworkE, SubnetName0),
 				NetIPv4:        netip.MustParseAddr("192.168.10.10"),
 				NetIPv6:        netip.MustParseAddr("fd10:0:10::10"),
 				NetIPv4Gateway: netip.MustParseAddr("169.254.0.100"),
@@ -491,7 +503,7 @@ var networkTopology = map[NetworkName]NetworkData{
 				ID:             "",
 				Name:           EchoOtherVM(NetworkE),
 				NetName:        NetworkE,
-				NAD:            NADFor(NetworkE, "subnet-0"),
+				NAD:            NADFor(NetworkE, SubnetName0),
 				NetIPv4:        netip.MustParseAddr("192.168.10.21"),
 				NetIPv6:        netip.MustParseAddr("fd10:0:10::21"),
 				NetIPv4Gateway: netip.MustParseAddr("169.254.0.100"),
