@@ -39,9 +39,9 @@ import (
 func NewTestHive(t testing.TB) *hive.Hive {
 	return hive.New(
 		k8sClient.FakeClientCell(),
+		metrics.Cell,
 
 		cell.Config(cmtypes.DefaultClusterInfo),
-		cell.Config(metrics.RegistryConfig{}),
 
 		daemonk8s.ResourcesCell,
 		daemonk8s.TablesCell,
@@ -80,8 +80,6 @@ func NewTestHive(t testing.TB) *hive.Hive {
 					EnableIPv6: true,
 				}
 			},
-
-			metrics.NewRegistry,
 		),
 
 		cell.Invoke(func(localNodeStore *node.LocalNodeStore) {

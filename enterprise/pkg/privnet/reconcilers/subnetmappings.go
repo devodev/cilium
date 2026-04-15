@@ -201,6 +201,7 @@ func (sm *SubnetMappings) registerBPFReconciler(
 		tables.SubnetMapping.GetStatus,
 		&subnetMappingsOps{bpfOps: bpfMap.Ops()},
 		nil,
+		reconciler.WithName("subnet-mappings"),
 	)
 
 	return err

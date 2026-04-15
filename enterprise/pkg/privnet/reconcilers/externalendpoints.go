@@ -444,6 +444,7 @@ func (e *ExternalEndpoints) registerK8sStatusReconciler(client client.Clientset,
 		nil,
 		// options
 		reconciler.WithoutPruning(),
+		reconciler.WithName("external-endpoints-k8s"),
 	)
 	return err
 }
@@ -840,6 +841,8 @@ func (e *ExternalEndpoints) registerEndpointCreationReconciler(in struct {
 			ops,
 			// batchOps
 			nil,
+			// options
+			reconciler.WithName("external-endpoints"),
 		)
 		health.OK("Registered reconciler")
 		return err

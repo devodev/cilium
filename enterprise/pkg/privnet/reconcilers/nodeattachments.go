@@ -143,6 +143,7 @@ func (na *nodeAttachments) registerReconciler(
 		},
 		nil,
 		reconciler.WithoutPruning(),
+		reconciler.WithName("node-attachments"),
 	)
 	return err
 }

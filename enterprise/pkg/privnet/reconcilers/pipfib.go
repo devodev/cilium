@@ -114,6 +114,8 @@ func (b *PIPFIBMap) registerReconciler() (reconciler.Reconciler[*tables.MapEntry
 		},
 		// batchOps
 		nil,
+		// options
+		reconciler.WithName("pipfib"),
 	)
 }
 

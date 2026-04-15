@@ -1,0 +1,17 @@
+#! --private-networks-enabled --metrics-sampling-interval=5ms
+# This test checks the naming of metrics related to private networks
+
+hive/start
+
+# Reconciler metrics
+metrics -s cilium_reconciler_errors_current.*module_id=private-networks -o metrics.actual
+* cmp metrics.actual metrics.expected
+
+-- metrics.expected --
+Metric                             Labels                                                  0s   0s   0s   0s
+cilium_reconciler_errors_current   module_id=private-networks name=cidr-identities         0    0    0    0
+cilium_reconciler_errors_current   module_id=private-networks name=ct-maps                 0    0    0    0
+cilium_reconciler_errors_current   module_id=private-networks name=devmappings             0    0    0    0
+cilium_reconciler_errors_current   module_id=private-networks name=local-endpoint-slices   0    0    0    0
+cilium_reconciler_errors_current   module_id=private-networks name=pipfib                  0    0    0    0
+cilium_reconciler_errors_current   module_id=private-networks name=subnet-mappings         0    0    0    0

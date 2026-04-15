@@ -339,6 +339,8 @@ func (dm *DeviceMappings) registerBPFReconciler(
 		&ops,
 		// batchOps
 		nil,
+
+		reconciler.WithName("devmappings"),
 	)
 	return err
 }

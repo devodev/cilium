@@ -94,6 +94,7 @@ func registerGneighReconciler(in struct {
 		nil,
 		// options
 		reconciler.WithRefreshing(in.Config.BridgeGneighInterval, rate.NewLimiter(10, 1)),
+		reconciler.WithName("gneigh"),
 	)
 }
 

@@ -188,6 +188,8 @@ func (c *CTMaps) registerReconciler(in struct {
 		c,
 		// batchOps
 		nil,
+
+		reconciler.WithName("ct-maps"),
 	)
 	return err
 }

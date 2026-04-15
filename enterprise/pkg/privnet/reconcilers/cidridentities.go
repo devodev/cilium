@@ -481,6 +481,8 @@ func (c *CIDRIdentities) registerBPFReconciler(params reconciler.Params, bpfMap 
 		ops,
 		// batchOps
 		nil,
+
+		reconciler.WithName("cidr-identities"),
 	)
 	return err
 }

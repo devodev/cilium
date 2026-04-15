@@ -285,6 +285,8 @@ func (e *LocalEndpointSlices) registerReconciler() error {
 		ops,
 		// batchOps
 		ops,
+		// options
+		reconciler.WithName("local-endpoint-slices"),
 	)
 	return err
 }
