@@ -112,7 +112,10 @@ func TestGatewayReconcilerCreatesDeploymentAndService(t *testing.T) {
 	require.Contains(t, configMap.Data["envoy-bootstrap-config.json"], "\"admin\"")
 	require.Contains(t, configMap.Data["envoy-bootstrap-config.json"], "\"address\": \"127.0.0.1\"")
 	require.Contains(t, configMap.Data["envoy-bootstrap-config.json"], "\"port_value\": 19001")
+	require.Contains(t, configMap.Data["envoy-bootstrap-config.json"], "\"port_value\":80")
 	require.Contains(t, configMap.Data["envoy-bootstrap-config.json"], "\"access_log\"")
+	require.Contains(t, configMap.Data["envoy-bootstrap-config.json"], "/dev/stdout")
+	require.Contains(t, configMap.Data["envoy-bootstrap-config.json"], "gateway: default/example")
 
 	serviceAccount := &corev1.ServiceAccount{}
 	require.NoError(t, c.Get(context.Background(), client.ObjectKey{Name: r.dataplaneResourceName(gw), Namespace: gw.Namespace}, serviceAccount))
