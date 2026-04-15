@@ -55,7 +55,7 @@ func (s *clientToPod) run(ctx context.Context, exp Expectation, family features.
 	}
 
 	s.t.log.Info(fmt.Sprintf("🧐 Executing curl %s (%v) %s %s (%s:%d)", s.src.DescName(), s.src.IP(family), exp, s.dst.GetName(), dstIP, EchoServerPort))
-	stdout, stderr, err := s.t.vmExec(ctx, s.src, curlCmd(netip.AddrPortFrom(dstIP, EchoServerPort).String()))
+	stdout, stderr, err := s.t.vmExec(ctx, s.src, curlCmd(netip.AddrPortFrom(dstIP, EchoServerPort).String(), s.src.Interface))
 
 	exitCode, ok := extractExitCode(err)
 	if !ok {

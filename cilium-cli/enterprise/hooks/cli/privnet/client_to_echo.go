@@ -52,7 +52,7 @@ func (s *clientToEcho) run(ctx context.Context, exp Expectation, family features
 	srcIP := s.src.IP(family)
 
 	s.t.log.Info(fmt.Sprintf("🧐 Executing curl %s (%v) %s %s (%v:%v)", s.src.DescName(), srcIP, exp, s.dst.DescName(), dstIP, EchoServerPort))
-	stdout, stderr, err := s.t.vmExec(ctx, s.src, curlCmd(netip.AddrPortFrom(dstIP, EchoServerPort).String()))
+	stdout, stderr, err := s.t.vmExec(ctx, s.src, curlCmd(netip.AddrPortFrom(dstIP, EchoServerPort).String(), s.src.Interface))
 
 	exitCode, ok := extractExitCode(err)
 	if !ok {

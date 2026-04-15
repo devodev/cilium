@@ -215,7 +215,7 @@ func (s *dhcpScenario) validateConnectivity(ctx context.Context) error {
 	dstIP := dst.IP(features.IPFamilyV4)
 
 	_, _, err := s.t.vmExec(ctx, s.vm,
-		curlCmd(netip.AddrPortFrom(dstIP, EchoServerPort).String()))
+		curlCmd(netip.AddrPortFrom(dstIP, EchoServerPort).String(), s.vm.Interface))
 	if err != nil {
 		exitCode, ok := extractExitCode(err)
 		if !ok {

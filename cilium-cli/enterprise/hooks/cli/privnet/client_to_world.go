@@ -42,7 +42,7 @@ func (s *clientToWorld) Run(ctx context.Context, exp Expectation, overrideIPFami
 
 func (s *clientToWorld) run(ctx context.Context, exp Expectation, family features.IPFamily) {
 	s.t.log.Info(fmt.Sprintf("🧐 Executing curl %s (%v) %s %s", s.src.DescName(), s.src.IP(family), exp, s.dst))
-	stdout, stderr, err := s.t.vmExec(ctx, s.src, curlCmd(s.dst))
+	stdout, stderr, err := s.t.vmExec(ctx, s.src, curlCmd(s.dst, s.src.Interface))
 
 	exitCode, ok := extractExitCode(err)
 	if !ok {

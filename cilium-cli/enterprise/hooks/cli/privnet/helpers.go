@@ -36,8 +36,10 @@ func extractExitCode(err error) (exitCode int, ok bool) {
 	return exitCode, true
 }
 
-func curlCmd(destination string) []string {
-	return []string{
-		"curl", "--silent", "--fail", "--show-error", "--connect-timeout", "2", "--max-time", "10", destination,
+func curlCmd(destination, iface string) []string {
+	out := []string{"curl", "--silent", "--fail", "--show-error", "--connect-timeout", "2", "--max-time", "10"}
+	if iface != "" {
+		out = append(out, "--interface", iface)
 	}
+	return append(out, destination)
 }
