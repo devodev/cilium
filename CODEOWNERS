@@ -894,6 +894,7 @@ Makefile* @cilium/build
 /bpf/tests/enterprise_tc_evpn_ingress_tests.c @isovalent/traffic-engineering
 /bpf/tests/lib/enterprise_bpf_evpn.h @isovalent/traffic-engineering
 /bpf/tests/lib/enterprise_vni.h @isovalent/traffic-engineering
+/bpf/tests/lib/enterprise_vrf.h @isovalent/cilium-datapath
 /bpf/tests/enterprise_evpn_common.h @isovalent/traffic-engineering
 /bpf/tests/enterprise_evpn_fib_tests.c @isovalent/traffic-engineering
 /bpf/tests/lib/enterprise_evpn.h @isovalent/traffic-engineering
