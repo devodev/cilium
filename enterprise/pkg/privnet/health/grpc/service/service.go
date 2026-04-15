@@ -433,7 +433,7 @@ func (s *health) Activate(ctx context.Context, in *api.ActivationRequest) (*api.
 	}
 
 	if err := s.activate(node, network); err != nil {
-		s.log.Warn("Failed activating network for node",
+		s.log.Info("Failed activating network for node",
 			logfields.Error, err,
 			logfields.Node, node,
 			logfields.Network, network,
