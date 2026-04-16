@@ -11,7 +11,6 @@
 package privnet
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -27,8 +26,6 @@ type clientToEcho struct {
 
 	src VM
 	dst VM
-
-	clientExec func(ctx context.Context, src VM, cmd []string) (stdout, stderr string, err error)
 }
 
 func NewClientToEcho(t *TestRun, src, dst VM) Scenario {
@@ -37,23 +34,6 @@ func NewClientToEcho(t *TestRun, src, dst VM) Scenario {
 		scenario: scenario{t: t, name: name},
 		src:      src,
 		dst:      dst,
-		clientExec: func(ctx context.Context, src VM, cmd []string) (stdout, stderr string, err error) {
-			var bout, berr bytes.Buffer
-			err = t.client.ExecInVMWithWriters(ctx, t.params.TestNamespace, src.Name.String(), cmd, &bout, &berr)
-			return bout.String(), berr.String(), err
-		},
-	}
-}
-
-func NewExtVMToEcho(t *TestRun, src, dst VM) Scenario {
-	name := fmt.Sprintf("curl-%s-to-%s", src.Name, dst.Name)
-	return &clientToEcho{
-		scenario: scenario{t: t, name: name},
-		src:      src,
-		dst:      dst,
-		clientExec: func(ctx context.Context, src VM, cmd []string) (stdout, stderr string, err error) {
-			return t.docker.ContainerExec(ctx, src.Name.String(), cmd)
-		},
 	}
 }
 
@@ -68,7 +48,7 @@ func (s *clientToEcho) run(ctx context.Context, exp Expectation, family features
 	srcIP := s.src.IP(family)
 
 	s.t.log.Info(fmt.Sprintf("🧐 Executing curl %s (%v) %s %s (%v:%v)", s.src.DescName(), srcIP, exp, s.dst.DescName(), dstIP, EchoServerPort))
-	stdout, stderr, err := s.clientExec(ctx, s.src, curlCmd(netip.AddrPortFrom(dstIP, EchoServerPort).String()))
+	stdout, stderr, err := s.t.vmExec(ctx, s.src, curlCmd(netip.AddrPortFrom(dstIP, EchoServerPort).String()))
 
 	exitCode, ok := extractExitCode(err)
 	if !ok {

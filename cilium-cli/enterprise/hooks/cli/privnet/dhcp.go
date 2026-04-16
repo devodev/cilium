@@ -90,15 +90,13 @@ func (s *dhcpScenario) waitForAssignedIPv4(ctx context.Context) (netip.Addr, err
 
 	var lastErr error
 	for {
-		var stdout, stderr bytes.Buffer
-		err := s.t.client.ExecInVMWithWriters(ctx, s.t.params.TestNamespace, s.vm.Name.String(),
-			[]string{"/bin/sh", "-c", "ip -j -4 addr show dev eth0"},
-			&stdout, &stderr)
+		stdout, stderr, err := s.t.vmExec(ctx, s.vm,
+			[]string{"/bin/sh", "-c", "ip -j -4 addr show dev eth0"})
 
 		exitCode, ok := extractExitCode(err)
 		switch {
 		case err == nil:
-			ip4, hasIPv4 := parseIPv4FromIPOutput(stdout.String())
+			ip4, hasIPv4 := parseIPv4FromIPOutput(stdout)
 			if hasIPv4 && !ip4.IsUnspecified() {
 				return ip4, nil
 			}
@@ -216,10 +214,8 @@ func (s *dhcpScenario) validateConnectivity(ctx context.Context) error {
 	dst := s.t.VM(s.vm.NetName, EchoVM(s.vm.NetName))
 	dstIP := dst.IP(features.IPFamilyV4)
 
-	var stdout, stderr bytes.Buffer
-	err := s.t.client.ExecInVMWithWriters(ctx, s.t.params.TestNamespace, s.vm.Name.String(),
-		curlCmd(netip.AddrPortFrom(dstIP, EchoServerPort).String()),
-		&stdout, &stderr)
+	_, _, err := s.t.vmExec(ctx, s.vm,
+		curlCmd(netip.AddrPortFrom(dstIP, EchoServerPort).String()))
 	if err != nil {
 		exitCode, ok := extractExitCode(err)
 		if !ok {

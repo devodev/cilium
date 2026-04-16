@@ -11,7 +11,6 @@
 package privnet
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"net/netip"
@@ -54,12 +53,9 @@ func (s *clientToPod) run(ctx context.Context, exp Expectation, family features.
 			dstIP = ip
 		}
 	}
-	var stdout, stderr bytes.Buffer
 
 	s.t.log.Info(fmt.Sprintf("🧐 Executing curl %s (%v) %s %s (%s:%d)", s.src.DescName(), s.src.IP(family), exp, s.dst.GetName(), dstIP, EchoServerPort))
-	err := s.t.client.ExecInVMWithWriters(ctx, s.t.params.TestNamespace, s.src.Name.String(),
-		curlCmd(netip.AddrPortFrom(dstIP, EchoServerPort).String()),
-		&stdout, &stderr)
+	stdout, stderr, err := s.t.vmExec(ctx, s.src, curlCmd(netip.AddrPortFrom(dstIP, EchoServerPort).String()))
 
 	exitCode, ok := extractExitCode(err)
 	if !ok {

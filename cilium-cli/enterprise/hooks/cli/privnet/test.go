@@ -885,6 +885,16 @@ func (t *TestRun) applyObjs(ctx context.Context, client *enterpriseK8s.Enterpris
 	return changes, successful, nil
 }
 
+func (t *TestRun) vmExec(ctx context.Context, vm VM, cmd []string) (stdout, stderr string, err error) {
+	if vm.Kind == VMKindExtern {
+		return t.docker.ContainerExec(ctx, vm.Name.String(), cmd)
+	}
+
+	var bout, berr bytes.Buffer
+	err = t.client.ExecInVMWithWriters(ctx, t.params.TestNamespace, vm.Name.String(), cmd, &bout, &berr)
+	return bout.String(), berr.String(), err
+}
+
 func (t *TestRun) theFamilies(overrides ...features.IPFamily) iter.Seq[features.IPFamily] {
 	if len(overrides) == 0 {
 		return slices.Values(t.families)

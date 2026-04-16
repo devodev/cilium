@@ -221,11 +221,11 @@ func newCmdPrivNetTest() *cobra.Command {
 			t.Run(ctx, privnet.NewClientToEcho(t, vmClientA, vmUnknownA2), privnet.ExpectationCurlTimeout)
 
 			// egress allowed because no policy, ingress allowed by toPorts
-			t.Run(ctx, privnet.NewExtVMToEcho(t, vmExtA1, vmEchoA), privnet.ExpectationOK)
+			t.Run(ctx, privnet.NewClientToEcho(t, vmExtA1, vmEchoA), privnet.ExpectationOK)
 			// egress allowed because no policy, ingress denied by fromCIDR
-			t.Run(ctx, privnet.NewExtVMToEcho(t, vmExtA1, vmEchoOtherA), privnet.ExpectationCurlTimeout)
+			t.Run(ctx, privnet.NewClientToEcho(t, vmExtA1, vmEchoOtherA), privnet.ExpectationCurlTimeout)
 			// egress denied by catch-all
-			t.Run(ctx, privnet.NewExtVMToEcho(t, vmExtA2, vmEchoA), privnet.ExpectationCurlTimeout)
+			t.Run(ctx, privnet.NewClientToEcho(t, vmExtA2, vmEchoA), privnet.ExpectationCurlTimeout)
 
 			//
 			// Network B
@@ -240,7 +240,7 @@ func newCmdPrivNetTest() *cobra.Command {
 			// egress denied by toEndpoints (only matches echo-other)
 			t.Run(ctx, privnet.NewClientToEcho(t, vmClientB, vmExtB1), privnet.ExpectationCurlTimeout)
 			// egress denied by toEndpoints (only matches client-b)
-			t.Run(ctx, privnet.NewExtVMToEcho(t, vmExtB1, vmEchoOtherB), privnet.ExpectationCurlTimeout)
+			t.Run(ctx, privnet.NewClientToEcho(t, vmExtB1, vmEchoOtherB), privnet.ExpectationCurlTimeout)
 
 			//
 			// Network C
@@ -257,11 +257,11 @@ func newCmdPrivNetTest() *cobra.Command {
 			t.Run(ctx, privnet.NewClientToEcho(t, vmClientC, vmUnknownC2), privnet.ExpectationCurlTimeout)
 
 			// ingress denied by fromEndpoints
-			t.Run(ctx, privnet.NewExtVMToEcho(t, vmExtC1, vmEchoOtherC), privnet.ExpectationCurlTimeout)
+			t.Run(ctx, privnet.NewClientToEcho(t, vmExtC1, vmEchoOtherC), privnet.ExpectationCurlTimeout)
 			// ingress allowed by toPort
-			t.Run(ctx, privnet.NewExtVMToEcho(t, vmExtC1, vmEchoA), privnet.ExpectationOK)
+			t.Run(ctx, privnet.NewClientToEcho(t, vmExtC1, vmEchoA), privnet.ExpectationOK)
 			// ingress denied by fromCIDR
-			t.Run(ctx, privnet.NewExtVMToEcho(t, vmExtC1, vmEchoOtherA), privnet.ExpectationCurlTimeout)
+			t.Run(ctx, privnet.NewClientToEcho(t, vmExtC1, vmEchoOtherA), privnet.ExpectationCurlTimeout)
 
 			//
 			// Network D
