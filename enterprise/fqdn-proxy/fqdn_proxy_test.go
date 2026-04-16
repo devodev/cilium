@@ -365,7 +365,7 @@ func TestLookupSecIDByIP(t *testing.T) {
 
 			cfg := Config{EnableOfflineMode: !tt.disableOfflineMode} //nolint:exhaustruct
 
-			remoteNameManager := newRemoteNameManager(remoteNameManagerParams{Logger: logger, Cfg: cfg, Client: client, IPCache: fIPC})
+			remoteNameManager, _ := newRemoteNameManager(remoteNameManagerParams{Logger: logger, Cfg: cfg, Client: client, IPCache: fIPC})
 			go func() {
 				remoteNameManager.streamSelectors(t.Context(), nil)
 			}()

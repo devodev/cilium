@@ -43,7 +43,7 @@ func TestOfflineWrite(t *testing.T) {
 	client, err := makeClient(logger, "unix://"+socketPath)
 	require.NoError(t, err)
 
-	nm := newRemoteNameManager(remoteNameManagerParams{
+	nm, _ := newRemoteNameManager(remoteNameManagerParams{
 		Logger:  logger,
 		Cfg:     cfg,
 		Client:  client,

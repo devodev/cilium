@@ -72,7 +72,7 @@ func newDNSMsg(addr netip.Addr, fqdn string) *dns.Msg {
 func TestRemoteNameManager(t *testing.T) {
 	logger := hivetest.Logger(t, hivetest.LogLevel(slog.LevelDebug))
 	ipCache := newFakeIPCache(logger)
-	r := newRemoteNameManager(remoteNameManagerParams{
+	r, _ := newRemoteNameManager(remoteNameManagerParams{
 		Logger: logger,
 		Cfg: Config{
 			EnableOfflineMode: true,

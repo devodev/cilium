@@ -35,6 +35,7 @@ import (
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/cilium/pkg/logging/logfields"
+	"github.com/cilium/cilium/pkg/metrics/metric"
 	"github.com/cilium/cilium/pkg/policy/api"
 	"github.com/cilium/cilium/pkg/source"
 	"github.com/cilium/cilium/pkg/time"
@@ -52,7 +53,16 @@ type remoteNameManager struct {
 	selectors        *selectorStore
 	identitiesSynced bool
 	selectorsSynced  bool
+
+	// number and reason for failed writes
+	metricFailedWrite metric.Vec[metric.Counter]
 }
+
+const writeFailReasonExists = "ipc_already_exists"
+const writeFailReasonLookupFail = "ipc_lookup_failed"
+const writeFailReasonBPF = "bpf_write_fail"
+const writeFailReasonNoID = "no_identity"
+const writeFailReasonNotSync = "not_synchronized"
 
 type remoteNameManagerParams struct {
 	cell.In
@@ -65,7 +75,7 @@ type remoteNameManagerParams struct {
 	IPCache bpfIPCache
 }
 
-func newRemoteNameManager(params remoteNameManagerParams) *remoteNameManager {
+func newRemoteNameManager(params remoteNameManagerParams) (*remoteNameManager, metricsOut) {
 	r := &remoteNameManager{
 		logger:           params.Logger.With(logfields.LogSubsys, "remote-name-manager"),
 		cfg:              params.Cfg,
@@ -78,11 +88,20 @@ func newRemoteNameManager(params remoteNameManagerParams) *remoteNameManager {
 		selectorsSynced:  false,
 	}
 
+	r.metricFailedWrite = metric.NewCounterVec(metric.CounterOpts{
+		Namespace: metricsNamespace,
+		Subsystem: metricsSubsystem,
+		Name:      "ipcache_write_failure_total",
+		Help:      "Number of failed ipcache writes",
+	}, []string{"reason"})
+
 	if params.Cfg.EnableOfflineMode && params.JG != nil {
 		params.JG.Add(job.OneShot("stream-selectors", r.streamSelectors))
 	}
 
-	return r
+	return r, metricsOut{Metrics: []metric.WithMetadata{
+		r.metricFailedWrite,
+	}}
 }
 
 func (r *remoteNameManager) streamSelectors(ctx context.Context, _ cell.Health) error {
@@ -248,6 +267,7 @@ func (r *remoteNameManager) MaybeUpdateIPCache(msg *dns.Msg) {
 
 	if !r.identitiesSynced || !r.selectorsSynced {
 		r.logger.Debug("full list of identities and selectors not yet synchronized, not updating BPF ipcache")
+		r.metricFailedWrite.WithLabelValues(writeFailReasonNotSync).Inc()
 		return
 	}
 
@@ -293,6 +313,7 @@ func (r *remoteNameManager) maybeUpdateIPCache(qname string, responseAddrs []net
 				logfields.Labels, selLbls,
 				logfields.Address, addr,
 			)
+			r.metricFailedWrite.WithLabelValues(writeFailReasonNoID).Inc()
 			continue
 		}
 		log := r.logger.With(
@@ -308,6 +329,7 @@ func (r *remoteNameManager) maybeUpdateIPCache(qname string, responseAddrs []net
 			log.Warn("failed to lookup BPF ipcache map",
 				logfields.Error, err,
 			)
+			r.metricFailedWrite.WithLabelValues(writeFailReasonLookupFail).Inc()
 			continue
 		}
 
@@ -324,6 +346,7 @@ func (r *remoteNameManager) maybeUpdateIPCache(qname string, responseAddrs []net
 				log.Warn("offline mode: learned new address for name, but IP already in IPCache with different identity. Look for overlapping ToFQDN or CIDR selectors. This may cause traffic drops.",
 					logfields.Old, existingID,
 				)
+				r.metricFailedWrite.WithLabelValues(writeFailReasonExists).Inc()
 				continue
 			}
 		}
@@ -334,6 +357,7 @@ func (r *remoteNameManager) maybeUpdateIPCache(qname string, responseAddrs []net
 			log.Warn("failed to write to BPF ipcache map",
 				logfields.Error, err,
 			)
+			r.metricFailedWrite.WithLabelValues(writeFailReasonBPF).Inc()
 			continue
 		}
 	}
