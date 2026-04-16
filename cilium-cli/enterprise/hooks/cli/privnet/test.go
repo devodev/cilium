@@ -890,8 +890,13 @@ func (t *TestRun) vmExec(ctx context.Context, vm VM, cmd []string) (stdout, stde
 		return t.docker.ContainerExec(ctx, vm.Name.String(), cmd)
 	}
 
+	pod := t.VirtLauncherPodForVM(vm)
+	if pod == nil {
+		return "", "", fmt.Errorf("no launcher pod found for VM %s", vm.Name)
+	}
+
 	var bout, berr bytes.Buffer
-	err = t.client.ExecInVMWithWriters(ctx, t.params.TestNamespace, vm.Name.String(), cmd, &bout, &berr)
+	err = t.client.ExecInVMWithWriters(ctx, pod, cmd, &bout, &berr)
 	return bout.String(), berr.String(), err
 }
 

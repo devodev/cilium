@@ -28,12 +28,7 @@ import (
 )
 
 // Like ExecInPodWithWriters, but going through qemu guest agent.
-func (c *EnterpriseClient) ExecInVMWithWriters(connCtx context.Context, namespace, vm string, command []string, stdout, stderr io.Writer) error {
-	pod, err := c.FindLauncherPodForVM(connCtx, namespace, vm)
-	if err != nil {
-		return fmt.Errorf("failed to find launcher pod: %w", err)
-	}
-
+func (c *EnterpriseClient) ExecInVMWithWriters(connCtx context.Context, pod *corev1.Pod, command []string, stdout, stderr io.Writer) error {
 	op := qemuAgentCmd{
 		Exec: "guest-exec",
 		Args: guestExecArgs{
@@ -44,13 +39,13 @@ func (c *EnterpriseClient) ExecInVMWithWriters(connCtx context.Context, namespac
 	}
 
 	container := "compute"
-	domain := fmt.Sprintf("%s_%s", namespace, vm)
+	domain := fmt.Sprintf("%s_%s", pod.Namespace, pod.Annotations["kubevirt.io/domain"])
 
 	cmd, err := qemuCommandSlice(domain, op)
 	if err != nil {
 		return err
 	}
-	stdoutBuf, err := c.ExecInPod(connCtx, namespace, pod.Name, container, cmd)
+	stdoutBuf, err := c.ExecInPod(connCtx, pod.Namespace, pod.Name, container, cmd)
 	if err != nil {
 		return err
 	}
@@ -83,7 +78,7 @@ func (c *EnterpriseClient) ExecInVMWithWriters(connCtx context.Context, namespac
 		if err != nil {
 			return err
 		}
-		out, err := c.ExecInPod(connCtx, namespace, pod.Name, container, cmd)
+		out, err := c.ExecInPod(connCtx, pod.Namespace, pod.Name, container, cmd)
 		if err != nil {
 			return err
 		}
