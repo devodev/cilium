@@ -20,6 +20,8 @@ ifeq ($(UBI_IMAGE),)
 include ../olm/ubi-versions.env
 endif
 UBI_IMAGE ?= registry.redhat.io/ubi9/ubi-minimal:9.7@sha256:c7d44146f826037f6873d99da479299b889473492d3c1ab8af86f08af04ec8a0
+# renovate: datasource=docker
+ENVOY_IMAGE ?= quay.io/isovalent-dev/cilium-envoy-ubi:v1.36.6-1776083692-8fb1248202fd04d910b7d53b5269d0320e795f62@sha256:960b2f9efb6b283bb6475ce2737d63f8a882013e8fec4c4a5f70812118eea641
 IMAGE_TAG ?= $$(../../images/scripts/make-image-tag.sh)
 
 PLATFORMS ?= unspecified
@@ -48,8 +50,7 @@ cilium-image: .buildx_builder
 	# - license file
 	# - labels
 	# Forcing push on the intermediary image as buildx always pulls from registry and standard docker does not support manifest lists
-	# TODO: envoy image should also be passed as an argument
-	ROOT_CONTEXT=true ./scripts/build-image.sh cilium-ubi-stage $(abspath ../../images/cilium) "type=registry,push=true" $(PLATFORMS) "$$(cat .buildx_builder)" "--build-arg CILIUM_RUNTIME_IMAGE=$(RUNTIME_IMAGE) --target=release" $(REGISTRIES)
+	ROOT_CONTEXT=true ./scripts/build-image.sh cilium-ubi-stage $(abspath ../../images/cilium) "type=registry,push=true" $(PLATFORMS) "$$(cat .buildx_builder)" "--build-arg CILIUM_RUNTIME_IMAGE=$(RUNTIME_IMAGE) --build-arg CILIUM_ENVOY_IMAGE=$(ENVOY_IMAGE) --target=release" $(REGISTRIES)
 	./scripts/build-image.sh cilium-ubi$(SUFFIX) enterprise/images/cilium $(OUTPUT) $(PLATFORMS) "$$(cat .buildx_builder)" "--build-arg BASE_IMAGE=$(REGISTRIES)/cilium-ubi-stage:$(IMAGE_TAG) --build-arg BUILD_DATE=$$(date -u +'%Y-%m-%dT%H:%M:%SZ') --build-arg VERSION=$(IMAGE_TAG) $(EXTRA_ARGS)" $(REGISTRIES)
 
 operator-image: .buildx_builder
@@ -76,10 +77,3 @@ clustermesh-apiserver-image: .buildx_builder
 	ROOT_CONTEXT=true ./scripts/build-image.sh clustermesh-apiserver-ubi-stage $(abspath ../../images/clustermesh-apiserver) "type=registry,push=true" $(PLATFORMS) "$$(cat .buildx_builder)" "--build-arg BASE_IMAGE=$(UBI_IMAGE) --target=release" $(REGISTRIES)
 	./scripts/build-image.sh clustermesh-apiserver-ubi$(SUFFIX) enterprise/images/clustermesh-apiserver $(OUTPUT) $(PLATFORMS) "$$(cat .buildx_builder)" "--build-arg BASE_IMAGE=$(REGISTRIES)/clustermesh-apiserver-ubi-stage:$(IMAGE_TAG) --build-arg BUILD_DATE=$$(date -u +'%Y-%m-%dT%H:%M:%SZ') --build-arg VERSION=$(IMAGE_TAG) $(EXTRA_ARGS)" $(REGISTRIES)
 
-update-envoy-image:
-	echo "TODO: update the reference to the actual envoy proxy UBI image, cf: scripts/update-cilium-envoy-image.sh, to pass to the Dockerfile of the Cilium agent"
-
-check-envoy-image:
-	echo "TODO: check whether we have the reference to the actual envoy proxy UBI image, cf:scripts/check-cilium-envoy-image.sh to pass to the Dockerfile of the Cilium agent."
-
-# TODO: Clarify whether it is better to retrieve the references to the UBI images used in Cilium agent Dockerfile dynamically or to have them stored in a file.

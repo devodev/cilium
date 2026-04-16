@@ -19,7 +19,7 @@ on:
       extra-args:
         description: "[JSON object] Arbitrary arguments passed from the trigger comment via regex capture group. Parse with 'fromJson(inputs.extra-args).argName' in workflow."
         required: false
-        default: '{}'
+        default: "{}"
 
   push:
     branches:
@@ -31,12 +31,12 @@ on:
   # If the cache was cleaned we should re-build the cache with the latest commit
   workflow_run:
     workflows:
-     - "Image CI Cache Cleaner"
+      - "Image CI Cache Cleaner"
     branches:
-     - main-ce
-     - ft/main-ce/**
+      - main-ce
+      - ft/main-ce/**
     types:
-     - completed
+      - completed
 
 permissions:
   # To be able to access the repository with `actions/checkout`
@@ -82,14 +82,37 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
+
       - name: Load UBI versions
         id: load
         uses: ./.github/actions/load-ubi-versions
 
+  envoy-version:
+    name: Retrieve the envoy version
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.envoy_version }}
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Get version
+        id: version
+        env:
+          # renovate: datasource=github-releases depName=mikefarah/yq
+          yq_version: 4.52.4
+        run: |
+          repo_dir=$(git rev-parse --show-toplevel)
+          envoy_version=$(docker run --rm -v "${repo_dir}/install/kubernetes/cilium/values.yaml":/workdir/values.yaml --user "$(id -u):$(id -g)" mikefarah/yq:${yq_version} e ".envoy.image.tag" /workdir/values.yaml)
+          echo "envoy_version=${envoy_version}" >> $GITHUB_OUTPUT
+
   build-and-push-prs:
     timeout-minutes: 45
     name: Build and Push Images
-    needs: load-versions
+    needs: [load-versions, envoy-version]
     runs-on: ${{ vars.GH_RUNNER_EXTRA_POWER_UBUNTU_LATEST || 'ubuntu-24.04' }}
     outputs:
       sha: ${{ steps.tag.outputs.sha }}
@@ -106,6 +129,7 @@ jobs:
               RUNTIME_IMAGE=quay.io/isovalent-dev/cilium-runtime-ubi:fc521c0d940550f6682a1f59102d7e22978bb9ee
               # renovate: datasource=docker
               UBI_IMAGE=quay.io/isovalent-dev/cilium-runtime-ubi:fc521c0d940550f6682a1f59102d7e22978bb9ee
+              CILIUM_ENVOY_IMAGE=quay.io/isovalent-dev/cilium-envoy-ubi:${{ needs.envoy-version.outputs.version }}
               OPERATOR_VARIANT=cilium-ubi
 
           - name: operator
@@ -451,7 +475,7 @@ jobs:
           image: "quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/${{ matrix.image_name }}-ci@${{ steps.docker_build_ci_detect_race_condition.outputs.digest }}"
           image_tag: "${{ steps.tag.outputs.race_tag }}"
           sbom_name: "ci_race_${{ matrix.name }}_${{ matrix.distro }}_${{ steps.tag.outputs.tag }}"
-          install_cosign: 'false'
+          install_cosign: "false"
 
       - name: Generate SBOM, Sign, and Attest Unstripped Image
         if: ${{ matrix.name != 'cilium-cli' && steps.docker_build_ci_unstripped.outcome != 'skipped' }}
@@ -460,7 +484,7 @@ jobs:
           image: "quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/${{ matrix.image_name }}-ci@${{ steps.docker_build_ci_unstripped.outputs.digest }}"
           image_tag: "${{ steps.tag.outputs.unstripped_tag }}"
           sbom_name: "ci_unstripped_${{ matrix.name }}_${{ matrix.distro }}_${{ steps.tag.outputs.tag }}"
-          install_cosign: 'false'
+          install_cosign: "false"
 
       - name: CI Image Releases digests
         if: ${{ steps.check.outputs.build != '' }}
@@ -531,10 +555,10 @@ jobs:
     outputs:
       author: ${{ steps.get_author.outputs.author }}
     steps:
-    - name: Get PR Author
-      id: get_author
-      run: |
-        echo author="$(gh pr view --repo isovalent/cilium ${{ inputs.PR-number }} --json author --jq '.author.login')" >> $GITHUB_OUTPUT
+      - name: Get PR Author
+        id: get_author
+        run: |
+          echo author="$(gh pr view --repo isovalent/cilium ${{ inputs.PR-number }} --json author --jq '.author.login')" >> $GITHUB_OUTPUT
 
   comment:
     name: Post test comment for Renovate PRs after images built
@@ -542,9 +566,9 @@ jobs:
     needs: get-author
     environment: "Trigger CI from renovate PRs"
     if: ${{
-         github.event_name == 'workflow_dispatch' &&
-         needs.get-author.outputs.author == vars.RENOVATE_BOT_USERNAME
-        }}
+      github.event_name == 'workflow_dispatch' &&
+      needs.get-author.outputs.author == vars.RENOVATE_BOT_USERNAME
+      }}
     steps:
       - name: Generate Github App Token
         uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3.1.1

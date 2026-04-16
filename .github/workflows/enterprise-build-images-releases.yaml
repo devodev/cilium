@@ -28,6 +28,54 @@ jobs:
         id: load
         uses: ./.github/actions/load-ubi-versions
 
+  mirror-envoy-image:
+    name: Mirror envoy image
+    runs-on: ubuntu-24.04
+    outputs:
+      org: ${{ steps.version.outputs.org }}
+      version: ${{ steps.version.outputs.envoy_version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.event.push.after }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set Environment Variables
+        uses: ./.github/actions/set-env-variables
+
+      - name: Get and check version
+        id: version
+        env:
+          # renovate: datasource=github-releases depName=mikefarah/yq
+          yq_version: 4.52.4
+        run: |
+          tag=${GITHUB_REF##*/}
+          echo release_tag=$tag >> $GITHUB_OUTPUT
+          repo_dir=$(git rev-parse --show-toplevel)
+          envoy_version=$(docker run --rm -v "${repo_dir}/install/kubernetes/cilium/values.yaml":/workdir/values.yaml --user "$(id -u):$(id -g)" mikefarah/yq:${yq_version} e ".envoy.image.tag" /workdir/values.yaml)
+          echo "envoy_version=${envoy_version}" >> $GITHUB_OUTPUT
+          if docker manifest inspect quay.io/${{ env.QUAY_ORGANIZATION }}/cilium-envoy-ubi:${tag} >/dev/null; then
+            echo "Envoy image already exists! Copy skipped."
+            echo "copy=false" >> $GITHUB_OUTPUT
+          else
+            echo "copy=true" >> $GITHUB_OUTPUT
+          fi
+          echo "org=${{ env.QUAY_ORGANIZATION }}" >> $GITHUB_OUTPUT
+
+      - name: copy image
+        uses: truemark/skopeo-copy-action@42ddf321b803e556b65006c5cdaa517bea42f548 # v1
+        if: ${{ steps.version.outputs.copy == 'true' }}
+        with:
+          src-image: docker://quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/cilium-envoy-ubi:${{ steps.version.outputs.envoy_version }}
+          dest-image: docker://quay.io/${{ env.QUAY_ORGANIZATION }}/cilium-envoy-ubi:${{ steps.version.outputs.release_tag }}
+          src-username: "${{ secrets.QUAY_USERNAME_CI }}"
+          src-password: "${{ secrets.QUAY_PASSWORD_CI }}"
+          dest-username: "${{ secrets.QUAY_USERNAME_RELEASE_USERNAME }}"
+          dest-password: "${{ secrets.QUAY_PASSWORD_RELEASE_PASSWORD }}"
+          multi-arch: "all"
+
   build-and-push-external-images:
     timeout-minutes: 45
     name: Build and push external images
@@ -49,14 +97,6 @@ jobs:
             docker-context: enterprise/images/startup-script
             dockerfile: enterprise/images/startup-script/Dockerfile
             base-image: ${{ needs.load-versions.outputs.ubi-minimal }}
-            build-from-source: false
-
-          - component: CILIUM_ENVOY
-            image-name: cilium-envoy-ubi
-            docker-context: enterprise/images/cilium-envoy
-            dockerfile: enterprise/images/cilium-envoy/Dockerfile
-            # renovate: datasource=docker
-            base-image: registry.redhat.io/ubi9/ubi-minimal:9.6@sha256:8d905a93f1392d4a8f7fb906bd49bf540290674b28d82de3536bb4d0898bf9d7
             build-from-source: false
 
           - component: HUBBLE_UI_BACKEND
@@ -234,8 +274,8 @@ jobs:
     name: Build and Push Images
     environment: release
     runs-on: ubuntu-24.04
-    # This needs to happen sequentially as the cilium-envoy image is used for building the image of the Cilium agent
-    needs: [build-and-push-external-images, load-versions]
+    # The cilium-envoy image is used for building the image of the Cilium agent and should have been published beforehands
+    needs: [mirror-envoy-image, load-versions]
     strategy:
       matrix:
         include:
@@ -243,6 +283,7 @@ jobs:
             dockerfile: ./enterprise/images/cilium/Dockerfile
             # renovate: datasource=docker
             base_image: quay.io/isovalent-dev/cilium-runtime-ubi:fc521c0d940550f6682a1f59102d7e22978bb9ee
+            envoy_image: quay.io/${{ needs.mirror-envoy-image.outputs.org }}/cilium-envoy-ubi:${{ needs.mirror-envoy-image.outputs.version }}
             postfix: ubi
             image_name: cilium
 
@@ -320,6 +361,7 @@ jobs:
           OPERATOR_VARIANT=${{ matrix.image_name }} \
           PLATFORMS=linux/amd64,linux/arm64 \
           EXTRA_ARGS="--provenance=false" \
+          ENVOY_IMAGE=${{ matrix.envoy_image }} \
           make ${{ matrix.name }}-image
 
       - name: Release ${{ matrix.name }} digest

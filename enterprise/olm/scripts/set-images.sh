@@ -21,7 +21,8 @@ values_file="${root_dir}/enterprise/olm/manifests/values.yaml"
 registry="${CL_REGISTRY:-quay.io/isovalent-dev}"
 is_ci="${CL_IS_CI:-true}"
 echo "is_ci: ${is_ci}"
-suffix="${CL_SUFFIX:--ubi}"
+base_suffix="${CL_SUFFIX:--ubi}"
+suffix="${base_suffix}"
 if [ "${is_ci}" == "true" ]; then
   suffix="${suffix}-ci"
 fi
@@ -78,7 +79,9 @@ yq_replace ".hubble.relay.image.repository = \"${registry}/hubble-relay${suffix}
 yq_replace ".clustermesh.apiserver.image.repository = \"${registry}/clustermesh-apiserver${suffix}\""
 yq_replace ".nodeinit.image.repository = \"${registry}/startup-script${suffix}\""
 yq_replace ".certgen.image.repository = \"${registry}/certgen${suffix}\""
-yq_replace ".envoy.image.repository = \"${registry}/cilium-envoy${suffix}\""
+# Envoy UBI image is not build in isovalent/cilium but in isovalent/proxy workflow.
+# It is an enterprise only external image.
+yq_replace ".envoy.image.repository = \"${registry}/cilium-envoy${base_suffix}\""
 yq_replace ".envoy.kubectl.image.repository = \"${registry}/kubectl${suffix}\""
 yq_replace ".operator.image.repository = \"${registry}/operator\""
 yq_replace ".operator.image.suffix = \"${suffix}\""

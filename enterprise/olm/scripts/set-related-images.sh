@@ -24,7 +24,8 @@ values_file="${root_dir}/enterprise/olm/manifests/values.yaml"
 registry="${CL_REGISTRY:-quay.io/isovalent-dev}"
 is_ci="${CL_IS_CI:-true}"
 echo "is_ci: ${is_ci}"
-suffix="${CL_SUFFIX:--ubi}"
+base_suffix="${CL_SUFFIX:--ubi}"
+suffix="${base_suffix}"
 if [ "${is_ci}" == "true" ]; then
   suffix="${suffix}-ci"
 fi
@@ -126,11 +127,11 @@ if [ "${is_ci}" == "true" ]; then
 else
   envoy_tag=${tag}
 fi
-echo "get digest: ${registry}/cilium-envoy${suffix} ${envoy_tag}" 
-get_digest "${registry}/cilium-envoy${suffix}" "${envoy_tag}"
+echo "get digest: ${registry}/cilium-envoy${base_suffix} ${envoy_tag}"
+get_digest "${registry}/cilium-envoy${base_suffix}" "${envoy_tag}"
 digest=${get_digest_result}
 echo "digest: ${digest}"
-related_imgs+="{\"name\": \"RELATED_IMAGE_CILIUM-ENVOY\",\"value\":\"${registry}/cilium-envoy${suffix}:${envoy_tag}@${digest}\"},"
+related_imgs+="{\"name\": \"RELATED_IMAGE_CILIUM-ENVOY\",\"value\":\"${registry}/cilium-envoy${base_suffix}:${envoy_tag}@${digest}\"},"
 # kubectl
 echo "Process kubectl"
 if [ "${is_ci}" == "true" ]; then

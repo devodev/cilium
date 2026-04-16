@@ -66,14 +66,6 @@ jobs:
             base-image: ${{ needs.load-versions.outputs.ubi-minimal }}
             build-from-source: false
 
-          - component: CILIUM_ENVOY
-            image-name: cilium-envoy-ubi-ci
-            docker-context: enterprise/images/cilium-envoy
-            dockerfile: enterprise/images/cilium-envoy/Dockerfile
-            # renovate: datasource=docker
-            base-image: registry.redhat.io/ubi9/ubi-minimal:9.6@sha256:8d905a93f1392d4a8f7fb906bd49bf540290674b28d82de3536bb4d0898bf9d7
-            build-from-source: false
-
           - component: HUBBLE_UI_BACKEND
             image-name: hubble-ui-backend-ubi-ci
             docker-context: hubble-ui-backend/backend
