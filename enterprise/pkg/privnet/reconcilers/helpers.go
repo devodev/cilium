@@ -13,6 +13,7 @@ package reconcilers
 import (
 	"context"
 	"iter"
+	"slices"
 
 	"github.com/cilium/statedb"
 	"github.com/cilium/statedb/reconciler"
@@ -61,15 +62,17 @@ func (e *EndpointActivationManager) SetActivatedAt(ep endpoints.Endpoint, time t
 // watchesTracker tracks the associations between each watch channel and the
 // associated list of objects. The same channel may be associated with multiple
 // objects, in case they all map to the same watch channel.
-type watchesTracker[T any] map[<-chan struct{}][]T
+type watchesTracker[T comparable] map[<-chan struct{}][]T
 
-func newWatchesTracker[T any]() watchesTracker[T] {
+func newWatchesTracker[T comparable]() watchesTracker[T] {
 	return make(watchesTracker[T])
 }
 
 // Register registers a watch channel to object association.
 func (tracker watchesTracker[T]) Register(watch <-chan struct{}, obj T) {
-	tracker[watch] = append(tracker[watch], obj)
+	if !slices.Contains(tracker[watch], obj) {
+		tracker[watch] = append(tracker[watch], obj)
+	}
 }
 
 // Iter returns an iterator over all objects matching one of the closed channels.

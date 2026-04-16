@@ -36,11 +36,16 @@ func TestWatchesTracker(t *testing.T) {
 	tracker.Register(chs[2], 0x21)
 	tracker.Register(chs[3], 0x31)
 
+	// Registering the same associations again should not lead to duplicate entries
+	tracker.Register(chs[1], 0x13)
+	tracker.Register(chs[2], 0x21)
+
 	// Assert that [Iter] returns the expected elements
 	got := tracker.Iter([]<-chan struct{}{chs[1], chs[3], chs[9]})
 	require.ElementsMatch(t, slices.Collect(got), []int{0x11, 0x12, 0x13, 0x31})
 
 	// Register a few more associations
+	tracker.Register(chs[2], 0x21)
 	tracker.Register(chs[2], 0x22)
 	tracker.Register(chs[4], 0x41)
 	tracker.Register(chs[4], 0x42)
