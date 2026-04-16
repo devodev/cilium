@@ -7,8 +7,11 @@ set -o pipefail
 UPSTREAM_BRANCH="${UPSTREAM_BRANCH:-upstream/main}"
 ORIGIN_BRANCH="${ORIGIN_BRANCH:-origin/main-ce}"
 
-# List new files outside the vendor directory compared to main-ce.
-new_files=$(git diff --name-only --diff-filter=A "${ORIGIN_BRANCH}"...HEAD -- . :^vendor)
+# Directories to exclude from the check.
+excluded_dirs=(vendor Documentation/cmdref)
+
+# List new files outside excluded directories compared to main-ce.
+new_files=$(git diff --name-only --diff-filter=A "${ORIGIN_BRANCH}"...HEAD -- . "${excluded_dirs[@]/#/:^}")
 code_owners=$(go tool github.com/hmarr/codeowners/cmd/codeowners)
 
 unowned_enterprise_files=()
