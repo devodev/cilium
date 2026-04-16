@@ -47,21 +47,35 @@ type bpfIPC struct {
 	curStartTime, newStartTime int64
 	// whether or not we're allowed to write to the map
 	allowWrite bool
+
+	// metricAllowWrite tracks whether or not we are permitted to
+	// write to BPF
+	metricAllowWrite metric.Gauge
 }
 
-func newBPFIPCache(logger *slog.Logger, sm *stateManager, config Config, reg *metrics.Registry) bpfIPCache {
+func newBPFIPCache(logger *slog.Logger, sm *stateManager, config Config) (bpfIPCache, metricsOut) {
+	metricAllowWrite := metric.NewGauge(metric.GaugeOpts{
+		Namespace: metricsNamespace,
+		Subsystem: metricsSubsystem,
+		Name:      "allow_ipcache_write",
+		Help:      "Whether or not writing to the IPCache is enabled",
+	})
+	metricAllowWrite.Set(0)
+
 	if !config.EnableOfflineMode {
-		return nil
+		return nil, metricsOut{Metrics: []metric.WithMetadata{metricAllowWrite}}
 	}
 
 	b := &bpfIPC{
-		logger: logger.With(logfields.LogSubsys, "bpf-ipcache"),
-		sm:     sm,
+		logger:           logger.With(logfields.LogSubsys, "bpf-ipcache"),
+		sm:               sm,
+		metricAllowWrite: metricAllowWrite,
 	}
 
 	sm.addOnUpdate(b.onStateChange)
 
-	// We do care about BPF writes and reads
+	// Enable the global BPF map op metrics.
+	// (This cannot be passed as a parameter to the BPF map)
 	metrics.BPFMapOps = metric.NewCounterVec(metric.CounterOpts{
 		ConfigName: metrics.Namespace + "_" + metrics.SubsystemBPF + "_map_ops_total",
 		Namespace:  metrics.Namespace,
@@ -69,9 +83,11 @@ func newBPFIPCache(logger *slog.Logger, sm *stateManager, config Config, reg *me
 		Name:       "map_ops_total",
 		Help:       "Total operations on map, tagged by map name",
 	}, []string{metrics.LabelMapName, metrics.LabelOperation, metrics.LabelOutcome})
-	reg.Register(metrics.BPFMapOps)
 
-	return b
+	return b, metricsOut{Metrics: []metric.WithMetadata{
+		metrics.BPFMapOps,
+		b.metricAllowWrite,
+	}}
 }
 
 // syncState manages reopening BPF maps as the agent and proxy
@@ -110,8 +126,10 @@ func (b *bpfIPC) onStateChange(agent tables.AgentState, proxy tables.RemoteProxy
 	if newAllowWrite != b.allowWrite {
 		if newAllowWrite {
 			b.logger.Info("Agent is down, enabling BPF IPCache writing")
+			b.metricAllowWrite.Set(1)
 		} else {
 			b.logger.Info("Agent handback is complete, disabling BPF IPCache writing")
+			b.metricAllowWrite.Set(0)
 		}
 		b.allowWrite = newAllowWrite
 	}

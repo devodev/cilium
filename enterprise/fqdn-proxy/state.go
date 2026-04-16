@@ -22,6 +22,7 @@ import (
 	pb "github.com/cilium/cilium/enterprise/fqdn-proxy/api/v1/dnsproxy"
 	"github.com/cilium/cilium/enterprise/pkg/fqdnha/tables"
 	"github.com/cilium/cilium/pkg/logging/logfields"
+	"github.com/cilium/cilium/pkg/metrics/metric"
 	"github.com/cilium/cilium/pkg/time"
 	"github.com/cilium/cilium/pkg/version"
 )
@@ -43,6 +44,10 @@ type stateManager struct {
 	// onUpdates is the list of functions that should be called
 	// as part of a state update transaction
 	onUpdates []onUpdateFn
+
+	// state metrics
+	metricProxyStatus metric.Gauge
+	metricAgentStatus metric.Gauge
 }
 
 type stateManagerParams struct {
@@ -58,7 +63,7 @@ type stateManagerParams struct {
 	AgentState       statedb.RWTable[tables.AgentState]
 }
 
-func newStateManager(params stateManagerParams) *stateManager {
+func newStateManager(params stateManagerParams) (*stateManager, metricsOut) {
 	sm := &stateManager{
 		log:    params.Log.With(logfields.LogSubsys, "state-manager"),
 		client: params.Client,
@@ -69,12 +74,29 @@ func newStateManager(params stateManagerParams) *stateManager {
 		proxyState: params.RemoteProxyState,
 	}
 
+	sm.metricProxyStatus = metric.NewGauge(metric.GaugeOpts{
+		Namespace: metricsNamespace,
+		Subsystem: metricsSubsystem,
+		Name:      "proxy_status",
+		Help:      "The current proxy status",
+	})
+
+	sm.metricAgentStatus = metric.NewGauge(metric.GaugeOpts{
+		Namespace: metricsNamespace,
+		Subsystem: metricsSubsystem,
+		Name:      "agent_status",
+		Help:      "The current agent status",
+	})
+
 	trig := job.NewTrigger()
 	params.JG.Add(job.Timer("mark-proxy-live", sm.markLive, 0, job.WithTrigger(trig)))
 	params.JG.Add(job.OneShot("sync-state", sm.syncState))
 	sm.addOnUpdate(sm.triggerMarkLive(trig))
 
-	return sm
+	return sm, metricsOut{Metrics: []metric.WithMetadata{
+		sm.metricProxyStatus,
+		sm.metricAgentStatus,
+	}}
 }
 
 // addOnUpdate adds an on-update handler.
@@ -100,6 +122,9 @@ func (sm *stateManager) setAgentState(msg *pb.AgentState, offline bool) {
 	sm.log.Info("remote agent changed state", logfields.State, msg)
 	sm.onUpdate(wtxn)
 	wtxn.Commit()
+
+	// set status metric
+	sm.metricAgentStatus.Set(float64(state.Status))
 }
 
 // onUpdate calls the set of update functions during a write transaction.
@@ -180,6 +205,7 @@ func (sm *stateManager) updateProxyState(wtxn statedb.WriteTxn, from, to pb.Remo
 	sm.log.Info("proxy changed state", logfields.State, to)
 	sm.onUpdate(wtxn)
 	wtxn.Commit()
+	sm.metricProxyStatus.Set(float64(to))
 }
 
 // triggerMarkLive triggers (separately) the markLive job

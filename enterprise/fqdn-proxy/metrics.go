@@ -55,7 +55,13 @@ type metricRegistryParams struct {
 	cell.In
 
 	Registry *metrics.Registry
-	Metrics  []metric.WithMetadata `group:"hive-metrics"`
+	Metrics  [][]metric.WithMetadata `group:"hive-metrics"`
+}
+
+type metricsOut struct {
+	cell.Out
+
+	Metrics []metric.WithMetadata `group:"hive-metrics"`
 }
 
 // Note: metrics are always initialized so we have access to sampler ring buffer data
@@ -72,8 +78,10 @@ func initializeMetrics(p metricRegistryParams) {
 	}))
 
 	// Register all metrics added through hive[metrics.Metric(ctor)]
-	for _, metric := range p.Metrics {
-		p.Registry.MustRegister(metric.(prometheus.Collector))
+	for _, metrics := range p.Metrics {
+		for _, metric := range metrics {
+			p.Registry.MustRegister(metric.(prometheus.Collector))
+		}
 	}
 
 	// Initialize slog handler Errors and Warnings metrics with isovalent namespace.
@@ -88,6 +96,8 @@ func initializeMetrics(p metricRegistryParams) {
 
 type proxyMetrics struct {
 	Version metric.Vec[metric.Gauge]
+
+	OfflineEnabled metric.Gauge
 }
 
 func newProxyMetrics() *proxyMetrics {
@@ -98,9 +108,21 @@ func newProxyMetrics() *proxyMetrics {
 			Name:      "version",
 			Help:      "FQDN Proxy version",
 		}, []string{"version"}),
+
+		OfflineEnabled: metric.NewGauge(metric.GaugeOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "offline_enabled",
+			Help:      "Whether or not offline-write mode is enabled",
+		}),
 	}
 }
 
-func setVersion(m *proxyMetrics, _ *metrics.Registry) {
+func setVersion(m *proxyMetrics, cfg Config) {
 	m.Version.WithLabelValues(version.GetCiliumVersion().Version).Set(1)
+	if cfg.EnableOfflineMode {
+		m.OfflineEnabled.Set(1)
+	} else {
+		m.OfflineEnabled.Set(0)
+	}
 }
