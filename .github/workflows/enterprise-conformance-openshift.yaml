@@ -1,7 +1,7 @@
 name: Conformance OpenShift (ci-openshift)
 
 # Usage with Ariane (GitHub issue comment):
-# `/ci-openshift {"kubevirt":"true", "ocp_version":"4.17.14", "kpr":"true", "ossm":"true", "hcp":"true", "region":"eu-central-1", "azs":"eu-central-1a"}`
+# `/ci-openshift {"kubevirt":"true", "ocp_version":"4.17.14", "kpr":"true", "bgp":"true", "ossm":"true", "hcp":"true", "region":"eu-central-1", "azs":"eu-central-1a"}`
 # The json parameters are optional. By default no KubeVirt and no OpenShift Service Mesh conformance tests are launched.
 # Bare-metal nodes get provisioned for running KubeVirt conformance tests, which is expensive.
 # The default region is us-east-1.
@@ -225,21 +225,23 @@ jobs:
           fi
           if [ "${{ github.event_name }}" == 'schedule' ]; then
             kubevirt='true'
+            bgp='true'
             ossm='true'
             hcp='true'
           elif [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            extra_args_raw='${{ inputs.extra-args }}'
+            extra_args_raw=$(echo '${{ inputs.extra-args }}' | jq -r '.')
             extra_args_raw="${extra_args_raw:='{}'}"
             if ! echo "$extra_args_raw" | jq -e . > /dev/null 2>&1; then
               echo "❌ ERROR: extra-args is not valid JSON. Aborting."
               exit 1
             fi
-            unknown_keys=$(echo "$extra_args_raw" | jq -r 'keys[] | select(. as $k | ["kpr","ocp_version","kubevirt","ossm","hcp","region"] | index($k) | not)' 2>/dev/null || echo "")
+            unknown_keys=$(echo "$extra_args_raw" | jq -r 'keys[] | select(. as $k | ["kpr","bgp","ocp_version","kubevirt","ossm","hcp","region"] | index($k) | not)' 2>/dev/null || echo "")
             if [[ -n "$unknown_keys" ]]; then
               echo "❌ ERROR: Unknown keys in extra-args: ${unknown_keys}"
               exit 1
             fi
             kpr=$(echo "$extra_args_raw" | jq -r '.kpr // empty')
+            bgp=$(echo "$extra_args_raw" | jq -r '.bgp // empty')
             ocp_version=$(echo "$extra_args_raw" | jq -r '.ocp_version // empty')
             kubevirt=$(echo "$extra_args_raw" | jq -r '.kubevirt // empty')
             ossm=$(echo "$extra_args_raw" | jq -r '.ossm // empty')
@@ -248,6 +250,10 @@ jobs:
             azs=$(echo "$extra_args_raw" | jq -r '.azs // empty')
             if [[ -n "$kpr" ]] && [[ ! "$kpr" =~ ^(true|false)$ ]]; then
               echo "❌ ERROR: Invalid kpr value. Must be 'true' or 'false', got: ${kpr}"
+              exit 1
+            fi
+            if [[ -n "$bgp" ]] && [[ ! "$bgp" =~ ^(true|false)$ ]]; then
+              echo "❌ ERROR: Invalid bgp value. Must be 'true' or 'false', got: ${bgp}"
               exit 1
             fi
             if [[ -n "$ocp_version" ]] && [[ ! "$ocp_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-z0-9]+)?$ ]]; then
@@ -276,6 +282,7 @@ jobs:
             fi
           fi
           kpr="${kpr:-true}"
+          bgp="${bgp:-false}"
           kubevirt="${kubevirt:-false}"
           ossm="${ossm:-false}"
           hcp="${hcp:-false}"
@@ -303,6 +310,7 @@ jobs:
 
           echo "✅ Input validation passed"
           echo "kpr=${kpr}" >> $GITHUB_OUTPUT
+          echo "bgp=${bgp}" >> $GITHUB_OUTPUT
           echo "kubevirt=${kubevirt}" >> $GITHUB_OUTPUT
           echo "ossm=${ossm}" >> $GITHUB_OUTPUT
           echo "hcp=${hcp}" >> $GITHUB_OUTPUT
@@ -416,13 +424,21 @@ jobs:
           WORKERS_INSTANCE_COUNT=3
           EOF
           fi
+          if [ "${{ steps.vars.outputs.bgp }}" == "true" ]; then
+            cat >> setup.conf << EOF
+          OPEN_PORTS='[{"source": "machine", "ports": "179"},{"source": "pod", "ports": "8080"},{"source": "machine", "ports": "8080"},{"source": "machine", "ports": "4000"}]'
+          EOF
+          fi
           cat setup.conf
           # Use the CI CiliumConfig
-          if [[ "${{ steps.vars.outputs.kpr }}" == "true" ]]
-          then
+          if [[ "${{ steps.vars.outputs.kpr }}" == "true" ]]; then
             cp ../../enterprise/olm/config/samples/openshift_ci_ciliumconfig_kpr.yaml ${{ github.workspace }}/enterprise/olm/dist/manifests/ciliumconfig.yaml
           else
             cp ../../enterprise/olm/config/samples/openshift_ci_ciliumconfig.yaml ${{ github.workspace }}/enterprise/olm/dist/manifests/ciliumconfig.yaml
+          fi
+          if [[ "${{ steps.vars.outputs.bgp }}" == "true" ]]; then
+            yq -i '.spec.enterprise.bgpControlPlane.enabled = true' ${{ github.workspace }}/enterprise/olm/dist/manifests/ciliumconfig.yaml
+            yq -i '.spec.enterprise.featureGate.approved = (.spec.enterprise.featureGate.approved // []) + ["EnterpriseBGPControlPlane"]' ${{ github.workspace }}/enterprise/olm/dist/manifests/ciliumconfig.yaml
           fi
 
       - name: Provision the OpenShift cluster
