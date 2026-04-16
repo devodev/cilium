@@ -60,15 +60,8 @@ spec:
           interfaces:
           - name: default
             macAddress: {{ .NetMAC }}
-            # The subnet is set only if DHCP is enabled. In that case, we want
-            # to use the managedTap binding, so that we don't fight against
-            # kubevirt's DHCP server.
-            {{- if .NetSubnet }}
             binding:
               name: isovalent-networking
-            {{- else }}
-            bridge: {}
-            {{- end }}
           rng: {}
         resources:
           requests:
@@ -146,7 +139,8 @@ spec:
             version: 2
             ethernets:
               eth0:
-                {{- if .NeedsAnnotation }}
+                {{- /* The subnet is set only if DHCP is enabled. */}}
+                {{- if .NetSubnet }}
                 dhcp4: true
                 addresses: [ {{ .NetIPv6 }}/128 ]
                 gateway6: {{ .NetIPv6Gateway }}
