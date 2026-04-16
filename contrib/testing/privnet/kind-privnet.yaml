@@ -116,6 +116,10 @@ operator:
     useDigest: false
   replicas: 1
 
+resources:
+  limits:
+    memory: 2Gi
+
 socketLB:
   enabled: true
   hostNamespaceOnly: true
