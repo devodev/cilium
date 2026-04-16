@@ -21,5 +21,6 @@ type Params struct {
 	AgentPodSelector string
 
 	VMImage          string
+	MockVMImage      string
 	ForkliftPlanName string
 }

@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: "{{ .Name }}"
+  namespace: "{{ .TestNamespace }}"
+  labels:
+    app.kubernetes.io/part-of: cilium-cli-privnet
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: "{{ .Name }}"
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      name: "{{ .Name }}"
+      labels:
+        name: "{{ .Name }}"
+        kind: "{{ .Kind }}"
+        kubevirt.io: virt-launcher
+        vm.kubevirt.io/name: {{ .Name }}
+      annotations:
+        privnet.isovalent.com/network-attachment: |-
+          {{ formatPrimaryNetworkAttachment .VM | indent 10 }}
+    spec:
+  {{- if .Affinity.Type }}
+      affinity:
+  {{- if eq .Affinity.Type "same-node" }}
+        podAffinity:
+  {{- else }}
+        podAntiAffinity:
+  {{- end }}
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: name
+                    operator: In
+                    values:
+                      - {{ .Affinity.Target }}
+              topologyKey: kubernetes.io/hostname
+  {{- end }}
+      automountServiceAccountToken: false
+      dnsPolicy: None
+      dnsConfig:
+        nameservers:
+        - {{ .NetDNSServer }}
+      containers:
+      - name: compute
+        command:
+        - python3
+        - /mnt/scripts/echoserver.py
+        env:
+        - name: CILIUM_PRIVNET_NETWORK
+          value: {{ .NetName }}
+        - name: CILIUM_PRIVNET_PORT
+          value: "{{ .ServePort }}"
+        image: "{{ .MockVMImage }}"
+        ports:
+        - name: http
+          containerPort: {{ .ServePort }}
+          protocol: TCP
+        readinessProbe:
+          exec:
+            command:
+            - curl
+            - --fail
+            - --max-time
+            - "1"
+            - localhost:8000
+          failureThreshold: 3
+          periodSeconds: 1
+          successThreshold: 1
+          timeoutSeconds: 1
+        volumeMounts:
+        - name: echoserver
+          mountPath: /mnt/scripts
+          readOnly: true
+      terminationGracePeriodSeconds: 0
+      volumes:
+      - name: echoserver
+        configMap:
+          name: {{ .ScriptConfigMap }}

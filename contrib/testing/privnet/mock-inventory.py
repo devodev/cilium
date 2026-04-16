@@ -145,15 +145,6 @@ data = {
         "mac": "42:f9:eb:33:4d:54",
         "dns": dns_server,
     },
-    "vm-C1": {
-        "tmpl": vm_tmpl,
-        "name": "client-network-c",
-        "netID": "network-03",
-        "ip4": "192.168.252.10",
-        "ip6": "fd10:0:252::10",
-        "mac": "52:1f:62:0a:ff:07",
-        "dns": dns_server,
-    },
 }
 
 

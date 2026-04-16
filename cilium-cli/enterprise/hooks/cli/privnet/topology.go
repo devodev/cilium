@@ -105,6 +105,7 @@ type VM struct {
 	NetMAC   string
 	Affinity VMAffinity
 	Kind     VMKind
+	Mock     bool
 }
 
 func (vm *VM) IP(family features.IPFamily) netip.Addr {
@@ -341,6 +342,7 @@ var networkTopology = map[NetworkName]NetworkData{
 				NetDNSServer:   netip.MustParseAddr("192.168.253.254"),
 				NetMAC:         "42:f9:eb:33:1a:83",
 				Kind:           VMKindClient,
+				Mock:           true,
 			},
 		},
 	},
@@ -370,7 +372,6 @@ var networkTopology = map[NetworkName]NetworkData{
 		},
 		VMs: []VM{
 			{
-				ID:             "vm-C1",
 				Name:           ClientVM(NetworkC),
 				NetName:        NetworkC,
 				NAD:            NADFor(NetworkC, SubnetName0),
@@ -381,6 +382,7 @@ var networkTopology = map[NetworkName]NetworkData{
 				NetDNSServer:   netip.MustParseAddr("192.168.252.254"),
 				NetMAC:         "52:1f:62:0a:ff:07",
 				Kind:           VMKindClient,
+				Mock:           true,
 			},
 			{
 				Name:           EchoOtherVM(NetworkC),
@@ -393,6 +395,7 @@ var networkTopology = map[NetworkName]NetworkData{
 				NetMAC:         "5e:ae:22:a7:37:87",
 				Affinity:       VMAffinity{OtherNode, ClientVM(NetworkC)},
 				Kind:           VMKindEcho,
+				Mock:           true,
 			},
 		},
 		Unknown: []VM{
@@ -448,6 +451,7 @@ var networkTopology = map[NetworkName]NetworkData{
 				NetDNSServer:   netip.MustParseAddr("192.168.252.254"),
 				NetMAC:         "d2:32:c6:44:58:86",
 				Kind:           VMKindClient,
+				Mock:           true,
 			},
 		},
 		Unknown: []VM{
@@ -508,6 +512,7 @@ var networkTopology = map[NetworkName]NetworkData{
 				NetMAC:         "4e:7c:b2:91:d3:08",
 				Affinity:       VMAffinity{SameNode, VMName("client-dhcp-network-e")},
 				Kind:           VMKindEcho,
+				Mock:           true,
 			},
 			{
 				ID:             "",
@@ -522,6 +527,7 @@ var networkTopology = map[NetworkName]NetworkData{
 				NetMAC:         "a6:f1:3e:c4:58:2b",
 				Affinity:       VMAffinity{OtherNode, VMName("client-dhcp-network-e")},
 				Kind:           VMKindEcho,
+				Mock:           true,
 			},
 		},
 		Unknown: []VM{

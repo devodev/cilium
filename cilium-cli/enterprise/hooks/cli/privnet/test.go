@@ -57,6 +57,9 @@ var (
 	//go:embed manifests/vm.yaml
 	vmTemplate string
 
+	//go:embed manifests/mock-vm.yaml
+	mockVMTemplate string
+
 	//go:embed manifests/vm-echo-script.py
 	vmEchoScript string
 
@@ -364,6 +367,7 @@ func (t *TestRun) renderClusterVMs(ndata NetworkData) ([]k8s.Object, error) {
 			VM
 			TestNamespace   string
 			VMImage         string
+			MockVMImage     string
 			ScriptConfigMap string
 			ServePort       int
 			NeedsAnnotation bool
@@ -373,12 +377,19 @@ func (t *TestRun) renderClusterVMs(ndata NetworkData) ([]k8s.Object, error) {
 			VM:              vm,
 			TestNamespace:   t.params.TestNamespace,
 			VMImage:         t.params.VMImage,
+			MockVMImage:     t.params.MockVMImage,
 			ScriptConfigMap: echoServerConfigMapName,
 			ServePort:       EchoServerPort,
 			NeedsAnnotation: !t.webhookEnabled || vm.ID == "",
 			PlanID:          t.webhookPlanID,
 		}
-		vmYAML, err := renderTemplate(vmTemplate, data)
+
+		var tmpl = vmTemplate
+		if data.Mock {
+			tmpl = mockVMTemplate
+		}
+
+		vmYAML, err := renderTemplate(tmpl, data)
 		if err != nil {
 			return nil, fmt.Errorf("failed rendering template for VM %s: %w", vm.Name, err)
 		}
@@ -495,6 +506,25 @@ func (t *TestRun) waitForVMToBeReady(ctx context.Context, namespace, name string
 		select {
 		case <-ctx.Done():
 			return errors.New("timed out waiting for VM to become ready")
+		case <-time.After(check.PollInterval):
+		}
+	}
+}
+
+func (t *TestRun) waitForMockVMToBeReady(ctx context.Context, namespace, name string) error {
+	ctx, cancel := context.WithTimeout(ctx, check.LongTimeout)
+	defer cancel()
+
+	t.log.Info(fmt.Sprintf("⌛ Waiting for mock VM %s to become ready", name))
+	for {
+		err := t.client.CheckDeploymentStatus(ctx, namespace, name)
+		if err == nil {
+			return nil
+		}
+
+		select {
+		case <-ctx.Done():
+			return errors.New("timed out waiting for mock VM to become ready")
 		case <-time.After(check.PollInterval):
 		}
 	}
@@ -671,8 +701,13 @@ func (t *TestRun) SetupAndValidate(ctx context.Context) (err error) {
 	}
 
 	for _, vms := range t.vms {
-		for vmName := range vms {
-			err := t.waitForVMToBeReady(ctx, t.params.TestNamespace, vmName.String())
+		for vmName, vm := range vms {
+			var wait = t.waitForVMToBeReady
+			if vm.Mock {
+				wait = t.waitForMockVMToBeReady
+			}
+
+			err := wait(ctx, t.params.TestNamespace, vmName.String())
 			if err != nil {
 				return fmt.Errorf("failed waiting for VM %s to become ready: %w", vmName, err)
 			}
@@ -921,7 +956,13 @@ func (t *TestRun) vmExec(ctx context.Context, vm VM, cmd []string) (stdout, stde
 	}
 
 	var bout, berr bytes.Buffer
-	err = t.client.ExecInVMWithWriters(ctx, pod, cmd, &bout, &berr)
+
+	if vm.Mock {
+		err = t.client.ExecInPodWithWriters(ctx, nil, pod.Namespace, pod.Name, "compute", cmd, &bout, &berr)
+	} else {
+		err = t.client.ExecInVMWithWriters(ctx, pod, cmd, &bout, &berr)
+	}
+
 	return bout.String(), berr.String(), err
 }
 

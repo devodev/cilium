@@ -481,7 +481,7 @@ define kind_privnet_test_run_load_image
 endef
 
 define kind_privnet_test_run_load_images
-	$(foreach image,$(shell $(1) privnet test --print-image-artifacts $(if $(strip $(PRIVNET_VM_IMAGE)),--vm-image=$(PRIVNET_VM_IMAGE),)), \
+	$(foreach image,$(shell $(1) privnet test --print-image-artifacts $(if $(strip $(PRIVNET_VM_IMAGE)),--vm-image=$(PRIVNET_VM_IMAGE),) --mock-vm-image=$(PRIVNET_CONTAINER_IMAGE)), \
 		$(call kind_privnet_test_run_load_image,$(shell echo $(image) | cut --field 1 --delimiter @))
 	)
 endef
