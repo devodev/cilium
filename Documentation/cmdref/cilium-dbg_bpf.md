@@ -29,6 +29,7 @@ Direct access to local BPF maps
 * [cilium-dbg bpf ct](cilium-dbg_bpf_ct.md)	 - Connection tracking tables
 * [cilium-dbg bpf egress](cilium-dbg_bpf_egress.md)	 - Manage the egress routing rules
 * [cilium-dbg bpf egress-ha](cilium-dbg_bpf_egress-ha.md)	 - Manage the egress gateway HA rules
+* [cilium-dbg bpf encrypt](cilium-dbg_bpf_encrypt.md)	 - Manage the encryption maps
 * [cilium-dbg bpf endpoint](cilium-dbg_bpf_endpoint.md)	 - Local endpoint map
 * [cilium-dbg bpf frag](cilium-dbg_bpf_frag.md)	 - Manage the IPv4 datagram fragments
 * [cilium-dbg bpf fs](cilium-dbg_bpf_fs.md)	 - BPF filesystem mount
