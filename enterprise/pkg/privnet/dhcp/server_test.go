@@ -56,7 +56,7 @@ func TestPrivilegedDHCPServerInNetNS(t *testing.T) {
 	}
 
 	// Start the DHCP server on veth0
-	srv, err := NewServer(hivetest.Logger(t), DefaultConfig, ns, veth0.Attrs().Name, handler)
+	srv, err := NewServer(hivetest.Logger(t), DefaultConfig, ns, veth0.Attrs().Name, handler, newReplyDispatcher())
 	require.NoError(t, err)
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(func() {
@@ -148,6 +148,87 @@ func TestPrivilegedDHCPServerInNetNS(t *testing.T) {
 	}))
 }
 
+func TestPrivilegedDHCPServerDispatchesRelayedResponse(t *testing.T) {
+	testutils.PrivilegedTest(t)
+
+	ns, err := netns.New()
+	require.NoError(t, err)
+	defer ns.Close()
+
+	veth0, veth1 := setupVethPair(t, ns)
+	dispatcher := newReplyDispatcher()
+
+	handler := func(_ context.Context, _ cell.Health, _ uint16, _ *dhcpv4.DHCPv4) (int, []*dhcpv4.DHCPv4, error) {
+		return 0, nil, nil
+	}
+
+	srv, err := NewServer(hivetest.Logger(t), DefaultConfig, ns, veth0.Attrs().Name, handler, dispatcher)
+	require.NoError(t, err)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(func() {
+		cancel()
+		srv.Close()
+	})
+	go func() {
+		_ = srv.Serve(ctx, nil)
+	}()
+
+	req, err := dhcpv4.NewDiscovery(net.HardwareAddr{0x02, 0x00, 0x00, 0x00, 0x00, 0x01})
+	require.NoError(t, err)
+
+	resp, err := dhcpv4.NewReplyFromRequest(req)
+	require.NoError(t, err)
+	resp.UpdateOption(dhcpv4.OptMessageType(dhcpv4.MessageTypeOffer))
+	resp.YourIPAddr = net.IPv4(192, 168, 250, 10)
+
+	key, ok := newRelayKey(veth1.Attrs().Index, resp)
+	require.True(t, ok)
+
+	respCh := make(chan *dhcpv4.DHCPv4, 1)
+	dispatcher.add(key, respCh)
+
+	sendRequest := func() error {
+		return ns.Do(func() error {
+			rawConn, err := socket.Socket(unix.AF_PACKET, unix.SOCK_RAW, int(htons(unix.ETH_P_IP)), "dhcp-relay-response-test", nil)
+			if err != nil {
+				return err
+			}
+			defer rawConn.Close()
+
+			sendSLL := &unix.SockaddrLinklayer{
+				Ifindex:  veth1.Attrs().Index,
+				Protocol: htons(unix.ETH_P_IP),
+				Halen:    6,
+			}
+			copy(sendSLL.Addr[:], []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff})
+
+			frame, err := buildServerDHCPFrame(
+				resp.ToBytes(),
+				encodeRelayIfindexSourceMAC(veth1.Attrs().Index),
+				net.HardwareAddr{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+				net.IPv4(192, 168, 250, 1),
+				net.IPv4bcast,
+				dhcpv4.ServerPort,
+				dhcpv4.ClientPort,
+			)
+			if err != nil {
+				return err
+			}
+			return rawConn.Sendto(t.Context(), frame, 0, sendSLL)
+		})
+	}
+
+	require.Eventually(t, func() bool {
+		sendRequest()
+		select {
+		case got := <-respCh:
+			return got != nil && got.TransactionID == resp.TransactionID
+		default:
+			return false
+		}
+	}, 2*time.Second, 50*time.Millisecond)
+}
+
 func buildDiscoverPacket(xid uint32, chaddr net.HardwareAddr) ([]byte, error) {
 	req, err := dhcpv4.NewDiscovery(chaddr, dhcpv4.WithTransactionID(transactionIDFromUint32(xid)))
 	if err != nil {
@@ -201,4 +282,10 @@ func transactionIDFromUint32(xid uint32) dhcpv4.TransactionID {
 	var txid dhcpv4.TransactionID
 	binary.BigEndian.PutUint32(txid[:], xid)
 	return txid
+}
+
+func encodeRelayIfindexSourceMAC(ifindex int) net.HardwareAddr {
+	mac := make(net.HardwareAddr, 6)
+	binary.BigEndian.PutUint32(mac[2:], uint32(ifindex))
+	return mac
 }

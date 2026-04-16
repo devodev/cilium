@@ -11,16 +11,18 @@
 package dhcp
 
 import (
-	"context"
+	"errors"
 	"net"
 	"testing"
 	"time"
 
-	"github.com/cilium/hive/cell"
 	"github.com/cilium/hive/hivetest"
+	"github.com/gopacket/gopacket"
+	"github.com/gopacket/gopacket/layers"
 	"github.com/insomniacslk/dhcp/dhcpv4"
+	"github.com/mdlayher/socket"
 	"github.com/stretchr/testify/require"
-	"github.com/vishvananda/netlink"
+	"golang.org/x/sys/unix"
 
 	"github.com/cilium/cilium/pkg/netns"
 	"github.com/cilium/cilium/pkg/testutils"
@@ -34,57 +36,81 @@ func TestPrivilegedBroadcastRelay(t *testing.T) {
 	defer ns.Close()
 
 	veth0, veth1 := setupVethPair(t, ns)
-
-	serverErr := make(chan error, 1)
-	require.NoError(t, ns.Do(func() error {
-		addr, err := netlink.ParseAddr("192.168.1.1/24")
-		if err != nil {
-			return err
-		}
-		return netlink.AddrAdd(veth1, addr)
-	}))
-
-	handler := func(_ context.Context, _ cell.Health, _ uint16, req *dhcpv4.DHCPv4) (int, []*dhcpv4.DHCPv4, error) {
-		if req == nil {
-			return 0, nil, nil
-		}
-		resp, err := dhcpv4.NewReplyFromRequest(req)
-		if err != nil {
-			return 0, nil, err
-		}
-		resp.YourIPAddr = net.IPv4(192, 168, 1, 10)
-		resp.UpdateOption(dhcpv4.OptMessageType(dhcpv4.MessageTypeAck))
-
-		resp2, err := dhcpv4.NewReplyFromRequest(req)
-		if err != nil {
-			return 0, nil, err
-		}
-		resp2.YourIPAddr = net.IPv4(192, 168, 1, 11)
-		resp2.UpdateOption(dhcpv4.OptMessageType(dhcpv4.MessageTypeNak))
-		return veth1.Attrs().Index, []*dhcpv4.DHCPv4{resp, resp2}, nil
-	}
-
-	srv, err := NewServer(hivetest.Logger(t), DefaultConfig, ns, veth1.Attrs().Name, handler)
-	require.NoError(t, err)
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(func() {
-		cancel()
-		srv.Close()
-	})
+	dispatcher := newReplyDispatcher()
+	responderErr := make(chan error, 1)
 	go func() {
-		serverErr <- srv.Serve(ctx, nil)
+		responderErr <- ns.Do(func() error {
+			rawConn, err := socket.Socket(unix.AF_PACKET, unix.SOCK_RAW, int(htons(unix.ETH_P_IP)), "dhcp-broadcast-relay-test", nil)
+			if err != nil {
+				return err
+			}
+			defer rawConn.Close()
+
+			sll := &unix.SockaddrLinklayer{
+				Ifindex:  veth1.Attrs().Index,
+				Protocol: htons(unix.ETH_P_IP),
+			}
+			if err := rawConn.Bind(sll); err != nil {
+				return err
+			}
+
+			buf := make([]byte, 2048)
+			for {
+				rawConn.SetReadDeadline(time.Now().Add(2 * time.Second))
+				n, _, err := rawConn.Recvfrom(t.Context(), buf, 0)
+				if err != nil {
+					var netErr net.Error
+					if errors.As(err, &netErr) && netErr.Timeout() {
+						return errors.New("timed out waiting for relayed DHCP request")
+					}
+					return err
+				}
+
+				packet := gopacket.NewPacket(buf[:n], layers.LayerTypeEthernet, gopacket.NoCopy)
+				udpLayer := packet.Layer(layers.LayerTypeUDP)
+				if udpLayer == nil {
+					continue
+				}
+
+				udp := udpLayer.(*layers.UDP)
+				if udp.DstPort != dhcpv4.ServerPort {
+					continue
+				}
+
+				req, err := dhcpv4.FromBytes(udp.Payload)
+				if err != nil {
+					return err
+				}
+
+				resp, err := dhcpv4.NewReplyFromRequest(req)
+				if err != nil {
+					return err
+				}
+				resp.YourIPAddr = net.IPv4(192, 168, 1, 10)
+				resp.UpdateOption(dhcpv4.OptMessageType(dhcpv4.MessageTypeAck))
+
+				resp2, err := dhcpv4.NewReplyFromRequest(req)
+				if err != nil {
+					return err
+				}
+				resp2.YourIPAddr = net.IPv4(192, 168, 1, 11)
+				resp2.UpdateOption(dhcpv4.OptMessageType(dhcpv4.MessageTypeNak))
+
+				dispatcher.dispatch(veth0.Attrs().Index, resp)
+				dispatcher.dispatch(veth0.Attrs().Index, resp2)
+				return nil
+			}
+		})
 	}()
 
 	// Test the broadcast relay against the dummy DHCP server by relaying the request to
 	// it via veth0.
-	broadcastRelay := &broadcastRelay{
-		ifname:      veth0.Attrs().Name,
-		idleTimeout: 50 * time.Millisecond,
-		log:         hivetest.Logger(t),
-		netns:       ns,
+	relay := &broadcastRelay{
+		ifname:    veth0.Attrs().Name,
+		log:       hivetest.Logger(t),
+		netns:     ns,
+		responses: dispatcher,
 	}
-	relayFactory := &broadcastRelayFactory{relay: broadcastRelay}
-	relay, err := relayFactory.RelayFor(nil)
 	require.NoError(t, err)
 	require.NotNil(t, relay)
 
@@ -111,17 +137,5 @@ func TestPrivilegedBroadcastRelay(t *testing.T) {
 		50*time.Millisecond,
 	)
 
-	// The socket that is now idle will eventually close
-	require.Eventually(
-		t,
-		func() bool {
-			broadcastRelay.mu.Lock()
-			defer broadcastRelay.mu.Unlock()
-			return broadcastRelay.conn == nil
-		},
-		time.Second,
-		25*time.Millisecond)
-
-	cancel()
-	require.NoError(t, <-serverErr)
+	require.NoError(t, <-responderErr)
 }

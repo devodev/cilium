@@ -184,7 +184,10 @@ func (f *grpcFakeRelay) Relay(_ context.Context, waitTime time.Duration, req *dh
 }
 
 func TestNewRelayForServiceBroadcastModeReturnsBroadcastRelay(t *testing.T) {
-	factory := newRelayForService(relayForServiceParams{Log: slog.Default()})
+	factory := newRelayForService(relayForServiceParams{
+		Log:             slog.Default(),
+		ReplyDispatcher: newReplyDispatcher(),
+	})
 
 	relay, err := factory(api.RelayRequest_BROADCAST, nil, "eth0")
 	require.NoError(t, err)

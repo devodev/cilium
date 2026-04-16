@@ -70,6 +70,7 @@ func TestUnicastRelayPrepareSkipsEmptyOption82(t *testing.T) {
 
 func TestPrivilegedUnicastRelaySendUnicastSetsGIAddrAndHop(t *testing.T) {
 	testutils.PrivilegedTest(t)
+	log := hivetest.Logger(t)
 
 	relayNS, err := netns.New()
 	require.NoError(t, err)
@@ -88,8 +89,8 @@ func TestPrivilegedUnicastRelaySendUnicastSetsGIAddrAndHop(t *testing.T) {
 
 	relayFactory := &unicastRelayFactory{
 		serverAddr: &net.UDPAddr{IP: serverIP, Port: dhcpv4.ServerPort},
-		log:        hivetest.Logger(t),
 		netns:      relayNS,
+		log:        log,
 	}
 	relay, err := relayFactory.RelayFor(nil)
 	require.NoError(t, err)
@@ -125,6 +126,7 @@ func TestPrivilegedUnicastRelaySendUnicastSetsGIAddrAndHop(t *testing.T) {
 
 func TestPrivilegedUnicastRelaySendUnicastMaxHop(t *testing.T) {
 	testutils.PrivilegedTest(t)
+	log := hivetest.Logger(t)
 
 	relayNS, err := netns.New()
 	require.NoError(t, err)
@@ -143,8 +145,8 @@ func TestPrivilegedUnicastRelaySendUnicastMaxHop(t *testing.T) {
 
 	relayFactory := &unicastRelayFactory{
 		serverAddr: &net.UDPAddr{IP: serverIP, Port: dhcpv4.ServerPort},
-		log:        hivetest.Logger(t),
 		netns:      relayNS,
+		log:        log,
 	}
 	relay, err := relayFactory.RelayFor(nil)
 	require.NoError(t, err)

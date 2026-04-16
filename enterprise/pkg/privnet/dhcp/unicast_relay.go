@@ -90,7 +90,6 @@ func (r *unicastRelay) Relay(ctx context.Context, waitTime time.Duration, req *d
 	for {
 		select {
 		case <-waitCtx.Done():
-			r.log.Info("DHCP relay context done", logfields.Error, waitCtx.Err())
 			if errors.Is(waitCtx.Err(), context.DeadlineExceeded) {
 				r.log.Info("Timed out waiting for DHCP response")
 				return nil, fmt.Errorf("timed out waiting for DHCP response")

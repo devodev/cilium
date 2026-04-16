@@ -42,6 +42,7 @@ type Server struct {
 	netns   *netns.NetNS
 	conn    *socket.Conn
 	handler Handler
+	replies *replyDispatcher
 	log     *slog.Logger
 	cfg     Config
 	ifindex int
@@ -52,7 +53,7 @@ type Server struct {
 // Handler processes a DHCP request and returns the egress ifindex plus zero or more DHCP responses.
 type Handler func(ctx context.Context, health cell.Health, endpointID uint16, req *dhcpv4.DHCPv4) (int, []*dhcpv4.DHCPv4, error)
 
-func NewServer(log *slog.Logger, cfg Config, netns *netns.NetNS, ifname string, handler Handler) (*Server, error) {
+func NewServer(log *slog.Logger, cfg Config, netns *netns.NetNS, ifname string, handler Handler, replies *replyDispatcher) (*Server, error) {
 	if handler == nil {
 		return nil, errors.New("handler not specified")
 	}
@@ -66,6 +67,7 @@ func NewServer(log *slog.Logger, cfg Config, netns *netns.NetNS, ifname string, 
 		netns:   netns,
 		ifname:  ifname,
 		handler: handler,
+		replies: replies,
 		log:     logger,
 		cfg:     cfg,
 	}, nil
@@ -176,6 +178,19 @@ func (s *Server) Serve(ctx context.Context, health cell.Health) error {
 			s.log.Error("Failed to parse DHCP packet",
 				logfields.Error, err,
 				logfields.Peer, ip4.SrcIP)
+			continue
+		}
+
+		if msg.OpCode == dhcpv4.OpcodeBootReply {
+			relayIfindex, ok := decodeRelayIfindexSourceMAC(eth.SrcMAC)
+			dispatched := ok && s.replies != nil && s.replies.dispatch(relayIfindex, msg)
+			s.log.Debug("Received relayed DHCP response",
+				logfields.Interface, relayIfindex,
+				logfields.Type, msg.MessageType(),
+				logfields.Xid, msg.TransactionID,
+				logfields.Chaddr, msg.ClientHWAddr,
+				logfields.Success, dispatched,
+			)
 			continue
 		}
 
@@ -391,6 +406,11 @@ func buildServerDHCPFrame(payload []byte, srcMAC, dstMAC net.HardwareAddr, srcIP
 		return nil, err
 	}
 	return buf.Bytes(), nil
+}
+
+// BuildServerDHCPFrameForTest exposes the DHCP frame builder for privileged test helpers.
+func BuildServerDHCPFrameForTest(payload []byte, srcMAC, dstMAC net.HardwareAddr, srcIP, dstIP net.IP, srcPort, dstPort int) ([]byte, error) {
+	return buildServerDHCPFrame(payload, srcMAC, dstMAC, srcIP, dstIP, srcPort, dstPort)
 }
 
 func htons(n uint16) uint16 {

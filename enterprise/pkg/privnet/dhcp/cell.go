@@ -67,6 +67,7 @@ var Cell = cell.Module(
 
 var serviceCell = cell.Group(
 	cell.ProvidePrivate(
+		newReplyDispatcher,
 		newRelayForService,
 		newService,
 	),
@@ -85,13 +86,14 @@ var serviceCell = cell.Group(
 type relayParams struct {
 	cell.In
 
-	Log           *slog.Logger
-	DB            *statedb.DB
-	INBs          statedb.Table[tables.INB]
-	Subnets       statedb.Table[tables.Subnet]
-	ConnFn        grpcclient.ConnFactoryFn `optional:"true"`
-	TestCfg       *TestConfig              `optional:"true"`
-	PrivnetConfig pncfg.Config
+	Log             *slog.Logger
+	DB              *statedb.DB
+	INBs            statedb.Table[tables.INB]
+	Subnets         statedb.Table[tables.Subnet]
+	ConnFn          grpcclient.ConnFactoryFn `optional:"true"`
+	TestCfg         *TestConfig              `optional:"true"`
+	PrivnetConfig   pncfg.Config
+	ReplyDispatcher *replyDispatcher
 }
 
 func newRelayFactory(p relayParams) (RelayFactory, error) {
@@ -105,10 +107,11 @@ func newRelayFactory(p relayParams) (RelayFactory, error) {
 	}
 
 	return &localRelayFactory{
-		log:     p.Log,
-		netns:   relayNetNS,
-		db:      p.DB,
-		subnets: p.Subnets,
+		log:             p.Log,
+		netns:           relayNetNS,
+		db:              p.DB,
+		subnets:         p.Subnets,
+		replyDispatcher: p.ReplyDispatcher,
 		grpc: GRPCRelayFactory{
 			Log:     p.Log,
 			DB:      p.DB,
@@ -120,11 +123,12 @@ func newRelayFactory(p relayParams) (RelayFactory, error) {
 }
 
 type localRelayFactory struct {
-	log     *slog.Logger
-	netns   *netns.NetNS
-	db      *statedb.DB
-	subnets statedb.Table[tables.Subnet]
-	grpc    GRPCRelayFactory
+	log             *slog.Logger
+	netns           *netns.NetNS
+	db              *statedb.DB
+	subnets         statedb.Table[tables.Subnet]
+	replyDispatcher *replyDispatcher
+	grpc            GRPCRelayFactory
 }
 
 func (l *localRelayFactory) relayForSubnet(subnet tables.Subnet) (Relayer, error) {
@@ -132,7 +136,7 @@ func (l *localRelayFactory) relayForSubnet(subnet tables.Subnet) (Relayer, error
 	case v1alpha1.PrivateNetworkDHCPModeNone:
 		return nil, fmt.Errorf("DHCP disabled")
 	case v1alpha1.PrivateNetworkDHCPModeBroadcast:
-		return &broadcastRelay{log: l.log, netns: l.netns, ifname: subnet.EgressIfName}, nil
+		return &broadcastRelay{log: l.log, netns: l.netns, ifname: subnet.EgressIfName, responses: l.replyDispatcher}, nil
 	case v1alpha1.PrivateNetworkDHCPModeRelay:
 		if subnet.DHCP.Relay == nil {
 			return nil, fmt.Errorf("DHCP relay mode specified but target server unset")
@@ -179,16 +183,17 @@ func (l *localRelayFactory) RelayFor(lw *tables.LocalWorkload) (Relayer, error) 
 type registerServerParams struct {
 	cell.In
 
-	Config        Config
-	PrivnetConfig pncfg.Config
-	Log           *slog.Logger
-	JG            job.Group
-	DB            *statedb.DB
-	Workloads     statedb.RWTable[*tables.LocalWorkload]
-	LeaseWriter   *tables.DHCPLeaseWriter
-	Subnets       statedb.Table[tables.Subnet]
-	RelayFactory  RelayFactory
-	TestCfg       *TestConfig `optional:"true"`
+	Config          Config
+	PrivnetConfig   pncfg.Config
+	Log             *slog.Logger
+	JG              job.Group
+	DB              *statedb.DB
+	Workloads       statedb.RWTable[*tables.LocalWorkload]
+	LeaseWriter     *tables.DHCPLeaseWriter
+	Subnets         statedb.Table[tables.Subnet]
+	RelayFactory    RelayFactory
+	ReplyDispatcher *replyDispatcher
+	TestCfg         *TestConfig `optional:"true"`
 }
 
 func registerServer(p registerServerParams) error {
@@ -213,7 +218,7 @@ func registerServer(p registerServerParams) error {
 	}
 
 	handler := newServerHandler(p.Log, p.DB, p.Workloads, p.LeaseWriter, p.Subnets, p.RelayFactory, p.Config.WaitTime)
-	srv, err := NewServer(p.Log, DefaultConfig, relayNetNS, pncfg.DHCPInterfaceName, handler.serverHandler())
+	srv, err := NewServer(p.Log, p.Config, relayNetNS, pncfg.DHCPInterfaceName, handler.serverHandler(), p.ReplyDispatcher)
 	if err != nil {
 		p.Log.Error("Failed to create DHCP server",
 			logfields.Interface, pncfg.DHCPInterfaceName,
@@ -246,8 +251,9 @@ func registerServer(p registerServerParams) error {
 type relayForServiceParams struct {
 	cell.In
 
-	Log     *slog.Logger
-	TestCfg *TestConfig `optional:"true"`
+	Log             *slog.Logger
+	ReplyDispatcher *replyDispatcher
+	TestCfg         *TestConfig `optional:"true"`
 }
 
 func newRelayForService(p relayForServiceParams) serviceRelayFactoryFunc {
@@ -286,7 +292,7 @@ func newRelayForService(p relayForServiceParams) serviceRelayFactoryFunc {
 			if ifName == "" {
 				return nil, fmt.Errorf("DHCP broadcast interface required in broadcast mode")
 			}
-			return &broadcastRelay{log: p.Log, netns: relayNetNS, ifname: ifName}, nil
+			return &broadcastRelay{log: p.Log, netns: relayNetNS, responses: p.ReplyDispatcher, ifname: ifName}, nil
 		default:
 			return nil, fmt.Errorf("unknown mode %s", mode.String())
 		}

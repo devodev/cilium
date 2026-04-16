@@ -142,6 +142,17 @@ type dhcpScriptTransport struct {
 	sll  *unix.SockaddrLinklayer
 }
 
+func sourceMACForIfindex(ifindex int) net.HardwareAddr {
+	return net.HardwareAddr{
+		0x00,
+		0x00,
+		byte(ifindex >> 24),
+		byte(ifindex >> 16),
+		byte(ifindex >> 8),
+		byte(ifindex),
+	}
+}
+
 func newDHCPScriptState(log *slog.Logger, testCfg *dhcp.TestConfig) *dhcpScriptState {
 	var hostNetns *netns.NetNS
 	if testCfg != nil {
@@ -509,14 +520,41 @@ func (s *dhcpScriptState) cmdDHCPServerStart() script.Cmd {
 			}); err != nil {
 				return nil, err
 			}
+			var sourceIfindex int
+			if err := s.withHostNetNS(func() error {
+				link, err := safenetlink.LinkByName(args[0])
+				if err != nil {
+					return err
+				}
+				attrs := link.Attrs()
+				if attrs == nil || attrs.Index == 0 {
+					return fmt.Errorf("invalid interface %q", args[0])
+				}
+				sourceIfindex = attrs.Index
+				return nil
+			}); err != nil {
+				return nil, err
+			}
 			handler := func(_ context.Context, _ cell.Health, _ uint16, req *dhcpv4.DHCPv4) (int, []*dhcpv4.DHCPv4, error) {
 				if req == nil {
 					return 0, nil, nil
 				}
 				resps, err := relay.Relay(context.Background(), 250*time.Millisecond, req)
+				if err == nil {
+					for _, resp := range resps {
+						if resp == nil {
+							continue
+						}
+						// Simulate the redirection to cilium_dhcp done by the bpf_host program. This is the actual
+						// path for the response to the broadcast relay.
+						if mirrorErr := s.injectResponseToCiliumDHCP(sourceIfindex, serverIP, resp); mirrorErr != nil {
+							return 0, nil, mirrorErr
+						}
+					}
+				}
 				return ifindex, resps, err
 			}
-			srv, err := dhcp.NewServer(s.log, dhcp.DefaultConfig, targetNS, ifaceName, handler)
+			srv, err := dhcp.NewServer(s.log, dhcp.DefaultConfig, targetNS, ifaceName, handler, nil)
 			if err != nil {
 				return nil, err
 			}
@@ -531,6 +569,34 @@ func (s *dhcpScriptState) cmdDHCPServerStart() script.Cmd {
 			return nil, nil
 		},
 	)
+}
+
+func (s *dhcpScriptState) injectResponseToCiliumDHCP(ifindex int, serverIP net.IP, resp *dhcpv4.DHCPv4) error {
+	if resp == nil {
+		return nil
+	}
+
+	s.mu.Lock()
+	transport := s.transports["cilium_dhcp"]
+	s.mu.Unlock()
+	if transport == nil {
+		return nil
+	}
+
+	frame, err := dhcp.BuildServerDHCPFrameForTest(
+		resp.ToBytes(),
+		sourceMACForIfindex(ifindex),
+		net.HardwareAddr{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+		serverIP,
+		net.IPv4bcast,
+		dhcpv4.ServerPort,
+		dhcpv4.ClientPort,
+	)
+	if err != nil {
+		return err
+	}
+
+	return transport.conn.Sendto(context.Background(), frame, 0, transport.sll)
 }
 
 func (s *dhcpScriptState) cmdSetEndpointIfindex() script.Cmd {
