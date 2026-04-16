@@ -82,7 +82,7 @@ static __always_inline int enterprise_privnet_from_lxc(struct __ctx_buff *ctx __
 			return DROP_INVALID;
 
 		/* If this is a DHCP request redirect it to the 'cilium_dhcp' device */
-		ret = privnet_redirect_dhcp(ctx, ip4);
+		ret = privnet_redirect_dhcp_request(ctx, ip4);
 		if (ret != CTX_ACT_OK)
 			return ret;
 

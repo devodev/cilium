@@ -131,6 +131,17 @@ enterprise_privnet_do_netdev(struct __ctx_buff *ctx, __u16 proto, __u32 __maybe_
 			return send_drop_notify_error(ctx, identity, DROP_INVALID,
 							METRIC_INGRESS);
 
+		ret = privnet_redirect_dhcp_reply(ctx, ip4);
+		if (IS_ERR(ret) || ret == CTX_ACT_REDIRECT)
+			return ret;
+
+		/* Revalidate again to keep verifier happy even though we would never reach here
+		 * when privnet_redirect_dhcp_reply() mangled the packet.
+		 */
+		if (!revalidate_data_pull(ctx, &data, &data_end, &ip4))
+			return send_drop_notify_error(ctx, identity, DROP_INVALID,
+							METRIC_INGRESS);
+
 		dip4.be32 = ip4->daddr;
 		subnet_id = privnet_subnet_id_lookup4(*net_id, ip4->daddr);
 

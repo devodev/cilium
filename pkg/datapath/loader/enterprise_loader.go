@@ -139,7 +139,7 @@ func (l *EnterpriseLoader) registerOverlayConfig() {
 	})
 }
 
-func (l *EnterpriseLoader) registerNetdevConfig() {
+func (l *EnterpriseLoader) registerNetdevConfig(pd *privnetDHCPDevice) {
 	netdevConfigs.register(func(ep endpoint.Config, lnc *config.Config, link netlink.Link, _ netip.Addr, _ netip.Addr) any {
 		cfg := config.NewBPFHostEnterprise()
 
@@ -149,6 +149,7 @@ func (l *EnterpriseLoader) registerNetdevConfig() {
 		cfg.PrivnetBridgeEnable = l.privnetConfig.EnabledAsBridge()
 		cfg.PrivnetLocalAccessEnable = l.privnetConfig.EnabledAsLocalAccess()
 		cfg.PrivnetUnknownSecID = uint32(identity.ReservedPrivnetUnknownFlow)
+		cfg.CiliumDhcpIfIndex = uint32(pd.getIfindex())
 
 		return cfg
 	})

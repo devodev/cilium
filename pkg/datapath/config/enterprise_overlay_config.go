@@ -14,6 +14,8 @@ import "github.com/cilium/cilium/pkg/datapath/types"
 type BPFOverlayEnterprise struct {
 	// Allow ICMP_FRAG_NEEDED messages when applying Network Policy.
 	AllowICMPFragNeeded bool `config:"allow_icmp_frag_needed"`
+	// Interface index for cilium_dhcp device.
+	CiliumDhcpIfIndex uint32 `config:"cilium_dhcp_ifindex"`
 	// The interface index of the evpn vxlan device.
 	EVPNDeviceIfIndex uint32 `config:"evpn_device_ifindex"`
 	// The mac address of the evpn vxlan device.
@@ -41,7 +43,7 @@ type BPFOverlayEnterprise struct {
 }
 
 func NewBPFOverlayEnterprise() *BPFOverlayEnterprise {
-	return &BPFOverlayEnterprise{false, 0x0,
+	return &BPFOverlayEnterprise{false, 0x0, 0x0,
 		cast[types.MACAddr]([]byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}),
 		false, false, false, false, false, false, cast[types.V4Addr]([]byte{0x0, 0x0, 0x0, 0x0}),
 		cast[types.V6Addr]([]byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}),

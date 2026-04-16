@@ -13,6 +13,8 @@ import "github.com/cilium/cilium/pkg/datapath/types"
 // Warning: do not instantiate directly! Always use [NewBPFWireguardEnterprise]
 // to ensure the default values configured in the ELF are honored.
 type BPFWireguardEnterprise struct {
+	// Interface index for cilium_dhcp device.
+	CiliumDhcpIfIndex uint32 `config:"cilium_dhcp_ifindex"`
 	// True if running on network bridge.
 	PrivnetBridgeEnable bool `config:"privnet_bridge_enable"`
 	// True if the endpoint is in a non-default network.
@@ -30,7 +32,7 @@ type BPFWireguardEnterprise struct {
 }
 
 func NewBPFWireguardEnterprise() *BPFWireguardEnterprise {
-	return &BPFWireguardEnterprise{false, false, false, cast[types.V4Addr]([]byte{0x0, 0x0, 0x0, 0x0}),
+	return &BPFWireguardEnterprise{0x0, false, false, false, cast[types.V4Addr]([]byte{0x0, 0x0, 0x0, 0x0}),
 		cast[types.V6Addr]([]byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}),
 		false, 0x0}
 }

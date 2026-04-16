@@ -16,6 +16,8 @@
 /* Enable debug output */
 #define DEBUG
 
+#define CILIUM_DHCP_IFINDEX 123
+
 #include "enterprise_privnet_common.h"
 
 /* packets defined in ./scapy/enterprise_privnet_pkt_defs.py */
@@ -45,6 +47,23 @@ const __u8 privnet_netdev_na[] = {
 
 #include <bpf/config/node.h>
 #include <lib/enterprise_ext_eps_maps.h>
+
+static int redirect_target_ifindex;
+static __u32 redirect_src_ifindex;
+
+#define ctx_redirect mock_ctx_redirect
+static __always_inline int
+mock_ctx_redirect(const struct __sk_buff __maybe_unused *ctx, int ifindex,
+		  __u32 __maybe_unused flags)
+{
+	__u8 smac[ETH_ALEN];
+
+	if (!skb_load_bytes((struct __sk_buff *)ctx, ETH_ALEN, smac, sizeof(smac)))
+		redirect_src_ifindex = smac[2] << 24 | smac[3] << 16 | smac[4] << 8 | smac[5];
+
+	redirect_target_ifindex = ifindex;
+	return CTX_ACT_REDIRECT;
+}
 
 static __always_inline int
 mock_ext_eps_policy_can_access(struct __ctx_buff __maybe_unused *ctx,
@@ -89,7 +108,26 @@ ASSIGN_CONFIG(bool, privnet_enable, true)
 ASSIGN_CONFIG(bool, privnet_local_access_enable, false)
 ASSIGN_CONFIG(__u32, privnet_unknown_sec_id, 99) /* tunnel id 99 is reserved for unknown privnet flow */
 ASSIGN_CONFIG(__u32, interface_ifindex, IFINDEX)
+ASSIGN_CONFIG(__u32, cilium_dhcp_ifindex, CILIUM_DHCP_IFINDEX)
 ASSIGN_CONFIG(union macaddr, interface_mac, {.addr = mac_two_addr}) /* set device mac */
+
+static __always_inline int
+build_privnet_dhcp_reply(struct __ctx_buff *ctx)
+{
+	struct pktgen builder;
+
+	pktgen__init(&builder, ctx);
+
+	if (!pktgen__push_ipv4_udp_packet(&builder, (__u8 *)mac_one,
+					  (__u8 *)mac_two, V4_POD_IP_1,
+					  IPV4(255, 255, 255, 255),
+					  bpf_htons(DHCP_SERVER_PORT),
+					  bpf_htons(DHCP_CLIENT_PORT)))
+		return TEST_ERROR;
+
+	pktgen__finish(&builder);
+	return 0;
+}
 
 PKTGEN("tc", "01_icmp_from_netdev_nat_src_dst")
 int privnet_icmp_from_netdev_nat_src_dst_pktgen(struct __ctx_buff *ctx)
@@ -390,5 +428,45 @@ int privnet_icmp_from_netdev_miss_net_check(struct __ctx_buff *ctx)
 	privnet_v4_del_subnet_entry(NET_ID, SUBNET_V4, SUBNET_V4_LEN);
 	privnet_del_device_entry(IFINDEX);
 
+	test_finish();
+}
+
+PKTGEN("tc", "09_dhcp_reply_from_netdev_redirect")
+int privnet_dhcp_reply_from_netdev_redirect_pktgen(struct __ctx_buff *ctx)
+{
+	return build_privnet_dhcp_reply(ctx);
+}
+
+SETUP("tc", "09_dhcp_reply_from_netdev_redirect")
+int privnet_dhcp_reply_from_netdev_redirect_setup(struct __ctx_buff *ctx)
+{
+	redirect_target_ifindex = 0;
+	redirect_src_ifindex = 0;
+
+	privnet_add_device_entry(IFINDEX, NET_ID, NULL, NULL);
+	return netdev_receive_packet(ctx);
+}
+
+CHECK("tc", "09_dhcp_reply_from_netdev_redirect")
+int privnet_dhcp_reply_from_netdev_redirect_check(struct __ctx_buff *ctx)
+{
+	test_init();
+
+	assert_status_code(ctx, TC_ACT_REDIRECT);
+
+	if (redirect_target_ifindex != CILIUM_DHCP_IFINDEX)
+		test_fatal("unexpected redirect ifindex (expected %d, got %d)",
+			   CILIUM_DHCP_IFINDEX, redirect_target_ifindex);
+
+	/* The source mac address should changed to the ifindex to which the
+	 * reply originally arrived before redirecting it to cilium_dhcp.
+	 */
+	if (redirect_src_ifindex != IFINDEX)
+		test_fatal("unexpected source mac (expected %x, got %x)",
+			   IFINDEX, redirect_src_ifindex);
+
+	assert_privnet_net_ids(NET_ID, NET_ID);
+
+	privnet_del_device_entry(IFINDEX);
 	test_finish();
 }

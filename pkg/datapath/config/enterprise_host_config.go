@@ -12,6 +12,8 @@ import "github.com/cilium/cilium/pkg/datapath/types"
 // Warning: do not instantiate directly! Always use [NewBPFHostEnterprise] to
 // ensure the default values configured in the ELF are honored.
 type BPFHostEnterprise struct {
+	// Interface index for cilium_dhcp device.
+	CiliumDhcpIfIndex uint32 `config:"cilium_dhcp_ifindex"`
 	// The interface index of the evpn vxlan device.
 	EVPNDeviceIfIndex uint32 `config:"evpn_device_ifindex"`
 	// The mac address of the evpn vxlan device.
@@ -37,7 +39,7 @@ type BPFHostEnterprise struct {
 }
 
 func NewBPFHostEnterprise() *BPFHostEnterprise {
-	return &BPFHostEnterprise{0x0,
+	return &BPFHostEnterprise{0x0, 0x0,
 		cast[types.MACAddr]([]byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}),
 		false, false, false, false, false, cast[types.V4Addr]([]byte{0x0, 0x0, 0x0, 0x0}),
 		cast[types.V6Addr]([]byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}),

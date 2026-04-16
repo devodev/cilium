@@ -2412,15 +2412,63 @@ handle_privnet_arp(struct __ctx_buff *ctx, const __u16 net_id,
 	return arp_respond(ctx, &mac, tip, &smac, sip, 0);
 }
 
-#ifdef IS_BPF_LXC
+#define DHCP_CLIENT_PORT 68
 #define DHCP_SERVER_PORT 67
+
+/*
+ * Redirect DHCP reply packet to cilium_dhcp so the agent can process it
+ * without using a raw socket bound to an external facing interface.
+ *
+ * Returns the result of ctx_redirect() for matching DHCP replies and
+ * CTX_ACT_OK otherwise.
+ */
+static __always_inline int
+privnet_redirect_dhcp_reply(struct __ctx_buff *ctx, struct iphdr *ip4)
+{
+	__u32 dhcp_ifindex = CONFIG(cilium_dhcp_ifindex);
+	__be16 sport, dport;
+	int l4_off;
+
+	if (!dhcp_ifindex || THIS_IS_L3_DEV || ip4->protocol != IPPROTO_UDP)
+		return CTX_ACT_OK;
+
+	/* Destination is 255.255.255.255? */
+	if (ip4->daddr != bpf_htonl(0xffffffff))
+		return CTX_ACT_OK;
+
+	l4_off = ETH_HLEN + ipv4_hdrlen(ip4);
+	if (l4_load_port(ctx, l4_off + UDP_SPORT_OFF, &sport) < 0 ||
+	    l4_load_port(ctx, l4_off + UDP_DPORT_OFF, &dport) < 0)
+		return DROP_INVALID;
+
+	if (sport != bpf_htons(DHCP_SERVER_PORT) || dport != bpf_htons(DHCP_CLIENT_PORT))
+		return CTX_ACT_OK;
+
+	/* Set the source mac address to "0 0 <ifindex>" so agent knows which
+	 * interface the packet arrived to and can attribute the reply to the right
+	 * request even if there are mac address and xid overlaps between different
+	 * private networks (as long as the same interface is not used).
+	 */
+	{
+		__u32 src_ifindex = CONFIG(interface_ifindex);
+		__u8 src[ETH_ALEN] = { 0, 0, src_ifindex >> 24 & 0xff, src_ifindex >> 16 & 0xff,
+				       src_ifindex >> 8 & 0xff, src_ifindex & 0xff};
+
+		if (ctx_store_bytes(ctx, ETH_ALEN, src, sizeof(src), 0) < 0)
+			return DROP_WRITE_ERROR;
+	}
+
+	return ctx_redirect(ctx, dhcp_ifindex, 0);
+}
+
+#ifdef IS_BPF_LXC
 
 /* redirect DHCP packets coming from the pod to the 'cilium_dhcp' device,
  * which the agent will then relay and forward the reply back to the endpoint's
  * host-side veth device
  */
 static __always_inline int
-privnet_redirect_dhcp(struct __ctx_buff *ctx, struct iphdr *ip4)
+privnet_redirect_dhcp_request(struct __ctx_buff *ctx, struct iphdr *ip4)
 {
 	__be16 dport;
 	int l4_off;
@@ -2462,6 +2510,7 @@ privnet_redirect_dhcp(struct __ctx_buff *ctx, struct iphdr *ip4)
 	/* Redirect to 'cilium_dhcp' device */
 	return ctx_redirect(ctx, dhcp_ifindex, 0);
 }
+
 #endif /* IS_BPF_LXC */
 
 static __always_inline bool

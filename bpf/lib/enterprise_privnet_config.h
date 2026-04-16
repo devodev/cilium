@@ -19,8 +19,5 @@ DECLARE_ENTERPRISE_CONFIG(union v4addr, privnet_host_snat_ipv4,
 			  "Link-local IPv4 address used to SNAT host traffic to PrivNet")
 DECLARE_ENTERPRISE_CONFIG(union v6addr, privnet_host_snat_ipv6,
 			  "Link-local IPv6 address used to SNAT host traffic to PrivNet")
-
-#ifdef IS_BPF_LXC
 DECLARE_ENTERPRISE_CONFIG(__u32, cilium_dhcp_ifindex,
 			  "Interface index for cilium_dhcp device")
-#endif
