@@ -29,6 +29,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
+	entTypes "github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
 	"github.com/cilium/cilium/enterprise/pkg/rib"
 	srv6Types "github.com/cilium/cilium/enterprise/pkg/srv6/types"
 	"github.com/cilium/cilium/pkg/bgp/gobgp"
@@ -320,29 +321,33 @@ func TestSRv6RouteImport(t *testing.T) {
 
 	// Allow all route import for VPNv4 paths. As we don't have
 	// VPNPolicyReconciler.
-	policy := types.RoutePolicyRequest{
+	policy := entTypes.RoutePolicyExtendedRequest{
 		DefaultExportAction: types.RoutePolicyActionReject,
-		Policy: &types.RoutePolicy{
+		Policy: &entTypes.ExtendedRoutePolicy{
 			Name: "allow-all-vpnv4-routes",
 			Type: types.RoutePolicyTypeImport,
-			Statements: []*types.RoutePolicyStatement{
+			Statements: []*entTypes.ExtendedRoutePolicyStatement{
 				{
-					Conditions: types.RoutePolicyConditions{
-						MatchFamilies: []types.Family{
-							{
-								Afi:  types.AfiIPv4,
-								Safi: types.SafiMplsVpn,
+					Conditions: entTypes.ExtendedRoutePolicyConditions{
+						RoutePolicyConditions: types.RoutePolicyConditions{
+							MatchFamilies: []types.Family{
+								{
+									Afi:  types.AfiIPv4,
+									Safi: types.SafiMplsVpn,
+								},
 							},
 						},
 					},
-					Actions: types.RoutePolicyActions{
-						RouteAction: types.RoutePolicyActionAccept,
+					Actions: entTypes.ExtendedRoutePolicyActions{
+						RoutePolicyActions: types.RoutePolicyActions{
+							RouteAction: types.RoutePolicyActionAccept,
+						},
 					},
 				},
 			},
 		},
 	}
-	err = router.AddRoutePolicy(t.Context(), policy)
+	err = router.(entTypes.EnterpriseRouter).AddRoutePolicyExtended(t.Context(), policy)
 	require.NoError(t, err)
 
 	// Peering locally

@@ -29,7 +29,6 @@ import (
 	"github.com/cilium/cilium/pkg/bgp/manager/instance"
 	"github.com/cilium/cilium/pkg/bgp/manager/reconciler"
 	"github.com/cilium/cilium/pkg/bgp/types"
-	v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	v1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
 	"github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
 	"github.com/cilium/cilium/pkg/k8s/resource"
@@ -77,7 +76,7 @@ type LocatorPoolReconciler struct {
 
 type LocatorPoolReconcilerMetadata struct {
 	AFPaths       reconciler.ResourceAFPathsMap
-	RoutePolicies reconciler.ResourceRoutePolicyMap
+	RoutePolicies ResourceRoutePolicyMap
 }
 
 func NewSRv6LocatorPoolReconciler(params srv6LocatorPoolReconcilerIn) srv6LocatorPoolReconcilerOut {
@@ -160,7 +159,7 @@ func (r *LocatorPoolReconciler) Init(i *instance.BGPInstance) error {
 	}
 	r.metadata[i.Name] = LocatorPoolReconcilerMetadata{
 		AFPaths:       make(reconciler.ResourceAFPathsMap),
-		RoutePolicies: make(reconciler.ResourceRoutePolicyMap),
+		RoutePolicies: make(ResourceRoutePolicyMap),
 	}
 	return nil
 }
@@ -250,7 +249,7 @@ func (r *LocatorPoolReconciler) reconcileRoutePolicies(ctx context.Context, para
 			continue
 		}
 
-		updatedRoutePolicies, rErr := reconciler.ReconcileRoutePolicies(&reconciler.ReconcileRoutePoliciesParams{
+		updatedRoutePolicies, rErr := ReconcileRoutePolicies(&ReconcileRoutePoliciesParams{
 			Logger: r.logger.With(
 				types.InstanceLogField, params.DesiredConfig.Name,
 				entTypes.LocatorPoolLogField, key,
@@ -328,8 +327,8 @@ func (r *LocatorPoolReconciler) getDesiredPaths(desiredFamilyAdverts PeerAdverti
 // getDesiredRoutePolicies returns the desired BGP route policies per locator pool.
 // The desired route policies are calculated based on the BGP advertisements of type BGPSRv6LocatorPoolAdvert,
 // its selector for the locator pool, and the peer address.
-func (r *LocatorPoolReconciler) getDesiredRoutePolicies(desiredFamilyAdverts PeerAdvertisements) (reconciler.ResourceRoutePolicyMap, error) {
-	desiredRoutePolicies := make(reconciler.ResourceRoutePolicyMap)
+func (r *LocatorPoolReconciler) getDesiredRoutePolicies(desiredFamilyAdverts PeerAdvertisements) (ResourceRoutePolicyMap, error) {
+	desiredRoutePolicies := make(ResourceRoutePolicyMap)
 
 	for peer, peerFamilyAdverts := range desiredFamilyAdverts {
 		if peer.Address == "" {
@@ -379,17 +378,15 @@ func (r *LocatorPoolReconciler) getDesiredRoutePolicies(desiredFamilyAdverts Pee
 					}
 
 					policyName := PolicyName(peer.Name, agentFamily.Afi.String(), advert.AdvertisementType, lp.Name)
-					policy, err := reconciler.CreatePolicy(policyName, peerAddr, nil,
-						types.PolicyPrefixList{prefix}, v2.BGPAdvertisement{
-							Attributes: advert.Attributes,
-						})
+					policy, err := CreatePolicy(policyName, peerAddr, nil,
+						types.PolicyPrefixList{prefix}, advert)
 					if err != nil {
 						return nil, fmt.Errorf("failed to create locator pool route policy: %w", err)
 					}
 
 					lpKey := resource.Key{Name: lp.Name}
 					if _, exists := desiredRoutePolicies[lpKey]; !exists {
-						desiredRoutePolicies[lpKey] = make(reconciler.RoutePolicyMap)
+						desiredRoutePolicies[lpKey] = make(RoutePolicyMap)
 					}
 					desiredRoutePolicies[lpKey][policyName] = policy
 				}

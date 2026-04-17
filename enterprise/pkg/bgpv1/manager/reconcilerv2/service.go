@@ -100,7 +100,7 @@ type ServiceReconcilerIn struct {
 // ServiceReconcilerMetadata holds any announced service CIDRs per address family.
 type ServiceReconcilerMetadata struct {
 	ServicePaths               ossreconcilerv2.ResourceAFPathsMap
-	ServiceRoutePolicies       ossreconcilerv2.ResourceRoutePolicyMap
+	ServiceRoutePolicies       ResourceRoutePolicyMap
 	ServiceAdvertisements      PeerAdvertisements
 	FrontendChanges            statedb.ChangeIterator[*loadbalancer.Frontend]
 	FrontendChangesInitialized bool
@@ -147,7 +147,7 @@ func (r *ServiceReconciler) Init(i *instance.BGPInstance) error {
 
 	r.metadata[i.Name] = ServiceReconcilerMetadata{
 		ServicePaths:          make(ossreconcilerv2.ResourceAFPathsMap),
-		ServiceRoutePolicies:  make(ossreconcilerv2.ResourceRoutePolicyMap),
+		ServiceRoutePolicies:  make(ResourceRoutePolicyMap),
 		ServiceAdvertisements: make(PeerAdvertisements),
 	}
 	return nil
@@ -238,7 +238,7 @@ func (r *ServiceReconciler) reconcileServices(
 		toReconcile []*loadbalancer.Service
 		toWithdraw  []loadbalancer.ServiceName
 
-		desiredSvcRoutePolicies ossreconcilerv2.ResourceRoutePolicyMap
+		desiredSvcRoutePolicies ResourceRoutePolicyMap
 		desiredSvcPaths         ossreconcilerv2.ResourceAFPathsMap
 
 		rx  statedb.ReadTxn
@@ -652,7 +652,7 @@ func (r *ServiceReconciler) diffReconciliationServiceList(metadata *ServiceRecon
 	return
 }
 
-func (r *ServiceReconciler) reconcileSvcRoutePolicies(ctx context.Context, p EnterpriseReconcileParams, metadata *ServiceReconcilerMetadata, desiredSvcRoutePolicies ossreconcilerv2.ResourceRoutePolicyMap) error {
+func (r *ServiceReconciler) reconcileSvcRoutePolicies(ctx context.Context, p EnterpriseReconcileParams, metadata *ServiceReconcilerMetadata, desiredSvcRoutePolicies ResourceRoutePolicyMap) error {
 	var err error
 	for svcKey, desiredSvcRoutePolicies := range desiredSvcRoutePolicies {
 		currentSvcRoutePolicies, exists := metadata.ServiceRoutePolicies[svcKey]
@@ -660,7 +660,7 @@ func (r *ServiceReconciler) reconcileSvcRoutePolicies(ctx context.Context, p Ent
 			continue
 		}
 
-		updatedSvcRoutePolicies, rErr := ossreconcilerv2.ReconcileRoutePolicies(&ossreconcilerv2.ReconcileRoutePoliciesParams{
+		updatedSvcRoutePolicies, rErr := ReconcileRoutePolicies(&ReconcileRoutePoliciesParams{
 			Logger:          r.logger.With(bgptypes.InstanceLogField, p.DesiredConfig.Name),
 			Ctx:             ctx,
 			Router:          p.BGPInstance.Router,
@@ -678,8 +678,8 @@ func (r *ServiceReconciler) reconcileSvcRoutePolicies(ctx context.Context, p Ent
 	return err
 }
 
-func (r *ServiceReconciler) getDesiredRoutePolicies(p EnterpriseReconcileParams, desiredPeerAdverts PeerAdvertisements, toUpdate []*loadbalancer.Service, toRemove []loadbalancer.ServiceName, rx statedb.ReadTxn) (ossreconcilerv2.ResourceRoutePolicyMap, error) {
-	desiredSvcRoutePolicies := make(ossreconcilerv2.ResourceRoutePolicyMap)
+func (r *ServiceReconciler) getDesiredRoutePolicies(p EnterpriseReconcileParams, desiredPeerAdverts PeerAdvertisements, toUpdate []*loadbalancer.Service, toRemove []loadbalancer.ServiceName, rx statedb.ReadTxn) (ResourceRoutePolicyMap, error) {
+	desiredSvcRoutePolicies := make(ResourceRoutePolicyMap)
 
 	for _, svc := range toUpdate {
 		key := resource.Key{Name: svc.Name.Name(), Namespace: svc.Name.Namespace()}
@@ -702,8 +702,8 @@ func (r *ServiceReconciler) getDesiredRoutePolicies(p EnterpriseReconcileParams,
 	return desiredSvcRoutePolicies, nil
 }
 
-func (r *ServiceReconciler) getDesiredSvcRoutePolicies(p EnterpriseReconcileParams, desiredPeerAdverts PeerAdvertisements, svc *loadbalancer.Service, rx statedb.ReadTxn) (ossreconcilerv2.RoutePolicyMap, error) {
-	desiredSvcRoutePolicies := make(ossreconcilerv2.RoutePolicyMap)
+func (r *ServiceReconciler) getDesiredSvcRoutePolicies(p EnterpriseReconcileParams, desiredPeerAdverts PeerAdvertisements, svc *loadbalancer.Service, rx statedb.ReadTxn) (RoutePolicyMap, error) {
+	desiredSvcRoutePolicies := make(RoutePolicyMap)
 
 	for peer, afAdverts := range desiredPeerAdverts {
 		for fam, adverts := range afAdverts {
@@ -731,7 +731,7 @@ func (r *ServiceReconciler) getDesiredSvcRoutePolicies(p EnterpriseReconcilePara
 					if policy != nil {
 						existingPolicy := desiredSvcRoutePolicies[policy.Name]
 						if existingPolicy != nil {
-							policy, err = MergePolicies(existingPolicy, policy)
+							policy, err = MergeRoutePolicies(existingPolicy, policy)
 							if err != nil {
 								return nil, fmt.Errorf("failed to merge %s route policies: %w", advertType, err)
 							}
@@ -746,7 +746,7 @@ func (r *ServiceReconciler) getDesiredSvcRoutePolicies(p EnterpriseReconcilePara
 	return desiredSvcRoutePolicies, nil
 }
 
-func (r *ServiceReconciler) getServiceRoutePolicy(p EnterpriseReconcileParams, peer PeerID, family bgptypes.Family, svc *loadbalancer.Service, svcPrefixes []netip.Prefix, advert v1.BGPAdvertisement, advertType v2.BGPServiceAddressType) (*bgptypes.RoutePolicy, error) {
+func (r *ServiceReconciler) getServiceRoutePolicy(p EnterpriseReconcileParams, peer PeerID, family bgptypes.Family, svc *loadbalancer.Service, svcPrefixes []netip.Prefix, advert v1.BGPAdvertisement, advertType v2.BGPServiceAddressType) (*types.ExtendedRoutePolicy, error) {
 	if peer.Address == "" {
 		return nil, nil
 	}
@@ -788,8 +788,9 @@ func (r *ServiceReconciler) getServiceRoutePolicy(p EnterpriseReconcileParams, p
 	}
 
 	policyName := PolicyName(peer.Name, family.Afi.String(), advert.AdvertisementType, fmt.Sprintf("%s-%s-%s", svc.Name.Name(), svc.Name.Namespace(), advertType))
-	policy, err := ossreconcilerv2.CreatePolicy(policyName, peerAddr, v4Prefixes, v6Prefixes, v2.BGPAdvertisement{
-		Attributes: attributes,
+	policy, err := CreatePolicy(policyName, peerAddr, v4Prefixes, v6Prefixes, v1.BGPAdvertisement{
+		AdvertisementType: advert.AdvertisementType,
+		Attributes:        attributes,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create %s route policy: %w", advertType, err)

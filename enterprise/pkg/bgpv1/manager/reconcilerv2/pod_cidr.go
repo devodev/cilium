@@ -23,7 +23,6 @@ import (
 	"github.com/cilium/cilium/pkg/bgp/manager/instance"
 	"github.com/cilium/cilium/pkg/bgp/manager/reconciler"
 	"github.com/cilium/cilium/pkg/bgp/types"
-	v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	v1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
 	"github.com/cilium/cilium/pkg/option"
 )
@@ -54,7 +53,7 @@ type PodCIDRReconciler struct {
 // PodCIDRReconcilerMetadata is a map of advertisements per family, key is family type
 type PodCIDRReconcilerMetadata struct {
 	AFPaths       reconciler.AFPathsMap
-	RoutePolicies reconciler.RoutePolicyMap
+	RoutePolicies RoutePolicyMap
 }
 
 func NewPodCIDRReconciler(params PodCIDRReconcilerIn) PodCIDRReconcilerOut {
@@ -91,7 +90,7 @@ func (r *PodCIDRReconciler) Init(i *instance.BGPInstance) error {
 	}
 	r.metadata[i.Name] = PodCIDRReconcilerMetadata{
 		AFPaths:       make(reconciler.AFPathsMap),
-		RoutePolicies: make(reconciler.RoutePolicyMap),
+		RoutePolicies: make(RoutePolicyMap),
 	}
 	return nil
 }
@@ -174,7 +173,7 @@ func (r *PodCIDRReconciler) reconcileRoutePolicies(ctx context.Context, p Enterp
 	}
 
 	// reconcile route policies
-	updatedPolicies, err := reconciler.ReconcileRoutePolicies(&reconciler.ReconcileRoutePoliciesParams{
+	updatedPolicies, err := ReconcileRoutePolicies(&ReconcileRoutePoliciesParams{
 		Logger:          r.logger.With(types.InstanceLogField, p.DesiredConfig.Name),
 		Ctx:             ctx,
 		Router:          p.BGPInstance.Router,
@@ -223,8 +222,8 @@ func (r *PodCIDRReconciler) getDesiredPathsPerFamily(desiredPeerAdverts PeerAdve
 	return desiredFamilyAdverts
 }
 
-func (r *PodCIDRReconciler) getDesiredRoutePolicies(desiredPeerAdverts PeerAdvertisements, desiredPrefixes []netip.Prefix) (reconciler.RoutePolicyMap, error) {
-	desiredPolicies := make(reconciler.RoutePolicyMap)
+func (r *PodCIDRReconciler) getDesiredRoutePolicies(desiredPeerAdverts PeerAdvertisements, desiredPrefixes []netip.Prefix) (RoutePolicyMap, error) {
+	desiredPolicies := make(RoutePolicyMap)
 
 	for peer, afAdverts := range desiredPeerAdverts {
 		if peer.Address == "" {
@@ -254,9 +253,7 @@ func (r *PodCIDRReconciler) getDesiredRoutePolicies(desiredPeerAdverts PeerAdver
 
 				if len(v6Prefixes) > 0 || len(v4Prefixes) > 0 {
 					name := PolicyName(peer.Name, fam.Afi.String(), advert.AdvertisementType, "")
-					policy, err := reconciler.CreatePolicy(name, peerAddr, v4Prefixes, v6Prefixes, v2.BGPAdvertisement{
-						Attributes: advert.Attributes,
-					})
+					policy, err := CreatePolicy(name, peerAddr, v4Prefixes, v6Prefixes, advert)
 					if err != nil {
 						return nil, err
 					}

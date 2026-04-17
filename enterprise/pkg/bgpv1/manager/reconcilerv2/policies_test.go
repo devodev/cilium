@@ -22,7 +22,7 @@ import (
 	"github.com/cilium/cilium/pkg/bgp/types"
 )
 
-func Test_MergePolicies(t *testing.T) {
+func Test_MergeRoutePolicies(t *testing.T) {
 	neighbor1 := []netip.Addr{netip.MustParseAddr("192.168.1.1")}
 
 	v4PrefixAExact1 := types.RoutePolicyPrefix{
@@ -89,63 +89,79 @@ func Test_MergePolicies(t *testing.T) {
 	// statement1 and statement2 have same matching condition but different actions
 	// This is the scenario when 2 advertisements match same service but have different
 	// community values.
-	statement1 := &types.RoutePolicyStatement{
-		Conditions: condition1,
-		Actions:    action1,
+	statement1 := &enterpriseTypes.ExtendedRoutePolicyStatement{
+		Conditions: enterpriseTypes.ExtendedRoutePolicyConditions{
+			RoutePolicyConditions: condition1,
+		},
+		Actions: enterpriseTypes.ExtendedRoutePolicyActions{
+			RoutePolicyActions: action1,
+		},
 	}
 
-	statement2 := &types.RoutePolicyStatement{
-		Conditions: condition1,
-		Actions:    action2,
+	statement2 := &enterpriseTypes.ExtendedRoutePolicyStatement{
+		Conditions: enterpriseTypes.ExtendedRoutePolicyConditions{
+			RoutePolicyConditions: condition1,
+		},
+		Actions: enterpriseTypes.ExtendedRoutePolicyActions{
+			RoutePolicyActions: action2,
+		},
 	}
 
 	// statement3 has different matching condition ( prefix length 24)
-	statement3 := &types.RoutePolicyStatement{
-		Conditions: condition2,
-		Actions:    action3,
+	statement3 := &enterpriseTypes.ExtendedRoutePolicyStatement{
+		Conditions: enterpriseTypes.ExtendedRoutePolicyConditions{
+			RoutePolicyConditions: condition2,
+		},
+		Actions: enterpriseTypes.ExtendedRoutePolicyActions{
+			RoutePolicyActions: action3,
+		},
 	}
 
-	mergedStatement12 := &types.RoutePolicyStatement{
-		Conditions: condition1,
-		Actions:    mergedAction12,
+	mergedStatement12 := &enterpriseTypes.ExtendedRoutePolicyStatement{
+		Conditions: enterpriseTypes.ExtendedRoutePolicyConditions{
+			RoutePolicyConditions: condition1,
+		},
+		Actions: enterpriseTypes.ExtendedRoutePolicyActions{
+			RoutePolicyActions: mergedAction12,
+		},
 	}
 
-	policy1 := &types.RoutePolicy{
+	policy1 := &enterpriseTypes.ExtendedRoutePolicy{
 		Name: "policy-A",
 		Type: types.RoutePolicyTypeExport,
-		Statements: []*types.RoutePolicyStatement{
+		Statements: []*enterpriseTypes.ExtendedRoutePolicyStatement{
 			statement1,
 		},
 	}
 
-	policy2 := &types.RoutePolicy{
+	policy2 := &enterpriseTypes.ExtendedRoutePolicy{
 		Name: "policy-A",
 		Type: types.RoutePolicyTypeExport,
-		Statements: []*types.RoutePolicyStatement{
+		Statements: []*enterpriseTypes.ExtendedRoutePolicyStatement{
 			statement2,
 		},
 	}
 
-	policy3 := &types.RoutePolicy{
+	policy3 := &enterpriseTypes.ExtendedRoutePolicy{
 		Name: "policy-A",
 		Type: types.RoutePolicyTypeExport,
-		Statements: []*types.RoutePolicyStatement{
+		Statements: []*enterpriseTypes.ExtendedRoutePolicyStatement{
 			statement3,
 		},
 	}
 
-	mergedPolicy12 := &types.RoutePolicy{
+	mergedPolicy12 := &enterpriseTypes.ExtendedRoutePolicy{
 		Name: "policy-A",
 		Type: types.RoutePolicyTypeExport,
-		Statements: []*types.RoutePolicyStatement{
+		Statements: []*enterpriseTypes.ExtendedRoutePolicyStatement{
 			mergedStatement12,
 		},
 	}
 
-	mergedPolicy123 := &types.RoutePolicy{
+	mergedPolicy123 := &enterpriseTypes.ExtendedRoutePolicy{
 		Name: "policy-A",
 		Type: types.RoutePolicyTypeExport,
-		Statements: []*types.RoutePolicyStatement{
+		Statements: []*enterpriseTypes.ExtendedRoutePolicyStatement{
 			// order of the statements is important, statement3 should come after mergedStatement12
 			// since statement3 has a prefix length of 24 compared to 32 in mergedStatement12
 			mergedStatement12,
@@ -155,10 +171,10 @@ func Test_MergePolicies(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		policyA        *types.RoutePolicy
-		policyB        *types.RoutePolicy
+		policyA        *enterpriseTypes.ExtendedRoutePolicy
+		policyB        *enterpriseTypes.ExtendedRoutePolicy
 		expectedError  bool
-		expectedPolicy *types.RoutePolicy
+		expectedPolicy *enterpriseTypes.ExtendedRoutePolicy
 	}{
 		{
 			name:           "nil policies",
@@ -185,7 +201,7 @@ func Test_MergePolicies(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			req := require.New(t)
 
-			mergedPolicy, err := MergePolicies(tt.policyA, tt.policyB)
+			mergedPolicy, err := MergeRoutePolicies(tt.policyA, tt.policyB)
 			if tt.expectedError {
 				req.Error(err)
 			} else {

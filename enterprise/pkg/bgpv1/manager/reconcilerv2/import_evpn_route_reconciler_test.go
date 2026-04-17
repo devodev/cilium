@@ -29,6 +29,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	enterpriseConfig "github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
+	entTypes "github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
 	evpnConfig "github.com/cilium/cilium/enterprise/pkg/evpn/config"
 	privnetConfig "github.com/cilium/cilium/enterprise/pkg/privnet/config"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/tables"
@@ -556,29 +557,33 @@ func TestEVPNRouteImport(t *testing.T) {
 
 	// Allow all route import for EVPN paths. As we don't have
 	// EVPNPolicyReconciler.
-	policy := types.RoutePolicyRequest{
+	policy := entTypes.RoutePolicyExtendedRequest{
 		DefaultExportAction: types.RoutePolicyActionReject,
-		Policy: &types.RoutePolicy{
+		Policy: &entTypes.ExtendedRoutePolicy{
 			Name: "allow-all-evpn-routes",
 			Type: types.RoutePolicyTypeImport,
-			Statements: []*types.RoutePolicyStatement{
+			Statements: []*entTypes.ExtendedRoutePolicyStatement{
 				{
-					Conditions: types.RoutePolicyConditions{
-						MatchFamilies: []types.Family{
-							{
-								Afi:  types.AfiL2VPN,
-								Safi: types.SafiEvpn,
+					Conditions: entTypes.ExtendedRoutePolicyConditions{
+						RoutePolicyConditions: types.RoutePolicyConditions{
+							MatchFamilies: []types.Family{
+								{
+									Afi:  types.AfiL2VPN,
+									Safi: types.SafiEvpn,
+								},
 							},
 						},
 					},
-					Actions: types.RoutePolicyActions{
-						RouteAction: types.RoutePolicyActionAccept,
+					Actions: entTypes.ExtendedRoutePolicyActions{
+						RoutePolicyActions: types.RoutePolicyActions{
+							RouteAction: types.RoutePolicyActionAccept,
+						},
 					},
 				},
 			},
 		},
 	}
-	err = router.AddRoutePolicy(t.Context(), policy)
+	err = router.(entTypes.EnterpriseRouter).AddRoutePolicyExtended(t.Context(), policy)
 	require.NoError(t, err)
 
 	// Peering locally

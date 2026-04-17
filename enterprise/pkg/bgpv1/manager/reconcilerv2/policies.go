@@ -24,7 +24,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
-	"github.com/cilium/cilium/pkg/bgp/manager/reconciler"
 	ossTypes "github.com/cilium/cilium/pkg/bgp/types"
 	v1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
 	"github.com/cilium/cilium/pkg/k8s/resource"
@@ -247,34 +246,6 @@ func PolicyName(peer, family string, advertType v1.IsovalentBGPAdvertType, resou
 		return fmt.Sprintf("%s-%s-%s", peer, family, advertType)
 	}
 	return fmt.Sprintf("%s-%s-%s-%s", peer, family, advertType, resourceID)
-}
-
-// MergePolicies merges two route policies into a single policy, policy statements are sorted
-// based on length of the first prefix in the match prefix list.
-func MergePolicies(policyA, policyB *ossTypes.RoutePolicy) (*ossTypes.RoutePolicy, error) {
-	// combine route policies into a single policy
-	merged, err := reconciler.MergeRoutePolicies(policyA, policyB)
-	if err != nil {
-		return nil, err
-	}
-
-	// Sort statements based on prefix length:
-	// - Statements with greater prefix length should go first, so that longer prefix match has higher priority.
-	//   Main use-case is service route aggregation, where a single svc can have e.g. /32 and /24 match statements,
-	//   and the /32 one should be prioritized.
-	// - For simplicity, we only compare the length of the first prefix, as we never populate different prefix lengths
-	//   in a single condition. PrefixLenMin and PrefixLenMax are always populated equally, so we only compare one of them.
-	sort.SliceStable(merged.Statements, func(i, j int) bool {
-		condI := merged.Statements[i].Conditions
-		condJ := merged.Statements[j].Conditions
-		if condI.MatchPrefixes != nil && condJ.MatchPrefixes != nil &&
-			len(condI.MatchPrefixes.Prefixes) > 0 && len(condJ.MatchPrefixes.Prefixes) > 0 {
-			return condI.MatchPrefixes.Prefixes[0].PrefixLenMin > condJ.MatchPrefixes.Prefixes[0].PrefixLenMin
-		}
-		return false
-	})
-
-	return merged, nil
 }
 
 // MergeRoutePolicies evaluates two instances of RoutePolicy{} and returns a single RoutePolicy{} representing

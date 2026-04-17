@@ -22,6 +22,7 @@ import (
 	"github.com/cilium/hive/job"
 
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
+	entTypes "github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
 	evpnConfig "github.com/cilium/cilium/enterprise/pkg/evpn/config"
 	"github.com/cilium/cilium/pkg/bgp/manager/instance"
 	"github.com/cilium/cilium/pkg/bgp/manager/reconciler"
@@ -62,7 +63,7 @@ type VPNRoutePolicyReconciler struct {
 }
 
 type VPNRoutePolicyMetadata struct {
-	VPNPolicies reconciler.RoutePolicyMap
+	VPNPolicies RoutePolicyMap
 }
 
 func NewVPNRoutePolicyReconciler(in VPNRoutePolicyReconcilerIn) VPNRoutePolicyReconcilerOut {
@@ -107,7 +108,7 @@ func (r *VPNRoutePolicyReconciler) Init(i *instance.BGPInstance) error {
 		return fmt.Errorf("BUG: %s reconciler initialization with nil BGPInstance", r.Name())
 	}
 	r.metadata[i.Name] = VPNRoutePolicyMetadata{
-		VPNPolicies: make(reconciler.RoutePolicyMap),
+		VPNPolicies: make(RoutePolicyMap),
 	}
 	return nil
 }
@@ -142,10 +143,10 @@ func (r *VPNRoutePolicyReconciler) Reconcile(ctx context.Context, p reconciler.R
 		return err
 	}
 
-	updatedPolicies, err := reconciler.ReconcileRoutePolicies(&reconciler.ReconcileRoutePoliciesParams{
+	updatedPolicies, err := ReconcileRoutePolicies(&ReconcileRoutePoliciesParams{
 		Logger:          r.logger.With(types.InstanceLogField, p.DesiredConfig.Name),
 		Ctx:             ctx,
-		Router:          p.BGPInstance.Router,
+		Router:          iParams.BGPInstance.Router,
 		DesiredPolicies: desiredPolicies,
 		CurrentPolicies: r.GetMetadata(iParams.BGPInstance).VPNPolicies,
 	})
@@ -157,8 +158,8 @@ func (r *VPNRoutePolicyReconciler) Reconcile(ctx context.Context, p reconciler.R
 	return err
 }
 
-func (r *VPNRoutePolicyReconciler) getDesiredRoutePolicies(desiredConfig *v1.IsovalentBGPNodeInstance) (reconciler.RoutePolicyMap, error) {
-	desiredPolicies := make(reconciler.RoutePolicyMap)
+func (r *VPNRoutePolicyReconciler) getDesiredRoutePolicies(desiredConfig *v1.IsovalentBGPNodeInstance) (RoutePolicyMap, error) {
+	desiredPolicies := make(RoutePolicyMap)
 
 	for _, peer := range desiredConfig.Peers {
 		if peer.PeerAddress == nil || *peer.PeerAddress == "" {
@@ -210,21 +211,25 @@ func (r *VPNRoutePolicyReconciler) getDesiredRoutePolicies(desiredConfig *v1.Iso
 	return desiredPolicies, nil
 }
 
-func acceptRoutePolicy(policyType types.RoutePolicyType, name string, peerAddr netip.Addr, vpnFamilies []types.Family) *types.RoutePolicy {
-	return &types.RoutePolicy{
+func acceptRoutePolicy(policyType types.RoutePolicyType, name string, peerAddr netip.Addr, vpnFamilies []types.Family) *entTypes.ExtendedRoutePolicy {
+	return &entTypes.ExtendedRoutePolicy{
 		Name: name,
 		Type: policyType,
-		Statements: []*types.RoutePolicyStatement{
+		Statements: []*entTypes.ExtendedRoutePolicyStatement{
 			{
-				Conditions: types.RoutePolicyConditions{
-					MatchNeighbors: &types.RoutePolicyNeighborMatch{
-						Type:      types.RoutePolicyMatchAny,
-						Neighbors: []netip.Addr{peerAddr},
+				Conditions: entTypes.ExtendedRoutePolicyConditions{
+					RoutePolicyConditions: types.RoutePolicyConditions{
+						MatchNeighbors: &types.RoutePolicyNeighborMatch{
+							Type:      types.RoutePolicyMatchAny,
+							Neighbors: []netip.Addr{peerAddr},
+						},
+						MatchFamilies: vpnFamilies,
 					},
-					MatchFamilies: vpnFamilies,
 				},
-				Actions: types.RoutePolicyActions{
-					RouteAction: types.RoutePolicyActionAccept,
+				Actions: entTypes.ExtendedRoutePolicyActions{
+					RoutePolicyActions: types.RoutePolicyActions{
+						RouteAction: types.RoutePolicyActionAccept,
+					},
 				},
 			},
 		},

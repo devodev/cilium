@@ -22,6 +22,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/fake"
+	entTypes "github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
 	"github.com/cilium/cilium/pkg/bgp/manager/instance"
 	"github.com/cilium/cilium/pkg/bgp/manager/reconciler"
 	"github.com/cilium/cilium/pkg/bgp/types"
@@ -100,21 +101,25 @@ var (
 		},
 	}
 
-	expectedPeerRoutePolicy = func(policyType types.RoutePolicyType, name string, peerAddr netip.Addr, families []types.Family) *types.RoutePolicy {
-		return &types.RoutePolicy{
+	expectedPeerRoutePolicy = func(policyType types.RoutePolicyType, name string, peerAddr netip.Addr, families []types.Family) *entTypes.ExtendedRoutePolicy {
+		return &entTypes.ExtendedRoutePolicy{
 			Name: name,
 			Type: policyType,
-			Statements: []*types.RoutePolicyStatement{
+			Statements: []*entTypes.ExtendedRoutePolicyStatement{
 				{
-					Conditions: types.RoutePolicyConditions{
-						MatchNeighbors: &types.RoutePolicyNeighborMatch{
-							Type:      types.RoutePolicyMatchAny,
-							Neighbors: []netip.Addr{peerAddr},
+					Conditions: entTypes.ExtendedRoutePolicyConditions{
+						RoutePolicyConditions: types.RoutePolicyConditions{
+							MatchNeighbors: &types.RoutePolicyNeighborMatch{
+								Type:      types.RoutePolicyMatchAny,
+								Neighbors: []netip.Addr{peerAddr},
+							},
+							MatchFamilies: families,
 						},
-						MatchFamilies: families,
 					},
-					Actions: types.RoutePolicyActions{
-						RouteAction: types.RoutePolicyActionAccept,
+					Actions: entTypes.ExtendedRoutePolicyActions{
+						RoutePolicyActions: types.RoutePolicyActions{
+							RouteAction: types.RoutePolicyActionAccept,
+						},
 					},
 				},
 			},
@@ -173,10 +178,10 @@ var (
 func TestVPNRoutePolicy(t *testing.T) {
 	tests := []struct {
 		name        string
-		preRPs      reconciler.RoutePolicyMap
+		preRPs      RoutePolicyMap
 		peerConfigs []*v1.IsovalentBGPPeerConfig
 		peers       []v1.IsovalentBGPNodePeer
-		expectedRPs reconciler.RoutePolicyMap
+		expectedRPs RoutePolicyMap
 	}{
 		{
 			name:        "ipv4-unicast peer, no policy",
@@ -191,7 +196,7 @@ func TestVPNRoutePolicy(t *testing.T) {
 					},
 				},
 			},
-			expectedRPs: make(reconciler.RoutePolicyMap),
+			expectedRPs: make(RoutePolicyMap),
 		},
 		{
 			name:        "ipv4-vpn peer, policies applied",
@@ -206,14 +211,14 @@ func TestVPNRoutePolicy(t *testing.T) {
 					},
 				},
 			},
-			expectedRPs: reconciler.RoutePolicyMap{
+			expectedRPs: RoutePolicyMap{
 				importPeerPolicyVPNv4.Name: importPeerPolicyVPNv4,
 				exportPeerPolicyVPNv4.Name: exportPeerPolicyVPNv4,
 			},
 		},
 		{
 			name: "ipv4-unicast peer, cleanup old policies",
-			preRPs: reconciler.RoutePolicyMap{
+			preRPs: RoutePolicyMap{
 				importPeerPolicyVPNv4.Name: importPeerPolicyVPNv4,
 				exportPeerPolicyVPNv4.Name: exportPeerPolicyVPNv4,
 			},
@@ -227,11 +232,11 @@ func TestVPNRoutePolicy(t *testing.T) {
 					},
 				},
 			},
-			expectedRPs: make(reconciler.RoutePolicyMap),
+			expectedRPs: make(RoutePolicyMap),
 		},
 		{
 			name: "no peer found, cleanup old policies",
-			preRPs: reconciler.RoutePolicyMap{
+			preRPs: RoutePolicyMap{
 				importPeerPolicyVPNv4.Name: importPeerPolicyVPNv4,
 				exportPeerPolicyVPNv4.Name: exportPeerPolicyVPNv4,
 			},
@@ -245,7 +250,7 @@ func TestVPNRoutePolicy(t *testing.T) {
 					},
 				},
 			},
-			expectedRPs: make(reconciler.RoutePolicyMap),
+			expectedRPs: make(RoutePolicyMap),
 		},
 		{
 			name:        "l2vpn-evpn peer, policies applied",
@@ -260,7 +265,7 @@ func TestVPNRoutePolicy(t *testing.T) {
 					},
 				},
 			},
-			expectedRPs: reconciler.RoutePolicyMap{
+			expectedRPs: RoutePolicyMap{
 				importPeerPolicyEVPN.Name: importPeerPolicyEVPN,
 				exportPeerPolicyEVPN.Name: exportPeerPolicyEVPN,
 			},
@@ -278,7 +283,7 @@ func TestVPNRoutePolicy(t *testing.T) {
 					},
 				},
 			},
-			expectedRPs: reconciler.RoutePolicyMap{
+			expectedRPs: RoutePolicyMap{
 				importPeerPolicyIPv4VPNAndEVPN.Name: importPeerPolicyIPv4VPNAndEVPN,
 				exportPeerPolicyIPv4VPNAndEVPN.Name: exportPeerPolicyIPv4VPNAndEVPN,
 			},
