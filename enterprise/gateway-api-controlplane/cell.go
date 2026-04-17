@@ -34,7 +34,11 @@ var (
 		pprof.Cell(pprofConfig),
 		shell.ServerCell(shellSockPath),
 
+		cell.ProvidePrivate(newXDSServer),
+		cell.ProvidePrivate(func(server *xdsServer) XDSResourceMutator { return server }),
+
 		cell.Invoke(registerHealthServer),
+		cell.Invoke(registerXDSServer),
 	)
 
 	Hive = hive.New(
@@ -63,6 +67,25 @@ func registerHealthServer(params healthServerParams) {
 	params.Lifecycle.Append(cell.Hook{
 		OnStop: func(cell.HookContext) error {
 			httpServer.Stop()
+			return nil
+		},
+	})
+}
+
+type xdsServerParams struct {
+	cell.In
+
+	Lifecycle cell.Lifecycle
+	JobGroup  job.Group
+	XDSServer *xdsServer
+}
+
+func registerXDSServer(params xdsServerParams) {
+	params.JobGroup.Add(job.OneShot("xds-server", params.XDSServer.Serve, job.WithShutdown()))
+
+	params.Lifecycle.Append(cell.Hook{
+		OnStop: func(cell.HookContext) error {
+			params.XDSServer.Stop()
 			return nil
 		},
 	})

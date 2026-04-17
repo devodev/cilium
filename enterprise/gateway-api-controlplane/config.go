@@ -33,15 +33,18 @@ var pprofConfig = pprof.Config{
 
 type Config struct {
 	LogLevel          string
+	XDSBindAddress    string
 	HealthBindAddress string
 }
 
 var defaultConfig = Config{
 	LogLevel:          "info",
+	XDSBindAddress:    ":18000",
 	HealthBindAddress: ":18001",
 }
 
 func (def Config) Flags(flags *pflag.FlagSet) {
 	flags.String("log-level", def.LogLevel, "Log level for the Gateway API controlplane.")
 	flags.String("health-bind-address", def.HealthBindAddress, "Address for the Gateway API controlplane health endpoint to listen on.")
+	flags.String("xds-bind-address", def.XDSBindAddress, "Address for the Gateway API controlplane xDS server to listen on.")
 }
