@@ -17,6 +17,11 @@ import (
 	"maps"
 	"net/netip"
 	"sort"
+	"strconv"
+	"strings"
+
+	"github.com/osrg/gobgp/v3/pkg/packet/bgp"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
 	"github.com/cilium/cilium/pkg/bgp/manager/reconciler"
@@ -24,7 +29,6 @@ import (
 	v1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
 	"github.com/cilium/cilium/pkg/k8s/resource"
 	"github.com/cilium/cilium/pkg/logging/logfields"
-	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 // ResourceRoutePolicyMap holds the route policies per resource.
@@ -404,4 +408,151 @@ func peerAddressesFromPolicy(p *types.ExtendedRoutePolicy) ([]netip.Addr, bool) 
 		}
 	}
 	return addrs, allPeers
+}
+
+func CreatePolicy(name string, peerAddr netip.Addr, v4Prefixes, v6Prefixes ossTypes.PolicyPrefixList, advert v1.BGPAdvertisement) (*types.ExtendedRoutePolicy, error) {
+	policy := &types.ExtendedRoutePolicy{
+		Name: name,
+		Type: ossTypes.RoutePolicyTypeExport,
+	}
+
+	// sort prefixes to have consistent order for DeepEqual
+	sort.Slice(v4Prefixes, v4Prefixes.Less)
+	sort.Slice(v6Prefixes, v6Prefixes.Less)
+
+	// get communities
+	communities, largeCommunities, err := getCommunities(advert)
+	if err != nil {
+		return nil, err
+	}
+
+	// get local preference
+	var localPref *int64
+	if advert.Attributes != nil {
+		localPref = advert.Attributes.LocalPreference
+	}
+
+	// Due to a GoBGP limitation, we need to generate a separate statement for v4 and v6 prefixes, as families
+	// can not be mixed in a single statement. Nevertheless, they can be both part of the same Policy.
+	if len(v4Prefixes) > 0 {
+		policy.Statements = append(policy.Statements, policyStatement(peerAddr, v4Prefixes, localPref, communities, largeCommunities))
+	}
+	if len(v6Prefixes) > 0 {
+		policy.Statements = append(policy.Statements, policyStatement(peerAddr, v6Prefixes, localPref, communities, largeCommunities))
+	}
+
+	return policy, nil
+}
+
+func getCommunities(advert v1.BGPAdvertisement) (standard, large []string, err error) {
+	standard, err = mergeAndDedupCommunities(advert)
+	if err != nil {
+		return nil, nil, err
+	}
+	large = dedupLargeCommunities(advert)
+
+	return standard, large, nil
+}
+
+// mergeAndDedupCommunities merges numeric standard community and well-known community strings,
+// deduplicated by their actual community values.
+func mergeAndDedupCommunities(advert v1.BGPAdvertisement) ([]string, error) {
+	var res []string
+
+	if advert.Attributes == nil || advert.Attributes.Communities == nil {
+		return res, nil
+	}
+
+	standard := advert.Attributes.Communities.Standard
+	wellKnown := advert.Attributes.Communities.WellKnown
+
+	existing := sets.New[uint32]()
+	for _, c := range standard {
+		val, err := parseCommunity(string(c))
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse standard BGP community: %w", err)
+		}
+		if existing.Has(val) {
+			continue
+		}
+		existing.Insert(val)
+		res = append(res, string(c))
+	}
+
+	for _, c := range wellKnown {
+		val, ok := bgp.WellKnownCommunityValueMap[string(c)]
+		if !ok {
+			return nil, fmt.Errorf("invalid well-known community value '%s'", c)
+		}
+		if existing.Has(uint32(val)) {
+			continue
+		}
+		existing.Insert(uint32(val))
+		res = append(res, string(c))
+	}
+	return res, nil
+}
+
+func parseCommunity(communityStr string) (uint32, error) {
+	// parse as <0-65535>:<0-65535>
+	if elems := strings.Split(communityStr, ":"); len(elems) == 2 {
+		fst, err := strconv.ParseUint(elems[0], 10, 16)
+		if err != nil {
+			return 0, err
+		}
+		snd, err := strconv.ParseUint(elems[1], 10, 16)
+		if err != nil {
+			return 0, err
+		}
+		return uint32(fst<<16 | snd), nil
+	}
+	// parse as a single decimal number
+	c, err := strconv.ParseUint(communityStr, 10, 32)
+	return uint32(c), err
+}
+
+// dedupLargeCommunities returns deduplicated large communities as a string slice.
+func dedupLargeCommunities(advert v1.BGPAdvertisement) []string {
+	var res []string
+
+	if advert.Attributes == nil || advert.Attributes.Communities == nil {
+		return res
+	}
+
+	communities := advert.Attributes.Communities.Large
+
+	existing := sets.New[string]()
+	for _, c := range communities {
+		if existing.Has(string(c)) {
+			continue
+		}
+		existing.Insert(string(c))
+		res = append(res, string(c))
+	}
+	return res
+}
+
+func policyStatement(neighborAddr netip.Addr, prefixes ossTypes.PolicyPrefixList, localPref *int64, communities, largeCommunities []string) *types.ExtendedRoutePolicyStatement {
+	return &types.ExtendedRoutePolicyStatement{
+		Conditions: types.ExtendedRoutePolicyConditions{
+			RoutePolicyConditions: ossTypes.RoutePolicyConditions{
+				MatchNeighbors: &ossTypes.RoutePolicyNeighborMatch{
+					Type:      ossTypes.RoutePolicyMatchAny,
+					Neighbors: []netip.Addr{neighborAddr},
+				},
+				MatchPrefixes: &ossTypes.RoutePolicyPrefixMatch{
+					Type:     ossTypes.RoutePolicyMatchAny,
+					Prefixes: prefixes,
+				},
+			},
+		},
+		Actions: types.ExtendedRoutePolicyActions{
+			RoutePolicyActions: ossTypes.RoutePolicyActions{
+				RouteAction:         ossTypes.RoutePolicyActionAccept,
+				SetLocalPreference:  localPref,
+				AddCommunities:      communities,
+				AddLargeCommunities: largeCommunities,
+			},
+		},
+	}
 }
