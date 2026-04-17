@@ -644,20 +644,18 @@ func TestGatewayReconcilerCleansUpResourcesWhenGatewayClassChanges(t *testing.T)
 	require.Condition(t, func() bool {
 		for _, condition := range updatedGateway.Status.Conditions {
 			if condition.Type == gatewayConditionDataplaneReady {
-				return condition.Status == metav1.ConditionFalse &&
-					condition.Message == "GatewayClass is no longer handled by the deployment controller"
+				return false
 			}
 		}
-		return false
+		return true
 	})
 	require.Condition(t, func() bool {
 		for _, condition := range updatedGateway.Status.Conditions {
 			if condition.Type == gatewayConditionControlplaneReady {
-				return condition.Status == metav1.ConditionTrue &&
-					condition.Message == "Gateway controlplane resources are reconciled"
+				return false
 			}
 		}
-		return false
+		return true
 	})
 	require.Condition(t, func() bool {
 		for _, condition := range updatedGateway.Status.Conditions {

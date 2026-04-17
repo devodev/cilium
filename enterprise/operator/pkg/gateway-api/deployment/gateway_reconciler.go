@@ -155,7 +155,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req reconcile.Request
 	if err := r.client.Get(ctx, client.ObjectKey{Name: string(gw.Spec.GatewayClassName)}, gwc); err != nil {
 		if k8serrors.IsNotFound(err) {
 			original := gw.DeepCopy()
-			r.setStatusDataplaneReady(gw, metav1.ConditionFalse, "GatewayClass not found", string(gatewayv1.GatewayReasonPending))
+			r.removeCustomStatusConditions(gw)
 			if cleanupErr := r.cleanupDataplaneResources(ctx, gw); cleanupErr != nil {
 				return controllerruntime.Fail(cleanupErr)
 			}
@@ -173,7 +173,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req reconcile.Request
 	if string(gwc.Spec.ControllerName) != controllerName {
 		scopedLog.Debug("GatewayClass does not match the deployment controller")
 		original := gw.DeepCopy()
-		r.setStatusDataplaneReady(gw, metav1.ConditionFalse, "GatewayClass is no longer handled by the deployment controller", string(gatewayv1.GatewayReasonPending))
+		r.removeCustomStatusConditions(gw)
 		if err := r.cleanupDataplaneResources(ctx, gw); err != nil {
 			return controllerruntime.Fail(err)
 		}
@@ -263,4 +263,19 @@ func (r *GatewayReconciler) setStatusControlplaneReady(gw *gatewayv1.Gateway, st
 		ObservedGeneration: gw.GetGeneration(),
 		LastTransitionTime: metav1.NewTime(time.Now()),
 	})
+}
+
+func (r *GatewayReconciler) removeCustomStatusConditions(gw *gatewayv1.Gateway) {
+	filtered := gw.Status.Conditions[:0]
+	for _, condition := range gw.Status.Conditions {
+		switch condition.Type {
+		case gatewayConditionDataplaneReady:
+			continue
+		case "io.cilium/ControlplaneReady":
+			continue
+		default:
+			filtered = append(filtered, condition)
+		}
+	}
+	gw.Status.Conditions = filtered
 }
