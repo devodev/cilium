@@ -32,19 +32,26 @@ var pprofConfig = pprof.Config{
 }
 
 type Config struct {
-	LogLevel          string
-	XDSBindAddress    string
-	HealthBindAddress string
+	LogLevel           string
+	MetricsBindAddress string
+	XDSBindAddress     string
+	HealthBindAddress  string
+	GatewayNamespace   string
+	GatewayName        string
 }
 
 var defaultConfig = Config{
-	LogLevel:          "info",
-	XDSBindAddress:    ":18000",
-	HealthBindAddress: ":18001",
+	LogLevel:           "info",
+	MetricsBindAddress: ":9966",
+	XDSBindAddress:     ":18000",
+	HealthBindAddress:  ":18001",
 }
 
 func (def Config) Flags(flags *pflag.FlagSet) {
 	flags.String("log-level", def.LogLevel, "Log level for the Gateway API controlplane.")
+	flags.String("metrics-bind-address", def.MetricsBindAddress, "Address for the controlplane metrics endpoint to listen on.")
 	flags.String("health-bind-address", def.HealthBindAddress, "Address for the Gateway API controlplane health endpoint to listen on.")
 	flags.String("xds-bind-address", def.XDSBindAddress, "Address for the Gateway API controlplane xDS server to listen on.")
+	flags.String("gateway-namespace", def.GatewayNamespace, "Namespace of the Gateway handled by this controlplane instance.")
+	flags.String("gateway-name", def.GatewayName, "Name of the Gateway handled by this controlplane instance.")
 }

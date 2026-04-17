@@ -37,8 +37,11 @@ var (
 		cell.ProvidePrivate(newXDSServer),
 		cell.ProvidePrivate(func(server *xdsServer) XDSResourceMutator { return server }),
 
+		cell.ProvidePrivate(newControllerRuntimeManager),
+
 		cell.Invoke(registerHealthServer),
 		cell.Invoke(registerXDSServer),
+		cell.Invoke(registerGatewayController),
 	)
 
 	Hive = hive.New(
