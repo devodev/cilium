@@ -240,44 +240,46 @@ func (config *AgentPolicyConfig) regenerateGatewayConfig(manager *Manager, tx st
 				continue
 			}
 
-			if egressIP, found := groupStatus.egressIPByGatewayIP[localNodeK8sAddr]; found {
-				var (
-					iface      netlink.Link
-					ifaceIndex int
-					ifaceName  string
-					ifaceType  string
-					err        error
-				)
-
-				if gc.iface != "" {
-					ifaceName, ifaceIndex, ifaceType, err = fetchLinkInfo(manager, gc.iface)
-				} else {
-					iface, err = route.NodeDeviceWithDefaultRoute(manager.logger, true, false)
-					if err == nil {
-						ifaceIndex = iface.Attrs().Index
-						ifaceName = iface.Attrs().Name
-						ifaceType = iface.Type()
-					}
-				}
-				if err != nil {
-					logger.Error("Failed to find interface while updating node egress IP config",
-						logfields.Error, err,
+			if len(config.egressCIDRs) > 0 {
+				if egressIP, found := groupStatus.egressIPByGatewayIP[localNodeK8sAddr]; found {
+					var (
+						iface      netlink.Link
+						ifaceIndex int
+						ifaceName  string
+						ifaceType  string
+						err        error
 					)
+
+					if gc.iface != "" {
+						ifaceName, ifaceIndex, ifaceType, err = fetchLinkInfo(manager, gc.iface)
+					} else {
+						iface, err = route.NodeDeviceWithDefaultRoute(manager.logger, true, false)
+						if err == nil {
+							ifaceIndex = iface.Attrs().Index
+							ifaceName = iface.Attrs().Name
+							ifaceType = iface.Type()
+						}
+					}
+					if err != nil {
+						logger.Error("Failed to find interface while updating node egress IP config",
+							logfields.Error, err,
+						)
+						continue
+					}
+
+					egressIPs = append(egressIPs, gwEgressIPConfig{egressIP, ifaceName})
+
+					gwc.egressIfindex = manager.ifindexResolver(ifaceIndex, ifaceType)
+					gwc.ifaceName = ifaceName
+					gwc.egressIP = egressIP
+				} else {
+					// egressCIDRs is set, meaning the operator is responsible for IPAM-assigning
+					// egress IPs from those CIDRs. If the local node has no assigned egress IP,
+					// do not fall back to deriveFromGroupConfig which could pick an IP outside
+					// the user-specified egressCIDRs.
+					logger.Info("Local node is a gateway but has no egress IP assigned from egressCIDRs pool yet")
 					continue
 				}
-
-				egressIPs = append(egressIPs, gwEgressIPConfig{egressIP, ifaceName})
-
-				gwc.egressIfindex = manager.ifindexResolver(ifaceIndex, ifaceType)
-				gwc.ifaceName = ifaceName
-				gwc.egressIP = egressIP
-			} else if len(config.egressCIDRs) > 0 {
-				// egressCIDRs is set, meaning the operator is responsible for IPAM-assigning
-				// egress IPs from those CIDRs. If the local node has no assigned egress IP,
-				// do not fall back to deriveFromGroupConfig which could pick an IP outside
-				// the user-specified egressCIDRs.
-				logger.Info("Local node is a gateway but has no egress IP assigned from egressCIDRs pool yet")
-				continue
 			} else if err := gwc.deriveFromGroupConfig(manager, manager.logger, &gc); err != nil {
 				logger.Error("Failed to derive policy gateway configuration",
 					logfields.Error, err,
