@@ -298,7 +298,7 @@ func (r *endpointSecurityGroups) matchSecurityGroup(labels labels.LabelArray) ui
 func (r *endpointSecurityGroups) upsertMapping(ep endpointMapping) error {
 	wtx := r.db.WriteTxn(r.esgTable)
 
-	if existing, _, exists := r.esgTable.Get(r.db.ReadTxn(), tables.EndpointSecurityGroupByEndpointID(ep.EndpointID)); exists {
+	if existing, _, exists := r.esgTable.Get(wtx, tables.EndpointSecurityGroupByEndpointID(ep.EndpointID)); exists {
 		if existing.SecurityGroupID == ep.SecurityGroupID {
 			// Existing entry already contains desired security group ID, do not Insert() to not trigger a new revision
 			// and watcher event for no-op updates (note that Modify() with the same value would do that).
