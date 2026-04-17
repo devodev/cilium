@@ -315,8 +315,8 @@ func newTunnelEnabler(dcfg *option.DaemonConfig) tunnel.EnablerOut {
 }
 
 func newEgressGatewayManager(p Params) (*Manager, error) {
-	// Initializer prevents the reconciler from pruning old IPAM-related routing policy rules
-	// and routes from the node network configuration until we have had a chance to recompute
+	// Initializer prevents the reconciler from pruning old IPAM-related state from
+	// the node network configuration, until we have had a chance to recompute
 	// the new state after all k8s caches are synced.
 	txn := p.DB.WriteTxn(p.EgressIPTable)
 	policyInitializer := p.EgressIPTable.RegisterInitializer(txn, policyInitializerName)
@@ -729,7 +729,7 @@ func (manager *Manager) removeStaleEgressIPConfigs(tx statedb.ReadTxn) {
 			continue
 		}
 
-		// policy has been removed, so remove egress IPs and routes too
+		// policy has been removed, so remove egress IPs too
 		manager.removePolicyEgressIPs(manager.egressConfigsByPolicy[policyID])
 		delete(manager.egressConfigsByPolicy, policyID)
 	}
@@ -1053,8 +1053,8 @@ func (manager *Manager) reconcileLocked() {
 
 		if manager.eventBitmapIsSet(eventK8sSyncDone) {
 			// All caches have been synced and the first gateway configs regeneration took place.
-			// Now it is safe to start pruning IPAM-related routing policy rules and routes that
-			// do not appear in the egress-ips stateDB table.
+			// Now it is safe to start pruning IPAM-related state that
+			// is no longer needed by the egress-ips stateDB table.
 			manager.finishInitializer(manager.policyInitializer)
 		}
 

@@ -20,7 +20,7 @@ import (
 	"github.com/cilium/cilium/pkg/option"
 )
 
-// Cell manages the configuration of Egress IPs and associated routes
+// Cell manages the configuration of Egress IPs
 // on behalf of the IsovalentEgressGatewayPolicies.
 var Cell = cell.Group(
 	cell.ProvidePrivate(tables.NewEgressIPTable),
