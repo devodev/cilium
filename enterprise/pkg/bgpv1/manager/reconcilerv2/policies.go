@@ -24,6 +24,7 @@ import (
 	v1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
 	"github.com/cilium/cilium/pkg/k8s/resource"
 	"github.com/cilium/cilium/pkg/logging/logfields"
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 // ResourceRoutePolicyMap holds the route policies per resource.
@@ -270,6 +271,120 @@ func MergePolicies(policyA, policyB *ossTypes.RoutePolicy) (*ossTypes.RoutePolic
 	})
 
 	return merged, nil
+}
+
+// MergeRoutePolicies evaluates two instances of RoutePolicy{} and returns a single RoutePolicy{} representing
+// the merger of the two.  The merge operation focuses on each policy's Statements.  Statements define one or more
+// Actions, and these actions may include setting BGP Communities, Local Preference, and others.  Statements are
+// keyed by their Conditions, which define the BGP Neighbor, AF, and Prefixes it applies to.
+//
+// The merge operation evaluates Actions across only those statements with the same key. For these Statements,
+// the merge takes the union of all BGP Communities set.  When differing Local Preference values are set, the
+// higher value is selected.
+func MergeRoutePolicies(policyA *types.ExtendedRoutePolicy, policyB *types.ExtendedRoutePolicy) (*types.ExtendedRoutePolicy, error) {
+	if policyA == nil || policyB == nil {
+		return nil, fmt.Errorf("route policy is nil")
+	}
+	if policyA.Name != policyB.Name {
+		return nil, fmt.Errorf("route policy names do not match")
+	}
+	if policyA.Type != policyB.Type {
+		return nil, fmt.Errorf("route policy types do not match")
+	}
+
+	mergedPolicy := &types.ExtendedRoutePolicy{
+		Name:       policyA.Name,
+		Type:       policyA.Type,
+		Statements: []*types.ExtendedRoutePolicyStatement{},
+	}
+
+	// Maps a string key representing the unique combination of RoutePolicyConditions{} to a RoutePolicyStatement{}.
+	// When multiple instances of the same key are observed, the existing RoutePolicyStatement{} will be updated to
+	// reflect the union of attributes set.
+	mergedPolicyStatements := map[string]*types.ExtendedRoutePolicyStatement{}
+
+	// Extract the first policy's statements and attributes
+	mergedPolicyStatements = mergePolicy(policyA, mergedPolicyStatements)
+
+	// Extract and merge the second policy's statements and attributes
+	mergedPolicyStatements = mergePolicy(policyB, mergedPolicyStatements)
+
+	for _, mergedStatement := range mergedPolicyStatements {
+		mergedPolicy.Statements = append(mergedPolicy.Statements, mergedStatement)
+	}
+
+	// Deduplicate communities
+	for _, statement := range mergedPolicy.Statements {
+		if len(statement.Actions.RoutePolicyActions.AddCommunities) != 0 {
+			uniqueCommunities := sets.NewString(statement.Actions.RoutePolicyActions.AddCommunities...).List()
+			statement.Actions.RoutePolicyActions.AddCommunities = uniqueCommunities
+		}
+		if len(statement.Actions.RoutePolicyActions.AddLargeCommunities) != 0 {
+			uniqueLargeCommunities := sets.NewString(statement.Actions.RoutePolicyActions.AddLargeCommunities...).List()
+			statement.Actions.RoutePolicyActions.AddLargeCommunities = uniqueLargeCommunities
+		}
+	}
+
+	// Sort statements based on prefix length:
+	// - Statements with greater prefix length should go first, so that longer prefix match has higher priority.
+	//   Main use-case is service route aggregation, where a single svc can have e.g. /32 and /24 match statements,
+	//   and the /32 one should be prioritized.
+	// - For simplicity, we only compare the length of the first prefix, as we never populate different prefix lengths
+	//   in a single condition. PrefixLenMin and PrefixLenMax are always populated equally, so we only compare one of them.
+	sort.SliceStable(mergedPolicy.Statements, func(i, j int) bool {
+		condI := mergedPolicy.Statements[i].Conditions
+		condJ := mergedPolicy.Statements[j].Conditions
+		if condI.MatchPrefixes != nil && condJ.MatchPrefixes != nil &&
+			len(condI.MatchPrefixes.Prefixes) > 0 && len(condJ.MatchPrefixes.Prefixes) > 0 {
+			return condI.MatchPrefixes.Prefixes[0].PrefixLenMin > condJ.MatchPrefixes.Prefixes[0].PrefixLenMin
+		}
+		return false
+	})
+
+	return mergedPolicy, nil
+}
+
+func mergePolicy(
+	policy *types.ExtendedRoutePolicy,
+	inputPolicyStatements map[string]*types.ExtendedRoutePolicyStatement,
+) (outputPolicyStatements map[string]*types.ExtendedRoutePolicyStatement) {
+
+	// This function aims to be purely functional.  Here, we are creating a copy of the input to hold the result
+	// of the merge operation.
+	outputPolicyStatements = map[string]*types.ExtendedRoutePolicyStatement{}
+	maps.Copy(outputPolicyStatements, inputPolicyStatements)
+
+	for _, statement := range policy.Statements {
+		key := statement.Conditions.String()
+		if _, found := outputPolicyStatements[key]; !found {
+			outputPolicyStatements[key] = &types.ExtendedRoutePolicyStatement{
+				Actions:    statement.Actions,
+				Conditions: statement.Conditions,
+			}
+		} else {
+			if len(statement.Actions.RoutePolicyActions.AddCommunities) > 0 {
+				outputPolicyStatements[key].Actions.RoutePolicyActions.AddCommunities = append(
+					outputPolicyStatements[key].Actions.RoutePolicyActions.AddCommunities, statement.Actions.RoutePolicyActions.AddCommunities...)
+			}
+			if len(statement.Actions.RoutePolicyActions.AddLargeCommunities) > 0 {
+				outputPolicyStatements[key].Actions.RoutePolicyActions.AddLargeCommunities = append(
+					outputPolicyStatements[key].Actions.RoutePolicyActions.AddLargeCommunities, statement.Actions.RoutePolicyActions.AddLargeCommunities...)
+			}
+
+			// RFC 4271 states "The higher degree of preference MUST be preferred."
+			if statement.Actions.RoutePolicyActions.SetLocalPreference != nil {
+				if outputPolicyStatements[key].Actions.RoutePolicyActions.SetLocalPreference == nil {
+					// This is the first with Local Preference set
+					outputPolicyStatements[key].Actions.RoutePolicyActions.SetLocalPreference = statement.Actions.RoutePolicyActions.SetLocalPreference
+				} else if *statement.Actions.RoutePolicyActions.SetLocalPreference > *outputPolicyStatements[key].Actions.RoutePolicyActions.SetLocalPreference {
+					// This statement's Local Preference is better than the previous best, use this one.
+					outputPolicyStatements[key].Actions.RoutePolicyActions.SetLocalPreference = statement.Actions.RoutePolicyActions.SetLocalPreference
+				}
+			}
+		}
+	}
+
+	return outputPolicyStatements
 }
 
 // peerAddressesFromPolicy returns neighbor addresses found in a routing policy.
