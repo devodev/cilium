@@ -16,6 +16,7 @@
     'contrib/testing/privnet/govmomi/Dockerfile',
     'enterprise/images/**',
     'enterprise/olm/Dockerfile',
+    'enterprise/olm/scripts/**',
     'enterprise/olm/ubi-versions.env',
     'enterprise/**/go.mod',
     'images/cilium/download-hubble-enterprise.sh',
