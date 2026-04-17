@@ -72,6 +72,22 @@ spec:
                         Attributes defines additional attributes to set to the advertised routes.
                         If not specified, no additional attributes are set.
                       properties:
+                        asPathPrepend:
+                          description: |-
+                            ASPathPrepend contains configuration for prepending AS number to the
+                            AS path attribute in the route.
+                          properties:
+                            repeat:
+                              description: |-
+                                Repeat defines how many times the local AS number should be prepended
+                                to the AS path attribute in the route.
+                              format: int32
+                              maximum: 32
+                              minimum: 1
+                              type: integer
+                          required:
+                          - repeat
+                          type: object
                         communities:
                           description: |-
                             Communities sets the community attributes in the route.

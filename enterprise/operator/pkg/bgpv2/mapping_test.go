@@ -219,13 +219,13 @@ var (
 			Advertisements: []v1.BGPAdvertisement{
 				{
 					AdvertisementType: "PodCIDR",
-					Attributes: &v2.BGPAttributes{
+					Attributes: &v1.BGPAttributes{
 						LocalPreference: ptr.To[int64](99),
 					},
 				},
 				{
 					AdvertisementType: "EgressGateway", // should be ignored by mapper
-					Attributes: &v2.BGPAttributes{
+					Attributes: &v1.BGPAttributes{
 						LocalPreference: ptr.To[int64](100),
 					},
 				},
@@ -266,7 +266,7 @@ var (
 							"pool": "blue",
 						},
 					},
-					Attributes: &v2.BGPAttributes{
+					Attributes: &v1.BGPAttributes{
 						LocalPreference: ptr.To[int64](101),
 					},
 				},
@@ -319,7 +319,7 @@ var (
 							"service": "nginx",
 						},
 					},
-					Attributes: &v2.BGPAttributes{
+					Attributes: &v1.BGPAttributes{
 						LocalPreference: ptr.To[int64](102),
 					},
 				},

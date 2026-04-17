@@ -314,7 +314,7 @@ func TestAdvertPathAttributes(t *testing.T) {
 			adverts: []v1.BGPAdvertisement{
 				{
 					AdvertisementType: v1.BGPPrivateNetworkAdvert,
-					Attributes: &v2.BGPAttributes{
+					Attributes: &v1.BGPAttributes{
 						Communities: &v2.BGPCommunities{
 							Standard:  []v2.BGPStandardCommunity{"65000:100"},
 							WellKnown: []v2.BGPWellKnownCommunity{"no-export"},
@@ -325,7 +325,7 @@ func TestAdvertPathAttributes(t *testing.T) {
 				},
 				{
 					AdvertisementType: v1.BGPPrivateNetworkAdvert,
-					Attributes: &v2.BGPAttributes{
+					Attributes: &v1.BGPAttributes{
 						Communities: &v2.BGPCommunities{
 							Standard: []v2.BGPStandardCommunity{"65000:200", "65000:100"},
 							Large:    []v2.BGPLargeCommunity{"65000:1:1", "65000:2:2"},
@@ -335,7 +335,7 @@ func TestAdvertPathAttributes(t *testing.T) {
 				},
 				{
 					AdvertisementType: v1.BGPPrivateNetworkAdvert,
-					Attributes: &v2.BGPAttributes{
+					Attributes: &v1.BGPAttributes{
 						LocalPreference: ptr.To[int64](150),
 					},
 				},
@@ -358,7 +358,7 @@ func TestAdvertPathAttributes(t *testing.T) {
 			adverts: []v1.BGPAdvertisement{
 				{
 					AdvertisementType: v1.BGPPrivateNetworkAdvert,
-					Attributes: &v2.BGPAttributes{
+					Attributes: &v1.BGPAttributes{
 						Communities: &v2.BGPCommunities{
 							Standard: []v2.BGPStandardCommunity{"not-a-community"},
 						},
@@ -372,7 +372,7 @@ func TestAdvertPathAttributes(t *testing.T) {
 			adverts: []v1.BGPAdvertisement{
 				{
 					AdvertisementType: v1.BGPPrivateNetworkAdvert,
-					Attributes: &v2.BGPAttributes{
+					Attributes: &v1.BGPAttributes{
 						Communities: &v2.BGPCommunities{
 							WellKnown: []v2.BGPWellKnownCommunity{"not-a-community"},
 						},
@@ -386,7 +386,7 @@ func TestAdvertPathAttributes(t *testing.T) {
 			adverts: []v1.BGPAdvertisement{
 				{
 					AdvertisementType: v1.BGPPrivateNetworkAdvert,
-					Attributes: &v2.BGPAttributes{
+					Attributes: &v1.BGPAttributes{
 						Communities: &v2.BGPCommunities{
 							Large: []v2.BGPLargeCommunity{"not-a-community"},
 						},
@@ -400,7 +400,7 @@ func TestAdvertPathAttributes(t *testing.T) {
 			adverts: []v1.BGPAdvertisement{
 				{
 					AdvertisementType: v1.BGPPrivateNetworkAdvert,
-					Attributes: &v2.BGPAttributes{
+					Attributes: &v1.BGPAttributes{
 						LocalPreference: ptr.To[int64](-1),
 					},
 				},

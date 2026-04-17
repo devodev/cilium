@@ -114,7 +114,39 @@ type BGPAdvertisement struct {
 	// If not specified, no additional attributes are set.
 	//
 	// +kubebuilder:validation:Optional
-	Attributes *v2.BGPAttributes `json:"attributes,omitempty"`
+	Attributes *BGPAttributes `json:"attributes,omitempty"`
+}
+
+// BGPAttributes defines additional attributes to set to the advertised NLRIs.
+type BGPAttributes struct {
+	// Communities sets the community attributes in the route.
+	// If not specified, no community attribute is set.
+	//
+	// +kubebuilder:validation:Optional
+	Communities *v2.BGPCommunities `json:"communities,omitempty"`
+
+	// LocalPreference sets the local preference attribute in the route.
+	// If not specified, no local preference attribute is set.
+	//
+	// +kubebuilder:validation:Optional
+	LocalPreference *int64 `json:"localPreference,omitempty"`
+
+	// ASPathPrepend contains configuration for prepending AS number to the
+	// AS path attribute in the route.
+	//
+	// +kubebuilder:validation:Optional
+	ASPathPrepend *BGPASPathPrepend `json:"asPathPrepend,omitempty"`
+}
+
+// BGPASPathPrepend defines the configuration for AS path prepend options.
+type BGPASPathPrepend struct {
+	// Repeat defines how many times the local AS number should be prepended
+	// to the AS path attribute in the route.
+	//
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=32
+	Repeat int32 `json:"repeat"`
 }
 
 // BGPServiceOptions defines the configuration for Service advertisement type.

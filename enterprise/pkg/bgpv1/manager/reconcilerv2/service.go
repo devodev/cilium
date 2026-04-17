@@ -777,7 +777,7 @@ func (r *ServiceReconciler) getServiceRoutePolicy(p EnterpriseReconcileParams, p
 	if r.maintenanceModeCommunity(p) {
 		// advertise with GRACEFUL_SHUTDOWN community
 		if advert.Attributes == nil {
-			attributes = &v2.BGPAttributes{}
+			attributes = &v1.BGPAttributes{}
 		} else {
 			attributes = advert.Attributes.DeepCopy()
 		}

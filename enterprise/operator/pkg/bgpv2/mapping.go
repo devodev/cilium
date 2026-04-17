@@ -413,12 +413,23 @@ func createOSSAdvertisement(entAdvertisement *v1.IsovalentBGPAdvertisement) *v2.
 			Service:           ossServiceOptionFromEnt(advert.Service),
 			Interface:         advert.Interface,
 			Selector:          advert.Selector,
-			Attributes:        advert.Attributes,
+			Attributes:        ossAttributesFromEnt(advert.Attributes),
 		}
 		newOSSAdvertisement.Spec.Advertisements = append(newOSSAdvertisement.Spec.Advertisements, ossAdvert)
 	}
 
 	return newOSSAdvertisement
+}
+
+func ossAttributesFromEnt(attrs *v1.BGPAttributes) *v2.BGPAttributes {
+	if attrs == nil {
+		return nil
+	}
+
+	return &v2.BGPAttributes{
+		Communities:     attrs.Communities,
+		LocalPreference: attrs.LocalPreference,
+	}
 }
 
 func ossServiceOptionFromEnt(advert *v1.BGPServiceOptions) *v2.BGPServiceOptions {

@@ -177,7 +177,7 @@ func configureBGPPeeringV1(ctx context.Context, t *check.Test, ipFamily features
 			Advertisements: []v1.BGPAdvertisement{
 				{
 					AdvertisementType: v1.BGPPodCIDRAdvert,
-					Attributes: &ciliumv2.BGPAttributes{
+					Attributes: &v1.BGPAttributes{
 						Communities: &ciliumv2.BGPCommunities{
 							Standard: []ciliumv2.BGPStandardCommunity{bgpCommunityPodCIDR},
 						},
@@ -191,7 +191,7 @@ func configureBGPPeeringV1(ctx context.Context, t *check.Test, ipFamily features
 					Selector: &slimv1.LabelSelector{
 						MatchLabels: map[string]string{"kind": "echo"},
 					},
-					Attributes: &ciliumv2.BGPAttributes{
+					Attributes: &v1.BGPAttributes{
 						Communities: &ciliumv2.BGPCommunities{
 							Standard: []ciliumv2.BGPStandardCommunity{bgpCommunityService},
 						},
@@ -213,7 +213,7 @@ func configureBGPPeeringV1(ctx context.Context, t *check.Test, ipFamily features
 			Selector: &slimv1.LabelSelector{
 				MatchLabels: map[string]string{"kind": "echo"},
 			},
-			Attributes: &ciliumv2.BGPAttributes{
+			Attributes: &v1.BGPAttributes{
 				Communities: &ciliumv2.BGPCommunities{
 					Standard: []ciliumv2.BGPStandardCommunity{bgpCommunityAggService},
 				},

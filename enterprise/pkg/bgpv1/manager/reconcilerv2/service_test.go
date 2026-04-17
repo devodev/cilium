@@ -1312,7 +1312,7 @@ var (
 		Service: &v1.BGPServiceOptions{
 			Addresses: []v2.BGPServiceAddressType{v2.BGPLoadBalancerIPAddr},
 		},
-		Attributes: &v2.BGPAttributes{
+		Attributes: &v1.BGPAttributes{
 			Communities: &v2.BGPCommunities{
 				Standard:  []v2.BGPStandardCommunity{"65535:65281"},
 				WellKnown: []v2.BGPWellKnownCommunity{"no-export"},
@@ -1340,7 +1340,7 @@ var (
 		Service: &v1.BGPServiceOptions{
 			Addresses: []v2.BGPServiceAddressType{v2.BGPExternalIPAddr},
 		},
-		Attributes: &v2.BGPAttributes{
+		Attributes: &v1.BGPAttributes{
 			Communities: &v2.BGPCommunities{
 				Standard:  []v2.BGPStandardCommunity{"65535:65281"},
 				WellKnown: []v2.BGPWellKnownCommunity{"no-export"},
@@ -1369,7 +1369,7 @@ var (
 		Service: &v1.BGPServiceOptions{
 			Addresses: []v2.BGPServiceAddressType{v2.BGPClusterIPAddr},
 		},
-		Attributes: &v2.BGPAttributes{
+		Attributes: &v1.BGPAttributes{
 			Communities: &v2.BGPCommunities{
 				Standard:  []v2.BGPStandardCommunity{"65535:65281"},
 				WellKnown: []v2.BGPWellKnownCommunity{"no-export"},
@@ -2434,7 +2434,7 @@ func Test_ServiceAndAdvertisementModifications(t *testing.T) {
 						Addresses: []v2.BGPServiceAddressType{v2.BGPClusterIPAddr},
 					},
 					Selector: redSvcSelector,
-					Attributes: &v2.BGPAttributes{
+					Attributes: &v1.BGPAttributes{
 						Communities: &v2.BGPCommunities{
 							Standard:  []v2.BGPStandardCommunity{"65535:65281"},
 							WellKnown: []v2.BGPWellKnownCommunity{"no-export"},
@@ -2447,7 +2447,7 @@ func Test_ServiceAndAdvertisementModifications(t *testing.T) {
 						Addresses: []v2.BGPServiceAddressType{v2.BGPClusterIPAddr},
 					},
 					Selector: redSvcSelector,
-					Attributes: &v2.BGPAttributes{
+					Attributes: &v1.BGPAttributes{
 						Communities: &v2.BGPCommunities{
 							Standard:  []v2.BGPStandardCommunity{"65535:65281"},
 							WellKnown: []v2.BGPWellKnownCommunity{"no-export"},
@@ -2486,7 +2486,7 @@ func Test_ServiceAndAdvertisementModifications(t *testing.T) {
 									Addresses: []v2.BGPServiceAddressType{v2.BGPClusterIPAddr},
 								},
 								Selector: redSvcSelector,
-								Attributes: &v2.BGPAttributes{
+								Attributes: &v1.BGPAttributes{
 									Communities: &v2.BGPCommunities{
 										Standard:  []v2.BGPStandardCommunity{"65535:65281"},
 										WellKnown: []v2.BGPWellKnownCommunity{"no-export"},
@@ -2501,7 +2501,7 @@ func Test_ServiceAndAdvertisementModifications(t *testing.T) {
 									Addresses: []v2.BGPServiceAddressType{v2.BGPClusterIPAddr},
 								},
 								Selector: redSvcSelector,
-								Attributes: &v2.BGPAttributes{
+								Attributes: &v1.BGPAttributes{
 									Communities: &v2.BGPCommunities{
 										Standard:  []v2.BGPStandardCommunity{"65535:65281"},
 										WellKnown: []v2.BGPWellKnownCommunity{"no-export"},
@@ -2525,7 +2525,7 @@ func Test_ServiceAndAdvertisementModifications(t *testing.T) {
 						},
 					},
 					Selector: redSvcSelector,
-					Attributes: &v2.BGPAttributes{
+					Attributes: &v1.BGPAttributes{
 						Communities: &v2.BGPCommunities{
 							Standard:  []v2.BGPStandardCommunity{"65535:65281"},
 							WellKnown: []v2.BGPWellKnownCommunity{"no-export"},
@@ -2541,7 +2541,7 @@ func Test_ServiceAndAdvertisementModifications(t *testing.T) {
 						},
 					},
 					Selector: redSvcSelector,
-					Attributes: &v2.BGPAttributes{
+					Attributes: &v1.BGPAttributes{
 						Communities: &v2.BGPCommunities{
 							Standard:  []v2.BGPStandardCommunity{"65535:65281"},
 							WellKnown: []v2.BGPWellKnownCommunity{"no-export"},
@@ -2583,7 +2583,7 @@ func Test_ServiceAndAdvertisementModifications(t *testing.T) {
 									},
 								},
 								Selector: redSvcSelector,
-								Attributes: &v2.BGPAttributes{
+								Attributes: &v1.BGPAttributes{
 									Communities: &v2.BGPCommunities{
 										Standard:  []v2.BGPStandardCommunity{"65535:65281"},
 										WellKnown: []v2.BGPWellKnownCommunity{"no-export"},
@@ -2601,7 +2601,7 @@ func Test_ServiceAndAdvertisementModifications(t *testing.T) {
 									},
 								},
 								Selector: redSvcSelector,
-								Attributes: &v2.BGPAttributes{
+								Attributes: &v1.BGPAttributes{
 									Communities: &v2.BGPCommunities{
 										Standard:  []v2.BGPStandardCommunity{"65535:65281"},
 										WellKnown: []v2.BGPWellKnownCommunity{"no-export"},
@@ -2635,7 +2635,7 @@ func Test_ServiceAndAdvertisementModifications(t *testing.T) {
 									},
 								},
 								Selector: redSvcSelector,
-								Attributes: &v2.BGPAttributes{
+								Attributes: &v1.BGPAttributes{
 									Communities: &v2.BGPCommunities{
 										Standard:  []v2.BGPStandardCommunity{"65535:65281"},
 										WellKnown: []v2.BGPWellKnownCommunity{"no-export"},
@@ -2653,7 +2653,7 @@ func Test_ServiceAndAdvertisementModifications(t *testing.T) {
 									},
 								},
 								Selector: redSvcSelector,
-								Attributes: &v2.BGPAttributes{
+								Attributes: &v1.BGPAttributes{
 									Communities: &v2.BGPCommunities{
 										Standard:  []v2.BGPStandardCommunity{"65535:65281"},
 										WellKnown: []v2.BGPWellKnownCommunity{"no-export"},
@@ -2706,7 +2706,7 @@ func Test_ServiceAndAdvertisementModifications(t *testing.T) {
 									},
 								},
 								Selector: redSvcSelector,
-								Attributes: &v2.BGPAttributes{
+								Attributes: &v1.BGPAttributes{
 									Communities: &v2.BGPCommunities{
 										Standard:  []v2.BGPStandardCommunity{"65535:65281"},
 										WellKnown: []v2.BGPWellKnownCommunity{"no-export"},
@@ -2724,7 +2724,7 @@ func Test_ServiceAndAdvertisementModifications(t *testing.T) {
 									},
 								},
 								Selector: redSvcSelector,
-								Attributes: &v2.BGPAttributes{
+								Attributes: &v1.BGPAttributes{
 									Communities: &v2.BGPCommunities{
 										Standard:  []v2.BGPStandardCommunity{"65535:65281"},
 										WellKnown: []v2.BGPWellKnownCommunity{"no-export"},
@@ -2759,7 +2759,7 @@ func Test_ServiceAndAdvertisementModifications(t *testing.T) {
 									},
 								},
 								Selector: redSvcSelector,
-								Attributes: &v2.BGPAttributes{
+								Attributes: &v1.BGPAttributes{
 									Communities: &v2.BGPCommunities{
 										Standard:  []v2.BGPStandardCommunity{"65535:65281"},
 										WellKnown: []v2.BGPWellKnownCommunity{"no-export"},
@@ -2777,7 +2777,7 @@ func Test_ServiceAndAdvertisementModifications(t *testing.T) {
 									},
 								},
 								Selector: redSvcSelector,
-								Attributes: &v2.BGPAttributes{
+								Attributes: &v1.BGPAttributes{
 									Communities: &v2.BGPCommunities{
 										Standard:  []v2.BGPStandardCommunity{"65535:65281"},
 										WellKnown: []v2.BGPWellKnownCommunity{"no-export"},
@@ -2804,7 +2804,7 @@ func Test_ServiceVIPSharing(t *testing.T) {
 						Addresses: []v2.BGPServiceAddressType{v2.BGPLoadBalancerIPAddr},
 					},
 					Selector: redSvcSelector,
-					Attributes: &v2.BGPAttributes{
+					Attributes: &v1.BGPAttributes{
 						Communities: &v2.BGPCommunities{
 							Standard:  []v2.BGPStandardCommunity{"65535:65281"},
 							WellKnown: []v2.BGPWellKnownCommunity{"no-export"},
@@ -2817,7 +2817,7 @@ func Test_ServiceVIPSharing(t *testing.T) {
 						Addresses: []v2.BGPServiceAddressType{v2.BGPLoadBalancerIPAddr},
 					},
 					Selector: redSvcSelector,
-					Attributes: &v2.BGPAttributes{
+					Attributes: &v1.BGPAttributes{
 						Communities: &v2.BGPCommunities{
 							Standard:  []v2.BGPStandardCommunity{"65535:65281"},
 							WellKnown: []v2.BGPWellKnownCommunity{"no-export"},
@@ -2855,7 +2855,7 @@ func Test_ServiceVIPSharing(t *testing.T) {
 									Addresses: []v2.BGPServiceAddressType{v2.BGPLoadBalancerIPAddr},
 								},
 								Selector: redSvcSelector,
-								Attributes: &v2.BGPAttributes{
+								Attributes: &v1.BGPAttributes{
 									Communities: &v2.BGPCommunities{
 										Standard:  []v2.BGPStandardCommunity{"65535:65281"},
 										WellKnown: []v2.BGPWellKnownCommunity{"no-export"},
@@ -2870,7 +2870,7 @@ func Test_ServiceVIPSharing(t *testing.T) {
 									Addresses: []v2.BGPServiceAddressType{v2.BGPLoadBalancerIPAddr},
 								},
 								Selector: redSvcSelector,
-								Attributes: &v2.BGPAttributes{
+								Attributes: &v1.BGPAttributes{
 									Communities: &v2.BGPCommunities{
 										Standard:  []v2.BGPStandardCommunity{"65535:65281"},
 										WellKnown: []v2.BGPWellKnownCommunity{"no-export"},
@@ -2926,7 +2926,7 @@ func Test_ServiceVIPSharing(t *testing.T) {
 									Addresses: []v2.BGPServiceAddressType{v2.BGPLoadBalancerIPAddr},
 								},
 								Selector: redSvcSelector,
-								Attributes: &v2.BGPAttributes{
+								Attributes: &v1.BGPAttributes{
 									Communities: &v2.BGPCommunities{
 										Standard:  []v2.BGPStandardCommunity{"65535:65281"},
 										WellKnown: []v2.BGPWellKnownCommunity{"no-export"},
@@ -2941,7 +2941,7 @@ func Test_ServiceVIPSharing(t *testing.T) {
 									Addresses: []v2.BGPServiceAddressType{v2.BGPLoadBalancerIPAddr},
 								},
 								Selector: redSvcSelector,
-								Attributes: &v2.BGPAttributes{
+								Attributes: &v1.BGPAttributes{
 									Communities: &v2.BGPCommunities{
 										Standard:  []v2.BGPStandardCommunity{"65535:65281"},
 										WellKnown: []v2.BGPWellKnownCommunity{"no-export"},
@@ -2985,7 +2985,7 @@ func Test_ServiceVIPSharing(t *testing.T) {
 									Addresses: []v2.BGPServiceAddressType{v2.BGPLoadBalancerIPAddr},
 								},
 								Selector: redSvcSelector,
-								Attributes: &v2.BGPAttributes{
+								Attributes: &v1.BGPAttributes{
 									Communities: &v2.BGPCommunities{
 										Standard:  []v2.BGPStandardCommunity{"65535:65281"},
 										WellKnown: []v2.BGPWellKnownCommunity{"no-export"},
@@ -3000,7 +3000,7 @@ func Test_ServiceVIPSharing(t *testing.T) {
 									Addresses: []v2.BGPServiceAddressType{v2.BGPLoadBalancerIPAddr},
 								},
 								Selector: redSvcSelector,
-								Attributes: &v2.BGPAttributes{
+								Attributes: &v1.BGPAttributes{
 									Communities: &v2.BGPCommunities{
 										Standard:  []v2.BGPStandardCommunity{"65535:65281"},
 										WellKnown: []v2.BGPWellKnownCommunity{"no-export"},
@@ -3030,7 +3030,7 @@ func Test_ServiceVIPSharing(t *testing.T) {
 									Addresses: []v2.BGPServiceAddressType{v2.BGPLoadBalancerIPAddr},
 								},
 								Selector: redSvcSelector,
-								Attributes: &v2.BGPAttributes{
+								Attributes: &v1.BGPAttributes{
 									Communities: &v2.BGPCommunities{
 										Standard:  []v2.BGPStandardCommunity{"65535:65281"},
 										WellKnown: []v2.BGPWellKnownCommunity{"no-export"},
@@ -3045,7 +3045,7 @@ func Test_ServiceVIPSharing(t *testing.T) {
 									Addresses: []v2.BGPServiceAddressType{v2.BGPLoadBalancerIPAddr},
 								},
 								Selector: redSvcSelector,
-								Attributes: &v2.BGPAttributes{
+								Attributes: &v1.BGPAttributes{
 									Communities: &v2.BGPCommunities{
 										Standard:  []v2.BGPStandardCommunity{"65535:65281"},
 										WellKnown: []v2.BGPWellKnownCommunity{"no-export"},
@@ -3081,7 +3081,7 @@ func Test_ServiceAdvertisementWithPeerIPChange(t *testing.T) {
 						Addresses: []v2.BGPServiceAddressType{v2.BGPLoadBalancerIPAddr},
 					},
 					Selector: redSvcSelector,
-					Attributes: &v2.BGPAttributes{
+					Attributes: &v1.BGPAttributes{
 						Communities: &v2.BGPCommunities{
 							Standard:  []v2.BGPStandardCommunity{"65535:65281"},
 							WellKnown: []v2.BGPWellKnownCommunity{"no-export"},
@@ -3094,7 +3094,7 @@ func Test_ServiceAdvertisementWithPeerIPChange(t *testing.T) {
 						Addresses: []v2.BGPServiceAddressType{v2.BGPLoadBalancerIPAddr},
 					},
 					Selector: redSvcSelector,
-					Attributes: &v2.BGPAttributes{
+					Attributes: &v1.BGPAttributes{
 						Communities: &v2.BGPCommunities{
 							Standard:  []v2.BGPStandardCommunity{"65535:65281"},
 							WellKnown: []v2.BGPWellKnownCommunity{"no-export"},
@@ -3183,7 +3183,7 @@ func Test_ServiceAdvertisementWithPeerIPChange(t *testing.T) {
 									Addresses: []v2.BGPServiceAddressType{v2.BGPLoadBalancerIPAddr},
 								},
 								Selector: redSvcSelector,
-								Attributes: &v2.BGPAttributes{
+								Attributes: &v1.BGPAttributes{
 									Communities: &v2.BGPCommunities{
 										Standard:  []v2.BGPStandardCommunity{"65535:65281"},
 										WellKnown: []v2.BGPWellKnownCommunity{"no-export"},
@@ -3198,7 +3198,7 @@ func Test_ServiceAdvertisementWithPeerIPChange(t *testing.T) {
 									Addresses: []v2.BGPServiceAddressType{v2.BGPLoadBalancerIPAddr},
 								},
 								Selector: redSvcSelector,
-								Attributes: &v2.BGPAttributes{
+								Attributes: &v1.BGPAttributes{
 									Communities: &v2.BGPCommunities{
 										Standard:  []v2.BGPStandardCommunity{"65535:65281"},
 										WellKnown: []v2.BGPWellKnownCommunity{"no-export"},
@@ -3301,7 +3301,7 @@ func Test_ServiceAdvertisementWithPeerIPChange(t *testing.T) {
 									Addresses: []v2.BGPServiceAddressType{v2.BGPLoadBalancerIPAddr},
 								},
 								Selector: redSvcSelector,
-								Attributes: &v2.BGPAttributes{
+								Attributes: &v1.BGPAttributes{
 									Communities: &v2.BGPCommunities{
 										Standard:  []v2.BGPStandardCommunity{"65535:65281"},
 										WellKnown: []v2.BGPWellKnownCommunity{"no-export"},
@@ -3316,7 +3316,7 @@ func Test_ServiceAdvertisementWithPeerIPChange(t *testing.T) {
 									Addresses: []v2.BGPServiceAddressType{v2.BGPLoadBalancerIPAddr},
 								},
 								Selector: redSvcSelector,
-								Attributes: &v2.BGPAttributes{
+								Attributes: &v1.BGPAttributes{
 									Communities: &v2.BGPCommunities{
 										Standard:  []v2.BGPStandardCommunity{"65535:65281"},
 										WellKnown: []v2.BGPWellKnownCommunity{"no-export"},

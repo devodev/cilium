@@ -113,7 +113,7 @@ var (
 				{
 					AdvertisementType: v1.BGPEGWAdvert,
 					Selector:          egwLabelSelector,
-					Attributes: &v2.BGPAttributes{
+					Attributes: &v1.BGPAttributes{
 						Communities: &v2.BGPCommunities{
 							Standard: []v2.BGPStandardCommunity{"65000:100"},
 						},
@@ -122,7 +122,7 @@ var (
 				{
 					AdvertisementType: v1.BGPEGWAdvert,
 					Selector:          egwLabelSelector2,
-					Attributes: &v2.BGPAttributes{
+					Attributes: &v1.BGPAttributes{
 						Communities: &v2.BGPCommunities{
 							Standard: []v2.BGPStandardCommunity{"65000:200"},
 						},

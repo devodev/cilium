@@ -464,8 +464,8 @@ func createBGPAdvertisement(name string, vr legacyv2alpha1.CiliumBGPVirtualRoute
 
 // mapBGPPathAttributes maps provided BGPv1 CiliumBGPPathAttributes to BGPv2 BGPAttributes for the provided advertisement.
 // May return an error, as some mappings are not supported.
-func mapBGPPathAttributes(pathAttributes []legacyv2alpha1.CiliumBGPPathAttributes, advert *isovalentv1.BGPAdvertisement) (*ciliumv2.BGPAttributes, error) {
-	var res *ciliumv2.BGPAttributes
+func mapBGPPathAttributes(pathAttributes []legacyv2alpha1.CiliumBGPPathAttributes, advert *isovalentv1.BGPAdvertisement) (*isovalentv1.BGPAttributes, error) {
+	var res *isovalentv1.BGPAttributes
 	for _, attr := range pathAttributes {
 		if attr.SelectorType == legacyv2alpha1.CiliumLoadBalancerIPPoolSelectorName {
 			return nil, fmt.Errorf("%w: %s advertisedPathAttributes.selectorType can not be translated to BGPv2", errBGPv2MappingUnsupported, attr.SelectorType)
@@ -486,7 +486,7 @@ func mapBGPPathAttributes(pathAttributes []legacyv2alpha1.CiliumBGPPathAttribute
 			if res != nil {
 				return nil, fmt.Errorf("%w: %s multiple advertisedPathAttributes with the same selectorType can not be translated to BGPv2", errBGPv2MappingUnsupported, attr.SelectorType)
 			}
-			res = &ciliumv2.BGPAttributes{
+			res = &isovalentv1.BGPAttributes{
 				Communities:     toV2Communities(attr.Communities),
 				LocalPreference: attr.LocalPreference,
 			}

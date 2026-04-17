@@ -131,7 +131,7 @@ func Test_PodCIDRAdvertisement(t *testing.T) {
 
 	redPodCIDRAdvert := v1.BGPAdvertisement{
 		AdvertisementType: v1.BGPPodCIDRAdvert,
-		Attributes: &v2.BGPAttributes{
+		Attributes: &v1.BGPAttributes{
 			Communities: &v2.BGPCommunities{
 				Standard: []v2.BGPStandardCommunity{
 					"65000:100",
@@ -156,7 +156,7 @@ func Test_PodCIDRAdvertisement(t *testing.T) {
 
 	bluePodCIDRAdvert := v1.BGPAdvertisement{
 		AdvertisementType: v1.BGPPodCIDRAdvert,
-		Attributes: &v2.BGPAttributes{
+		Attributes: &v1.BGPAttributes{
 			Communities: &v2.BGPCommunities{
 				Standard: []v2.BGPStandardCommunity{
 					"65355:100",

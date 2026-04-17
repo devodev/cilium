@@ -106,7 +106,7 @@ func TestPrivateNetworkReconciler(t *testing.T) {
 			Spec: v1.IsovalentBGPAdvertisementSpec{
 				Advertisements: []v1.BGPAdvertisement{{
 					AdvertisementType: v1.BGPPrivateNetworkAdvert,
-					Attributes: &v2.BGPAttributes{
+					Attributes: &v1.BGPAttributes{
 						Communities: &v2.BGPCommunities{
 							Standard: []v2.BGPStandardCommunity{v2.BGPStandardCommunity(testCommunity1Str), v2.BGPStandardCommunity(testCommunity2Str)},
 							Large:    []v2.BGPLargeCommunity{v2.BGPLargeCommunity(testLargeCommunityStr)},
