@@ -243,9 +243,11 @@ func ValidateAndDefaultPrefixV6Match(m *v1.PrefixV6Match) error {
 	return nil
 }
 
-func ToRoutePolicyActions(a *v1.BGPPolicyActions) types.RoutePolicyActions {
-	return types.RoutePolicyActions{
-		RouteAction: ToRoutePolicyAction(a.RouteAction),
+func ToRoutePolicyActions(a *v1.BGPPolicyActions) ExtendedRoutePolicyActions {
+	return ExtendedRoutePolicyActions{
+		RoutePolicyActions: types.RoutePolicyActions{
+			RouteAction: ToRoutePolicyAction(a.RouteAction),
+		},
 	}
 }
 

@@ -131,7 +131,7 @@ func PrintBGPRoutePoliciesTable(w *tabwriter.Writer, instancePolicies map[string
 					formatMatchCommunities(stmt.Conditions.MatchLargeCommunities, "Large: "),
 				}, " "))
 				fmt.Fprintf(w, "%s\t", formatRouteActionType(stmt.Actions.RouteAction))
-				fmt.Fprintf(w, "%s\n", formatPathActions(stmt.Actions))
+				fmt.Fprintf(w, "%s\n", formatPathActions(stmt.Actions.RoutePolicyActions))
 			}
 			if len(policy.Statements) == 0 {
 				fmt.Fprintf(w, "\n")

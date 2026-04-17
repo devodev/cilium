@@ -50,13 +50,15 @@ var (
 								},
 							},
 						},
-						Actions: ossTypes.RoutePolicyActions{
-							RouteAction:         ossTypes.RoutePolicyActionNone,
-							AddCommunities:      []string{"65000:100"},
-							AddLargeCommunities: []string{"4294967295:0:100"},
-							SetLocalPreference:  ptr.To[int64](150),
-							NextHop: &ossTypes.RoutePolicyActionNextHop{
-								Self: true,
+						Actions: ExtendedRoutePolicyActions{
+							RoutePolicyActions: ossTypes.RoutePolicyActions{
+								RouteAction:         ossTypes.RoutePolicyActionNone,
+								AddCommunities:      []string{"65000:100"},
+								AddLargeCommunities: []string{"4294967295:0:100"},
+								SetLocalPreference:  ptr.To[int64](150),
+								NextHop: &ossTypes.RoutePolicyActionNextHop{
+									Self: true,
+								},
 							},
 						},
 					},
@@ -104,12 +106,14 @@ var (
 								Communities: []string{"^65000:100$", "^65000:1.+"},
 							},
 						},
-						Actions: ossTypes.RoutePolicyActions{
-							RouteAction:        ossTypes.RoutePolicyActionAccept,
-							AddCommunities:     []string{"65000:100", "65000:101"},
-							SetLocalPreference: ptr.To[int64](150),
-							NextHop: &ossTypes.RoutePolicyActionNextHop{
-								Unchanged: true,
+						Actions: ExtendedRoutePolicyActions{
+							RoutePolicyActions: ossTypes.RoutePolicyActions{
+								RouteAction:        ossTypes.RoutePolicyActionAccept,
+								AddCommunities:     []string{"65000:100", "65000:101"},
+								SetLocalPreference: ptr.To[int64](150),
+								NextHop: &ossTypes.RoutePolicyActionNextHop{
+									Unchanged: true,
+								},
 							},
 						},
 					},
@@ -147,10 +151,12 @@ var (
 								Communities: []string{"^1111:1111:1111$", "^2222:2222:*"},
 							},
 						},
-						Actions: ossTypes.RoutePolicyActions{
-							RouteAction:        ossTypes.RoutePolicyActionReject,
-							AddCommunities:     []string{"65000:100", "65000:101"},
-							SetLocalPreference: ptr.To[int64](150),
+						Actions: ExtendedRoutePolicyActions{
+							RoutePolicyActions: ossTypes.RoutePolicyActions{
+								RouteAction:        ossTypes.RoutePolicyActionReject,
+								AddCommunities:     []string{"65000:100", "65000:101"},
+								SetLocalPreference: ptr.To[int64](150),
+							},
 						},
 					},
 				},
@@ -183,10 +189,12 @@ var (
 								},
 							},
 						},
-						Actions: ossTypes.RoutePolicyActions{
-							RouteAction:        ossTypes.RoutePolicyActionNone,
-							AddCommunities:     []string{"65000:100"},
-							SetLocalPreference: ptr.To[int64](150),
+						Actions: ExtendedRoutePolicyActions{
+							RoutePolicyActions: ossTypes.RoutePolicyActions{
+								RouteAction:        ossTypes.RoutePolicyActionNone,
+								AddCommunities:     []string{"65000:100"},
+								SetLocalPreference: ptr.To[int64](150),
+							},
 						},
 					},
 					// invalid statement - wrong neighbor address
@@ -209,8 +217,10 @@ var (
 								},
 							},
 						},
-						Actions: ossTypes.RoutePolicyActions{
-							RouteAction: ossTypes.RoutePolicyActionNone,
+						Actions: ExtendedRoutePolicyActions{
+							RoutePolicyActions: ossTypes.RoutePolicyActions{
+								RouteAction: ossTypes.RoutePolicyActionNone,
+							},
 						},
 					},
 				},

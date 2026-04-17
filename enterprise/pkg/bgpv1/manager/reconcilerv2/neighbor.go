@@ -444,8 +444,10 @@ func getDesiredRouteReflectorPolicies(instance *v1.IsovalentBGPNodeInstance) Rou
 								},
 							},
 						},
-						Actions: types.RoutePolicyActions{
-							RouteAction: types.RoutePolicyActionAccept,
+						Actions: enterpriseTypes.ExtendedRoutePolicyActions{
+							RoutePolicyActions: types.RoutePolicyActions{
+								RouteAction: types.RoutePolicyActionAccept,
+							},
 						},
 					},
 				},
@@ -470,8 +472,10 @@ func getDesiredRouteReflectorPolicies(instance *v1.IsovalentBGPNodeInstance) Rou
 								},
 							},
 						},
-						Actions: types.RoutePolicyActions{
-							RouteAction: types.RoutePolicyActionAccept,
+						Actions: enterpriseTypes.ExtendedRoutePolicyActions{
+							RoutePolicyActions: types.RoutePolicyActions{
+								RouteAction: types.RoutePolicyActionAccept,
+							},
 						},
 					},
 				},
@@ -512,10 +516,12 @@ func getDesiredRouteReflectorPolicies(instance *v1.IsovalentBGPNodeInstance) Rou
 								},
 							},
 						},
-						Actions: types.RoutePolicyActions{
-							RouteAction: types.RoutePolicyActionAccept,
-							NextHop: &types.RoutePolicyActionNextHop{
-								Unchanged: true,
+						Actions: enterpriseTypes.ExtendedRoutePolicyActions{
+							RoutePolicyActions: types.RoutePolicyActions{
+								RouteAction: types.RoutePolicyActionAccept,
+								NextHop: &types.RoutePolicyActionNextHop{
+									Unchanged: true,
+								},
 							},
 						},
 					},
@@ -533,8 +539,10 @@ func getDesiredRouteReflectorPolicies(instance *v1.IsovalentBGPNodeInstance) Rou
 								},
 							},
 						},
-						Actions: types.RoutePolicyActions{
-							RouteAction: types.RoutePolicyActionAccept,
+						Actions: enterpriseTypes.ExtendedRoutePolicyActions{
+							RoutePolicyActions: types.RoutePolicyActions{
+								RouteAction: types.RoutePolicyActionAccept,
+							},
 						},
 					},
 				)

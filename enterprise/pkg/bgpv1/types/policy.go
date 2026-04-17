@@ -45,7 +45,14 @@ type ExtendedRoutePolicyStatement struct {
 	// Conditions of the statement. If ALL of them match a route, the Actions are taken on the route.
 	Conditions ExtendedRoutePolicyConditions
 	// Actions define actions taken on a matched route.
-	Actions ossTypes.RoutePolicyActions
+	Actions ExtendedRoutePolicyActions
+}
+
+// ExtendedRoutePolicyActions represent actions of a policy statement.
+//
+// +deepequal-gen=true
+type ExtendedRoutePolicyActions struct {
+	ossTypes.RoutePolicyActions
 }
 
 // ExtendedRoutePolicyConditions represent conditions of a policy statement.

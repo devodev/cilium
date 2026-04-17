@@ -732,8 +732,10 @@ func TestRouteReflectorPolicy(t *testing.T) {
 									},
 								},
 							},
-							Actions: types.RoutePolicyActions{
-								RouteAction: types.RoutePolicyActionAccept,
+							Actions: enterpriseTypes.ExtendedRoutePolicyActions{
+								RoutePolicyActions: types.RoutePolicyActions{
+									RouteAction: types.RoutePolicyActionAccept,
+								},
 							},
 						},
 					},
@@ -778,8 +780,10 @@ func TestRouteReflectorPolicy(t *testing.T) {
 									},
 								},
 							},
-							Actions: types.RoutePolicyActions{
-								RouteAction: types.RoutePolicyActionAccept,
+							Actions: enterpriseTypes.ExtendedRoutePolicyActions{
+								RoutePolicyActions: types.RoutePolicyActions{
+									RouteAction: types.RoutePolicyActionAccept,
+								},
 							},
 						},
 					},
@@ -836,8 +840,10 @@ func TestRouteReflectorPolicy(t *testing.T) {
 									},
 								},
 							},
-							Actions: types.RoutePolicyActions{
-								RouteAction: types.RoutePolicyActionAccept,
+							Actions: enterpriseTypes.ExtendedRoutePolicyActions{
+								RoutePolicyActions: types.RoutePolicyActions{
+									RouteAction: types.RoutePolicyActionAccept,
+								},
 							},
 						},
 					},
@@ -858,8 +864,10 @@ func TestRouteReflectorPolicy(t *testing.T) {
 									},
 								},
 							},
-							Actions: types.RoutePolicyActions{
-								RouteAction: types.RoutePolicyActionAccept,
+							Actions: enterpriseTypes.ExtendedRoutePolicyActions{
+								RoutePolicyActions: types.RoutePolicyActions{
+									RouteAction: types.RoutePolicyActionAccept,
+								},
 							},
 						},
 					},
@@ -926,8 +934,10 @@ func TestRouteReflectorPolicy(t *testing.T) {
 									},
 								},
 							},
-							Actions: types.RoutePolicyActions{
-								RouteAction: types.RoutePolicyActionAccept,
+							Actions: enterpriseTypes.ExtendedRoutePolicyActions{
+								RoutePolicyActions: types.RoutePolicyActions{
+									RouteAction: types.RoutePolicyActionAccept,
+								},
 							},
 						},
 					},
@@ -947,10 +957,12 @@ func TestRouteReflectorPolicy(t *testing.T) {
 									},
 								},
 							},
-							Actions: types.RoutePolicyActions{
-								RouteAction: types.RoutePolicyActionAccept,
-								NextHop: &types.RoutePolicyActionNextHop{
-									Unchanged: true,
+							Actions: enterpriseTypes.ExtendedRoutePolicyActions{
+								RoutePolicyActions: types.RoutePolicyActions{
+									RouteAction: types.RoutePolicyActionAccept,
+									NextHop: &types.RoutePolicyActionNextHop{
+										Unchanged: true,
+									},
 								},
 							},
 						},
@@ -1232,8 +1244,10 @@ func TestUserDefinedImportPolicy(t *testing.T) {
 									},
 								},
 							},
-							Actions: types.RoutePolicyActions{
-								RouteAction: types.RoutePolicyActionAccept,
+							Actions: enterpriseTypes.ExtendedRoutePolicyActions{
+								RoutePolicyActions: types.RoutePolicyActions{
+									RouteAction: types.RoutePolicyActionAccept,
+								},
 							},
 						},
 					},
@@ -1279,8 +1293,10 @@ func TestUserDefinedImportPolicy(t *testing.T) {
 									},
 								},
 							},
-							Actions: types.RoutePolicyActions{
-								RouteAction: types.RoutePolicyActionAccept,
+							Actions: enterpriseTypes.ExtendedRoutePolicyActions{
+								RoutePolicyActions: types.RoutePolicyActions{
+									RouteAction: types.RoutePolicyActionAccept,
+								},
 							},
 						},
 					},
@@ -1326,8 +1342,10 @@ func TestUserDefinedImportPolicy(t *testing.T) {
 									},
 								},
 							},
-							Actions: types.RoutePolicyActions{
-								RouteAction: types.RoutePolicyActionAccept,
+							Actions: enterpriseTypes.ExtendedRoutePolicyActions{
+								RoutePolicyActions: types.RoutePolicyActions{
+									RouteAction: types.RoutePolicyActionAccept,
+								},
 							},
 						},
 					},
@@ -1361,8 +1379,10 @@ func TestUserDefinedImportPolicy(t *testing.T) {
 									},
 								},
 							},
-							Actions: types.RoutePolicyActions{
-								RouteAction: types.RoutePolicyActionAccept,
+							Actions: enterpriseTypes.ExtendedRoutePolicyActions{
+								RoutePolicyActions: types.RoutePolicyActions{
+									RouteAction: types.RoutePolicyActionAccept,
+								},
 							},
 						},
 					},
@@ -1408,8 +1428,10 @@ func TestUserDefinedImportPolicy(t *testing.T) {
 									},
 								},
 							},
-							Actions: types.RoutePolicyActions{
-								RouteAction: types.RoutePolicyActionAccept,
+							Actions: enterpriseTypes.ExtendedRoutePolicyActions{
+								RoutePolicyActions: types.RoutePolicyActions{
+									RouteAction: types.RoutePolicyActionAccept,
+								},
 							},
 						},
 					},

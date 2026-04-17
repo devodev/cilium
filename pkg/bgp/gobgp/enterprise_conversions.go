@@ -79,7 +79,7 @@ func toGoBGPPolicyStatementExtended(apiStatement *types.ExtendedRoutePolicyState
 	// convert OSS part
 	ossStatement := &ossTypes.RoutePolicyStatement{
 		Conditions: apiStatement.Conditions.RoutePolicyConditions,
-		Actions:    apiStatement.Actions,
+		Actions:    apiStatement.Actions.RoutePolicyActions,
 	}
 	s, definedSets := toGoBGPPolicyStatement(ossStatement, name)
 
@@ -135,7 +135,9 @@ func toAgentPolicyStatementExtended(s *gobgp.Statement, definedSets map[string]*
 		Conditions: types.ExtendedRoutePolicyConditions{
 			RoutePolicyConditions: ossStmt.Conditions,
 		},
-		Actions: ossStmt.Actions,
+		Actions: types.ExtendedRoutePolicyActions{
+			RoutePolicyActions: ossStmt.Actions,
+		},
 	}
 
 	// CEE extensions conversion below
