@@ -255,6 +255,9 @@ loadbalancer-gateway-api-enabled: {{ .Values.enterprise.loadbalancer.gatewayAPI.
 
 {{- if .Values.enterprise.gatewayAPI.deployment.enabled }}
 gateway-api-deployment-controller-enabled: "true"
+gateway-api-deployment-controlplane-default-image: {{ include "cilium.image" .Values.enterprise.gatewayAPI.deployment.controlplane.image | quote }}
+gateway-api-deployment-controlplane-default-log-level: {{ ternary "debug" "info" .Values.debug.enabled | quote }}
+gateway-api-deployment-controlplane-default-replicas: {{ .Values.enterprise.gatewayAPI.deployment.controlplane.replicas | quote }}
 gateway-api-deployment-dataplane-default-envoy-image: {{ include "cilium.image" .Values.envoy.image | quote }}
 gateway-api-deployment-dataplane-default-envoy-log-level: {{ default "error" .Values.envoy.log.defaultLevel | quote }}
 gateway-api-deployment-dataplane-default-envoy-admin-port: {{ .Values.envoy.debug.admin.port | quote }}

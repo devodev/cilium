@@ -1736,6 +1736,34 @@
      - Enable strict feature gate validation. Will cause agent and/or operator to not start if non-approved features are enabled. In non-strict mode failure will be logged as a warning.
      - bool
      - ``true``
+   * - :spelling:ignore:`enterprise.gatewayAPI.deployment.controlplane.image.digest`
+     - 
+     - string
+     - ``""``
+   * - :spelling:ignore:`enterprise.gatewayAPI.deployment.controlplane.image.override`
+     - 
+     - string
+     - ``nil``
+   * - :spelling:ignore:`enterprise.gatewayAPI.deployment.controlplane.image.pullPolicy`
+     - 
+     - string
+     - ``"Always"``
+   * - :spelling:ignore:`enterprise.gatewayAPI.deployment.controlplane.image.repository`
+     - 
+     - string
+     - ``"quay.io/isovalent-dev/gateway-api-controlplane-ci"``
+   * - :spelling:ignore:`enterprise.gatewayAPI.deployment.controlplane.image.tag`
+     - 
+     - string
+     - ``"latest"``
+   * - :spelling:ignore:`enterprise.gatewayAPI.deployment.controlplane.image.useDigest`
+     - 
+     - bool
+     - ``false``
+   * - :spelling:ignore:`enterprise.gatewayAPI.deployment.controlplane.replicas`
+     - Number of replicas for the deployment-based Gateway API control plane implementation.
+     - int
+     - ``2``
    * - :spelling:ignore:`enterprise.gatewayAPI.deployment.dataplane.defaultReplicas`
      - Default number of Envoy replicas for the deployment-based Gateway API implementation.
      - int

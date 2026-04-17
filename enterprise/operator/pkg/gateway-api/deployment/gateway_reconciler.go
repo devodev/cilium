@@ -34,7 +34,10 @@ import (
 	"github.com/cilium/cilium/pkg/time"
 )
 
-const gatewayConditionDataplaneReady = "io.cilium/DataplaneReady"
+const (
+	gatewayConditionDataplaneReady    = "io.cilium/DataplaneReady"
+	gatewayConditionControlplaneReady = "io.cilium/ControlplaneReady"
+)
 
 // Gateway API resource attachment labels:
 // https://gateway-api.sigs.k8s.io/geps/gep-1762/#resource-attachment
@@ -54,14 +57,17 @@ const (
 )
 
 const (
-	gatewayDeploymentManagedBy = "cilium-operator"
-	gatewayDeploymentPartOf    = "cilium-gateway-api-deployment"
-	gatewayDataplaneComponent  = "dataplane"
-	gatewayDataplaneAppName    = "cilium-gateway-dataplane"
+	gatewayDeploymentManagedBy   = "cilium-operator"
+	gatewayDeploymentPartOf      = "cilium-gateway-api-deployment"
+	gatewayControlplaneComponent = "controlplane"
+	gatewayControlplaneAppName   = "cilium-gateway-controlplane"
+	gatewayDataplaneComponent    = "dataplane"
+	gatewayDataplaneAppName      = "cilium-gateway-dataplane"
 )
 
 const (
-	dataplaneResourcePrefix = "cilium-gwd-"
+	dataplaneResourcePrefix    = "cilium-gwd-"
+	controlplaneResourcePrefix = "cilium-gwc-"
 )
 
 const (
@@ -119,12 +125,18 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req reconcile.Request
 	}
 
 	if gw.GetDeletionTimestamp() != nil {
+		if err := r.cleanupControlplaneResources(ctx, gw); err != nil {
+			return controllerruntime.Fail(err)
+		}
 		return controllerruntime.Success()
 	}
 
 	namespace := &corev1.Namespace{}
 	if err := r.client.Get(ctx, client.ObjectKey{Name: gw.GetNamespace()}, namespace); err != nil {
 		if k8serrors.IsNotFound(err) {
+			if cleanupErr := r.cleanupControlplaneResources(ctx, gw); cleanupErr != nil {
+				return controllerruntime.Fail(cleanupErr)
+			}
 			return controllerruntime.Success()
 		}
 		return controllerruntime.Fail(fmt.Errorf("failed to get Gateway namespace: %w", err))
@@ -133,6 +145,9 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req reconcile.Request
 	if namespace.GetDeletionTimestamp() != nil {
 		// Prevent subsequent errors due to namespace deletion.
 		scopedLog.InfoContext(ctx, "Aborting reconciliation because namespace is being terminated")
+		if cleanupErr := r.cleanupControlplaneResources(ctx, gw); cleanupErr != nil {
+			return controllerruntime.Fail(cleanupErr)
+		}
 		return controllerruntime.Success()
 	}
 
@@ -142,6 +157,9 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req reconcile.Request
 			original := gw.DeepCopy()
 			r.setStatusDataplaneReady(gw, metav1.ConditionFalse, "GatewayClass not found", string(gatewayv1.GatewayReasonPending))
 			if cleanupErr := r.cleanupDataplaneResources(ctx, gw); cleanupErr != nil {
+				return controllerruntime.Fail(cleanupErr)
+			}
+			if cleanupErr := r.cleanupControlplaneResources(ctx, gw); cleanupErr != nil {
 				return controllerruntime.Fail(cleanupErr)
 			}
 			if statusErr := r.client.Status().Patch(ctx, gw, client.MergeFrom(original)); statusErr != nil {
@@ -159,6 +177,9 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req reconcile.Request
 		if err := r.cleanupDataplaneResources(ctx, gw); err != nil {
 			return controllerruntime.Fail(err)
 		}
+		if err := r.cleanupControlplaneResources(ctx, gw); err != nil {
+			return controllerruntime.Fail(err)
+		}
 		if err := r.client.Status().Patch(ctx, gw, client.MergeFrom(original)); err != nil {
 			return controllerruntime.Fail(fmt.Errorf("failed to update Gateway status after GatewayClass handoff: %w", err))
 		}
@@ -173,8 +194,16 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req reconcile.Request
 		}
 		return controllerruntime.Fail(err)
 	}
+	if err := r.reconcileControlplaneResources(ctx, gw); err != nil {
+		r.setStatusControlplaneReady(gw, metav1.ConditionFalse, "Failed to reconcile controlplane resources", string(gatewayv1.GatewayReasonPending))
+		if statusErr := r.client.Status().Patch(ctx, gw, client.MergeFrom(original)); statusErr != nil {
+			scopedLog.ErrorContext(ctx, "Failed to update Gateway status after controlplane reconcile error", logfields.Error, statusErr)
+		}
+		return controllerruntime.Fail(err)
+	}
 
 	r.setStatusDataplaneReady(gw, metav1.ConditionTrue, "Gateway dataplane resources are reconciled", string(gatewayv1.GatewayReasonReady))
+	r.setStatusControlplaneReady(gw, metav1.ConditionTrue, "Gateway controlplane resources are reconciled", string(gatewayv1.GatewayReasonReady))
 	if err := r.client.Status().Patch(ctx, gw, client.MergeFrom(original)); err != nil {
 		return controllerruntime.Fail(fmt.Errorf("failed to update Gateway status: %w", err))
 	}
@@ -211,6 +240,17 @@ func (r *GatewayReconciler) enqueueRequestForOwningGatewayClass(ctx context.Cont
 func (r *GatewayReconciler) setStatusDataplaneReady(gw *gatewayv1.Gateway, status metav1.ConditionStatus, msg string, reason string) {
 	gw.Status.Conditions = helpers.MergeConditions(gw.Status.Conditions, metav1.Condition{
 		Type:               gatewayConditionDataplaneReady,
+		Status:             status,
+		Reason:             reason,
+		Message:            msg,
+		ObservedGeneration: gw.GetGeneration(),
+		LastTransitionTime: metav1.NewTime(time.Now()),
+	})
+}
+
+func (r *GatewayReconciler) setStatusControlplaneReady(gw *gatewayv1.Gateway, status metav1.ConditionStatus, msg string, reason string) {
+	gw.Status.Conditions = helpers.MergeConditions(gw.Status.Conditions, metav1.Condition{
+		Type:               gatewayConditionControlplaneReady,
 		Status:             status,
 		Reason:             reason,
 		Message:            msg,

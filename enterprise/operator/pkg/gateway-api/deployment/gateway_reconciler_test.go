@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -36,6 +37,7 @@ func TestGatewayReconcilerCreatesDeploymentAndService(t *testing.T) {
 	require.NoError(t, gatewayv1.Install(scheme))
 	require.NoError(t, appsv1.AddToScheme(scheme))
 	require.NoError(t, corev1.AddToScheme(scheme))
+	require.NoError(t, rbacv1.AddToScheme(scheme))
 
 	gwc := &gatewayv1.GatewayClass{
 		ObjectMeta: metav1.ObjectMeta{Name: "cilium-deployment"},
@@ -69,6 +71,9 @@ func TestGatewayReconcilerCreatesDeploymentAndService(t *testing.T) {
 		Build()
 
 	r := NewGatewayReconciler(c, scheme, slog.Default(), Config{
+		GatewayAPIDeploymentControlplaneDefaultImage:       "quay.io/cilium/gateway-api-controlplane:test",
+		GatewayAPIDeploymentControlplaneDefaultLogLevel:    "info",
+		GatewayAPIDeploymentControlplaneDefaultReplicas:    2,
 		GatewayAPIDeploymentDataplaneDefaultEnvoyImage:     "quay.io/cilium/cilium-envoy:v1.36.5-1775137579-2b3493aca96923190423ccec7e4dbc5f074ccad4@sha256:df144744740f91dc55ca39367f61c9a214a989d543c6f91319ccd686ddd7477f",
 		GatewayAPIDeploymentDataplaneDefaultEnvoyLogLevel:  "trace",
 		GatewayAPIDeploymentDataplaneDefaultEnvoyAdminPort: 19001,
@@ -100,7 +105,6 @@ func TestGatewayReconcilerCreatesDeploymentAndService(t *testing.T) {
 	require.Equal(t, "POD_NAME", deployment.Spec.Template.Spec.Containers[0].Env[0].Name)
 	require.Equal(t, "metadata.name", deployment.Spec.Template.Spec.Containers[0].Env[0].ValueFrom.FieldRef.FieldPath)
 	require.NotNil(t, deployment.Spec.Template.Spec.Containers[0].StartupProbe)
-	require.Equal(t, "127.0.0.1", deployment.Spec.Template.Spec.Containers[0].StartupProbe.HTTPGet.Host)
 	require.Equal(t, "/ready", deployment.Spec.Template.Spec.Containers[0].StartupProbe.HTTPGet.Path)
 	require.Equal(t, int32(19001), deployment.Spec.Template.Spec.Containers[0].StartupProbe.HTTPGet.Port.IntVal)
 	require.NotNil(t, deployment.Spec.Template.Spec.Containers[0].LivenessProbe)
@@ -121,11 +125,66 @@ func TestGatewayReconcilerCreatesDeploymentAndService(t *testing.T) {
 	require.NoError(t, c.Get(context.Background(), client.ObjectKey{Name: r.dataplaneResourceName(gw), Namespace: gw.Namespace}, serviceAccount))
 	require.Equal(t, "cilium-deployment", serviceAccount.Labels["gateway.networking.k8s.io/gateway-class-name"])
 
+	controlplaneDeployment := &appsv1.Deployment{}
+	require.NoError(t, c.Get(context.Background(), client.ObjectKey{Name: r.controlplaneResourceName(gw), Namespace: gw.Namespace}, controlplaneDeployment))
+	require.Equal(t, "quay.io/cilium/gateway-api-controlplane:test", controlplaneDeployment.Spec.Template.Spec.Containers[0].Image)
+	require.Equal(t, []string{
+		"--gateway-namespace", gw.Namespace,
+		"--gateway-name", gw.Name,
+		"--log-level", "info",
+	}, controlplaneDeployment.Spec.Template.Spec.Containers[0].Args)
+	require.Len(t, controlplaneDeployment.Spec.Template.Spec.Containers[0].VolumeMounts, 1)
+	require.Equal(t, "cilium-run", controlplaneDeployment.Spec.Template.Spec.Containers[0].VolumeMounts[0].Name)
+	require.Equal(t, "/var/run/cilium", controlplaneDeployment.Spec.Template.Spec.Containers[0].VolumeMounts[0].MountPath)
+	require.Len(t, controlplaneDeployment.Spec.Template.Spec.Volumes, 1)
+	require.Equal(t, "cilium-run", controlplaneDeployment.Spec.Template.Spec.Volumes[0].Name)
+	require.NotNil(t, controlplaneDeployment.Spec.Template.Spec.Volumes[0].EmptyDir)
+	require.Empty(t, controlplaneDeployment.Spec.Template.Spec.Containers[0].StartupProbe.HTTPGet.Host)
+	require.Equal(t, int32(2), *controlplaneDeployment.Spec.Replicas)
+	require.Equal(t, r.controlplaneResourceName(gw), controlplaneDeployment.Spec.Template.Spec.ServiceAccountName)
+
+	controlplaneServiceAccount := &corev1.ServiceAccount{}
+	require.NoError(t, c.Get(context.Background(), client.ObjectKey{Name: r.controlplaneResourceName(gw), Namespace: gw.Namespace}, controlplaneServiceAccount))
+
+	controlplaneService := &corev1.Service{}
+	require.NoError(t, c.Get(context.Background(), client.ObjectKey{Name: r.controlplaneResourceName(gw), Namespace: gw.Namespace}, controlplaneService))
+	require.Equal(t, int32(18000), controlplaneService.Spec.Ports[0].Port)
+
+	controlplaneRole := &rbacv1.Role{}
+	require.NoError(t, c.Get(context.Background(), client.ObjectKey{Name: r.controlplaneResourceName(gw), Namespace: gw.Namespace}, controlplaneRole))
+	require.Len(t, controlplaneRole.Rules, 2)
+	require.Equal(t, []string{"gateways/status"}, controlplaneRole.Rules[1].Resources)
+	require.Equal(t, []string{"update", "patch"}, controlplaneRole.Rules[1].Verbs)
+
+	controlplaneRoleBinding := &rbacv1.RoleBinding{}
+	require.NoError(t, c.Get(context.Background(), client.ObjectKey{Name: r.controlplaneResourceName(gw), Namespace: gw.Namespace}, controlplaneRoleBinding))
+
 	service := &corev1.Service{}
 	require.NoError(t, c.Get(context.Background(), client.ObjectKey{Name: r.dataplaneResourceName(gw), Namespace: gw.Namespace}, service))
 	require.Equal(t, corev1.ServiceTypeLoadBalancer, service.Spec.Type)
 	require.Equal(t, int32(80), service.Spec.Ports[0].Port)
 	require.Equal(t, "cilium-deployment", service.Labels["gateway.networking.k8s.io/gateway-class-name"])
+
+	updatedGateway := &gatewayv1.Gateway{}
+	require.NoError(t, c.Get(context.Background(), client.ObjectKeyFromObject(gw), updatedGateway))
+	require.Condition(t, func() bool {
+		for _, condition := range updatedGateway.Status.Conditions {
+			if condition.Type == gatewayConditionDataplaneReady {
+				return condition.Status == metav1.ConditionTrue &&
+					condition.Message == "Gateway dataplane resources are reconciled"
+			}
+		}
+		return false
+	})
+	require.Condition(t, func() bool {
+		for _, condition := range updatedGateway.Status.Conditions {
+			if condition.Type == gatewayConditionControlplaneReady {
+				return condition.Status == metav1.ConditionTrue &&
+					condition.Message == "Gateway controlplane resources are reconciled"
+			}
+		}
+		return false
+	})
 }
 
 func TestGatewayReconcilerPreservesAssignedServiceFields(t *testing.T) {
@@ -133,6 +192,7 @@ func TestGatewayReconcilerPreservesAssignedServiceFields(t *testing.T) {
 	require.NoError(t, gatewayv1.Install(scheme))
 	require.NoError(t, appsv1.AddToScheme(scheme))
 	require.NoError(t, corev1.AddToScheme(scheme))
+	require.NoError(t, rbacv1.AddToScheme(scheme))
 
 	gwc := &gatewayv1.GatewayClass{
 		ObjectMeta: metav1.ObjectMeta{Name: "cilium-deployment"},
@@ -166,6 +226,9 @@ func TestGatewayReconcilerPreservesAssignedServiceFields(t *testing.T) {
 		Build()
 
 	r := NewGatewayReconciler(c, scheme, slog.Default(), Config{
+		GatewayAPIDeploymentControlplaneDefaultImage:       "quay.io/cilium/gateway-api-controlplane:test",
+		GatewayAPIDeploymentControlplaneDefaultLogLevel:    "info",
+		GatewayAPIDeploymentControlplaneDefaultReplicas:    2,
 		GatewayAPIDeploymentDataplaneDefaultEnvoyImage:     "quay.io/cilium/cilium-envoy:test",
 		GatewayAPIDeploymentDataplaneDefaultEnvoyLogLevel:  "trace",
 		GatewayAPIDeploymentDataplaneDefaultEnvoyAdminPort: 19001,
@@ -209,6 +272,7 @@ func TestGatewayReconcilerIgnoresGatewayWithDifferentController(t *testing.T) {
 	require.NoError(t, gatewayv1.Install(scheme))
 	require.NoError(t, appsv1.AddToScheme(scheme))
 	require.NoError(t, corev1.AddToScheme(scheme))
+	require.NoError(t, rbacv1.AddToScheme(scheme))
 
 	gwc := &gatewayv1.GatewayClass{
 		ObjectMeta: metav1.ObjectMeta{Name: "other"},
@@ -258,6 +322,7 @@ func TestGatewayReconcilerSkipsGatewayInTerminatingNamespace(t *testing.T) {
 	require.NoError(t, gatewayv1.Install(scheme))
 	require.NoError(t, appsv1.AddToScheme(scheme))
 	require.NoError(t, corev1.AddToScheme(scheme))
+	require.NoError(t, rbacv1.AddToScheme(scheme))
 
 	gwc := &gatewayv1.GatewayClass{
 		ObjectMeta: metav1.ObjectMeta{Name: "cilium-deployment"},
@@ -311,6 +376,7 @@ func TestGatewayReconcilerRecreatesDeploymentWhenSelectorChanges(t *testing.T) {
 	require.NoError(t, gatewayv1.Install(scheme))
 	require.NoError(t, appsv1.AddToScheme(scheme))
 	require.NoError(t, corev1.AddToScheme(scheme))
+	require.NoError(t, rbacv1.AddToScheme(scheme))
 
 	gwc := &gatewayv1.GatewayClass{
 		ObjectMeta: metav1.ObjectMeta{Name: "cilium-deployment"},
@@ -369,6 +435,9 @@ func TestGatewayReconcilerRecreatesDeploymentWhenSelectorChanges(t *testing.T) {
 		Build()
 
 	r := NewGatewayReconciler(c, scheme, slog.Default(), Config{
+		GatewayAPIDeploymentControlplaneDefaultImage:       "quay.io/cilium/gateway-api-controlplane:test",
+		GatewayAPIDeploymentControlplaneDefaultLogLevel:    "info",
+		GatewayAPIDeploymentControlplaneDefaultReplicas:    2,
 		GatewayAPIDeploymentDataplaneDefaultEnvoyImage:     "quay.io/cilium/cilium-envoy:test",
 		GatewayAPIDeploymentDataplaneDefaultEnvoyLogLevel:  "trace",
 		GatewayAPIDeploymentDataplaneDefaultEnvoyAdminPort: 19001,
@@ -392,6 +461,7 @@ func TestGatewayReconcilerCleansUpResourcesWhenGatewayClassChanges(t *testing.T)
 	require.NoError(t, gatewayv1.Install(scheme))
 	require.NoError(t, appsv1.AddToScheme(scheme))
 	require.NoError(t, corev1.AddToScheme(scheme))
+	require.NoError(t, rbacv1.AddToScheme(scheme))
 
 	gwc := &gatewayv1.GatewayClass{
 		ObjectMeta: metav1.ObjectMeta{Name: "cilium-deployment"},
@@ -475,6 +545,21 @@ func TestGatewayReconcilerCleansUpResourcesWhenGatewayClassChanges(t *testing.T)
 	err = c.Get(context.Background(), client.ObjectKey{Name: r.dataplaneResourceName(gw), Namespace: gw.Namespace}, &corev1.Service{})
 	require.True(t, k8serrors.IsNotFound(err))
 
+	err = c.Get(context.Background(), client.ObjectKey{Name: r.controlplaneResourceName(gw), Namespace: gw.Namespace}, &appsv1.Deployment{})
+	require.True(t, k8serrors.IsNotFound(err))
+
+	err = c.Get(context.Background(), client.ObjectKey{Name: r.controlplaneResourceName(gw), Namespace: gw.Namespace}, &corev1.ServiceAccount{})
+	require.True(t, k8serrors.IsNotFound(err))
+
+	err = c.Get(context.Background(), client.ObjectKey{Name: r.controlplaneResourceName(gw), Namespace: gw.Namespace}, &corev1.Service{})
+	require.True(t, k8serrors.IsNotFound(err))
+
+	err = c.Get(context.Background(), client.ObjectKey{Name: r.controlplaneResourceName(gw), Namespace: gw.Namespace}, &rbacv1.Role{})
+	require.True(t, k8serrors.IsNotFound(err))
+
+	err = c.Get(context.Background(), client.ObjectKey{Name: r.controlplaneResourceName(gw), Namespace: gw.Namespace}, &rbacv1.RoleBinding{})
+	require.True(t, k8serrors.IsNotFound(err))
+
 	updatedGateway = &gatewayv1.Gateway{}
 	require.NoError(t, c.Get(context.Background(), client.ObjectKeyFromObject(gw), updatedGateway))
 	require.Condition(t, func() bool {
@@ -482,6 +567,15 @@ func TestGatewayReconcilerCleansUpResourcesWhenGatewayClassChanges(t *testing.T)
 			if condition.Type == gatewayConditionDataplaneReady {
 				return condition.Status == metav1.ConditionFalse &&
 					condition.Message == "GatewayClass is no longer handled by the deployment controller"
+			}
+		}
+		return false
+	})
+	require.Condition(t, func() bool {
+		for _, condition := range updatedGateway.Status.Conditions {
+			if condition.Type == gatewayConditionControlplaneReady {
+				return condition.Status == metav1.ConditionTrue &&
+					condition.Message == "Gateway controlplane resources are reconciled"
 			}
 		}
 		return false

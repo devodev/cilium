@@ -480,6 +480,13 @@ contributors across the globe, there is almost always someone available to help.
 | enterprise.evpn.vxlanPort | int | `4789` | EVPN Vxlan port number |
 | enterprise.featureGate.approved | list | `[]` | List of features that are approved. |
 | enterprise.featureGate.strict | bool | `true` | Enable strict feature gate validation. Will cause agent and/or operator to not start if non-approved features are enabled. In non-strict mode failure will be logged as a warning. |
+| enterprise.gatewayAPI.deployment.controlplane.image.digest | string | `""` |  |
+| enterprise.gatewayAPI.deployment.controlplane.image.override | string | `nil` |  |
+| enterprise.gatewayAPI.deployment.controlplane.image.pullPolicy | string | `"Always"` |  |
+| enterprise.gatewayAPI.deployment.controlplane.image.repository | string | `"quay.io/isovalent-dev/gateway-api-controlplane-ci"` |  |
+| enterprise.gatewayAPI.deployment.controlplane.image.tag | string | `"latest"` |  |
+| enterprise.gatewayAPI.deployment.controlplane.image.useDigest | bool | `false` |  |
+| enterprise.gatewayAPI.deployment.controlplane.replicas | int | `2` | Number of replicas for the deployment-based Gateway API control plane implementation. |
 | enterprise.gatewayAPI.deployment.dataplane.defaultReplicas | int | `2` | Default number of Envoy replicas for the deployment-based Gateway API implementation. |
 | enterprise.gatewayAPI.deployment.enabled | bool | `false` | Enable the deployment-based Gateway API implementation in the enterprise operator. |
 | enterprise.healthServerWithoutActiveChecks.enabled | bool | `false` | Enable health server without active health checks. |

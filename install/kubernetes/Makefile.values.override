@@ -12,3 +12,9 @@ DIGESTS_PATH ?= Makefile.digests-isovalent
 
 export RELEASE_ORG ?= isovalent-staging
 export CI_ORG ?= isovalent-dev
+
+ifeq ($(RELEASE),yes)
+export GATEWAY_API_CONTROLPLANE_REPO=${RELEASE_REGISTRY}/${RELEASE_ORG}/gateway-api-controlplane
+else
+export GATEWAY_API_CONTROLPLANE_REPO=${CI_REGISTRY}/${CI_ORG}/gateway-api-controlplane-ci
+endif

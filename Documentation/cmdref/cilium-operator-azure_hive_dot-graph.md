@@ -77,6 +77,9 @@ cilium-operator-azure hive dot-graph [flags]
       --feature-gates-strict                                              If enabled agent will refuse to start if feature gates do not pass (default true)
       --fqdn-group-min-query-interval duration                            Minimum interval between two consecutive queries when resolving a FQDN belonging to an IsovalentFQDNGroup (default 1m0s)
       --gateway-api-deployment-controller-enabled                         Enable the enterprise Gateway API deployment-based controller.
+      --gateway-api-deployment-controlplane-default-image string          Default controlplane image for the deployment-based Gateway API implementation.
+      --gateway-api-deployment-controlplane-default-log-level string      Default log level for the deployment-based Gateway API controlplane implementation. (default "info")
+      --gateway-api-deployment-controlplane-default-replicas int          Default number of replicas for the deployment-based Gateway API controlplane implementation. (default 2)
       --gateway-api-deployment-dataplane-default-envoy-admin-port int     Default Envoy admin port for the deployment-based Gateway API dataplane implementation. (default 9901)
       --gateway-api-deployment-dataplane-default-envoy-image string       Default Envoy image for the deployment-based Gateway API dataplane implementation.
       --gateway-api-deployment-dataplane-default-envoy-log-level string   Default Envoy log level for the deployment-based Gateway API dataplane implementation. (default "error")

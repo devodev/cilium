@@ -151,6 +151,16 @@ enterprise:
     deployment:
       # -- Enable the deployment-based Gateway API implementation in the enterprise operator.
       enabled: false
+      controlplane:
+        # -- Number of replicas for the deployment-based Gateway API control plane implementation.
+        replicas: 2
+        image:
+          override: ~
+          repository: "${GATEWAY_API_CONTROLPLANE_REPO}"
+          tag: "${CILIUM_VERSION}"
+          digest: ${GATEWAY_API_CONTROLPLANE_DIGEST}
+          useDigest: ${USE_DIGESTS}
+          pullPolicy: "${PULL_POLICY}"
       dataplane:
         # -- Default number of Envoy replicas for the deployment-based Gateway API implementation.
         defaultReplicas: 2

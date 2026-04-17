@@ -36,6 +36,9 @@ var Cell = cell.Module(
 
 	cell.Config(Config{
 		GatewayAPIDeploymentControllerEnabled:              false,
+		GatewayAPIDeploymentControlplaneDefaultImage:       "",
+		GatewayAPIDeploymentControlplaneDefaultLogLevel:    "info",
+		GatewayAPIDeploymentControlplaneDefaultReplicas:    2,
 		GatewayAPIDeploymentDataplaneDefaultEnvoyImage:     "",
 		GatewayAPIDeploymentDataplaneDefaultEnvoyLogLevel:  "error",
 		GatewayAPIDeploymentDataplaneDefaultEnvoyAdminPort: 9901,
@@ -52,6 +55,9 @@ var requiredResources = []string{
 
 type Config struct {
 	GatewayAPIDeploymentControllerEnabled              bool
+	GatewayAPIDeploymentControlplaneDefaultImage       string
+	GatewayAPIDeploymentControlplaneDefaultLogLevel    string
+	GatewayAPIDeploymentControlplaneDefaultReplicas    int
 	GatewayAPIDeploymentDataplaneDefaultEnvoyImage     string
 	GatewayAPIDeploymentDataplaneDefaultEnvoyLogLevel  string
 	GatewayAPIDeploymentDataplaneDefaultEnvoyAdminPort int
@@ -60,6 +66,9 @@ type Config struct {
 
 func (cfg Config) Flags(flags *pflag.FlagSet) {
 	flags.Bool("gateway-api-deployment-controller-enabled", cfg.GatewayAPIDeploymentControllerEnabled, "Enable the enterprise Gateway API deployment-based controller.")
+	flags.String("gateway-api-deployment-controlplane-default-image", cfg.GatewayAPIDeploymentControlplaneDefaultImage, "Default controlplane image for the deployment-based Gateway API implementation.")
+	flags.String("gateway-api-deployment-controlplane-default-log-level", cfg.GatewayAPIDeploymentControlplaneDefaultLogLevel, "Default log level for the deployment-based Gateway API controlplane implementation.")
+	flags.Int("gateway-api-deployment-controlplane-default-replicas", cfg.GatewayAPIDeploymentControlplaneDefaultReplicas, "Default number of replicas for the deployment-based Gateway API controlplane implementation.")
 	flags.String("gateway-api-deployment-dataplane-default-envoy-image", cfg.GatewayAPIDeploymentDataplaneDefaultEnvoyImage, "Default Envoy image for the deployment-based Gateway API dataplane implementation.")
 	flags.String("gateway-api-deployment-dataplane-default-envoy-log-level", cfg.GatewayAPIDeploymentDataplaneDefaultEnvoyLogLevel, "Default Envoy log level for the deployment-based Gateway API dataplane implementation.")
 	flags.Int("gateway-api-deployment-dataplane-default-envoy-admin-port", cfg.GatewayAPIDeploymentDataplaneDefaultEnvoyAdminPort, "Default Envoy admin port for the deployment-based Gateway API dataplane implementation.")

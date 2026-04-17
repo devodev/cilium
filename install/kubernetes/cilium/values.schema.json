@@ -2514,6 +2514,37 @@
           "properties": {
             "deployment": {
               "properties": {
+                "controlplane": {
+                  "properties": {
+                    "image": {
+                      "properties": {
+                        "digest": {
+                          "type": "string"
+                        },
+                        "override": {
+                          "type": "null"
+                        },
+                        "pullPolicy": {
+                          "type": "string"
+                        },
+                        "repository": {
+                          "type": "string"
+                        },
+                        "tag": {
+                          "type": "string"
+                        },
+                        "useDigest": {
+                          "type": "boolean"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "replicas": {
+                      "type": "integer"
+                    }
+                  },
+                  "type": "object"
+                },
                 "dataplane": {
                   "properties": {
                     "defaultReplicas": {
