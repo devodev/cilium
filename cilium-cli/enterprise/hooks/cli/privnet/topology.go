@@ -15,6 +15,8 @@ import (
 	"net/netip"
 
 	"github.com/cilium/cilium/cilium-cli/utils/features"
+	"github.com/cilium/cilium/enterprise/pkg/privnet/types"
+	"github.com/cilium/cilium/pkg/mac"
 )
 
 type INBInfo struct {
@@ -119,6 +121,16 @@ func (vm *VM) DescName() string {
 		return vm.Name.String()
 	}
 	return fmt.Sprintf("%s [%s]", vm.Name, vm.Description)
+}
+
+func (vm *VM) ToNetworkAttachment() types.NetworkAttachment {
+	return types.NetworkAttachment{
+		Network: string(vm.NetName),
+		Subnet:  string(vm.NetSubnet),
+		IPv4:    vm.NetIPv4,
+		IPv6:    vm.NetIPv6,
+		MAC:     mac.MustParseMAC(vm.NetMAC),
+	}
 }
 
 type Route struct {

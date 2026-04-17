@@ -21,7 +21,8 @@ spec:
         kind: "{{ .Kind }}"
       {{- if .NeedsAnnotation }}
       annotations:
-        "privnet.isovalent.com/network-attachment": '{"network":"{{ .NetName }}","subnet":"{{ .NetSubnet }}", "ipv4":"{{ .NetIPv4 }}","ipv6":"{{ .NetIPv6 }}","mac":"{{ .NetMAC }}"}'
+        privnet.isovalent.com/network-attachment: |-
+          {{ formatPrimaryNetworkAttachment .VM | indent 10 }}
       {{- end }}
     spec:
   {{- if .Affinity.Type }}

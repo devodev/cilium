@@ -14,6 +14,7 @@ import (
 	"bytes"
 	"context"
 	_ "embed"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"iter"
@@ -910,6 +911,10 @@ func renderTemplate(templ string, data any) (string, error) {
 		"indent": func(spaces int, v string) string {
 			pad := strings.Repeat(" ", spaces)
 			return strings.ReplaceAll(v, "\n", "\n"+pad)
+		},
+		"formatPrimaryNetworkAttachment": func(vm VM) (string, error) {
+			out, err := json.MarshalIndent(vm.ToNetworkAttachment(), "", "  ")
+			return string(out), err
 		},
 	}).Parse(templ)
 	if err != nil {
