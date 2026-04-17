@@ -51,10 +51,54 @@ mock_ctx_redirect(const struct __sk_buff *ctx __maybe_unused,
 	return CTX_ACT_OK;
 }
 
+struct fib_lookup_settings {
+	bool fib_lookup_called;
+};
+
+struct {
+	__uint(type, BPF_MAP_TYPE_ARRAY);
+	__uint(key_size, sizeof(__u32));
+	__uint(value_size, sizeof(struct fib_lookup_settings));
+	__uint(max_entries, 1);
+} fib_lookup_settings_map __section_maps_btf;
+
+static __always_inline __maybe_unused int
+mock_fib_lookup_init()
+{
+	__u32 key = 0;
+	struct fib_lookup_settings *settings = map_lookup_elem(&fib_lookup_settings_map, &key);
+
+	if (!settings)
+		return -1;
+
+	settings->fib_lookup_called = false;
+	return 0;
+}
+
+static __always_inline __maybe_unused int
+mock_fib_lookup_assert()
+{
+	__u32 key = 0;
+	struct fib_lookup_settings *settings = map_lookup_elem(&fib_lookup_settings_map, &key);
+
+	if (!settings)
+		return -1;
+	if (!settings->fib_lookup_called)
+		return -2;
+
+	return 0;
+}
+
 static __always_inline __maybe_unused long
 mock_fib_lookup(void *ctx __maybe_unused, struct bpf_fib_lookup *params __maybe_unused,
 		int plen __maybe_unused, __u32 flags __maybe_unused)
 {
+	__u32 key = 0;
+	struct fib_lookup_settings *settings = map_lookup_elem(&fib_lookup_settings_map, &key);
+
+	if (settings)
+		settings->fib_lookup_called = true;
+
 	params->ifindex = IFACE_IFINDEX;
 	return 0;
 }
@@ -74,6 +118,9 @@ int egressgw_ha_redirect_pktgen(struct __ctx_buff *ctx)
 SETUP("tc", "tc_egressgw_ha_redirect_from_overlay")
 int egressgw_ha_redirect_setup(struct __ctx_buff *ctx)
 {
+	if (mock_fib_lookup_init())
+		return TEST_ERROR;
+
 	add_egressgw_ha_policy_entry(CLIENT_IP, EXTERNAL_SVC_IP & 0xffffff, 24, 1,
 				     { GATEWAY_NODE_IP }, EGRESS_IP, 0);
 
@@ -83,6 +130,9 @@ int egressgw_ha_redirect_setup(struct __ctx_buff *ctx)
 CHECK("tc", "tc_egressgw_ha_redirect_from_overlay")
 int egressgw_ha_redirect_check(const struct __ctx_buff *ctx)
 {
+	if (mock_fib_lookup_assert())
+		return TEST_ERROR;
+
 	int ret = egressgw_status_check(ctx, (struct egressgw_test_ctx) {
 			.status_code = TC_ACT_REDIRECT,
 	});
@@ -142,6 +192,9 @@ int egressgw_ha_no_gateway_redirect_pktgen(struct __ctx_buff *ctx)
 SETUP("tc", "tc_egressgw_ha_no_gateway_redirect_from_overlay")
 int egressgw_ha_no_gateway_redirect_setup(struct __ctx_buff *ctx)
 {
+	if (mock_fib_lookup_init())
+		return TEST_ERROR;
+
 	add_egressgw_ha_policy_entry(CLIENT_IP, EXTERNAL_SVC_IP, 32, 0, {},
 				     EGRESS_IP, 0);
 
@@ -151,6 +204,9 @@ int egressgw_ha_no_gateway_redirect_setup(struct __ctx_buff *ctx)
 CHECK("tc", "tc_egressgw_ha_no_gateway_redirect_from_overlay")
 int egressgw_ha_no_gateway_redirect_check(const struct __ctx_buff *ctx)
 {
+	if (mock_fib_lookup_assert())
+		return TEST_ERROR;
+
 	int ret = egressgw_status_check(ctx, (struct egressgw_test_ctx) {
 			.status_code = TC_ACT_REDIRECT,
 	});
