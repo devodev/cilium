@@ -54,6 +54,21 @@ mock_tail_call_dynamic(struct __ctx_buff *ctx __maybe_unused,
 #include "tests/lib/enterprise_evpn.h"
 #include "tests/lib/enterprise_privnet.h"
 
+/* packet defined in ./scapy/enterprise_privnet_pkt_defs.py */
+const __u8 privnet_net_ip_icmp_req[] = {
+	SCAPY_BUF_BYTES(privnet_net_ip_icmp_req)
+};
+
+/* packet defined in ./scapy/enterprise_evpn_pkt_defs.py */
+const __u8 evpn_icmpv6_req[] = {
+	SCAPY_BUF_BYTES(evpn_icmpv6_req)
+};
+
+/* packet defined in ./scapy/enterprise_privnet_pkt_defs.py */
+const __u8 privnet_net_ip_arp_req[] = {
+	SCAPY_BUF_BYTES(privnet_net_ip_arp_req)
+};
+
 /* Enable configurations */
 ASSIGN_CONFIG(bool, privnet_enable, true)
 ASSIGN_CONFIG(bool, evpn_enable, true)
@@ -64,8 +79,7 @@ ASSIGN_CONFIG(union macaddr, evpn_device_mac, {.addr = mac_two_addr })
 PKTGEN("tc", "01_privnet_evpn_ingress_v4")
 int privnet_evpn_ingress_v4_pktgen(struct __ctx_buff *ctx)
 {
-	BUF_DECL(NETIP_ICMP_REQ, privnet_net_ip_icmp_req);
-	build_privnet_packet(ctx, NETIP_ICMP_REQ);
+	build_privnet_packet(ctx, privnet_net_ip_icmp_req);
 	return 0;
 }
 
@@ -143,8 +157,7 @@ int privnet_evpn_ingress_v4_check(struct __ctx_buff *ctx)
 PKTGEN("tc", "02_privnet_evpn_ingress_v6")
 int privnet_evpn_ingress_v6_pktgen(struct __ctx_buff *ctx)
 {
-	BUF_DECL(EVPN_ICMPV6_REQ, evpn_icmpv6_req);
-	build_privnet_packet(ctx, EVPN_ICMPV6_REQ);
+	build_privnet_packet(ctx, evpn_icmpv6_req);
 	return 0;
 }
 
@@ -237,8 +250,7 @@ int privnet_evpn_ingress_v6_check(struct __ctx_buff *ctx)
 PKTGEN("tc", "03_privnet_evpn_ingress_non_ip")
 int privnet_evpn_ingress_non_ip_pktgen(struct __ctx_buff *ctx)
 {
-	BUF_DECL(NETIP_ARP_REQ, privnet_net_ip_arp_req);
-	build_privnet_packet(ctx, NETIP_ARP_REQ);
+	build_privnet_packet(ctx, privnet_net_ip_arp_req);
 	return 0;
 }
 

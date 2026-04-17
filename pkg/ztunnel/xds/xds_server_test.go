@@ -168,6 +168,10 @@ func (m *MockEndpointManager) TriggerRegenerateAllEndpoints() {
 	panic("MockEndpointManager.TriggerRegenerateAllEndpoints not implemented")
 }
 
+func (m *MockEndpointManager) WaitForEndpointsAtPolicyRev(ctx context.Context, rev uint64) error {
+	panic("MockEndpointManager.WaitForEndpointsAtPolicyRev not implemented")
+}
+
 func (m *MockEndpointManager) OverrideEndpointOpts(om option.OptionMap) {
 	panic("MockEndpointManager.OverrideEndpointOpts not implemented")
 }
@@ -247,7 +251,8 @@ func TestCreateCertificate(t *testing.T) {
 				return []*endpoint.Endpoint{{}}
 			},
 		},
-		log: slog.Default(),
+		log:     slog.Default(),
+		metrics: NewMetrics(),
 	}
 
 	// we'll generate a CSR using the simple CSR we see in a default ztunnel

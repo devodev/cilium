@@ -113,9 +113,6 @@ static __always_inline int enterprise_privnet_from_overlay(struct __ctx_buff *ct
 				return DROP_UNROUTABLE;
 
 			smac = device_mac(ifindex);
-			if (!smac)
-				return DROP_NO_DEVICE;
-
 			dmac = &dst_fib_val->mac;
 
 			if (eth_store_saddr(ctx, smac->addr, 0) < 0)
@@ -199,9 +196,6 @@ static __always_inline int enterprise_privnet_from_overlay(struct __ctx_buff *ct
 				return DROP_UNROUTABLE;
 
 			smac = device_mac(ifindex);
-			if (!smac)
-				return DROP_NO_DEVICE;
-
 			dmac = &dst_fib_val->mac;
 
 			if (eth_store_saddr(ctx, smac->addr, 0) < 0)

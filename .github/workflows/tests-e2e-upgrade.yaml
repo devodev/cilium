@@ -41,7 +41,8 @@ on:
         type: boolean
         default: false
 
-  # workflow_dispatch is only used for scheduled runs in stable branches by ariane
+  # workflow_dispatch is used by ariane for scheduled runs on stable branches
+  # (where GH schedule event doesn't work) and as a normal trigger on all branches.
   workflow_dispatch:
     inputs:
       PR-number:
@@ -112,7 +113,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Set initial commit status
-        uses: cilium/cilium/.github/actions/set-commit-status@main
+        uses: cilium/cilium/.github/actions/set-commit-status@a0fa9ffaf9c862475a3edc7a03251a0c3f9af2e2 # main
         with:
           sha: ${{ inputs.SHA || github.sha }}
 
@@ -157,20 +158,20 @@ jobs:
           # When test-l7-only is true: filter to only test-l7: true configs
           # When test-l7-only is false (default):
           #   - On schedule (direct trigger, not workflow_call): include all configs (with L3/L4 AND L7)
-          #   - On workflow_dispatch (used on stable branches where GH scheduled doesn't work and ariane does it): include all configs (with L3/L4 AND L7)
+          #   - On workflow_dispatch on stable branches (acts as scheduled run by ariane): include all configs (with L3/L4 AND L7)
           #   - Otherwise: include only test-l7: false configs (L3/L4 only)
           if [ "${{ inputs.test-l7-only }}" = "true" ]; then
             jq --argjson modes "$MODES" '[.[] | select(.["test-l7"] == "true") | del(."key-two", ."test-l7") | . as $entry | [$modes[] | . as $m | $entry + {mode: $m}]] | flatten' configs.json > matrix.json
             CONFIG_COUNT=$(jq 'length' matrix.json)
             echo "::notice::Filtering matrix to test-l7: true configurations only (${CONFIG_COUNT} configs for L7-only testing)"
-            echo "timeout=50" >> $GITHUB_OUTPUT
+            echo "timeout=60" >> $GITHUB_OUTPUT
           elif [ "${{ github.event_name }}" = "schedule" ] && [ "${{ inputs.is-workflow-call }}" != "true" ]; then
             jq --argjson modes "$MODES" '[.[] | del(."key-two", ."test-l7") | . as $entry | [$modes[] | . as $m | $entry + {mode: $m}]] | flatten' configs.json > matrix.json
             CONFIG_COUNT=$(jq 'length' matrix.json)
             echo "::notice::Including all configurations in matrix (${CONFIG_COUNT} configs - scheduled run with full test suite)"
             echo "timeout=110" >> $GITHUB_OUTPUT
-          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            # workflow_dispatch is only used on stable branches where GH scheduled doesn't work and ariane does it
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ] && ! grep -q '\-dev$' "$GITHUB_WORKSPACE/VERSION"; then
+            # On stable branches, workflow_dispatch acts as a scheduled run (triggered by ariane)
             jq --argjson modes "$MODES" '[.[] | del(."key-two", ."test-l7") | . as $entry | [$modes[] | . as $m | $entry + {mode: $m}]] | flatten' configs.json > matrix.json
             CONFIG_COUNT=$(jq 'length' matrix.json)
             echo "::notice::Including all configurations in matrix (${CONFIG_COUNT} configs - workflow_dispatch run with full test suite)"
@@ -220,7 +221,7 @@ jobs:
           echo '${{ toJSON(matrix) }}'
 
       - name: Set commit status to pending
-        uses: cilium/cilium/.github/actions/set-commit-status@main
+        uses: cilium/cilium/.github/actions/set-commit-status@a0fa9ffaf9c862475a3edc7a03251a0c3f9af2e2 # main
         with:
           sha: ${{ inputs.SHA || github.sha }}
 
@@ -275,10 +276,9 @@ jobs:
 
           L7_FILTER="((dns)|(fqdn)|(l7)|(client-egress-tls-sni))"
 
-          SEQUENTIAL_CONNECTIVITY_TESTS="seq-.*,!pod-to-world.*"
-          CONCURRENT_CONNECTIVITY_TESTS="!seq-.*"
+          CONCURRENT_CONNECTIVITY_TESTS=""
           if [ "${{ matrix.ipv4 }}" == "false" ]; then
-            CONCURRENT_CONNECTIVITY_TESTS="!(seq-.*|pod-to-world.*|pod-to-cidr)"
+            CONCURRENT_CONNECTIVITY_TESTS="!(pod-to-world.*|pod-to-cidr),"
           fi
 
           # When test-l7-only is true: run ONLY L7 tests (exclude L3/L4 tests)
@@ -287,20 +287,17 @@ jobs:
           #   - Otherwise: exclude L7 tests (L3/L4 traffic only)
           if [ "${{ inputs.test-l7-only }}" = "true" ]; then
             # L7-only mode: run only L7 tests
-            SEQUENTIAL_CONNECTIVITY_TESTS="seq-.*${L7_FILTER},!pod-to-world.*"
-            CONCURRENT_CONNECTIVITY_TESTS="${CONCURRENT_CONNECTIVITY_TESTS},${L7_FILTER},no-unexpected-packet-drops,check-log-errors"
+            CONCURRENT_CONNECTIVITY_TESTS="${CONCURRENT_CONNECTIVITY_TESTS}${L7_FILTER},no-unexpected-packet-drops,check-log-errors"
             echo "::notice::Running L7-only tests ${L7_FILTER}"
           elif [ "${{ github.event_name }}" = "schedule" ] && [ "${{ inputs.is-workflow-call }}" != "true" ]; then
             # Scheduled run (direct trigger): full test suite (L3/L4 AND L7)
             echo "::notice::Running full test suite (L3/L4 AND L7 tests)"
           else
             # Default mode: L3/L4 tests only, exclude L7
-            SEQUENTIAL_CONNECTIVITY_TESTS="${SEQUENTIAL_CONNECTIVITY_TESTS},!${L7_FILTER}"
-            CONCURRENT_CONNECTIVITY_TESTS="${CONCURRENT_CONNECTIVITY_TESTS},!${L7_FILTER}"
+            CONCURRENT_CONNECTIVITY_TESTS="${CONCURRENT_CONNECTIVITY_TESTS}!${L7_FILTER}"
             echo "::notice::Excluding L7 tests - running L3/L4 traffic only"
           fi
 
-          echo sequential_connectivity_tests=${SEQUENTIAL_CONNECTIVITY_TESTS} >> $GITHUB_OUTPUT
           echo concurrent_connectivity_tests=${CONCURRENT_CONNECTIVITY_TESTS} >> $GITHUB_OUTPUT
 
           # Determine if proxy traffic check should be enabled
@@ -451,7 +448,7 @@ jobs:
 
       - name: Setup bootid file
         if: ${{ steps.vars.outputs.downgrade_version != '' }}
-        uses: cilium/little-vm-helper@ad43ff511dd5365a0011ae9f864ec959c36daebf # v0.0.28
+        uses: cilium/little-vm-helper@e249f34602b03d331320955be94cbaa2cc4fb6a8 # v0.0.29
         with:
           provision: 'false'
           cmd: |
@@ -602,16 +599,9 @@ jobs:
           script: ./.github/actions/bpftrace/scripts/check-encryption-leaks.bt
           args: ${{ steps.bpftrace-params.outputs.params }} "${{ steps.vars.outputs.enable_proxy_check }}" "${{ matrix.encryption }}"
 
-      - name: Run sequential Cilium tests
-        if: ${{ steps.vars.outputs.downgrade_version != '' }}
-        uses: ./.github/actions/conn-disrupt-test-check
-        with:
-          job-name: cilium-upgrade-${{ matrix.name }}-sequential
-          tests: ${{ steps.vars.outputs.sequential_connectivity_tests }}
-          extra-connectivity-test-flags: ${{ steps.vars-conn.outputs.connectivity_test_defaults }}
-
       - name: Run concurrent Cilium tests
         if: ${{ steps.vars.outputs.downgrade_version != '' }}
+        timeout-minutes: 50
         uses: ./.github/actions/conn-disrupt-test-check
         with:
           job-name: cilium-upgrade-${{ matrix.name }}-concurrent
@@ -718,14 +708,6 @@ jobs:
           # enable the check for proxy traffic.
           script: ./.github/actions/bpftrace/scripts/check-encryption-leaks.bt
           args: ${{ steps.bpftrace-params.outputs.params }} "${{ steps.vars.outputs.enable_proxy_check }}" "${{ matrix.encryption }}"
-
-      - name: Run sequential Cilium tests
-        if: ${{ steps.vars.outputs.downgrade_version != '' && steps.vars.outputs.skip_upgrade != 'true' }}
-        uses: ./.github/actions/conn-disrupt-test-check
-        with:
-          job-name: cilium-downgrade-${{ matrix.name }}-sequential
-          tests: ${{ steps.vars.outputs.sequential_connectivity_tests }}
-          extra-connectivity-test-flags: ${{ steps.vars-conn.outputs.connectivity_test_defaults }}
 
       - name: Run concurrent Cilium tests
         if: ${{ steps.vars.outputs.downgrade_version != '' && steps.vars.outputs.skip_upgrade != 'true' }}

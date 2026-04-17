@@ -47,12 +47,12 @@ volatile const __u8 v6_ep_ip[] = { 0xfd, 0x10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xf
 
 /* Scapy packet definitions */
 
-#define build_privnet_packet(ctx, buf_name)		\
-	do {						\
-		struct pktgen builder;			\
-		pktgen__init(&builder, ctx);		\
-		BUILDER_PUSH_BUF(builder, buf_name);	\
-		pktgen__finish(&builder);		\
+#define build_privnet_packet(ctx, buf)				\
+	do {							\
+		struct pktgen builder;				\
+		pktgen__init(&builder, ctx);			\
+		scapy_push_data(&builder, buf, sizeof(buf));	\
+		pktgen__finish(&builder);			\
 	} while (0)
 
 #define assert_status_code(ctx, expected)						\

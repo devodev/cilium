@@ -105,6 +105,7 @@ rules:
 {{- if or .Values.ingressController.enabled .Values.gatewayAPI.enabled .Values.bgpControlPlane.enabled $secretSyncEnabled }}
   - secrets
 {{- end }}
+  - serviceaccounts
   verbs:
   - get
   - list
@@ -275,6 +276,7 @@ rules:
   - serviceimports.multicluster.x-k8s.io
   - serviceexports.multicluster.x-k8s.io
 {{- end }}
+  - ciliumdatapathplugins.cilium.io
 - apiGroups:
   - cilium.io
   resources:
@@ -283,6 +285,7 @@ rules:
   - ciliumbgpclusterconfigs
   - ciliumbgpnodeconfigoverrides
   - ciliumbgppeerconfigs
+  - ciliumdatapathplugins
   verbs:
   - get
   - list

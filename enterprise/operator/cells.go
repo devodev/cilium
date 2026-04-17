@@ -13,7 +13,6 @@ package main
 import (
 	"github.com/cilium/hive/cell"
 
-	daemonk8s "github.com/cilium/cilium/daemon/k8s"
 	"github.com/cilium/cilium/enterprise/features"
 	"github.com/cilium/cilium/enterprise/operator/dnsclient"
 	"github.com/cilium/cilium/enterprise/operator/dnsresolver"
@@ -57,7 +56,6 @@ var (
 
 			// enterprise-only cells to be started after leader election here
 			enterpriseOperatorK8s.ResourcesCell,
-			daemonk8s.NamespaceTableCell,
 
 			features.OperatorCell,
 

@@ -19,3 +19,7 @@ from tc_redirect_pkt_defs import *
 from xdp_nodeport_lb4_nat_lb_tun_dynamic_pkt_defs import *
 from tc_nodeport_lb4_nat_lb_dynamic_pkt_defs import *
 from tc_nodeport_lb6_nat_lb_dynamic_pkt_defs import *
+
+# Enterprise pkt defs defined in main-ce only.
+# Keep at end of file to avoid merge conflicts on sync.
+from enterprise_pkt_defs import *

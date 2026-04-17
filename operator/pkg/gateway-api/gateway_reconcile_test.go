@@ -28,6 +28,7 @@ import (
 	"github.com/cilium/cilium/operator/pkg/model/translation"
 	gatewayApiTranslation "github.com/cilium/cilium/operator/pkg/model/translation/gateway-api"
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
+	"github.com/cilium/cilium/pkg/shortener"
 )
 
 var (
@@ -358,7 +359,10 @@ func Test_Conformance(t *testing.T) {
 				if !gwDetail.wantErr {
 					// Checking the output for CiliumEnvoyConfig
 					actualCEC := &ciliumv2.CiliumEnvoyConfig{}
-					err = c.Get(t.Context(), client.ObjectKey{Namespace: gwDetail.FullName.Namespace, Name: "cilium-gateway-" + gwDetail.FullName.Name}, actualCEC)
+					err = c.Get(t.Context(), client.ObjectKey{
+						Namespace: gwDetail.FullName.Namespace,
+						Name:      shortener.ShortenK8sResourceName(gatewayApiTranslation.CiliumGatewayPrefix + gwDetail.FullName.Name),
+					}, actualCEC)
 					require.NoError(t, err, "Could not get CiliumEnvoyConfig and wasn't expecting a reconciliation error")
 					expectedCEC := &ciliumv2.CiliumEnvoyConfig{}
 					readOutput(t, fmt.Sprintf("testdata/gateway/%s/output/cec-%s.yaml", tt.name, gwDetail.FullName.Name), expectedCEC)
@@ -413,6 +417,110 @@ func Test_Conformance(t *testing.T) {
 	}
 }
 
+func Test_gatewayReconciler_Reconcile_cleansUpResourcesOnHandoff(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name         string
+		gatewayClass string
+		objects      []client.Object
+	}{
+		{
+			name:         "gatewayclass missing",
+			gatewayClass: "missing",
+		},
+		{
+			name:         "gatewayclass controller no longer matches",
+			gatewayClass: "other",
+			objects: []client.Object{
+				&gatewayv1.GatewayClass{
+					ObjectMeta: metav1.ObjectMeta{Name: "other"},
+					Spec: gatewayv1.GatewayClassSpec{
+						ControllerName: "example.com/other-controller",
+					},
+				},
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			gw := &gatewayv1.Gateway{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "handoff-gateway",
+					Namespace: "default",
+					UID:       types.UID("gateway-uid"),
+				},
+				Spec: gatewayv1.GatewaySpec{
+					GatewayClassName: gatewayv1.ObjectName(tc.gatewayClass),
+				},
+			}
+
+			serviceName := shortener.ShortenK8sResourceName(gatewayApiTranslation.CiliumGatewayPrefix + gw.Name)
+			shortGatewayName := shortener.ShortenK8sResourceName(gw.Name)
+			svc := &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      serviceName,
+					Namespace: gw.Namespace,
+					Labels: map[string]string{
+						owningGatewayLabel:                       shortGatewayName,
+						"gateway.networking.k8s.io/gateway-name": shortGatewayName,
+					},
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion: gatewayv1.GroupVersion.String(),
+							Kind:       "Gateway",
+							Name:       gw.Name,
+							UID:        gw.UID,
+							Controller: ptr.To(true),
+						},
+					},
+				},
+			}
+			cec := &ciliumv2.CiliumEnvoyConfig{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      shortener.ShortenK8sResourceName(gatewayApiTranslation.CiliumGatewayPrefix + gw.Name),
+					Namespace: gw.Namespace,
+					Labels: map[string]string{
+						"gateway.networking.k8s.io/gateway-name": shortGatewayName,
+					},
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion: gatewayv1.GroupVersion.String(),
+							Kind:       "Gateway",
+							Name:       gw.Name,
+							UID:        gw.UID,
+							Controller: ptr.To(true),
+						},
+					},
+				},
+			}
+
+			objects := append([]client.Object{gw, svc, cec}, tc.objects...)
+			c := fake.NewClientBuilder().
+				WithScheme(testScheme()).
+				WithObjects(objects...).
+				Build()
+
+			r := &gatewayReconciler{
+				Client: c,
+				logger: hivetest.Logger(t, hivetest.LogLevel(slog.LevelDebug)),
+			}
+
+			result, err := r.Reconcile(t.Context(), ctrl.Request{NamespacedName: client.ObjectKeyFromObject(gw)})
+			require.NoError(t, err)
+			require.Equal(t, ctrl.Result{}, result)
+
+			err = c.Get(t.Context(), client.ObjectKeyFromObject(svc), &corev1.Service{})
+			require.ErrorContains(t, err, "not found")
+
+			err = c.Get(t.Context(), client.ObjectKeyFromObject(cec), &ciliumv2.CiliumEnvoyConfig{})
+			require.ErrorContains(t, err, "not found")
+
+			actualGateway := &gatewayv1.Gateway{}
+			require.NoError(t, c.Get(t.Context(), client.ObjectKeyFromObject(gw), actualGateway))
+		})
+	}
+}
+
 func filterHTTPRoute(hrList *gatewayv1.HTTPRouteList, gatewayName string, namespace string) []gatewayv1.HTTPRoute {
 	var filterList []gatewayv1.HTTPRoute
 	for _, hr := range hrList.Items {
@@ -443,114 +551,6 @@ func filterGRPCRoute(hrList *gatewayv1.GRPCRouteList, gatewayName string, namesp
 		}
 	}
 	return filterList
-}
-
-func Test_isValidPemFormat(t *testing.T) {
-	cert := []byte(`-----BEGIN CERTIFICATE-----
-MIIENDCCApygAwIBAgIRAKD/BLFBfwKIZ0WGrHtTH6gwDQYJKoZIhvcNAQELBQAw
-dzEeMBwGA1UEChMVbWtjZXJ0IGRldmVsb3BtZW50IENBMSYwJAYDVQQLDB10YW1t
-YWNoQGZlZG9yYS5sYW4gKFRhbSBNYWNoKTEtMCsGA1UEAwwkbWtjZXJ0IHRhbW1h
-Y2hAZmVkb3JhLmxhbiAoVGFtIE1hY2gpMB4XDTIzMDIyMTExMDg0M1oXDTI1MDUy
-MTEyMDg0M1owUTEnMCUGA1UEChMebWtjZXJ0IGRldmVsb3BtZW50IGNlcnRpZmlj
-YXRlMSYwJAYDVQQLDB10YW1tYWNoQGZlZG9yYS5sYW4gKFRhbSBNYWNoKTCCASIw
-DQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAMIZy+0JRVjqpWgeq2dP+1oliO4A
-CcZnMg4tSqPalhDQL6Mf68HYLfizyJIpRzMJ905rYd0AcmXmu/g0Eo8ykHxFDz5T
-sePs2XQng8MN4azsRmm1l4f74ovawQzQcb822QP1CS6ILZ3VtwNjRh2nAwthYBMo
-CkngDGeQ8Gl0tjHLFnBdTdSwQRmE2jtDBcAgyEGpq+6ReYt+/47nNn7dCftsVqhE
-BYr9XH3itefHmsbfj7zWFbptdko7q9lMHwnBd+0hd40MmJIXMZrOGGFZjawJDBqS
-sBq2Q3l6XQz8X7P/GA8Dn8h4w3rppmiaN7LOmGXeki3xX2wqnM+0s6aZYZsCAwEA
-AaNhMF8wDgYDVR0PAQH/BAQDAgWgMBMGA1UdJQQMMAoGCCsGAQUFBwMBMB8GA1Ud
-IwQYMBaAFGQ2DB06CdQFQBsYPye0NBwErUNEMBcGA1UdEQQQMA6CDHVuaXR0ZXN0
-LmNvbTANBgkqhkiG9w0BAQsFAAOCAYEArtHdKWXR6aELpfal17biabCPvIF9j6nw
-uDzcdMYQLrXm8M+NHe8x3dpI7u3lltO+dzLng+nVKQOR3alQACSmRD9c7ie8eT5d
-7zKOTk6keY195I1wVV4jbNLbNWa9y4RJQRTvBLAvAP9NVtUw2Q/w/ErUTqSyz+ob
-dwnt4gYCw6dGnluLxlfF34DB9KflvVNSnkyMB/gsB4A3r1GPOIo0Gyf74ig3FWrS
-wHYKnBbtZfYO0JV0LCoPyHe8g0XajZe8DCbP/E6SmlTNAmJESVjigTTcIBAkFI+n
-toBAdxfhjKUGaClOHS29cpaiynjSayGm4RkHkx7mcAua9lWPf7pSa3mCcFb+wFr3
-ABkHDPJH2acfaUK1vgKTgOwcG/6KA820/PraoSihLaPK/A7eg77r1EeYpt0Neppb
-XjvUp3YmVlIMZXPzrjOsastoDSrsygj5jdVtm4Pslv9nPhzDrBjlZpEJScW4Jlb+
-6wtd7p03UDBSKfTbVROVAe5mvJvA0hoS
------END CERTIFICATE-----
-`)
-	key := []byte(`-----BEGIN PRIVATE KEY-----
-MIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQDCGcvtCUVY6qVo
-HqtnT/taJYjuAAnGZzIOLUqj2pYQ0C+jH+vB2C34s8iSKUczCfdOa2HdAHJl5rv4
-NBKPMpB8RQ8+U7Hj7Nl0J4PDDeGs7EZptZeH++KL2sEM0HG/NtkD9QkuiC2d1bcD
-Y0YdpwMLYWATKApJ4AxnkPBpdLYxyxZwXU3UsEEZhNo7QwXAIMhBqavukXmLfv+O
-5zZ+3Qn7bFaoRAWK/Vx94rXnx5rG34+81hW6bXZKO6vZTB8JwXftIXeNDJiSFzGa
-zhhhWY2sCQwakrAatkN5el0M/F+z/xgPA5/IeMN66aZomjeyzphl3pIt8V9sKpzP
-tLOmmWGbAgMBAAECggEAEjASoMJ2og9Ssn/1NbgT6G2N+Cc+wz2WPifWT6ZC2452
-eEWcdMyJ+jz2dWOyzUCI0OtU/z10esH1KRvQBWUKjup1tDRpfd8KvUyalyNs2yRE
-sNEYQuDCaLJ11nqNvgooqatDUf3msFx/Sqz5u/uTWHSmaQUeea+p2eaF8IvEKsQf
-6QNklkeHsv+GVPv+iibfbXXne6I5aV35Rc4Q08zRCgYX/BN1AYXV6ho4RC9dZVGP
-JUkSLzRadegok/EONKkrqLZOFJVb2wtFq85gJ01lODM/gj7GqM59M/wk55CaQIRD
-9x5H4X4rpM2rhmiNLkIN0tGLKO8X31up7hTx9bvJcQKBgQD51MLWYYUPz/umvSrN
-QOT9UhEHI/bxtCbWQthW3L1qrVT7DB8Jko/6/xYlXhl7nwVwJz24jJf9vuxWbBpL
-HZRf0QsDO2/O4rqhKDov/GMUCx2shzc+J7k+T93KNVANYa05guqMeB8n30HProkF
-LgihVFF20k9Z6SibUvgTMpF1EwKBgQDG5MBgc8oFXmlr/7pHKizC4F3eDAXUxVHM
-WCIbSwMyzOXKqDcdXNDz8cQrjhKa2rD1fKhE0oRR+QvHz8IPC+0MsT7Q6QsIHYj5
-CXubHr0s5k8PJAp+Lk2EdHePZQM/I/vj/gSwxnJ9Qs64FWZ25K9zYnNNsiojQel7
-WVmI9IVaWQKBgD3BYggsQwANoV8uE455JCGaT6s8MKa+qXr9Owz9s7TS89a6wFFV
-cVHSDF9gS1xLisSWbqNX3ZpTv4f9YOKAhVTKD7bU0maJlSiREREbikJCHSuwoO80
-Uo4cn+6EDy2/n1pACkp+xvTMMzBrLGOjZW67sQd2JTdMc0Ux1TCpp1sRAoGAaEVI
-rchGYyYp8pqw19o+eTQTQfPforqHta+GwfRDiwBsgCBMNLKSQTHAfG0RR+na1/gw
-Z1ROVoNQL8K1pBnGft71ZaSnSeviAV19Vcd5ue5MCE4GyjwQG57Lh3uXhiShS9fC
-McL4Br9djJh7jV06ti0o8dSzzqQhea9QB0LaHpECgYApc8oBoiK69s0wXyI4+Phx
-ScBJ0XqDBYFkxyXr8Y5pEarEaqCtl1OPPMOiQRDWoxRR+FwA/0laSfh5xw0U3b+q
-iZ2XpkrbQp034rC0UR6p+Km1Sv9AVCACAjrcQ3NZaf8bDOWqvpla7Auq0oG8i6UX
-hEKCKf/N3gE1oMrTxVzUDQ==
------END PRIVATE KEY-----
-`)
-	keyAndCert := append(key, cert...)
-	type args struct {
-		b []byte
-	}
-	tests := []struct {
-		name string
-		args args
-		want bool
-	}{
-		{
-			name: "valid cert pem",
-			args: args{
-				b: cert,
-			},
-			want: true,
-		},
-		{
-			name: "value key pem",
-			args: args{
-				b: key,
-			},
-			want: true,
-		},
-		{
-			name: "multiple valid pem blocks",
-			args: args{
-				b: keyAndCert,
-			},
-			want: true,
-		},
-		{
-			name: "invalid first block",
-			args: args{
-				b: append([]byte("invalid block"), key...),
-			},
-			want: false,
-		},
-		{
-			name: "invalid pem",
-			args: args{
-				b: []byte("invalid pem"),
-			},
-			want: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equalf(t, tt.want, isValidPemFormat(tt.args.b), "isValidPemFormat(%v)", tt.args.b)
-		})
-	}
 }
 
 func Test_sectionNameMatched(t *testing.T) {

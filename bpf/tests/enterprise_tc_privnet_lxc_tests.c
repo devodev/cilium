@@ -31,6 +31,75 @@ static __always_inline int mock_ctx_redirect(const struct __sk_buff __maybe_unus
 
 #include "enterprise_privnet_common.h"
 
+/* packets defined in ./scapy/enterprise_privnet_pkt_defs.py */
+const __u8 privnet_net_ip_icmp_req[] = {
+	SCAPY_BUF_BYTES(privnet_net_ip_icmp_req)
+};
+
+const __u8 privnet_pod_ip_icmp_req[] = {
+	SCAPY_BUF_BYTES(privnet_pod_ip_icmp_req)
+};
+
+const __u8 privnet_net_ip_tcp_syn[] = {
+	SCAPY_BUF_BYTES(privnet_net_ip_tcp_syn)
+};
+
+const __u8 privnet_pod_ip_tcp_syn[] = {
+	SCAPY_BUF_BYTES(privnet_pod_ip_tcp_syn)
+};
+
+const __u8 privnet_unknown_flow_icmp_req_out[] = {
+	SCAPY_BUF_BYTES(privnet_unknown_flow_icmp_req_out)
+};
+
+const __u8 privnet_unknown_flow_icmp_req_in[] = {
+	SCAPY_BUF_BYTES(privnet_unknown_flow_icmp_req_in)
+};
+
+const __u8 privnet_lxc_ns_ll[] = {
+	SCAPY_BUF_BYTES(privnet_lxc_ns_ll)
+};
+
+const __u8 privnet_lxc_na_ll[] = {
+	SCAPY_BUF_BYTES(privnet_lxc_na_ll)
+};
+
+const __u8 privnet_lxc_ns_ep1[] = {
+	SCAPY_BUF_BYTES(privnet_lxc_ns_ep1)
+};
+
+const __u8 privnet_lxc_na_ep1[] = {
+	SCAPY_BUF_BYTES(privnet_lxc_na_ep1)
+};
+
+const __u8 privnet_lxc_ns_ep2[] = {
+	SCAPY_BUF_BYTES(privnet_lxc_ns_ep2)
+};
+
+const __u8 privnet_lxc_ns_self[] = {
+	SCAPY_BUF_BYTES(privnet_lxc_ns_self)
+};
+
+const __u8 privnet_net_ip_arp_req[] = {
+	SCAPY_BUF_BYTES(privnet_net_ip_arp_req)
+};
+
+const __u8 privnet_net_ip_icmp_req_x_subnet[] = {
+	SCAPY_BUF_BYTES(privnet_net_ip_icmp_req_x_subnet)
+};
+
+const __u8 privnet_pod_ip_icmp_req_x_subnet[] = {
+	SCAPY_BUF_BYTES(privnet_pod_ip_icmp_req_x_subnet)
+};
+
+const __u8 privnet_net_ipv6_tcp_syn[] = {
+	SCAPY_BUF_BYTES(privnet_net_ipv6_tcp_syn)
+};
+
+const __u8 privnet_pod_ipv6_tcp_syn[] = {
+	SCAPY_BUF_BYTES(privnet_pod_ipv6_tcp_syn)
+};
+
 #include "lib/bpf_lxc.h"
 
 /* Include test helpers */
@@ -55,8 +124,7 @@ static const union v6addr lxc_privnet_ipv6 = { .addr = v6_svc_one_addr };
 PKTGEN("tc", "01_icmp_from_container_nat_src_dst")
 int privnet_icmp_from_container_nat_src_dst_pktgen(struct __ctx_buff *ctx)
 {
-	BUF_DECL(NETIP_ICMP_REQ, privnet_net_ip_icmp_req);
-	build_privnet_packet(ctx, NETIP_ICMP_REQ);
+	build_privnet_packet(ctx, privnet_net_ip_icmp_req);
 	return 0;
 }
 
@@ -81,10 +149,9 @@ int privnet_icmp_from_container_nat_src_dst_check(struct __ctx_buff *ctx)
 
 	assert_status_code(ctx, TC_ACT_OK);
 
-	BUF_DECL(PODIP_ICMP_REQ, privnet_pod_ip_icmp_req);
 	ASSERT_CTX_BUF_OFF("privnet_icmp_from_container_nat_src_dst", "IP", ctx,
-			   sizeof(__u32), PODIP_ICMP_REQ,
-			   sizeof(BUF(PODIP_ICMP_REQ)));
+			   sizeof(__u32), privnet_pod_ip_icmp_req,
+			   sizeof(privnet_pod_ip_icmp_req));
 
 	assert_privnet_net_ids(PRIVNET_PIP_NET_ID, PRIVNET_PIP_NET_ID);
 
@@ -104,8 +171,7 @@ int privnet_icmp_from_container_nat_src_dst_check(struct __ctx_buff *ctx)
 PKTGEN("tc", "02_tcp_from_container_nat_src_dst")
 int privnet_tcp_from_container_nat_src_dst_pktgen(struct __ctx_buff *ctx)
 {
-	BUF_DECL(NETIP_TCP_SYN, privnet_net_ip_tcp_syn);
-	build_privnet_packet(ctx, NETIP_TCP_SYN);
+	build_privnet_packet(ctx, privnet_net_ip_tcp_syn);
 	return 0;
 }
 
@@ -130,10 +196,9 @@ int privnet_tcp_from_container_nat_src_dst_check(struct __ctx_buff *ctx)
 
 	assert_status_code(ctx, TC_ACT_OK);
 
-	BUF_DECL(PODIP_TCP_SYN, privnet_pod_ip_tcp_syn);
 	ASSERT_CTX_BUF_OFF("privnet_tcp_from_container_nat_src_dst", "IP", ctx,
-			   sizeof(__u32), PODIP_TCP_SYN,
-			   sizeof(BUF(PODIP_TCP_SYN)));
+			   sizeof(__u32), privnet_pod_ip_tcp_syn,
+			   sizeof(privnet_pod_ip_tcp_syn));
 
 	assert_privnet_net_ids(PRIVNET_PIP_NET_ID, PRIVNET_PIP_NET_ID);
 
@@ -151,8 +216,7 @@ int privnet_tcp_from_container_nat_src_dst_check(struct __ctx_buff *ctx)
 PKTGEN("tc", "03_icmp_from_container_nat_src_route_dst")
 int privnet_icmp_from_container_nat_src_route_dst_pktgen(struct __ctx_buff *ctx)
 {
-	BUF_DECL(NETIP_ICMP_REQ, privnet_net_ip_icmp_req);
-	build_privnet_packet(ctx, NETIP_ICMP_REQ);
+	build_privnet_packet(ctx, privnet_net_ip_icmp_req);
 	return 0;
 }
 
@@ -179,10 +243,9 @@ int privnet_icmp_from_container_nat_src_route_dst_check(struct __ctx_buff *ctx)
 	assert_status_code(ctx, TC_ACT_REDIRECT);
 
 	/* check inner packet headers, dst should remain untranslated */
-	BUF_DECL(UNKNOWN_ICMP_REQ, privnet_unknown_flow_icmp_req_out);
 	ASSERT_CTX_BUF_OFF("privnet_icmp_from_container_nat_src_route_dst", "IP", ctx,
-			   sizeof(__u32), UNKNOWN_ICMP_REQ,
-			   sizeof(BUF(UNKNOWN_ICMP_REQ)));
+			   sizeof(__u32), privnet_unknown_flow_icmp_req_out,
+			   sizeof(privnet_unknown_flow_icmp_req_out));
 
 	assert_privnet_net_ids(PRIVNET_PIP_NET_ID, NET_ID);
 
@@ -199,8 +262,7 @@ int privnet_icmp_from_container_nat_src_route_dst_check(struct __ctx_buff *ctx)
 PKTGEN("tc", "04_icmp_from_container_nat_src_miss_dst")
 int privnet_icmp_from_container_nat_src_miss_dst_pktgen(struct __ctx_buff *ctx)
 {
-	BUF_DECL(NETIP_ICMP_REQ, privnet_net_ip_icmp_req);
-	build_privnet_packet(ctx, NETIP_ICMP_REQ);
+	build_privnet_packet(ctx, privnet_net_ip_icmp_req);
 	return 0;
 }
 
@@ -257,8 +319,7 @@ int privnet_icmp_from_container_nat_src_miss_dst_check(struct __ctx_buff *ctx)
 PKTGEN("tc", "05_icmp_to_container_nat_src_dst")
 int privnet_icmp_to_container_nat_src_dst_pktgen(struct __ctx_buff *ctx)
 {
-	BUF_DECL(PODIP_ICMP_REQ, privnet_pod_ip_icmp_req);
-	build_privnet_packet(ctx, PODIP_ICMP_REQ);
+	build_privnet_packet(ctx, privnet_pod_ip_icmp_req);
 	return 0;
 }
 
@@ -283,10 +344,9 @@ int privnet_icmp_to_container_nat_src_dst_check(struct __ctx_buff *ctx)
 
 	assert_status_code(ctx, CTX_ACT_OK);
 
-	BUF_DECL(EXPECTED_NETIP_ICMP_REQ, privnet_net_ip_icmp_req);
 	ASSERT_CTX_BUF_OFF("privnet_icmp_to_container_nat_src_dst", "IP", ctx,
-			   sizeof(__u32), EXPECTED_NETIP_ICMP_REQ,
-			   sizeof(BUF(EXPECTED_NETIP_ICMP_REQ)));
+			   sizeof(__u32), privnet_net_ip_icmp_req,
+			   sizeof(privnet_net_ip_icmp_req));
 
 	assert_privnet_net_ids(NET_ID, NET_ID);
 
@@ -303,8 +363,7 @@ int privnet_icmp_to_container_nat_src_dst_check(struct __ctx_buff *ctx)
 PKTGEN("tc", "06_tcp_to_container_nat_src_dst")
 int privnet_tcp_to_container_nat_src_dst_pktgen(struct __ctx_buff *ctx)
 {
-	BUF_DECL(PODIP_TCP_SYN, privnet_pod_ip_tcp_syn);
-	build_privnet_packet(ctx, PODIP_TCP_SYN);
+	build_privnet_packet(ctx, privnet_pod_ip_tcp_syn);
 	return 0;
 }
 
@@ -329,10 +388,9 @@ int privnet_tcp_to_container_nat_src_dst_check(struct __ctx_buff *ctx)
 
 	assert_status_code(ctx, CTX_ACT_OK);
 
-	BUF_DECL(NETIP_TCP_SYN, privnet_net_ip_tcp_syn);
 	ASSERT_CTX_BUF_OFF("privnet_tcp_to_container_nat_src_dst", "IP", ctx,
-			   sizeof(__u32), NETIP_TCP_SYN,
-			   sizeof(BUF(NETIP_TCP_SYN)));
+			   sizeof(__u32), privnet_net_ip_tcp_syn,
+			   sizeof(privnet_net_ip_tcp_syn));
 
 	assert_privnet_net_ids(NET_ID, NET_ID);
 
@@ -349,8 +407,7 @@ int privnet_tcp_to_container_nat_src_dst_check(struct __ctx_buff *ctx)
 PKTGEN("tc", "07_icmp_to_container_unknown_src_nat_dst")
 int privnet_icmp_to_container_unknown_src_nat_dst_pktgen(struct __ctx_buff *ctx)
 {
-	BUF_DECL(PODIP_ICMP_REQ, privnet_pod_ip_icmp_req);
-	build_privnet_packet(ctx, PODIP_ICMP_REQ);
+	build_privnet_packet(ctx, privnet_pod_ip_icmp_req);
 	return 0;
 }
 
@@ -376,10 +433,9 @@ int privnet_icmp_to_container_unknown_src_nat_dst_check(struct __ctx_buff *ctx)
 
 	assert_status_code(ctx, CTX_ACT_REDIRECT);
 
-	BUF_DECL(UNKNOWN_ICMP_REQ, privnet_unknown_flow_icmp_req_out);
 	ASSERT_CTX_BUF_OFF("privnet_icmp_to_container_unknown_src_nat_dst", "IP", ctx,
-			   sizeof(__u32), UNKNOWN_ICMP_REQ,
-			   sizeof(BUF(UNKNOWN_ICMP_REQ)));
+			   sizeof(__u32), privnet_unknown_flow_icmp_req_out,
+			   sizeof(privnet_unknown_flow_icmp_req_out));
 
 	assert_privnet_net_ids(NET_ID, NET_ID);
 
@@ -396,8 +452,7 @@ int privnet_icmp_to_container_unknown_src_nat_dst_check(struct __ctx_buff *ctx)
 PKTGEN("tc", "08_icmp_to_container_unknown_src_miss_dst")
 int privnet_icmp_to_container_unknown_src_miss_dst_pktgen(struct __ctx_buff *ctx)
 {
-	BUF_DECL(PODIP_ICMP_REQ, privnet_pod_ip_icmp_req);
-	build_privnet_packet(ctx, PODIP_ICMP_REQ);
+	build_privnet_packet(ctx, privnet_pod_ip_icmp_req);
 	return 0;
 }
 
@@ -427,7 +482,12 @@ int privnet_icmp_to_container_unknown_src_miss_dst_check(struct __ctx_buff *ctx)
 }
 
 /* IPv6 test cases */
-const __u8 *BUF(__UNUSED__) = NULL;
+
+/* Placeholder for PRIVNET_ICMP6_NS_CHECK invocations where the
+ * STATUS_CODE != TC_ACT_REDIRECT branch is dead but the buffer expression
+ * still has to typecheck.
+ */
+const __u8 __UNUSED__[1] = { 0 };
 
 static __always_inline int privnet_icmp6_ns_setup(struct __ctx_buff *ctx)
 {
@@ -451,7 +511,7 @@ static __always_inline int privnet_icmp6_ns_setup(struct __ctx_buff *ctx)
 		if (STATUS_CODE == TC_ACT_REDIRECT) {				\
 			ASSERT_CTX_BUF_OFF(TEST_NAME, "Ether", CTX,		\
 				sizeof(__u32), NA_BUF_NAME,			\
-				sizeof(BUF(NA_BUF_NAME)));			\
+				sizeof(NA_BUF_NAME));				\
 		}								\
 										\
 		privnet_v6_del_endpoint_entry(NET_ID, SUBNET_ID,		\
@@ -470,8 +530,7 @@ static __always_inline int privnet_icmp6_ns_setup(struct __ctx_buff *ctx)
 PKTGEN("tc", "09_icmp6_from_container_neighbor_solicitation_link_local")
 int privnet_icmp6_from_container_neighbor_solicitation_link_local_pktgen(struct __ctx_buff *ctx)
 {
-	BUF_DECL(LXC_ICMP6_NS_LL, privnet_lxc_ns_ll);
-	build_privnet_packet(ctx, LXC_ICMP6_NS_LL);
+	build_privnet_packet(ctx, privnet_lxc_ns_ll);
 	return 0;
 }
 
@@ -484,10 +543,9 @@ int privnet_icmp6_from_container_neighbor_solicitation_link_local_setup(struct _
 CHECK("tc", "09_icmp6_from_container_neighbor_solicitation_link_local")
 int privnet_icmp6_from_container_neighbor_solicitation_link_local_check(struct __ctx_buff *ctx)
 {
-	BUF_DECL(LXC_ICMP6_NA_LL, privnet_lxc_na_ll);
 	PRIVNET_ICMP6_NS_CHECK(ctx,
 			       "09_icmp6_from_container_neighbor_solicitation_link_local",
-			       TC_ACT_REDIRECT, LXC_ICMP6_NA_LL
+			       TC_ACT_REDIRECT, privnet_lxc_na_ll
 	);
 }
 
@@ -495,8 +553,7 @@ int privnet_icmp6_from_container_neighbor_solicitation_link_local_check(struct _
 PKTGEN("tc", "10_icmp6_from_container_neighbor_solicitation_ep_match")
 int privnet_icmp6_from_container_neighbor_solicitation_ep_match_pktgen(struct __ctx_buff *ctx)
 {
-	BUF_DECL(LXC_ICMP6_NS_EP1, privnet_lxc_ns_ep1);
-	build_privnet_packet(ctx, LXC_ICMP6_NS_EP1);
+	build_privnet_packet(ctx, privnet_lxc_ns_ep1);
 	return 0;
 }
 
@@ -509,10 +566,9 @@ int privnet_icmp6_from_container_neighbor_solicitation_ep_match_setup(struct __c
 CHECK("tc", "10_icmp6_from_container_neighbor_solicitation_ep_match")
 int privnet_icmp6_from_container_neighbor_solicitation_ep_match_check(struct __ctx_buff *ctx)
 {
-	BUF_DECL(LXC_ICMP6_NA_EP1, privnet_lxc_na_ep1);
 	PRIVNET_ICMP6_NS_CHECK(ctx,
 			       "10_icmp6_from_container_neighbor_solicitation_ep_match",
-			       TC_ACT_REDIRECT, LXC_ICMP6_NA_EP1
+			       TC_ACT_REDIRECT, privnet_lxc_na_ep1
 	);
 }
 
@@ -520,8 +576,7 @@ int privnet_icmp6_from_container_neighbor_solicitation_ep_match_check(struct __c
 PKTGEN("tc", "11_icmp6_from_container_neighbor_solicitation_ep_no_match")
 int privnet_icmp6_from_container_neighbor_solicitation_ep_no_match_pktgen(struct __ctx_buff *ctx)
 {
-	BUF_DECL(LXC_ICMP6_NS_EP2, privnet_lxc_ns_ep2);
-	build_privnet_packet(ctx, LXC_ICMP6_NS_EP2);
+	build_privnet_packet(ctx, privnet_lxc_ns_ep2);
 	return 0;
 }
 
@@ -544,8 +599,7 @@ int privnet_icmp6_from_container_neighbor_solicitation_ep_no_match_check(struct 
 PKTGEN("tc", "12_icmp6_from_container_neighbor_solicitation_self")
 int privnet_icmp6_from_container_neighbor_solicitation_self_pktgen(struct __ctx_buff *ctx)
 {
-	BUF_DECL(LXC_ICMP6_NS_SELF, privnet_lxc_ns_self);
-	build_privnet_packet(ctx, LXC_ICMP6_NS_SELF);
+	build_privnet_packet(ctx, privnet_lxc_ns_self);
 	return 0;
 }
 
@@ -567,8 +621,7 @@ int privnet_icmp6_from_container_neighbor_solicitation_self_check(struct __ctx_b
 PKTGEN("tc", "13_icmp_from_container_missing_net_id")
 int privnet_icmp_from_container_missing_net_id_pktgen(struct __ctx_buff *ctx)
 {
-	BUF_DECL(NETIP_ICMP_REQ, privnet_net_ip_icmp_req);
-	build_privnet_packet(ctx, NETIP_ICMP_REQ);
+	build_privnet_packet(ctx, privnet_net_ip_icmp_req);
 	return 0;
 }
 
@@ -623,9 +676,8 @@ int privnet_icmp_from_container_missing_net_id_check(struct __ctx_buff *ctx)
 PKTGEN("tc", "14_arp_from_container_privnet_ip_match")
 int privnet_arp_from_container_privnet_ip_mismatch_pktgen(struct __ctx_buff *ctx)
 {
-	BUF_DECL(NETIP_ARP_REQ, privnet_net_ip_arp_req);
 
-	build_privnet_packet(ctx, NETIP_ARP_REQ);
+	build_privnet_packet(ctx, privnet_net_ip_arp_req);
 	return 0;
 }
 
@@ -711,8 +763,7 @@ int privnet_dhcp_from_container_unicast_redirect_check(struct __ctx_buff *ctx)
 PKTGEN("tc", "17_tcp_from_container_spoofed_drop")
 int privnet_tcp_from_container_spoofed_drop_pktgen(struct __ctx_buff *ctx)
 {
-	BUF_DECL(NETIP_TCP_SYN, privnet_net_ip_tcp_syn);
-	build_privnet_packet(ctx, NETIP_TCP_SYN);
+	build_privnet_packet(ctx, privnet_net_ip_tcp_syn);
 
 	return 0;
 }
@@ -768,8 +819,7 @@ int privnet_tcp_from_container_spoofed_drop_check(struct __ctx_buff *ctx)
 PKTGEN("tc", "18_icmp_from_container_to_other_subnet_nat_src_dst")
 int privnet_icmp_from_container_to_other_subnet_nat_src_dst_pktgen(struct __ctx_buff *ctx)
 {
-	BUF_DECL(NETIP_X_ICMP_REQ, privnet_net_ip_icmp_req_x_subnet);
-	build_privnet_packet(ctx, NETIP_X_ICMP_REQ);
+	build_privnet_packet(ctx, privnet_net_ip_icmp_req_x_subnet);
 	return 0;
 }
 
@@ -798,10 +848,9 @@ int privnet_icmp_from_container_to_other_subnet_nat_src_dst_check(struct __ctx_b
 
 	assert_status_code(ctx, TC_ACT_OK);
 
-	BUF_DECL(PODIP_X_ICMP_REQ, privnet_pod_ip_icmp_req_x_subnet);
 	ASSERT_CTX_BUF_OFF("privnet_icmp_from_container_nat_src_dst", "IP", ctx,
-			   sizeof(__u32), PODIP_X_ICMP_REQ,
-			   sizeof(BUF(PODIP_X_ICMP_REQ)));
+			   sizeof(__u32), privnet_pod_ip_icmp_req_x_subnet,
+			   sizeof(privnet_pod_ip_icmp_req_x_subnet));
 
 	assert_privnet_net_ids(PRIVNET_PIP_NET_ID, PRIVNET_PIP_NET_ID);
 
@@ -820,8 +869,7 @@ int privnet_icmp_from_container_to_other_subnet_nat_src_dst_check(struct __ctx_b
 PKTGEN("tc", "19_icmp_from_container_peering_route_conflict")
 int privnet_icmp_from_container_peering_route_conflict_pktgen(struct __ctx_buff *ctx)
 {
-	BUF_DECL(NETIP_X_ICMP_REQ, privnet_net_ip_icmp_req_x_subnet);
-	build_privnet_packet(ctx, NETIP_X_ICMP_REQ);
+	build_privnet_packet(ctx, privnet_net_ip_icmp_req_x_subnet);
 	return 0;
 }
 
@@ -851,10 +899,9 @@ int privnet_icmp_from_container_peering_route_conflict_check(struct __ctx_buff *
 
 	assert_status_code(ctx, TC_ACT_OK);
 
-	BUF_DECL(PODIP_X_ICMP_REQ, privnet_pod_ip_icmp_req_x_subnet);
 	ASSERT_CTX_BUF_OFF("privnet_icmp_from_container_nat_src_dst", "IP", ctx,
-			   sizeof(__u32), PODIP_X_ICMP_REQ,
-			   sizeof(BUF(PODIP_X_ICMP_REQ)));
+			   sizeof(__u32), privnet_pod_ip_icmp_req_x_subnet,
+			   sizeof(privnet_pod_ip_icmp_req_x_subnet));
 
 	assert_privnet_net_ids(PRIVNET_PIP_NET_ID, PRIVNET_PIP_NET_ID);
 
@@ -875,8 +922,7 @@ int privnet_icmp_from_container_peering_route_conflict_check(struct __ctx_buff *
 PKTGEN("tc", "20_icmp_from_container_no_peering_route_match")
 int privnet_icmp_from_container_no_peering_route_match_pktgen(struct __ctx_buff *ctx)
 {
-	BUF_DECL(NETIP_ICMP_REQ, privnet_net_ip_icmp_req);
-	build_privnet_packet(ctx, NETIP_ICMP_REQ);
+	build_privnet_packet(ctx, privnet_net_ip_icmp_req);
 	return 0;
 }
 
@@ -908,10 +954,9 @@ int privnet_icmp_from_container_no_peering_route_match_check(struct __ctx_buff *
 	assert_status_code(ctx, TC_ACT_REDIRECT);
 
 	/* check inner packet headers, dst should remain untranslated */
-	BUF_DECL(UNKNOWN_ICMP_REQ, privnet_unknown_flow_icmp_req_out);
 	ASSERT_CTX_BUF_OFF("privnet_icmp_from_container_nat_src_route_dst", "IP", ctx,
-			   sizeof(__u32), UNKNOWN_ICMP_REQ,
-			   sizeof(BUF(UNKNOWN_ICMP_REQ)));
+			   sizeof(__u32), privnet_unknown_flow_icmp_req_out,
+			   sizeof(privnet_unknown_flow_icmp_req_out));
 
 	assert_privnet_net_ids(PRIVNET_PIP_NET_ID, NET_ID);
 
@@ -932,8 +977,7 @@ int privnet_icmp_from_container_no_peering_route_match_check(struct __ctx_buff *
 PKTGEN("tc", "21_icmp_from_container_no_peering_route_match_drop")
 int privnet_icmp_from_container_no_peering_route_match_drop_pktgen(struct __ctx_buff *ctx)
 {
-	BUF_DECL(NETIP_ICMP_REQ, privnet_net_ip_icmp_req);
-	build_privnet_packet(ctx, NETIP_ICMP_REQ);
+	build_privnet_packet(ctx, privnet_net_ip_icmp_req);
 	return 0;
 }
 
@@ -982,8 +1026,7 @@ int privnet_icmp_from_container_no_peering_route_match_drop_check(struct __ctx_b
 PKTGEN("tc", "22_icmp_from_container_unknown_policy_denied")
 int privnet_icmp_from_container_unknown_policy_denied_pktgen(struct __ctx_buff *ctx)
 {
-	BUF_DECL(NETIP_ICMP_REQ, privnet_net_ip_icmp_req);
-	build_privnet_packet(ctx, NETIP_ICMP_REQ);
+	build_privnet_packet(ctx, privnet_net_ip_icmp_req);
 	return 0;
 }
 
@@ -1040,8 +1083,7 @@ int privnet_icmp_from_container_unknown_policy_denied_check(struct __ctx_buff *c
 PKTGEN("tc", "23_icmp_from_container_unknown_policy_allowed")
 int privnet_icmp_from_container_unknown_policy_allowed_pktgen(struct __ctx_buff *ctx)
 {
-	BUF_DECL(NETIP_ICMP_REQ, privnet_net_ip_icmp_req);
-	build_privnet_packet(ctx, NETIP_ICMP_REQ);
+	build_privnet_packet(ctx, privnet_net_ip_icmp_req);
 	return 0;
 }
 
@@ -1083,8 +1125,7 @@ int privnet_icmp_from_container_unknown_policy_allowed_check(struct __ctx_buff *
 PKTGEN("tc", "24_icmp_to_container_unknown_policy_denied")
 int privnet_to_container_unknown_policy_denied_pktgen(struct __ctx_buff *ctx)
 {
-	BUF_DECL(UNKNOWN_ICMP_REQ_IN, privnet_unknown_flow_icmp_req_in);
-	build_privnet_packet(ctx, UNKNOWN_ICMP_REQ_IN);
+	build_privnet_packet(ctx, privnet_unknown_flow_icmp_req_in);
 	return 0;
 }
 
@@ -1121,8 +1162,7 @@ int privnet_icmp_to_container_unknown_policy_denied_check(struct __ctx_buff *ctx
 PKTGEN("tc", "25_icmp_to_container_unknown_policy_explicit_deny")
 int privnet_to_container_unknown_policy_explicit_deny_pktgen(struct __ctx_buff *ctx)
 {
-	BUF_DECL(UNKNOWN_ICMP_REQ_IN, privnet_unknown_flow_icmp_req_in);
-	build_privnet_packet(ctx, UNKNOWN_ICMP_REQ_IN);
+	build_privnet_packet(ctx, privnet_unknown_flow_icmp_req_in);
 	return 0;
 }
 
@@ -1138,7 +1178,7 @@ int privnet_to_container_unknown_policy_explicit_deny_setup(struct __ctx_buff *c
 	/* ingress allow from all */
 	policy_add_ingress_allow_l3_l4_entry(0, 0, 0, 0);
 	/* ingress deny for CIDR identity */
-	policy_add_entry(false, CIDR_IDENTITY, 0, 0, 0, true);
+	policy_add_entry(false, CIDR_IDENTITY, 0, 0, 0, true, 0);
 	privnet_v4_add_cidr_identity_entry(SUBNET_V4, SUBNET_V4_LEN, CIDR_IDENTITY);
 
 	ctx_store_meta(ctx, CB_FROM_TUNNEL, 1);
@@ -1169,8 +1209,7 @@ int privnet_icmp_to_container_unknown_policy_explicit_deny_check(struct __ctx_bu
 PKTGEN("tc", "26_tcp_from_container_v6_nat_src_dst")
 int privnet_tcp_from_container_v6_nat_src_dst_pktgen(struct __ctx_buff *ctx)
 {
-	BUF_DECL(NETIP_V6_TCP_SYN, privnet_net_ipv6_tcp_syn);
-	build_privnet_packet(ctx, NETIP_V6_TCP_SYN);
+	build_privnet_packet(ctx, privnet_net_ipv6_tcp_syn);
 	return 0;
 }
 
@@ -1199,10 +1238,9 @@ int privnet_tcp_from_container_v6_nat_src_dst_check(struct __ctx_buff *ctx)
 
 	assert_status_code(ctx, TC_ACT_OK);
 
-	BUF_DECL(PODIP_V6_TCP_SYN, privnet_pod_ipv6_tcp_syn);
 	ASSERT_CTX_BUF_OFF("privnet_tcp_from_container_v6_nat_src_dst", "IPv6", ctx,
-			   sizeof(__u32), PODIP_V6_TCP_SYN,
-			   sizeof(BUF(PODIP_V6_TCP_SYN)));
+			   sizeof(__u32), privnet_pod_ipv6_tcp_syn,
+			   sizeof(privnet_pod_ipv6_tcp_syn));
 
 	assert_privnet_net_ids(PRIVNET_PIP_NET_ID, PRIVNET_PIP_NET_ID);
 

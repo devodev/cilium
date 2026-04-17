@@ -218,8 +218,8 @@ func (f *fakeEP) UpdateLabels(ctx context.Context, sourceFilter string, identity
 }
 
 // GetPolicyMap implements endpoints.Endpoint.
-func (f *fakeEP) GetPolicyMap() (*policymap.PolicyMap, error) {
-	return &policymap.PolicyMap{}, nil
+func (f *fakeEP) GetPolicyMap() (policymap.PolicyMap, error) {
+	return nil, nil
 }
 
 // fakeEndpointEventObserver implements endpoints.EndpointEventObserver

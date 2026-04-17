@@ -52,6 +52,7 @@ type endpointManager interface {
 	GetEndpoints() []*endpoint.Endpoint
 	GetHostEndpoint() *endpoint.Endpoint
 	GetEndpointsByPodName(string) []*endpoint.Endpoint
+	WaitForEndpointsAtPolicyRev(ctx context.Context, rev uint64) error
 	UpdatePolicyMaps(context.Context) error
 }
 
@@ -203,6 +204,7 @@ var ciliumResourceToGroupMapping = map[string]watcherInfo{
 	synced.CRDResourceName(cilium_v2.CCGName):           {waitOnly, k8sAPIGroupCiliumCIDRGroupV2},
 	synced.CRDResourceName(v2alpha1.L2AnnouncementName): {skip, ""}, // Handled by L2 announcement directly
 	synced.CRDResourceName(v2alpha1.CPIPName):           {skip, ""}, // Handled by multi-pool IPAM allocator
+	synced.CRDResourceName(v2alpha1.CDPPName):           {skip, ""}, // Handled by datapath plugins
 }
 
 func GetGroupsForCiliumResources(logger *slog.Logger, ciliumResources []string) ([]string, []string) {

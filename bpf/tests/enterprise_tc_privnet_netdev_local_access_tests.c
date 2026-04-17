@@ -20,6 +20,22 @@
 #define LXC_ID 142
 
 #include "enterprise_privnet_common.h"
+
+/* packet defined in ./scapy/enterprise_privnet_pkt_defs.py */
+const __u8 privnet_net_ip_tcp_syn[] = {
+	SCAPY_BUF_BYTES(privnet_net_ip_tcp_syn)
+};
+
+/* packet defined in ./scapy/enterprise_privnet_pkt_defs.py */
+const __u8 privnet_net_ip_tcp_syn_ttl_dec[] = {
+	SCAPY_BUF_BYTES(privnet_net_ip_tcp_syn_ttl_dec)
+};
+
+/* packet defined in ./scapy/enterprise_privnet_pkt_defs.py */
+const __u8 privnet_netdev_ns[] = {
+	SCAPY_BUF_BYTES(privnet_netdev_ns)
+};
+
 #include <bpf/config/node.h>
 #include <lib/enterprise_ext_eps_maps.h>
 
@@ -108,8 +124,7 @@ ASSIGN_CONFIG(union macaddr, interface_mac, {.addr = mac_two_addr}) /* set devic
 PKTGEN("tc", "01_local_access_ingress_from_netdev")
 int privnet_local_access_ingress_from_netdev_pktgen(struct __ctx_buff *ctx)
 {
-	BUF_DECL(NETIP_TCP_SYN, privnet_net_ip_tcp_syn);
-	build_privnet_packet(ctx, NETIP_TCP_SYN);
+	build_privnet_packet(ctx, privnet_net_ip_tcp_syn);
 	return 0;
 }
 
@@ -138,10 +153,9 @@ int privnet_local_access_ingress_from_netdev_check(struct __ctx_buff *ctx)
 	ASSERT_POLICY_TAIL_CALL(LXC_ID);
 
 	/* check inner packet headers, src & dst should remain untranslated */
-	BUF_DECL(NETIP_TCP_SYN_TTL, privnet_net_ip_tcp_syn_ttl_dec);
 	ASSERT_CTX_BUF_OFF("privnet_local_access_from_netdev_no_nat", "Ether", ctx,
-			   sizeof(__u32), NETIP_TCP_SYN_TTL,
-			   sizeof(BUF(NETIP_TCP_SYN_TTL)));
+			   sizeof(__u32), privnet_net_ip_tcp_syn_ttl_dec,
+			   sizeof(privnet_net_ip_tcp_syn_ttl_dec));
 
 	assert_privnet_net_ids(NET_ID, NET_ID);
 
@@ -161,8 +175,7 @@ int privnet_local_access_ingress_from_netdev_check(struct __ctx_buff *ctx)
 PKTGEN("tc", "02_local_access_icmpv6_ns_ingress_from_netdev")
 int privnet_local_access_icmpv6_ns_ingress_from_netdev_pktgen(struct __ctx_buff *ctx)
 {
-	BUF_DECL(NETDEV_ICMP6_NS, privnet_netdev_ns);
-	build_privnet_packet(ctx, NETDEV_ICMP6_NS);
+	build_privnet_packet(ctx, privnet_netdev_ns);
 	return 0;
 }
 
@@ -199,11 +212,10 @@ int privnet_local_access_icmpv6_ns_ingress_from_netdev_check(struct __ctx_buff *
 	if (policy_tail_call_recorder.called)
 		test_fatal("ICMPv6 NS packet unexpectedly redirected to endpoint");
 
-	BUF_DECL(NETDEV_ICMP6_NS, privnet_netdev_ns);
 	ASSERT_CTX_BUF_OFF("privnet_local_access_icmpv6_ns_ingress_from_netdev_no_nat",
 			   "Ether", ctx,
-			   sizeof(__u32), NETDEV_ICMP6_NS,
-			   sizeof(BUF(NETDEV_ICMP6_NS)));
+			   sizeof(__u32), privnet_netdev_ns,
+			   sizeof(privnet_netdev_ns));
 
 	assert_privnet_net_ids(NET_ID, NET_ID);
 

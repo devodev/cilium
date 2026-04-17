@@ -14,7 +14,7 @@ type strictModeEncryption struct{}
 
 func (t strictModeEncryption) build(ct *check.ConnectivityTest, _ map[string]string) {
 	newTest("strict-mode-encryption", ct).
-		WithCondition(func() bool { return ct.Params().IncludeUnsafeTests }).
+		WithUnsafeTests().
 		// Until https://github.com/cilium/cilium/pull/35454 is backported to <1.17.0
 		// CEE: Due to backports from https://github.com/isovalent/cilium/pull/6838,
 		//      don't run on v1.17-ce.
@@ -32,7 +32,7 @@ func (t strictModeEncryption) build(ct *check.ConnectivityTest, _ map[string]str
 		})
 
 	newTest("strict-mode-encryption-v2", ct).
-		WithCondition(func() bool { return ct.Params().IncludeUnsafeTests }).
+		WithUnsafeTests().
 		// CEE: Due to backports from https://github.com/isovalent/cilium/pull/6838,
 		//      also run on v1.17-ce.
 		WithCiliumVersion(">=1.17.0").

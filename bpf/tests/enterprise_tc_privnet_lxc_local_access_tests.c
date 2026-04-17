@@ -98,6 +98,16 @@ mock_redirect_neigh(int ifindex, const struct bpf_redir_neigh *params,
 
 #include "enterprise_privnet_common.h"
 
+/* packet defined in ./scapy/enterprise_privnet_pkt_defs.py */
+const __u8 privnet_net_ip_icmp_req[] = {
+	SCAPY_BUF_BYTES(privnet_net_ip_icmp_req)
+};
+
+/* packet defined in ./scapy/enterprise_privnet_pkt_defs.py */
+const __u8 privnet_net_ip_icmpv6_req[] = {
+	SCAPY_BUF_BYTES(privnet_net_ip_icmpv6_req)
+};
+
 #include "lib/bpf_lxc.h"
 
 #include "tests/lib/enterprise_privnet.h"
@@ -117,8 +127,7 @@ static const union v6addr lxc_privnet_ipv6 = { .addr = v6_svc_one_addr };
 PKTGEN("tc", "01_local_access_egress_from_lxc_v4")
 int privnet_local_access_egress_from_lxc_v4_pktgen(struct __ctx_buff *ctx)
 {
-	BUF_DECL(NETIP_ICMP_REQ, privnet_net_ip_icmp_req);
-	build_privnet_packet(ctx, NETIP_ICMP_REQ);
+	build_privnet_packet(ctx, privnet_net_ip_icmp_req);
 	return 0;
 }
 
@@ -145,10 +154,9 @@ int privnet_local_access_egress_from_lxc_v4_check(struct __ctx_buff *ctx)
 	ASSERT_REDIRECT_NEIGH_V4(V4_NET_IP_2, NETDEV_IFINDEX);
 
 	/* check inner packet headers, src & dst should remain untranslated */
-	BUF_DECL(NETIP_ICMP_REQ, privnet_net_ip_icmp_req);
 	ASSERT_CTX_BUF_OFF("privnet_local_access_egress_from_lxc_v4", "IP", ctx,
-			   sizeof(__u32), NETIP_ICMP_REQ,
-			   sizeof(BUF(NETIP_ICMP_REQ)));
+			   sizeof(__u32), privnet_net_ip_icmp_req,
+			   sizeof(privnet_net_ip_icmp_req));
 
 	assert_privnet_net_ids(NET_ID, NET_ID);
 
@@ -167,8 +175,7 @@ int privnet_local_access_egress_from_lxc_v4_check(struct __ctx_buff *ctx)
 PKTGEN("tc", "02_local_access_egress_from_lxc_v6")
 int privnet_local_access_egress_from_lxc_v6_pktgen(struct __ctx_buff *ctx)
 {
-	BUF_DECL(NETIP_ICMPV6_REQ, privnet_net_ip_icmpv6_req);
-	build_privnet_packet(ctx, NETIP_ICMPV6_REQ);
+	build_privnet_packet(ctx, privnet_net_ip_icmpv6_req);
 	return 0;
 }
 
@@ -199,10 +206,9 @@ int privnet_local_access_egress_from_lxc_v6_check(struct __ctx_buff *ctx)
 	ASSERT_REDIRECT_NEIGH_V6((union v6addr *)V6_NET_IP_2, NETDEV_IFINDEX);
 
 	/* check inner packet headers, src & dst should remain untranslated */
-	BUF_DECL(NETIP_ICMPV6_REQ, privnet_net_ip_icmpv6_req);
 	ASSERT_CTX_BUF_OFF("privnet_local_access_egress_from_lxc_v6", "IPv6", ctx,
-			   sizeof(__u32), NETIP_ICMPV6_REQ,
-			   sizeof(BUF(NETIP_ICMPV6_REQ)));
+			   sizeof(__u32), privnet_net_ip_icmpv6_req,
+			   sizeof(privnet_net_ip_icmpv6_req));
 
 	assert_privnet_net_ids(NET_ID, NET_ID);
 

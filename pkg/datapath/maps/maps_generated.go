@@ -421,13 +421,13 @@ func newCiliumCTAny6GlobalSpec(btf *btf.Spec) *ebpf.MapSpec {
 func newCiliumDevicesSpec(btf *btf.Spec) *ebpf.MapSpec {
 	return &ebpf.MapSpec{
 		Name:       CiliumDevices,
-		Type:       ebpf.Array,
+		Type:       ebpf.Hash,
 		KeySize:    4,
 		Key:        anyTypeByName(btf, "__u32"),
 		ValueSize:  16,
 		Value:      anyTypeByName(btf, "device_state"),
-		MaxEntries: 4096,
-		Flags:      0,
+		MaxEntries: 512,
+		Flags:      unix.BPF_F_NO_PREALLOC,
 		Pinning:    ebpf.PinByName,
 	}
 }

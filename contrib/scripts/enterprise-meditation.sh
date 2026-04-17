@@ -50,6 +50,7 @@ DIFF_EXCL_GLOBS=(
   ':!.golangci.yaml' # Enterprise-specific linting configuration
   ':!api/v1/*/*.pb.*' # Auto-generated
   ':!api/v1/*/README.md' # Auto-generated
+  ':!bpf/tests/scapy/pkt_defs.py' # Enterprise pkt def aggregator import
   ':!CODEOWNERS' # Internal code owners are different from OSS
   ':!Documentation/cmdref/*' # Auto-generated
   ':!Documentation/helm-values.rst' # Auto-generated

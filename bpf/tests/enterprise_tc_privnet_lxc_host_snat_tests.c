@@ -30,6 +30,16 @@ static __always_inline int mock_ctx_redirect(const struct __sk_buff __maybe_unus
 
 #include "enterprise_privnet_common.h"
 
+/* packet defined in ./scapy/enterprise_privnet_pkt_defs.py */
+const __u8 privnet_host_to_pod_tcp_syn[] = {
+	SCAPY_BUF_BYTES(privnet_host_to_pod_tcp_syn)
+};
+
+/* packet defined in ./scapy/enterprise_privnet_pkt_defs.py */
+const __u8 privnet_pod_to_host_tcp_synack[] = {
+	SCAPY_BUF_BYTES(privnet_pod_to_host_tcp_synack)
+};
+
 #include "lib/bpf_lxc.h"
 
 /* Include test helpers */
@@ -55,8 +65,7 @@ static const union v6addr lxc_privnet_ipv6 = { .addr = v6_svc_one_addr };
 PKTGEN("tc", "01_tcp_from_host_to_privnet_snat")
 int host_snat_ingress_pktgen(struct __ctx_buff *ctx)
 {
-	BUF_DECL(HOST_TO_POD, privnet_host_to_pod_tcp_syn);
-	build_privnet_packet(ctx, HOST_TO_POD);
+	build_privnet_packet(ctx, privnet_host_to_pod_tcp_syn);
 	return 0;
 }
 
@@ -117,8 +126,7 @@ int host_snat_ingress_check(struct __ctx_buff *ctx)
 PKTGEN("tc", "02_tcp_from_privnet_to_host_rev_snat")
 int host_rev_snat_egress_pktgen(struct __ctx_buff *ctx)
 {
-	BUF_DECL(POD_TO_HOST, privnet_pod_to_host_tcp_synack);
-	build_privnet_packet(ctx, POD_TO_HOST);
+	build_privnet_packet(ctx, privnet_pod_to_host_tcp_synack);
 	return 0;
 }
 

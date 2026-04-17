@@ -43,11 +43,11 @@ static __u32 clone_ifindex;
 				   MONITOR_IFINDEX, clone_ifindex);		\
 	} while (0)
 
-#define BUILD_PACKET(CTX, BUF_NAME)						\
+#define BUILD_PACKET(CTX, BUF)						\
 	do {									\
 		struct pktgen builder;						\
 		pktgen__init(&builder, CTX);					\
-		BUILDER_PUSH_BUF(builder, BUF_NAME);				\
+		scapy_push_data(&builder, BUF, sizeof(BUF));			\
 		pktgen__finish(&builder);					\
 	} while (0)
 
@@ -64,6 +64,26 @@ long mock_clone_redirect(struct __ctx_buff *ctx __maybe_unused,
 
 #include "lib/bpf_lxc.h"
 
+/* packet defined in ./scapy/enterprise_inspection_pkt_defs.py */
+const __u8 inspection_egress_v4_tcp[] = {
+	SCAPY_BUF_BYTES(inspection_egress_v4_tcp)
+};
+
+/* packet defined in ./scapy/enterprise_inspection_pkt_defs.py */
+const __u8 inspection_ingress_v4_tcp[] = {
+	SCAPY_BUF_BYTES(inspection_ingress_v4_tcp)
+};
+
+/* packet defined in ./scapy/enterprise_inspection_pkt_defs.py */
+const __u8 inspection_ingress_v6_tcp[] = {
+	SCAPY_BUF_BYTES(inspection_ingress_v6_tcp)
+};
+
+/* packet defined in ./scapy/enterprise_inspection_pkt_defs.py */
+const __u8 inspection_ingress_arp[] = {
+	SCAPY_BUF_BYTES(inspection_ingress_arp)
+};
+
 ASSIGN_CONFIG(__u16, endpoint_id, 233)
 ASSIGN_CONFIG(union v4addr, endpoint_ipv4, { .be32 = v4_pod_one })
 ASSIGN_CONFIG(union v6addr, endpoint_ipv6, { .addr = v6_pod_one_addr })
@@ -75,8 +95,7 @@ ASSIGN_CONFIG(__u32, passive_inspection_ifindex, MONITOR_IFINDEX)
 PKTGEN("tc", "tc_lxc_inspection_egress_v4")
 int tc_lxc_inspection_egress_v4_pktgen(struct __ctx_buff *ctx)
 {
-	BUF_DECL(EGRESS_V4_TCP, inspection_egress_v4_tcp);
-	BUILD_PACKET(ctx, EGRESS_V4_TCP);
+	BUILD_PACKET(ctx, inspection_egress_v4_tcp);
 	return 0;
 }
 
@@ -95,9 +114,8 @@ int tc_lxc_inspection_egress_v4_check(const struct __ctx_buff *ctx)
 	ASSERT_STATUS_CODE(ctx, CTX_ACT_DROP);
 	ASSERT_SINGLE_MIRROR();
 
-	BUF_DECL(EGRESS_V4_TCP, inspection_egress_v4_tcp);
 	ASSERT_CTX_BUF_OFF("inspection_egress_v4", "Ether", ctx, sizeof(__u32),
-			   EGRESS_V4_TCP, sizeof(BUF(EGRESS_V4_TCP)));
+			   inspection_egress_v4_tcp, sizeof(inspection_egress_v4_tcp));
 
 	policy_delete_egress_all_entry();
 	test_finish();
@@ -106,8 +124,7 @@ int tc_lxc_inspection_egress_v4_check(const struct __ctx_buff *ctx)
 PKTGEN("tc", "tc_lxc_inspection_ingress_arp")
 int tc_lxc_inspection_ingress_arp_pktgen(struct __ctx_buff *ctx)
 {
-	BUF_DECL(INGRESS_ARP, inspection_ingress_arp);
-	BUILD_PACKET(ctx, INGRESS_ARP);
+	BUILD_PACKET(ctx, inspection_ingress_arp);
 	return 0;
 }
 
@@ -125,9 +142,8 @@ int tc_lxc_inspection_ingress_arp_check(const struct __ctx_buff *ctx)
 	ASSERT_STATUS_CODE(ctx, CTX_ACT_OK);
 	ASSERT_SINGLE_MIRROR();
 
-	BUF_DECL(INGRESS_ARP, inspection_ingress_arp);
 	ASSERT_CTX_BUF_OFF("inspection_ingress_arp", "Ether", ctx, sizeof(__u32),
-			   INGRESS_ARP, sizeof(BUF(INGRESS_ARP)));
+			   inspection_ingress_arp, sizeof(inspection_ingress_arp));
 
 	test_finish();
 }
@@ -135,8 +151,7 @@ int tc_lxc_inspection_ingress_arp_check(const struct __ctx_buff *ctx)
 PKTGEN("tc", "tc_lxc_inspection_ingress_v4_direct")
 int tc_lxc_inspection_ingress_v4_direct_pktgen(struct __ctx_buff *ctx)
 {
-	BUF_DECL(INGRESS_V4_TCP, inspection_ingress_v4_tcp);
-	BUILD_PACKET(ctx, INGRESS_V4_TCP);
+	BUILD_PACKET(ctx, inspection_ingress_v4_tcp);
 	return 0;
 }
 
@@ -155,9 +170,8 @@ int tc_lxc_inspection_ingress_v4_direct_check(const struct __ctx_buff *ctx)
 	ASSERT_STATUS_CODE(ctx, CTX_ACT_DROP);
 	ASSERT_SINGLE_MIRROR();
 
-	BUF_DECL(INGRESS_V4_TCP, inspection_ingress_v4_tcp);
 	ASSERT_CTX_BUF_OFF("inspection_ingress_v4_direct", "Ether", ctx, sizeof(__u32),
-			   INGRESS_V4_TCP, sizeof(BUF(INGRESS_V4_TCP)));
+			   inspection_ingress_v4_tcp, sizeof(inspection_ingress_v4_tcp));
 
 	policy_delete_entry(false, 0, 0, 0, 0);
 	test_finish();
@@ -166,8 +180,7 @@ int tc_lxc_inspection_ingress_v4_direct_check(const struct __ctx_buff *ctx)
 PKTGEN("tc", "tc_lxc_inspection_ingress_v6_tailcall")
 int tc_lxc_inspection_ingress_v6_tailcall_pktgen(struct __ctx_buff *ctx)
 {
-	BUF_DECL(INGRESS_V6_TCP, inspection_ingress_v6_tcp);
-	BUILD_PACKET(ctx, INGRESS_V6_TCP);
+	BUILD_PACKET(ctx, inspection_ingress_v6_tcp);
 	return 0;
 }
 
@@ -188,9 +201,8 @@ int tc_lxc_inspection_ingress_v6_tailcall_check(const struct __ctx_buff *ctx)
 	ASSERT_STATUS_CODE(ctx, CTX_ACT_OK);
 	ASSERT_SINGLE_MIRROR();
 
-	BUF_DECL(INGRESS_V6_TCP, inspection_ingress_v6_tcp);
 	ASSERT_CTX_BUF_OFF("inspection_ingress_v6_tailcall", "Ether", ctx, sizeof(__u32),
-			   INGRESS_V6_TCP, sizeof(BUF(INGRESS_V6_TCP)));
+			   inspection_ingress_v6_tcp, sizeof(inspection_ingress_v6_tcp));
 
 	policy_delete_entry(false, 0, 0, 0, 0);
 	test_finish();

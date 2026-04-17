@@ -45,7 +45,7 @@ type mockExtEpsPolicyWriter struct {
 }
 
 // Upsert registers a policy map for the given IP address.
-func (m *mockExtEpsPolicyWriter) Upsert(ip netip.Addr, pm *policymap.PolicyMap) error {
+func (m *mockExtEpsPolicyWriter) Upsert(ip netip.Addr, pm policymap.PolicyMap) error {
 	// We rely on the fact that the injected fake reconciler operation ignores
 	// the first three arguments passed to Update
 	return m.ops.Update(context.Background(), nil, 0, &extepspolicy.KeyVal{
