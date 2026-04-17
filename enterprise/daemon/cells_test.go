@@ -11,6 +11,7 @@
 package main
 
 import (
+	"log/slog"
 	"testing"
 
 	"github.com/cilium/hive/hivetest"
@@ -44,7 +45,7 @@ func TestEnterpriseAgentCell(t *testing.T) {
 	defer testutils.GoleakVerifyNone(t, goleakOptions...)
 	defer metrics.Reinitialize()
 
-	logging.SetLogLevelToDebug()
+	logging.SetLogLevel(slog.LevelDebug)
 	// Populate config with default values normally set by Viper flag defaults
 	option.Config.IPv4ServiceRange = cmd.AutoCIDR
 	option.Config.IPv6ServiceRange = cmd.AutoCIDR

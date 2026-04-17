@@ -31,10 +31,10 @@ import (
 	"github.com/cilium/cilium/pkg/testutils"
 )
 
-func newPolicyMap(t *testing.T, log *slog.Logger, id uint16) *policymap.PolicyMap {
+func newPolicyMap(t *testing.T, log *slog.Logger, id uint16) *policymap.UnderlyingPolicyMap {
 	t.Helper()
 
-	pm := &policymap.PolicyMap{
+	pm := &policymap.UnderlyingPolicyMap{
 		Map: bpf.NewMap(
 			bpf.LocalMapPath(log, "cilium_test", id),
 			ebpf.LPMTrie,

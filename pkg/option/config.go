@@ -998,6 +998,9 @@ const (
 
 	// EnableCiliumNodeCRD is the name of the option to enable use of the CiliumNode CRD
 	EnableCiliumNodeCRDName = "enable-ciliumnode-crd"
+
+	// EnableDatapathPlugins is the name of the option to enable datapath plugins.
+	EnableDatapathPlugins = "enable-datapath-plugins"
 )
 
 // Default string arguments
@@ -1895,6 +1898,9 @@ type DaemonConfig struct {
 
 	// EnableCiliumNodeCRD enables the use of CiliumNode CRD
 	EnableCiliumNodeCRD bool
+
+	// Enables datapath plugins features.
+	EnableDatapathPlugins bool
 }
 
 var (
@@ -1955,6 +1961,8 @@ var (
 		EnableCiliumNodeCRD: defaults.EnableCiliumNodeCRD,
 
 		PolicyAccounting: defaults.PolicyAccounting,
+
+		EnableDatapathPlugins: defaults.EnableDatapathPlugins,
 	}
 )
 
@@ -2913,6 +2921,9 @@ func (c *DaemonConfig) Populate(logger *slog.Logger, vp *viper.Viper) {
 		)
 		c.ConnectivityProbeFrequencyRatio = defaults.ConnectivityProbeFrequencyRatio
 	}
+
+	// Enable datapath plugins.
+	c.EnableDatapathPlugins = vp.GetBool(EnableDatapathPlugins)
 }
 
 func (c *DaemonConfig) PopulateEnableCiliumNodeCRD(logger *slog.Logger, vp *viper.Viper) {
@@ -3577,7 +3588,7 @@ func InitConfig(logger *slog.Logger, cmd *cobra.Command, programName, configName
 		// loading the configuration file since on configuration file read failure
 		// we will emit a debug log entry.
 		if vp.GetBool(DebugArg) {
-			logging.SetLogLevelToDebug()
+			logging.SetLogLevel(slog.LevelDebug)
 		}
 
 		// If a config file is found, read it in.
@@ -3596,7 +3607,7 @@ func InitConfig(logger *slog.Logger, cmd *cobra.Command, programName, configName
 		// Check for the debug flag again now that the configuration file may has
 		// been loaded, as it might have changed.
 		if vp.GetBool(DebugArg) {
-			logging.SetLogLevelToDebug()
+			logging.SetLogLevel(slog.LevelDebug)
 		}
 	}
 }

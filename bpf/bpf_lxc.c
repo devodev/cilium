@@ -533,7 +533,7 @@ int NAME(struct __ctx_buff *ctx)						\
 	ct_state = (struct ct_state *)&ct_buffer.ct_state;			\
 	tuple = (struct ipv4_ct_tuple *)&ct_buffer.tuple;			\
 										\
-	if (!revalidate_data(ctx, &data, &data_end, &ip4))			\
+	if (!revalidate_data_pull(ctx, &data, &data_end, &ip4))		\
 		return drop_for_direction(ctx, DIR, DROP_INVALID, ext_err);	\
 										\
 	tuple->nexthdr = ip4->protocol;						\
@@ -603,7 +603,7 @@ int NAME(struct __ctx_buff *ctx)						\
 	ct_state = (struct ct_state *)&ct_buffer.ct_state;			\
 	tuple = (struct ipv6_ct_tuple *)&ct_buffer.tuple;			\
 										\
-	if (!revalidate_data(ctx, &data, &data_end, &ip6))			\
+	if (!revalidate_data_pull(ctx, &data, &data_end, &ip6))		\
 		return drop_for_direction(ctx, DIR, DROP_INVALID, ext_err);	\
 										\
 	tuple->nexthdr = ip6->nexthdr;						\
@@ -1806,6 +1806,8 @@ int cil_from_container(struct __ctx_buff *ctx)
 	 */
 	ctx->queue_mapping = 0;
 
+	edt_set_aggregate(ctx, LXC_ID);
+
 	ret = enterprise_inspection_from_container(ctx);
 	if (IS_ERR(ret))
 		return ret;
@@ -1829,14 +1831,12 @@ int cil_from_container(struct __ctx_buff *ctx)
 	switch (proto) {
 #ifdef ENABLE_IPV6
 	case bpf_htons(ETH_P_IPV6):
-		edt_set_aggregate(ctx, LXC_ID);
 		ret = tail_call_internal(ctx, CILIUM_CALL_IPV6_FROM_LXC, &ext_err);
 		sec_label = SECLABEL_IPV6;
 		break;
 #endif /* ENABLE_IPV6 */
 #ifdef ENABLE_IPV4
 	case bpf_htons(ETH_P_IP):
-		edt_set_aggregate(ctx, LXC_ID);
 		ret = tail_call_internal(ctx, CILIUM_CALL_IPV4_FROM_LXC, &ext_err);
 		sec_label = SECLABEL_IPV4;
 		break;

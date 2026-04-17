@@ -16,7 +16,7 @@ import (
 	"github.com/cilium/cilium/pkg/maps/policymap"
 )
 
-func (e *Endpoint) GetPolicyMap() (*policymap.PolicyMap, error) {
+func (e *Endpoint) GetPolicyMap() (policymap.PolicyMap, error) {
 	var err error
 
 	if e.policyMap != nil {

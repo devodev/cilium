@@ -1419,7 +1419,7 @@
    * - :spelling:ignore:`encryption.ztunnel`
      - ztunnel encryption configuration. ztunnel is Istio's purpose-built, per-node proxy for handling L4 traffic in ambient mesh mode. These settings only apply when encryption.type is set to "ztunnel".
      - object
-     - ``{"affinity":{},"annotations":{},"caAddress":"https://localhost:15012","extraEnv":[],"extraVolumeMounts":[],"extraVolumes":[],"healthPort":15021,"image":{"digest":null,"override":null,"pullPolicy":"IfNotPresent","repository":"docker.io/istio/ztunnel","tag":"1.28.0-distroless","useDigest":false},"nodeSelector":{"kubernetes.io/os":"linux"},"podAnnotations":{},"podLabels":{},"priorityClassName":null,"readinessProbe":{"failureThreshold":3,"initialDelaySeconds":0,"periodSeconds":10},"resources":{"requests":{"cpu":"200m","memory":"512Mi"}},"secrets":{"bootstrapRootCert":null},"terminationGracePeriodSeconds":30,"tolerations":[{"effect":"NoSchedule","operator":"Exists"},{"key":"CriticalAddonsOnly","operator":"Exists"},{"effect":"NoExecute","operator":"Exists"}],"updateStrategy":{"rollingUpdate":{"maxSurge":1,"maxUnavailable":0},"type":"RollingUpdate"}}``
+     - ``{"affinity":{},"annotations":{},"caAddress":"https://localhost:15012","extraEnv":[],"extraVolumeMounts":[],"extraVolumes":[],"healthPort":15021,"image":{"digest":"sha256:884de5adde400e39f58e36c7a729f7690466ca4a8eb4c2a8daa9c1c025115b24","override":null,"pullPolicy":"Always","repository":"quay.io/cilium/ztunnel","tag":"v1.0.0","useDigest":true},"nodeSelector":{"kubernetes.io/os":"linux"},"podAnnotations":{},"podLabels":{},"priorityClassName":null,"readinessProbe":{"failureThreshold":3,"initialDelaySeconds":0,"periodSeconds":10},"resources":{"requests":{"cpu":"200m","memory":"512Mi"}},"secrets":{"bootstrapRootCert":null},"terminationGracePeriodSeconds":30,"tolerations":[{"effect":"NoSchedule","operator":"Exists"},{"key":"CriticalAddonsOnly","operator":"Exists"},{"effect":"NoExecute","operator":"Exists"}],"updateStrategy":{"rollingUpdate":{"maxSurge":1,"maxUnavailable":0},"type":"RollingUpdate"}}``
    * - :spelling:ignore:`encryption.ztunnel.affinity`
      - Affinity for ztunnel pods.
      - object
@@ -1451,7 +1451,7 @@
    * - :spelling:ignore:`encryption.ztunnel.image`
      - ztunnel container image.
      - object
-     - ``{"digest":null,"override":null,"pullPolicy":"IfNotPresent","repository":"docker.io/istio/ztunnel","tag":"1.28.0-distroless","useDigest":false}``
+     - ``{"digest":"sha256:884de5adde400e39f58e36c7a729f7690466ca4a8eb4c2a8daa9c1c025115b24","override":null,"pullPolicy":"Always","repository":"quay.io/cilium/ztunnel","tag":"v1.0.0","useDigest":true}``
    * - :spelling:ignore:`encryption.ztunnel.nodeSelector`
      - Node selector for ztunnel pods.
      - object
@@ -1504,6 +1504,10 @@
      - Enable endpoint lockdown on policy map overflow.
      - bool
      - ``false``
+   * - :spelling:ignore:`endpointPolicyUpdateTimeoutDuration`
+     - Max duration to wait for envoy to respond to configuration changes. Default "10s".
+     - string
+     - ``nil``
    * - :spelling:ignore:`endpointRoutes.enabled`
      - Enable use of per endpoint routes instead of routing via the cilium_host interface.
      - bool
@@ -2019,7 +2023,7 @@
    * - :spelling:ignore:`envoy.image`
      - Envoy container image.
      - object
-     - ``{"digest":"sha256:70cf6a84a5518bdc501b4fa96eafaf8a8d88517fa2cf42e65977680c3f6f1462","override":null,"pullPolicy":"Always","repository":"quay.io/cilium/cilium-envoy","tag":"v1.36.5-1773729229-f15b6334115ed4d8027b2460a8eb1f6c611660f0","useDigest":true}``
+     - ``{"digest":"sha256:ba0ab8adac082d50d525fd2c5ba096c8facea3a471561b7c61c7a5b9c2e0de0d","override":null,"pullPolicy":"Always","repository":"quay.io/cilium/cilium-envoy","tag":"v1.36.6-1776000132-2437d2edeaf4d9b56ef279bd0d71127440c067aa","useDigest":true}``
    * - :spelling:ignore:`envoy.initContainers`
      - Init containers added to the cilium Envoy DaemonSet.
      - list
@@ -2060,14 +2064,26 @@
      - failure threshold of liveness probe
      - int
      - ``10``
+   * - :spelling:ignore:`envoy.livenessProbe.initialDelaySeconds`
+     - Initial delay before the liveness probe begins
+     - int
+     - ``0``
    * - :spelling:ignore:`envoy.livenessProbe.periodSeconds`
      - interval between checks of the liveness probe
      - int
      - ``30``
+   * - :spelling:ignore:`envoy.livenessProbe.timeoutSeconds`
+     - Timeout for the liveness probe
+     - int
+     - ``5``
    * - :spelling:ignore:`envoy.log.accessLogBufferSize`
      - Size of the Envoy access log buffer created within the agent in bytes. Tune this value up if you encounter "Envoy: Discarded truncated access log message" errors. Large request/response header sizes (e.g. 16KiB) will require a larger buffer size.
      - int
      - ``4096``
+   * - :spelling:ignore:`envoy.log.accessLogEnabled`
+     - Enable access log forwarding for integration with Hubble.
+     - bool
+     - ``true``
    * - :spelling:ignore:`envoy.log.defaultLevel`
      - Default log level of Envoy application log that is configured if Cilium debug / verbose logging isn't enabled. This option allows to have a different log level than the Cilium Agent - e.g. lower it to ``critical``. Possible values: trace, debug, info, warning, error, critical, off
      - string
@@ -2100,6 +2116,10 @@
      - ProxyMaxRequestsPerConnection specifies the max_requests_per_connection setting for Envoy
      - int
      - ``0``
+   * - :spelling:ignore:`envoy.nodeLocality.enabled`
+     - Enable node-locality support for cilium-envoy. When enabled, Cilium looks up the node zone from the topology label and passes it to the Envoy process via ``--service-zone``. Startup fails if the zone cannot be resolved or the label is empty.
+     - bool
+     - ``false``
    * - :spelling:ignore:`envoy.nodeSelector`
      - Node selector for cilium-envoy.
      - object
@@ -2172,10 +2192,18 @@
      - failure threshold of readiness probe
      - int
      - ``3``
+   * - :spelling:ignore:`envoy.readinessProbe.initialDelaySeconds`
+     - Initial delay before the readiness probe begins
+     - int
+     - ``0``
    * - :spelling:ignore:`envoy.readinessProbe.periodSeconds`
      - interval between checks of the readiness probe
      - int
      - ``30``
+   * - :spelling:ignore:`envoy.readinessProbe.timeoutSeconds`
+     - Timeout for the readiness probe
+     - int
+     - ``5``
    * - :spelling:ignore:`envoy.resources`
      - Envoy resource limits & requests ref: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
      - object
@@ -2208,10 +2236,18 @@
      - failure threshold of startup probe. 105 x 2s translates to the old behaviour of the readiness probe (120s delay + 30 x 3s)
      - int
      - ``105``
+   * - :spelling:ignore:`envoy.startupProbe.initialDelaySeconds`
+     - Initial delay before the startup probe begins
+     - int
+     - ``5``
    * - :spelling:ignore:`envoy.startupProbe.periodSeconds`
      - interval between checks of the startup probe
      - int
      - ``2``
+   * - :spelling:ignore:`envoy.startupProbe.timeoutSeconds`
+     - Timeout for the startup probe
+     - int
+     - ``5``
    * - :spelling:ignore:`envoy.streamIdleTimeoutDurationSeconds`
      - Set Envoy the amount of time that the connection manager will allow a stream to exist with no upstream or downstream activity. default 5 minutes
      - int
@@ -4371,7 +4407,7 @@
    * - :spelling:ignore:`preflight.envoy.image`
      - Envoy pre-flight image.
      - object
-     - ``{"digest":"sha256:70cf6a84a5518bdc501b4fa96eafaf8a8d88517fa2cf42e65977680c3f6f1462","override":null,"pullPolicy":"Always","repository":"quay.io/cilium/cilium-envoy","tag":"v1.36.5-1773729229-f15b6334115ed4d8027b2460a8eb1f6c611660f0","useDigest":true}``
+     - ``{"digest":"sha256:ba0ab8adac082d50d525fd2c5ba096c8facea3a471561b7c61c7a5b9c2e0de0d","override":null,"pullPolicy":"Always","repository":"quay.io/cilium/cilium-envoy","tag":"v1.36.6-1776000132-2437d2edeaf4d9b56ef279bd0d71127440c067aa","useDigest":true}``
    * - :spelling:ignore:`preflight.extraEnv`
      - Additional preflight environment variables.
      - list

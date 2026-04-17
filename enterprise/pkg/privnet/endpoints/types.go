@@ -102,7 +102,7 @@ type Endpoint interface {
 
 	SyncEndpointHeaderFile()
 
-	GetPolicyMap() (*policymap.PolicyMap, error)
+	GetPolicyMap() (policymap.PolicyMap, error)
 	UpdateLabels(ctx context.Context, sourceFilter string, identityLabels, infoLabels labels.Labels, blocking bool) (regenTriggered bool)
 }
 

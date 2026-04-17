@@ -23,7 +23,7 @@ import (
 // Writer allows to interact with the policy map.
 type Writer interface {
 	// Upsert registers a policy map for the given IP address.
-	Upsert(ip netip.Addr, pm *policymap.PolicyMap) error
+	Upsert(ip netip.Addr, pm policymap.PolicyMap) error
 	// Delete unregisters the policy map associated with the given IP address.
 	Delete(ip netip.Addr) error
 
@@ -49,7 +49,12 @@ func newWriter(en enabled, db *statedb.DB, tbl statedb.RWTable[*entry]) Writer {
 	return &writer{en: en, db: db, tbl: tbl, done: done}
 }
 
-func (w *writer) Upsert(ip netip.Addr, pm *policymap.PolicyMap) error {
+type bpfMapFDNameGetter interface {
+	FD() int
+	Name() string
+}
+
+func (w *writer) Upsert(ip netip.Addr, pm policymap.PolicyMap) error {
 	if !w.en {
 		return errors.New("map is not enabled")
 	}
@@ -58,14 +63,21 @@ func (w *writer) Upsert(ip netip.Addr, pm *policymap.PolicyMap) error {
 		return errors.New("invalid ip address")
 	}
 
-	if pm == nil || pm.FD() < 0 {
+	if pm == nil {
+		return errors.New("invalid policy map")
+	}
+
+	m, ok := pm.(bpfMapFDNameGetter)
+	if !ok || m.FD() < 0 {
 		return errors.New("invalid policy map")
 	}
 
 	wtx := w.db.WriteTxn(w.tbl)
 	w.tbl.Insert(wtx, &entry{
-		ip: ip, policyMapName: pm.Name(), policyMapFD: uint32(pm.FD()),
-		status: reconciler.StatusPending(),
+		ip:            ip,
+		policyMapName: m.Name(),
+		policyMapFD:   uint32(m.FD()),
+		status:        reconciler.StatusPending(),
 	})
 	wtx.Commit()
 

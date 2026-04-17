@@ -32,6 +32,16 @@ mock_privnet_evpn_ingress(struct __ctx_buff __maybe_unused *ctx, __u16 net_id)
 #include "tests/lib/enterprise_bpf_evpn.h"
 #include "tests/lib/enterprise_vni.h"
 
+/* packet defined in ./scapy/enterprise_evpn_pkt_defs.py */
+const __u8 evpn_icmp_req[] = {
+	SCAPY_BUF_BYTES(evpn_icmp_req)
+};
+
+/* packet defined in ./scapy/enterprise_evpn_pkt_defs.py */
+const __u8 evpn_icmp_req_bad_dmac[] = {
+	SCAPY_BUF_BYTES(evpn_icmp_req_bad_dmac)
+};
+
 /* Enable configurations */
 ASSIGN_CONFIG(bool, evpn_enable, true)
 ASSIGN_CONFIG(bool, privnet_enable, true)
@@ -80,8 +90,7 @@ int evpn_ingress_to_privnet_endpoint_pktgen(struct __ctx_buff *ctx)
 
 	pktgen__init(&builder, ctx);
 
-	BUF_DECL(EVPN_ICMP_REQ, evpn_icmp_req);
-	BUILDER_PUSH_BUF(builder, EVPN_ICMP_REQ);
+	scapy_push_data(&builder, evpn_icmp_req, sizeof(evpn_icmp_req));
 
 	pktgen__finish(&builder);
 	return 0;
@@ -134,8 +143,7 @@ int evpn_ingress_tunnel_key_missing_pktgen(struct __ctx_buff *ctx)
 
 	pktgen__init(&builder, ctx);
 
-	BUF_DECL(EVPN_ICMP_REQ, evpn_icmp_req);
-	BUILDER_PUSH_BUF(builder, EVPN_ICMP_REQ);
+	scapy_push_data(&builder, evpn_icmp_req, sizeof(evpn_icmp_req));
 
 	pktgen__finish(&builder);
 
@@ -181,8 +189,7 @@ int evpn_ingress_zero_vni_pktgen(struct __ctx_buff *ctx)
 
 	pktgen__init(&builder, ctx);
 
-	BUF_DECL(EVPN_ICMP_REQ, evpn_icmp_req);
-	BUILDER_PUSH_BUF(builder, EVPN_ICMP_REQ);
+	scapy_push_data(&builder, evpn_icmp_req, sizeof(evpn_icmp_req));
 
 	pktgen__finish(&builder);
 
@@ -234,8 +241,7 @@ int evpn_ingress_no_vni_entry_pktgen(struct __ctx_buff *ctx)
 
 	pktgen__init(&builder, ctx);
 
-	BUF_DECL(EVPN_ICMP_REQ, evpn_icmp_req);
-	BUILDER_PUSH_BUF(builder, EVPN_ICMP_REQ);
+	scapy_push_data(&builder, evpn_icmp_req, sizeof(evpn_icmp_req));
 
 	pktgen__finish(&builder);
 
@@ -285,8 +291,7 @@ int evpn_ingress_invalid_dst_mac_pktgen(struct __ctx_buff *ctx)
 
 	pktgen__init(&builder, ctx);
 
-	BUF_DECL(EVPN_ICMP_REQ_BAD_DMAC, evpn_icmp_req_bad_dmac);
-	BUILDER_PUSH_BUF(builder, EVPN_ICMP_REQ_BAD_DMAC);
+	scapy_push_data(&builder, evpn_icmp_req_bad_dmac, sizeof(evpn_icmp_req_bad_dmac));
 
 	pktgen__finish(&builder);
 

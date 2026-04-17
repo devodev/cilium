@@ -21,12 +21,9 @@ var clientEgressL7HTTPExternalYAML string
 type egressGatewayWithL7Policy struct{}
 
 func (t egressGatewayWithL7Policy) build(ct *check.ConnectivityTest, templates map[string]string) {
-	// Prefix the test name with `seq-` to run it sequentially.
-	newTest("seq-egress-gateway-with-l7-policy", ct).
+	newTest("egress-gateway-with-l7-policy", ct).
 		WithCiliumVersion(">=1.16.0").
-		WithCondition(func() bool {
-			return ct.Params().IncludeUnsafeTests
-		}).
+		WithUnsafeTests().
 		WithCiliumPolicy(clientEgressICMPYAML).
 		WithCiliumPolicy(templates["clientEgressOnlyDNSPolicyYAML"]).  // DNS resolution only
 		WithCiliumPolicy(templates["clientEgressL7HTTPExternalYAML"]). // L7 allow policy with HTTP introspection

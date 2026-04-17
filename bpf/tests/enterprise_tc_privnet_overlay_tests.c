@@ -23,6 +23,40 @@ static __u32 privnet_tunnel_id = 199;
 #define NETDEV_IFINDEX 1312
 
 #include "enterprise_privnet_common.h"
+
+/* packets defined in ./scapy/enterprise_privnet_pkt_defs.py */
+const __u8 privnet_pod_ip_icmp_req[] = {
+	SCAPY_BUF_BYTES(privnet_pod_ip_icmp_req)
+};
+
+const __u8 privnet_net_ip_icmp_req[] = {
+	SCAPY_BUF_BYTES(privnet_net_ip_icmp_req)
+};
+
+const __u8 privnet_pod_ip_icmp_req_to_endpoint[] = {
+	SCAPY_BUF_BYTES(privnet_pod_ip_icmp_req_to_endpoint)
+};
+
+const __u8 privnet_pod_ipv6_icmp_req_to_endpoint[] = {
+	SCAPY_BUF_BYTES(privnet_pod_ipv6_icmp_req_to_endpoint)
+};
+
+const __u8 privnet_unknown_flow_icmp_req_out[] = {
+	SCAPY_BUF_BYTES(privnet_unknown_flow_icmp_req_out)
+};
+
+const __u8 privnet_unknown_flow_icmp_req_out_netip[] = {
+	SCAPY_BUF_BYTES(privnet_unknown_flow_icmp_req_out_netip)
+};
+
+const __u8 privnet_unknown_flow_icmpv6_req_out[] = {
+	SCAPY_BUF_BYTES(privnet_unknown_flow_icmpv6_req_out)
+};
+
+const __u8 privnet_unknown_flow_icmpv6_req_out_netip[] = {
+	SCAPY_BUF_BYTES(privnet_unknown_flow_icmpv6_req_out_netip)
+};
+
 #include <bpf/config/node.h>
 #include <lib/enterprise_ext_eps_maps.h>
 
@@ -200,8 +234,7 @@ ASSIGN_CONFIG(__u32, privnet_unknown_sec_id, 99) /* tunnel id 99 is reserved for
 PKTGEN("tc", "01_icmp_from_overlay_nat_src_dst_v4")
 int privnet_icmp_from_overlay_nat_src_dst_v4_pktgen(struct __ctx_buff *ctx)
 {
-	BUF_DECL(PODIP_ICMP_REQ, privnet_pod_ip_icmp_req);
-	build_privnet_packet(ctx, PODIP_ICMP_REQ);
+	build_privnet_packet(ctx, privnet_pod_ip_icmp_req);
 	return 0;
 }
 
@@ -236,10 +269,9 @@ int privnet_icmp_from_overlay_nat_src_dst_v4_check(struct __ctx_buff *ctx)
 	assert_status_code(ctx, TC_ACT_REDIRECT);
 	ASSERT_CTX_REDIRECT(NETDEV_IFINDEX);
 
-	BUF_DECL(NETIP_ICMP_REQ, privnet_net_ip_icmp_req);
 	ASSERT_CTX_BUF_OFF("privnet_icmp_from_overlay_nat_src_dst_v4", "Ether", ctx,
-			   sizeof(__u32), NETIP_ICMP_REQ,
-			   sizeof(BUF(NETIP_ICMP_REQ)));
+			   sizeof(__u32), privnet_net_ip_icmp_req,
+			   sizeof(privnet_net_ip_icmp_req));
 
 	assert_privnet_net_ids(NET_ID, NET_ID);
 
@@ -251,8 +283,7 @@ int privnet_icmp_from_overlay_nat_src_dst_v4_check(struct __ctx_buff *ctx)
 PKTGEN("tc", "02_icmp_from_overlay_to_local_endpoint")
 int privnet_icmp_from_overlay_to_local_endpoint_pktgen(struct __ctx_buff *ctx)
 {
-	BUF_DECL(EP_V4_ICMP_REQ, privnet_pod_ip_icmp_req_to_endpoint);
-	build_privnet_packet(ctx, EP_V4_ICMP_REQ);
+	build_privnet_packet(ctx, privnet_pod_ip_icmp_req_to_endpoint);
 	return 0;
 }
 
@@ -281,8 +312,7 @@ int privnet_icmp_from_overlay_to_local_endpoint_check(struct __ctx_buff *ctx)
 PKTGEN("tc", "03_icmp_from_overlay_to_local_endpoint_v6")
 int privnet_icmp_from_overlay_to_local_endpoint_v6_pktgen(struct __ctx_buff *ctx)
 {
-	BUF_DECL(EP_V6_ICMP_REQ, privnet_pod_ipv6_icmp_req_to_endpoint);
-	build_privnet_packet(ctx, EP_V6_ICMP_REQ);
+	build_privnet_packet(ctx, privnet_pod_ipv6_icmp_req_to_endpoint);
 	return 0;
 }
 
@@ -311,8 +341,7 @@ int privnet_icmp_from_overlay_to_local_endpoint_v6_check(struct __ctx_buff *ctx)
 PKTGEN("tc", "04_icmp_from_overlay_nat_src_unknown_dst_v4")
 int privnet_icmp_from_overlay_nat_src_unknown_dst_v4_pktgen(struct __ctx_buff *ctx)
 {
-	BUF_DECL(UNKNOWN_ICMP_REQ, privnet_unknown_flow_icmp_req_out);
-	build_privnet_packet(ctx, UNKNOWN_ICMP_REQ);
+	build_privnet_packet(ctx, privnet_unknown_flow_icmp_req_out);
 	return 0;
 }
 
@@ -349,10 +378,9 @@ int privnet_icmp_from_overlay_nat_src_unknown_dst_v4_check(struct __ctx_buff *ct
 	assert_status_code(ctx, TC_ACT_REDIRECT);
 	ASSERT_REDIRECT_NEIGH_V4(V4_NET_IP_2, NETDEV_IFINDEX);
 
-	BUF_DECL(UNKNOWN_ICMP_REQ_NETIP, privnet_unknown_flow_icmp_req_out_netip);
 	ASSERT_CTX_BUF_OFF("privnet_icmp_from_overlay_nat_src_unknown_dst_v4", "Ether", ctx,
-			   sizeof(__u32), UNKNOWN_ICMP_REQ_NETIP,
-			   sizeof(BUF(UNKNOWN_ICMP_REQ_NETIP)));
+			   sizeof(__u32), privnet_unknown_flow_icmp_req_out_netip,
+			   sizeof(privnet_unknown_flow_icmp_req_out_netip));
 
 	assert_privnet_net_ids(NET_ID, NET_ID);
 
@@ -364,8 +392,7 @@ int privnet_icmp_from_overlay_nat_src_unknown_dst_v4_check(struct __ctx_buff *ct
 PKTGEN("tc", "05_icmpv6_from_overlay_nat_src_unknown_dst_v6")
 int privnet_icmpv6_from_overlay_nat_src_unknown_dst_v6_pktgen(struct __ctx_buff *ctx)
 {
-	BUF_DECL(UNKNOWN_ICMPV6_REQ, privnet_unknown_flow_icmpv6_req_out);
-	build_privnet_packet(ctx, UNKNOWN_ICMPV6_REQ);
+	build_privnet_packet(ctx, privnet_unknown_flow_icmpv6_req_out);
 	return 0;
 }
 
@@ -408,10 +435,9 @@ int privnet_icmpv6_from_overlay_nat_src_unknown_dst_v6_check(struct __ctx_buff *
 	assert_status_code(ctx, TC_ACT_REDIRECT);
 	ASSERT_REDIRECT_NEIGH_V6((const union v6addr *)V6_NET_IP_2, NETDEV_IFINDEX);
 
-	BUF_DECL(UNKNOWN_ICMPV6_REQ_NETIP, privnet_unknown_flow_icmpv6_req_out_netip);
 	ASSERT_CTX_BUF_OFF("privnet_icmpv6_from_overlay_nat_src_unknown_dst_v6", "Ether", ctx,
-			   sizeof(__u32), UNKNOWN_ICMPV6_REQ_NETIP,
-			   sizeof(BUF(UNKNOWN_ICMPV6_REQ_NETIP)));
+			   sizeof(__u32), privnet_unknown_flow_icmpv6_req_out_netip,
+			   sizeof(privnet_unknown_flow_icmpv6_req_out_netip));
 
 	assert_privnet_net_ids(NET_ID, NET_ID);
 

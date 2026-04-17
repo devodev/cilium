@@ -293,7 +293,13 @@ notes carefully below to understand what to do during upgrade.
 Informational Notes
 ~~~~~~~~~~~~~~~~~~~
 
-* TODO
+* CiliumNetworkPolicy and CiliumClusterwideNetworkPolicy resources that specify
+  neither ``spec`` nor ``specs`` are now rejected at admission time by the
+  Kubernetes API server via a CEL validation rule. Previously, such empty
+  policies were accepted and only flagged later by the Cilium agent with a
+  warning log. Existing empty policies already present in the cluster are not
+  affected, but any create or update that results in an empty policy will be
+  rejected.
 
 Changes to Features
 ~~~~~~~~~~~~~~~~~~~
@@ -393,6 +399,9 @@ Changed Metrics
 * The metric ``policy_change_total`` now reports additional ``source`` (directory, k8s, custom, generated)
   and ``operation`` (update, delete) dimensions.
 * The metric ``endpoint_regeneration_total`` now reports additional ``reason`` and ``error`` dimensions.
+* The ``session_state``, ``advertised_routes``, ``received_routes``, ``reconcile_errors_total``, ``reconcile_run_duration_seconds`` metrics
+  now include ``instance_name`` label. Label ``vrouter`` is removed please use ``instance_name`` instead.
+* The ``session_state``, ``advertised_routes``, ``received_routes`` metrics now include ``local_asn`` label.
 
 Deprecated Metrics
 ##################
@@ -403,6 +412,8 @@ Removed Metrics
 ###############
 
 * ``cilium_agent_bootstrap_seconds`` has been removed. Please use ``cilium_hive_jobs_oneshot_last_run_duration_seconds`` of respective job instead.
+* ``cilium_operator_ipam_ips`` has been removed. Use per-node ``cilium_operator_ipam_available_ips``, ``cilium_operator_ipam_used_ips``, and ``cilium_operator_ipam_needed_ips`` instead.
+* ``cilium_operator_ipam_available_interfaces`` has been removed. Use ``cilium_operator_ipam_interface_candidates`` and ``cilium_operator_ipam_empty_interface_slots`` instead.
 
 Removed CRD Fields
 ~~~~~~~~~~~~~~~~~~~

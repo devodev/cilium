@@ -6,7 +6,7 @@ package mock
 import (
 	"context"
 	"fmt"
-	"net"
+	"net/netip"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v9"
@@ -69,11 +69,11 @@ func (a *API) UpdateSubnets(subnets []*ipamTypes.Subnet) {
 	a.mutex.Lock()
 	a.subnets = map[string]*subnet{}
 	for _, s := range subnets {
-		_, cidr, _ := net.ParseCIDR(s.CIDR.String())
+		prefix, _ := netip.ParsePrefix(s.CIDR.String())
 
 		a.subnets[s.ID] = &subnet{
 			subnet:    s.DeepCopy(),
-			allocator: ipallocator.NewCIDRRange(cidr),
+			allocator: ipallocator.NewCIDRRange(prefix),
 		}
 	}
 	a.mutex.Unlock()
@@ -140,8 +140,8 @@ func (a *API) GetInstance(ctx context.Context, subnets ipamTypes.SubnetMap, inst
 	}
 
 	instance := ipamTypes.Instance{}
-	instance.Interfaces = map[string]ipamTypes.InterfaceRevision{}
-	if err := a.instances.ForeachInterface(instanceID, func(instanceID, interfaceID string, iface ipamTypes.InterfaceRevision) error {
+	instance.Interfaces = map[string]ipamTypes.Interface{}
+	if err := a.instances.ForeachInterface(instanceID, func(instanceID, interfaceID string, iface ipamTypes.Interface) error {
 		instance.Interfaces[interfaceID] = iface
 		return nil
 	}); err != nil {
@@ -238,8 +238,8 @@ func (a *API) AssignPrivateIpAddressesVMSS(ctx context.Context, vmName, vmssName
 
 	foundInterface := false
 	instances := a.instances.DeepCopy()
-	err := instances.ForeachInterface("", func(id, _ string, iface ipamTypes.InterfaceRevision) error {
-		intf, ok := iface.Resource.(*types.AzureInterface)
+	err := instances.ForeachInterface("", func(id, _ string, iface ipamTypes.Interface) error {
+		intf, ok := iface.(*types.AzureInterface)
 		if !ok {
 			return fmt.Errorf("invalid interface object")
 		}
@@ -352,5 +352,5 @@ func (a *API) ParseInterfacesIntoInstance(networkInterfaces []*armnetwork.Interf
 	defer a.mutex.RUnlock()
 	// The instance will be populated by the caller based on the mock's data
 	// Return a basic structure that will be filled in
-	return &ipamTypes.Instance{Interfaces: map[string]ipamTypes.InterfaceRevision{}}
+	return &ipamTypes.Instance{Interfaces: map[string]ipamTypes.Interface{}}
 }
