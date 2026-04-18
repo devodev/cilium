@@ -31,6 +31,10 @@ type IsovalentClusterwideEncryptionPolicyExpansion interface{}
 
 type IsovalentClusterwideNetworkPolicyExpansion interface{}
 
+type IsovalentCoreVRFExpansion interface{}
+
+type IsovalentCoreVRFNodeStatusExpansion interface{}
+
 type IsovalentFQDNGroupExpansion interface{}
 
 type IsovalentMulticastGroupExpansion interface{}

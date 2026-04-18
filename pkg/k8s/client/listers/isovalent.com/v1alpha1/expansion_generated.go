@@ -57,6 +57,14 @@ type IsovalentClusterwideEncryptionPolicyListerExpansion interface{}
 // IsovalentClusterwideNetworkPolicyLister.
 type IsovalentClusterwideNetworkPolicyListerExpansion interface{}
 
+// IsovalentCoreVRFListerExpansion allows custom methods to be added to
+// IsovalentCoreVRFLister.
+type IsovalentCoreVRFListerExpansion interface{}
+
+// IsovalentCoreVRFNodeStatusListerExpansion allows custom methods to be added to
+// IsovalentCoreVRFNodeStatusLister.
+type IsovalentCoreVRFNodeStatusListerExpansion interface{}
+
 // IsovalentFQDNGroupListerExpansion allows custom methods to be added to
 // IsovalentFQDNGroupLister.
 type IsovalentFQDNGroupListerExpansion interface{}

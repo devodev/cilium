@@ -123,6 +123,12 @@ const (
 
 	// FabricSecurityGroupCRDName is the full name of the FabricSecurityGroup CRD.
 	FabricSecurityGroupCRDName = k8sconstv1alpha1.FabricSecurityGroupKindDefinition + "/" + k8sconstv1alpha1.CustomResourceDefinitionVersion
+
+	// ICVRFCRDName is the full name of the IsovalentCoreVRF CRD.
+	ICVRFCRDName = k8sconstv1alpha1.ICVRFKindDefinition + "/" + k8sconstv1alpha1.CustomResourceDefinitionVersion
+
+	// ICVRFNSCRDName is the full name of the IsovalentCoreVRFNodeStatus CRD.
+	ICVRFNSCRDName = k8sconstv1alpha1.ICVRFNSKindDefinition + "/" + k8sconstv1alpha1.CustomResourceDefinitionVersion
 )
 
 type CRDList struct {
@@ -265,6 +271,14 @@ func CustomResourceDefinitionList() map[string]*CRDList {
 			Name:     FabricSecurityGroupCRDName,
 			FullName: k8sconstv1alpha1.FabricSecurityGroupName,
 		},
+		synced.CRDResourceName(k8sconstv1alpha1.ICVRFName): {
+			Name:     ICVRFCRDName,
+			FullName: k8sconstv1alpha1.ICVRFName,
+		},
+		synced.CRDResourceName(k8sconstv1alpha1.ICVRFNSName): {
+			Name:     ICVRFNSCRDName,
+			FullName: k8sconstv1alpha1.ICVRFNSName,
+		},
 	}
 }
 
@@ -384,6 +398,12 @@ var (
 
 	//go:embed crds/v1alpha1/fabricsecuritygroups.yaml
 	crdsv1Alpha1FabricSecurityGroups []byte
+
+	//go:embed crds/v1alpha1/isovalentcorevrfs.yaml
+	crdsv1Alpha1IsovalentCoreVRFs []byte
+
+	//go:embed crds/v1alpha1/isovalentcorevrfnodestatuses.yaml
+	crdsv1Alpha1IsovalentCoreVRFNodeStatuses []byte
 )
 
 // GetPregeneratedCRD returns the pregenerated CRD based on the requested CRD
@@ -465,6 +485,10 @@ func GetPregeneratedCRD(logger *slog.Logger, crdName string) apiextensionsv1.Cus
 		crdBytes = crdsv1Alpha1PrivateNetworkNodeAttachments
 	case FabricSecurityGroupCRDName:
 		crdBytes = crdsv1Alpha1FabricSecurityGroups
+	case ICVRFCRDName:
+		crdBytes = crdsv1Alpha1IsovalentCoreVRFs
+	case ICVRFNSCRDName:
+		crdBytes = crdsv1Alpha1IsovalentCoreVRFNodeStatuses
 	default:
 		logging.Fatal(scopedLog, "Pregenerated CRD does not exist")
 	}

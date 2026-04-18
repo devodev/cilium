@@ -145,6 +145,16 @@ const (
 	FabricSecurityGroupPluralName     = "fabricsecuritygroups"
 	FabricSecurityGroupKindDefinition = "FabricSecurityGroup"
 	FabricSecurityGroupName           = FabricSecurityGroupPluralName + "." + CustomResourceDefinitionGroup
+
+	// IsovalentCoreVRF (ICVRF)
+	ICVRFPluralName     = "isovalentcorevrfs"
+	ICVRFKindDefinition = "IsovalentCoreVRF"
+	ICVRFName           = ICVRFPluralName + "." + CustomResourceDefinitionGroup
+
+	// IsovalentCoreVRFNodeStatus (ICVRFNS)
+	ICVRFNSPluralName     = "isovalentcorevrfnodestatuses"
+	ICVRFNSKindDefinition = "IsovalentCoreVRFNodeStatus"
+	ICVRFNSName           = ICVRFNSPluralName + "." + CustomResourceDefinitionGroup
 )
 
 // SchemeGroupVersion is group version used to register these objects
@@ -249,6 +259,10 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&LBK8sBackendClusterList{},
 		&FabricSecurityGroup{},
 		&FabricSecurityGroupList{},
+		&IsovalentCoreVRF{},
+		&IsovalentCoreVRFList{},
+		&IsovalentCoreVRFNodeStatus{},
+		&IsovalentCoreVRFNodeStatusList{},
 	)
 
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)

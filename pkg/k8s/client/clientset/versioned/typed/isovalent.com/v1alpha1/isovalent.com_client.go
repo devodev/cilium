@@ -28,6 +28,8 @@ type IsovalentV1alpha1Interface interface {
 	IsovalentBGPVRFConfigsGetter
 	IsovalentClusterwideEncryptionPoliciesGetter
 	IsovalentClusterwideNetworkPoliciesGetter
+	IsovalentCoreVRFsGetter
+	IsovalentCoreVRFNodeStatusesGetter
 	IsovalentFQDNGroupsGetter
 	IsovalentMulticastGroupsGetter
 	IsovalentMulticastNodesGetter
@@ -103,6 +105,14 @@ func (c *IsovalentV1alpha1Client) IsovalentClusterwideEncryptionPolicies() Isova
 
 func (c *IsovalentV1alpha1Client) IsovalentClusterwideNetworkPolicies() IsovalentClusterwideNetworkPolicyInterface {
 	return newIsovalentClusterwideNetworkPolicies(c)
+}
+
+func (c *IsovalentV1alpha1Client) IsovalentCoreVRFs() IsovalentCoreVRFInterface {
+	return newIsovalentCoreVRFs(c)
+}
+
+func (c *IsovalentV1alpha1Client) IsovalentCoreVRFNodeStatuses() IsovalentCoreVRFNodeStatusInterface {
+	return newIsovalentCoreVRFNodeStatuses(c)
 }
 
 func (c *IsovalentV1alpha1Client) IsovalentFQDNGroups() IsovalentFQDNGroupInterface {

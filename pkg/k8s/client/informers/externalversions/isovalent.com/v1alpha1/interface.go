@@ -37,6 +37,10 @@ type Interface interface {
 	IsovalentClusterwideEncryptionPolicies() IsovalentClusterwideEncryptionPolicyInformer
 	// IsovalentClusterwideNetworkPolicies returns a IsovalentClusterwideNetworkPolicyInformer.
 	IsovalentClusterwideNetworkPolicies() IsovalentClusterwideNetworkPolicyInformer
+	// IsovalentCoreVRFs returns a IsovalentCoreVRFInformer.
+	IsovalentCoreVRFs() IsovalentCoreVRFInformer
+	// IsovalentCoreVRFNodeStatuses returns a IsovalentCoreVRFNodeStatusInformer.
+	IsovalentCoreVRFNodeStatuses() IsovalentCoreVRFNodeStatusInformer
 	// IsovalentFQDNGroups returns a IsovalentFQDNGroupInformer.
 	IsovalentFQDNGroups() IsovalentFQDNGroupInformer
 	// IsovalentMulticastGroups returns a IsovalentMulticastGroupInformer.
@@ -149,6 +153,16 @@ func (v *version) IsovalentClusterwideEncryptionPolicies() IsovalentClusterwideE
 // IsovalentClusterwideNetworkPolicies returns a IsovalentClusterwideNetworkPolicyInformer.
 func (v *version) IsovalentClusterwideNetworkPolicies() IsovalentClusterwideNetworkPolicyInformer {
 	return &isovalentClusterwideNetworkPolicyInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+}
+
+// IsovalentCoreVRFs returns a IsovalentCoreVRFInformer.
+func (v *version) IsovalentCoreVRFs() IsovalentCoreVRFInformer {
+	return &isovalentCoreVRFInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+}
+
+// IsovalentCoreVRFNodeStatuses returns a IsovalentCoreVRFNodeStatusInformer.
+func (v *version) IsovalentCoreVRFNodeStatuses() IsovalentCoreVRFNodeStatusInformer {
+	return &isovalentCoreVRFNodeStatusInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
 // IsovalentFQDNGroups returns a IsovalentFQDNGroupInformer.

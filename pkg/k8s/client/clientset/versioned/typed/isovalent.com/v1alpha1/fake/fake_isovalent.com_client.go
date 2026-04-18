@@ -67,6 +67,14 @@ func (c *FakeIsovalentV1alpha1) IsovalentClusterwideNetworkPolicies() v1alpha1.I
 	return newFakeIsovalentClusterwideNetworkPolicies(c)
 }
 
+func (c *FakeIsovalentV1alpha1) IsovalentCoreVRFs() v1alpha1.IsovalentCoreVRFInterface {
+	return newFakeIsovalentCoreVRFs(c)
+}
+
+func (c *FakeIsovalentV1alpha1) IsovalentCoreVRFNodeStatuses() v1alpha1.IsovalentCoreVRFNodeStatusInterface {
+	return newFakeIsovalentCoreVRFNodeStatuses(c)
+}
+
 func (c *FakeIsovalentV1alpha1) IsovalentFQDNGroups() v1alpha1.IsovalentFQDNGroupInterface {
 	return newFakeIsovalentFQDNGroups(c)
 }
