@@ -45,6 +45,9 @@ rules:
 {{- if .Values.enterprise.evpn.enabled }}
   - fabricsecuritygroups.isovalent.com
 {{- end }}
+{{- if .Values.enterprise.vrf.enabled }}
+  - isovalentcorevrfs.isovalent.com
+{{- end }}
 {{- if .Values.enterprise.loadbalancer.enabled }}
   - lbservices.isovalent.com
   - lbbackendpools.isovalent.com

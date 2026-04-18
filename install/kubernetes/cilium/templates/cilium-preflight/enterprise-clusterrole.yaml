@@ -73,6 +73,16 @@ rules:
     - watch
     - get
 {{- end }}
+{{- if .Values.enterprise.vrf.enabled }}
+- apiGroups:
+    - isovalent.com
+  resources:
+    - isovalentcorevrfs
+  verbs:
+    - list
+    - watch
+    - get
+{{- end }}
 - apiGroups:
   - isovalent.com
   resources:

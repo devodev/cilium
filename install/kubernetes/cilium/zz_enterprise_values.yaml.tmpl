@@ -382,6 +382,11 @@ enterprise:
   # Supports `+` as a wildcard in the device name, for example `eth+`.
   preferredTunnelEndpointDevices: []
 
+  # Virtual Routing and Forwarding support
+  vrf:
+    # -- Enable VRF support for isolated routing domains.
+    enabled: false
+
   # Passive inspection for pod traffic
   inspection:
     # -- Enable passive inspection for pod traffic. When enabled, a clone

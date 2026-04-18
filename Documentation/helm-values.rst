@@ -1960,6 +1960,10 @@
      - Enables custom SRv6 SID locator pool operator support.
      - bool
      - ``false``
+   * - :spelling:ignore:`enterprise.vrf.enabled`
+     - Enable VRF support for isolated routing domains.
+     - bool
+     - ``false``
    * - :spelling:ignore:`enterprise.waf.enabled`
      - Enable WAF policy validation and default WAF settings in the enterprise operator.
      - bool

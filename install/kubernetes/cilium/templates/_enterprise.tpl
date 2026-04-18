@@ -331,6 +331,9 @@ private-networks-auto-external-endpoints-secrets-namespace: {{ .name | quote }}
 {{- end }}
 {{- end }}
 
+# VRF support
+enable-vrf: {{ .Values.enterprise.vrf.enabled | default "false" | quote }}
+
 # Passive inspection for pod traffic
 enable-passive-inspection: {{ .Values.enterprise.inspection.enabled | quote }}
 

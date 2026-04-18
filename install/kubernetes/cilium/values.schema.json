@@ -2861,6 +2861,14 @@
           },
           "type": "object"
         },
+        "vrf": {
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            }
+          },
+          "type": "object"
+        },
         "waf": {
           "properties": {
             "enabled": {

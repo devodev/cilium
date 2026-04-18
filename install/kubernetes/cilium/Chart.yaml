@@ -303,6 +303,21 @@ annotations:
       description: |
         IsovalentVRF defines binding of Pods to a Virtual Routing and
         Forwarding (VRF) instance for SRv6 L3VPN participation.
+    - kind: IsovalentCoreVRF
+      version: v1alpha1
+      name: isovalentcorevrfs.isovalent.com
+      displayName: Isovalent Core VRF
+      description: |
+        IsovalentCoreVRF defines a kernel Virtual Routing and Forwarding (VRF)
+        instance that binds selected network interfaces and Pods to an
+        isolated FIB table.
+    - kind: IsovalentCoreVRFNodeStatus
+      version: v1alpha1
+      name: isovalentcorevrfnodestatuses.isovalent.com
+      displayName: Isovalent Core VRF Node Status
+      description: |
+        IsovalentCoreVRFNodeStatus reports the per-node reconciliation status
+        of an IsovalentCoreVRF.
     - kind: LBDeployment
       version: v1alpha1
       name: lbdeployments.isovalent.com
