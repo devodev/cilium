@@ -150,6 +150,7 @@ const (
 	CiliumSubnetMap                     = "cilium_subnet_map"
 	CiliumThrottle                      = "cilium_throttle"
 	CiliumVNI                           = "cilium_vni"
+	CiliumVRFMap                        = "cilium_vrf_map"
 	CiliumVTEPMap                       = "cilium_vtep_map"
 	CiliumXDPScratch                    = "cilium_xdp_scratch"
 )
@@ -1724,6 +1725,20 @@ func newCiliumVNISpec(btf *btf.Spec) *ebpf.MapSpec {
 	}
 }
 
+func newCiliumVRFMapSpec(btf *btf.Spec) *ebpf.MapSpec {
+	return &ebpf.MapSpec{
+		Name:       CiliumVRFMap,
+		Type:       ebpf.Hash,
+		KeySize:    2,
+		Key:        anyTypeByName(btf, "vrf_id"),
+		ValueSize:  4,
+		Value:      anyTypeByName(btf, "vrf_table_id"),
+		MaxEntries: 65536,
+		Flags:      unix.BPF_F_NO_PREALLOC | unix.BPF_F_RDONLY_PROG,
+		Pinning:    ebpf.PinByName,
+	}
+}
+
 func newCiliumVTEPMapSpec(btf *btf.Spec) *ebpf.MapSpec {
 	return &ebpf.MapSpec{
 		Name:       CiliumVTEPMap,
@@ -1849,6 +1864,7 @@ var _outer []newMapFn = []newMapFn{
 	newCiliumSubnetMapSpec,
 	newCiliumThrottleSpec,
 	newCiliumVNISpec,
+	newCiliumVRFMapSpec,
 	newCiliumVTEPMapSpec,
 	newCiliumXDPScratchSpec,
 }

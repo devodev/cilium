@@ -1356,6 +1356,12 @@ type VNIVal struct {
 	Pad   uint16
 }
 
+// VRFID is generated from the BPF C type vrf_id.
+type VRFID uint16
+
+// VRFTableID is generated from the BPF C type vrf_table_id.
+type VRFTableID uint32
+
 // VTEPKey is generated from the BPF C type vtep_key.
 type VTEPKey struct {
 	_      structs.HostLayout
