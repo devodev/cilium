@@ -10,6 +10,7 @@
 #include "lib/enterprise_inspection.h"
 #include "lib/enterprise_privnet.h"
 #include "lib/enterprise_evpn.h"
+#include "lib/enterprise_vrf.h"
 
 static __always_inline int enterprise_privnet_from_lxc(struct __ctx_buff *ctx __maybe_unused,
 						       __u16 proto)

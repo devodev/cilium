@@ -791,6 +791,13 @@ ipv6_forward_to_destination(struct __ctx_buff *ctx, struct ipv6hdr *ip6,
 		int oif = 0;
 		__u32 tbid = CONFIG(rt_info);
 
+		/*
+		 * in enterprise rt_info is a VRF ID that must be resolved to a
+		 * tbid, if VRFs are not enabled rf_info will be zero and the
+		 * lookup is effectively a no-op
+		 */
+		tbid = enterprise_vrf_map_get((__u16)tbid);
+
 		ret = fib_redirect_v6(ctx, ETH_HLEN, ip6, false, false, ext_err, &oif, tbid);
 		/*
 		 * if the endpoint is configured with an explicit table id,
@@ -1356,6 +1363,13 @@ ipv4_forward_to_destination(struct __ctx_buff *ctx, struct iphdr *ip4,
 	if (is_defined(ENABLE_HOST_ROUTING)) {
 		int oif = 0;
 		__u32 tbid = CONFIG(rt_info);
+
+		/*
+		 * in enterprise rt_info is a VRF ID that must be resolved to a
+		 * tbid, if VRFs are not enabled rf_info will be zero and the
+		 * lookup is effectively a no-op
+		 */
+		tbid = enterprise_vrf_map_get((__u16)tbid);
 
 		ret = fib_redirect_v4(ctx, ETH_HLEN, ip4, false, false, ext_err, &oif, tbid);
 		/*
