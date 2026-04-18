@@ -44,6 +44,7 @@ import (
 	"github.com/cilium/cilium/enterprise/pkg/srv6/sidmanager"
 	"github.com/cilium/cilium/enterprise/pkg/srv6/srv6manager"
 	"github.com/cilium/cilium/enterprise/pkg/tunnelip"
+	"github.com/cilium/cilium/enterprise/pkg/vrf"
 	"github.com/cilium/cilium/pkg/datapath/loader"
 	"github.com/cilium/cilium/pkg/k8s/synced"
 	metricsFeatures "github.com/cilium/cilium/pkg/metrics/features"
@@ -112,6 +113,8 @@ var (
 		multinetwork.Cell,
 
 		multicast.Cell,
+
+		vrf.Cell,
 
 		fqdnha.Cell,
 

@@ -31,6 +31,9 @@ const (
 
 	// EVPNEnabled flag enables the EVPN feature
 	EVPNEnabled = "enable-evpn"
+
+	// VRFEnabled enables the VRF feature
+	VRFEnabled = "enable-vrf"
 )
 
 type EnterpriseDaemonConfig struct {
@@ -54,6 +57,9 @@ type EnterpriseDaemonConfig struct {
 
 	// Enable EVPN feature
 	EnableEVPN bool
+
+	// Enable VRF feature
+	EnableVRF bool
 }
 
 func (ec *EnterpriseDaemonConfig) Populate(vp *viper.Viper) {
@@ -64,4 +70,5 @@ func (ec *EnterpriseDaemonConfig) Populate(vp *viper.Viper) {
 	ec.EnableBFD = vp.GetBool(bfdtypes.EnableBFDFlag)
 	ec.EnablePrivateNetworks = vp.GetBool(pncfg.FlagEnable)
 	ec.EnableEVPN = vp.GetBool(EVPNEnabled)
+	ec.EnableVRF = vp.GetBool(VRFEnabled)
 }

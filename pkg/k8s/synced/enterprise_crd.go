@@ -79,5 +79,10 @@ func AllIsovalentCRDResourceNames() []string {
 		result = append(result, CRDResourceName(v1alpha1.FabricSecurityGroupName))
 	}
 
+	if option.Config.EnableVRF {
+		result = append(result, CRDResourceName(v1alpha1.ICVRFName))
+		result = append(result, CRDResourceName(v1alpha1.ICVRFNSName))
+	}
+
 	return result
 }
