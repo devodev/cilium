@@ -356,6 +356,20 @@ func mergePolicy(
 					outputPolicyStatements[key].Actions.RoutePolicyActions.SetLocalPreference = statement.Actions.RoutePolicyActions.SetLocalPreference
 				}
 			}
+
+			// Take the maximum repeat value for AS Path Prepend.
+			if statement.Actions.ASPathPrepend != nil {
+				if outputPolicyStatements[key].Actions.ASPathPrepend == nil {
+					// This is the first with AS Path
+					// Prepend set.
+					outputPolicyStatements[key].Actions.ASPathPrepend = statement.Actions.ASPathPrepend
+				} else if statement.Actions.ASPathPrepend.Repeat > outputPolicyStatements[key].Actions.ASPathPrepend.Repeat {
+					// This statement's AS Path Prepend
+					// repeat value is greater than the
+					// previous best, use this one.
+					outputPolicyStatements[key].Actions.ASPathPrepend = statement.Actions.ASPathPrepend
+				}
+			}
 		}
 	}
 
@@ -397,19 +411,47 @@ func CreatePolicy(name string, peerAddr netip.Addr, v4Prefixes, v6Prefixes ossTy
 		return nil, err
 	}
 
-	// get local preference
-	var localPref *int64
+	// get local preference and as path prepend options
+	var (
+		localPref     *int64
+		asPathPrepend *types.ExtendedRoutePolicyActionASPathPrepend
+	)
 	if advert.Attributes != nil {
 		localPref = advert.Attributes.LocalPreference
+		if advert.Attributes.ASPathPrepend != nil {
+			asPathPrepend = &types.ExtendedRoutePolicyActionASPathPrepend{
+				Repeat: uint32(advert.Attributes.ASPathPrepend.Repeat),
+			}
+		}
 	}
 
 	// Due to a GoBGP limitation, we need to generate a separate statement for v4 and v6 prefixes, as families
 	// can not be mixed in a single statement. Nevertheless, they can be both part of the same Policy.
 	if len(v4Prefixes) > 0 {
-		policy.Statements = append(policy.Statements, policyStatement(peerAddr, v4Prefixes, localPref, communities, largeCommunities))
+		policy.Statements = append(
+			policy.Statements,
+			policyStatement(
+				peerAddr,
+				v4Prefixes,
+				localPref,
+				communities,
+				largeCommunities,
+				asPathPrepend,
+			),
+		)
 	}
 	if len(v6Prefixes) > 0 {
-		policy.Statements = append(policy.Statements, policyStatement(peerAddr, v6Prefixes, localPref, communities, largeCommunities))
+		policy.Statements = append(
+			policy.Statements,
+			policyStatement(
+				peerAddr,
+				v6Prefixes,
+				localPref,
+				communities,
+				largeCommunities,
+				asPathPrepend,
+			),
+		)
 	}
 
 	return policy, nil
@@ -503,7 +545,14 @@ func dedupLargeCommunities(advert v1.BGPAdvertisement) []string {
 	return res
 }
 
-func policyStatement(neighborAddr netip.Addr, prefixes ossTypes.PolicyPrefixList, localPref *int64, communities, largeCommunities []string) *types.ExtendedRoutePolicyStatement {
+func policyStatement(
+	neighborAddr netip.Addr,
+	prefixes ossTypes.PolicyPrefixList,
+	localPref *int64,
+	communities,
+	largeCommunities []string,
+	asPathPrepend *types.ExtendedRoutePolicyActionASPathPrepend,
+) *types.ExtendedRoutePolicyStatement {
 	return &types.ExtendedRoutePolicyStatement{
 		Conditions: types.ExtendedRoutePolicyConditions{
 			RoutePolicyConditions: ossTypes.RoutePolicyConditions{
@@ -524,6 +573,7 @@ func policyStatement(neighborAddr netip.Addr, prefixes ossTypes.PolicyPrefixList
 				AddCommunities:      communities,
 				AddLargeCommunities: largeCommunities,
 			},
+			ASPathPrepend: asPathPrepend,
 		},
 	}
 }

@@ -53,6 +53,17 @@ type ExtendedRoutePolicyStatement struct {
 // +deepequal-gen=true
 type ExtendedRoutePolicyActions struct {
 	ossTypes.RoutePolicyActions
+
+	// ASPathPrepend contains AS path prepending action parameters.
+	ASPathPrepend *ExtendedRoutePolicyActionASPathPrepend
+}
+
+// ExtendedRoutePolicyActionASPathPrepend represents AS path prepend action of a policy statement.
+//
+// +deepequal-gen=true
+type ExtendedRoutePolicyActionASPathPrepend struct {
+	// How many times the local AS path should be prepended.
+	Repeat uint32
 }
 
 // ExtendedRoutePolicyConditions represent conditions of a policy statement.
