@@ -18,6 +18,7 @@ import (
 	"strconv"
 
 	"github.com/cilium/hive/cell"
+	"github.com/cilium/statedb"
 	envoy_config_cluster_v3 "github.com/envoyproxy/go-control-plane/envoy/config/cluster/v3"
 	envoy_config_core_v3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	envoy_config_endpoint_v3 "github.com/envoyproxy/go-control-plane/envoy/config/endpoint/v3"
@@ -42,7 +43,9 @@ type xdsServer struct {
 	bindAddress   string
 	listener      net.Listener
 	grpcServer    *grpc.Server
+	db            *statedb.DB
 	snapshotCache envoycache.SnapshotCache
+	snapshotTable statedb.RWTable[*XDSSnapshotState]
 	versionsMu    lock.Mutex
 	versions      map[string]uint64
 }
@@ -66,19 +69,23 @@ func (controlplaneNodeHash) ID(node *envoy_config_core_v3.Node) string {
 	return node.GetCluster()
 }
 
-func newXDSServer(logger *slog.Logger, config Config) (*xdsServer, error) {
+func newXDSServer(logger *slog.Logger, config Config, db *statedb.DB, snapshotTable statedb.RWTable[*XDSSnapshotState]) (*xdsServer, error) {
 	snapshotCache := envoycache.NewSnapshotCache(true, controlplaneNodeHash{}, envoylog.NewDefaultLogger())
 
 	return &xdsServer{
 		logger:        logger,
 		bindAddress:   config.XDSBindAddress,
+		db:            db,
 		snapshotCache: snapshotCache,
+		snapshotTable: snapshotTable,
 		versions:      make(map[string]uint64),
 	}, nil
 }
 
 func (s *xdsServer) UpdateSnapshot(ctx context.Context, snapshotKey string, resources XDSResources) error {
-	snapshot, err := envoycache.NewSnapshot(s.nextSnapshotVersion(snapshotKey), map[envoyresource.Type][]types.Resource{
+	version := s.nextSnapshotVersion(snapshotKey)
+
+	snapshot, err := envoycache.NewSnapshot(version, map[envoyresource.Type][]types.Resource{
 		envoyresource.EndpointType: sliceToResources(resources.Endpoints),
 		envoyresource.ClusterType:  sliceToResources(resources.Clusters),
 		envoyresource.RouteType:    sliceToResources(resources.Routes),
@@ -93,11 +100,32 @@ func (s *xdsServer) UpdateSnapshot(ctx context.Context, snapshotKey string, reso
 		return fmt.Errorf("failed to publish xDS snapshot: %w", err)
 	}
 
+	if err := s.persistSnapshot(snapshotKey, version, resources); err != nil {
+		return err
+	}
+
 	return nil
 }
 
 func (s *xdsServer) ClearSnapshot(ctx context.Context, snapshotKey string) error {
-	return s.UpdateSnapshot(ctx, snapshotKey, XDSResources{})
+	version := s.nextSnapshotVersion(snapshotKey)
+
+	snapshot, err := envoycache.NewSnapshot(version, map[envoyresource.Type][]types.Resource{
+		envoyresource.EndpointType: nil,
+		envoyresource.ClusterType:  nil,
+		envoyresource.RouteType:    nil,
+		envoyresource.ListenerType: nil,
+		envoyresource.SecretType:   nil,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create xDS snapshot: %w", err)
+	}
+
+	if err := s.snapshotCache.SetSnapshot(ctx, snapshotKey, snapshot); err != nil {
+		return fmt.Errorf("failed to publish xDS snapshot: %w", err)
+	}
+
+	return s.deleteSnapshot(snapshotKey)
 }
 
 func (s *xdsServer) Serve(ctx context.Context, health cell.Health) error {
@@ -148,4 +176,39 @@ func (s *xdsServer) nextSnapshotVersion(snapshotKey string) string {
 
 	s.versions[snapshotKey]++
 	return strconv.FormatUint(s.versions[snapshotKey], 10)
+}
+
+func (s *xdsServer) persistSnapshot(snapshotKey string, version string, resources XDSResources) error {
+	state, err := newXDSSnapshotState(snapshotKey, version, resources)
+	if err != nil {
+		return fmt.Errorf("failed to persist xDS snapshot state: %w", err)
+	}
+
+	txn := s.db.WriteTxn(s.snapshotTable)
+	defer txn.Abort()
+
+	if _, _, err := s.snapshotTable.Insert(txn, state); err != nil {
+		return fmt.Errorf("failed to upsert xDS snapshot state: %w", err)
+	}
+
+	txn.Commit()
+	return nil
+}
+
+func (s *xdsServer) deleteSnapshot(snapshotKey string) error {
+	txn := s.db.WriteTxn(s.snapshotTable)
+	defer txn.Abort()
+
+	obj, _, found := s.snapshotTable.Get(txn, xdsSnapshotIndex.Query(snapshotKey))
+	if !found {
+		txn.Commit()
+		return nil
+	}
+
+	if _, _, err := s.snapshotTable.Delete(txn, obj); err != nil {
+		return fmt.Errorf("failed to delete xDS snapshot state: %w", err)
+	}
+
+	txn.Commit()
+	return nil
 }

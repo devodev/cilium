@@ -16,6 +16,7 @@ import (
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/hive/job"
 	"github.com/cilium/hive/shell"
+	"github.com/cilium/statedb"
 
 	"github.com/cilium/cilium/pkg/defaults"
 	"github.com/cilium/cilium/pkg/gops"
@@ -34,6 +35,9 @@ var (
 		pprof.Cell(pprofConfig),
 		shell.ServerCell(shellSockPath),
 		cell.Provide(newMetricsRegistry),
+
+		cell.Provide(newXDSSnapshotStateTable),
+		cell.ProvidePrivate(statedb.RWTable[*XDSSnapshotState].ToTable),
 
 		cell.ProvidePrivate(newXDSServer),
 		cell.ProvidePrivate(func(server *xdsServer) XDSResourceMutator { return server }),
