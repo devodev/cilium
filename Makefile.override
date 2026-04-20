@@ -110,5 +110,8 @@ gomod-override: ## Override go.mod
 # Cilium FQDN HA proxy specific targets
 -include Makefile.fqdn-proxy
 
+# Gateway API per-gateway controlplane specific targets
+-include Makefile.gateway-api-controlplane
+
 # Cilium private networks specific targets
 -include Makefile.privnet

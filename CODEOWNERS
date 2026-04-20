@@ -949,6 +949,7 @@ Makefile* @cilium/build
 /contrib/git/enterprise-setup-merge-drivers.sh @isovalent/backporters
 /Documentation/cmdref/
 /Makefile.fqdn-proxy @isovalent/dns-proxy
+/Makefile.gateway-api-controlplane @isovalent/service-mesh
 /Makefile.privnet @isovalent/private-networking
 /README.enterprise.md @isovalent/core-structure
 /renovate.json5 @isovalent/infrastructure
@@ -974,6 +975,7 @@ Makefile* @cilium/build
 /enterprise/fqdn-proxy/ @isovalent/dns-proxy
 /enterprise/fqdn-proxy/installation/ @isovalent/dns-proxy @isovalent/helm
 /enterprise/dashboards/ @isovalent/isovalent-loadbalancer
+/enterprise/gateway-api-controlplane/ @isovalent/service-mesh
 /enterprise/hubble/ @isovalent/hubble
 /enterprise/hubble-relay/ @isovalent/hubble
 /enterprise/hubble-timescape/ @isovalent/timescape

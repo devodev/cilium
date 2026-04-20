@@ -26,7 +26,7 @@ IMAGE_TAG ?= $$(../../images/scripts/make-image-tag.sh)
 
 PLATFORMS ?= unspecified
 
-all-images: lint runtime-image cilium-image operator-image hubble-relay-image
+all-images: lint runtime-image cilium-image operator-image hubble-relay-image gateway-api-controlplane-image
 
 lint:
 	scripts/lint.sh
@@ -77,3 +77,5 @@ clustermesh-apiserver-image: .buildx_builder
 	ROOT_CONTEXT=true ./scripts/build-image.sh clustermesh-apiserver-ubi-stage $(abspath ../../images/clustermesh-apiserver) "type=registry,push=true" $(PLATFORMS) "$$(cat .buildx_builder)" "--build-arg BASE_IMAGE=$(UBI_IMAGE) --target=release" $(REGISTRIES)
 	./scripts/build-image.sh clustermesh-apiserver-ubi$(SUFFIX) enterprise/images/clustermesh-apiserver $(OUTPUT) $(PLATFORMS) "$$(cat .buildx_builder)" "--build-arg BASE_IMAGE=$(REGISTRIES)/clustermesh-apiserver-ubi-stage:$(IMAGE_TAG) --build-arg BUILD_DATE=$$(date -u +'%Y-%m-%dT%H:%M:%SZ') --build-arg VERSION=$(IMAGE_TAG) $(EXTRA_ARGS)" $(REGISTRIES)
 
+gateway-api-controlplane-image: .buildx_builder
+	ROOT_CONTEXT=true ./scripts/build-image.sh $(or $(IMAGE_NAME),gateway-api-controlplane)$(SUFFIX) enterprise/images/gateway-api-controlplane $(OUTPUT) $(PLATFORMS) "$$(cat .buildx_builder)" "--build-arg BASE_IMAGE=$(BASE_IMAGE) --build-arg BUILD_DATE=$$(date -u +'%Y-%m-%dT%H:%M:%SZ') --build-arg VERSION=$(IMAGE_TAG) $(EXTRA_ARGS)" $(REGISTRIES)

@@ -1,0 +1,34 @@
+# Copyright (C) Isovalent, Inc. - All Rights Reserved.
+#
+# NOTICE: All information contained herein is, and remains the property of
+# Isovalent Inc and its suppliers, if any. The intellectual and technical
+# concepts contained herein are proprietary to Isovalent Inc and its suppliers
+# and may be covered by U.S. and Foreign Patents, patents in process, and are
+# protected by trade secret or copyright law.  Dissemination of this information
+# or reproduction of this material is strictly forbidden unless prior written
+# permission is obtained from Isovalent Inc.
+
+.PHONY: kind-build-image-gateway-api-controlplane
+kind-build-image-gateway-api-controlplane: ## Build gateway-api-controlplane docker image
+	$(MAKE) -C enterprise/images gateway-api-controlplane-image OUTPUT=type=docker REGISTRIES=localhost:5000/cilium IMAGE_TAG=$(LOCAL_IMAGE_TAG) SUFFIX= IMAGE_NAME=gateway-api-controlplane BASE_IMAGE=quay.io/isovalent-dev/cilium-runtime-wfi:a23cb179a0f1ca69f3e0a03d46f4748fbf02d204@sha256:ad3ab1a22177673568e44cbbcb4a09ea521fff7c9dd39ee1b6a4386846fe5acd
+
+.PHONY: kind-load-image-gateway-api-controlplane
+kind-load-image-gateway-api-controlplane: kind-ready kind-build-image-gateway-api-controlplane ## Build gateway-api-controlplane docker image and import it into kind.
+	$(QUIET)for node in $(shell kind -n $(KIND_CLUSTER_NAME) get nodes); do \
+		kind load docker-image localhost:5000/cilium/gateway-api-controlplane:$(LOCAL_IMAGE_TAG) -n $(KIND_CLUSTER_NAME) --nodes $$node; \
+	done
+
+.PHONY: kind-install-cilium-with-gwapi-controlplane
+kind-install-cilium-with-gwapi-controlplane: | kind-servicemesh-prereqs kind-image kind-load-image-gateway-api-controlplane ## Install a local Cilium version with Gateway API controlplane overrides into the cluster.
+	@echo "  INSTALL cilium"
+	# cilium-cli doesn't support idempotent installs, so we uninstall and
+	# reinstall here. https://github.com/cilium/cilium-cli/issues/205
+	-@$(CILIUM_CLI) uninstall >/dev/null 2>&1 || true
+
+	$(CILIUM_CLI) install \
+		--chart-directory=$(ROOT_DIR)/install/kubernetes/cilium \
+		$(KIND_VALUES_FILES) \
+		--set=k8sClusterNetworkPolicy.enabled=$(ENABLE_CLUSTERNETWORKPOLICY) \
+		--set=enterprise.gatewayAPI.deployment.controlplane.image.repository=localhost:5000/cilium/gateway-api-controlplane \
+		--set=enterprise.gatewayAPI.deployment.controlplane.image.tag=$(LOCAL_IMAGE_TAG) \
+		--version=

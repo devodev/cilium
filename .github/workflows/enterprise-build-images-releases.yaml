@@ -304,6 +304,21 @@ jobs:
             postfix: ubi
             image_name: clustermesh-apiserver
 
+          - name: gateway-api-controlplane
+            dockerfile: ./enterprise/images/gateway-api-controlplane/Dockerfile
+            # renovate: datasource=docker
+            base_image: quay.io/isovalent-dev/cilium-runtime-wfi:a23cb179a0f1ca69f3e0a03d46f4748fbf02d204@sha256:ad3ab1a22177673568e44cbbcb4a09ea521fff7c9dd39ee1b6a4386846fe5acd
+            postfix: ""
+            image_name: gateway-api-controlplane
+            digest_var_name: GATEWAY_API_CONTROLPLANE_DIGEST
+
+          - name: gateway-api-controlplane
+            dockerfile: ./enterprise/images/gateway-api-controlplane/Dockerfile
+            base_image: ${{ needs.load-versions.outputs.ubi-micro }}
+            postfix: ubi
+            image_name: gateway-api-controlplane
+            digest_var_name: GATEWAY_API_CONTROLPLANE_UBI_DIGEST
+
     steps:
       - name: Checkout main branch to access local actions
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -338,8 +353,15 @@ jobs:
         id: tag
         run: |
           tag=${GITHUB_REF##*/}
-          echo tag=$tag >> $GITHUB_OUTPUT
-          echo image_tag=quay.io/${{ env.QUAY_ORGANIZATION }}/${{ matrix.image_name }}-${{ matrix.postfix }}:$tag >> $GITHUB_OUTPUT
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          if [ -n "${{ matrix.postfix }}" ]; then
+            image_name="${{ matrix.image_name }}-${{ matrix.postfix }}"
+          else
+            image_name="${{ matrix.image_name }}"
+          fi
+          echo "image_name=${image_name}" >> "$GITHUB_OUTPUT"
+          echo "image_tag=quay.io/${{ env.QUAY_ORGANIZATION }}/${image_name}:${tag}" >> "$GITHUB_OUTPUT"
+          echo "build_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
 
       - name: Checkout Source Code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -352,6 +374,8 @@ jobs:
         working-directory: ./enterprise/images
         run: |
           IMAGE_TAG=${{ steps.tag.outputs.tag }} \
+          IMAGE_NAME=${{ steps.tag.outputs.image_name }} \
+          BASE_IMAGE=${{ matrix.base_image }} \
           SUFFIX="" \
           REGISTRIES=quay.io/${{ env.QUAY_ORGANIZATION }} \
           PUSH=true \
@@ -395,8 +419,11 @@ jobs:
           mkdir -p image-digest/
           job_name=${{ matrix.name }}
           job_name_capital=${job_name^^}
-          job_name_underscored=${job_name_capital//-/_}
-          echo "${job_name_underscored}_DIGEST := \"${{ steps.docker_digest.outputs.digest }}\"" > image-digest/makefile-digest.txt
+          digest_var_name=${job_name_capital//-/_}_DIGEST
+          if [[ -n "${{ matrix.digest_var_name }}" ]]; then
+            digest_var_name="${{ matrix.digest_var_name }}"
+          fi
+          echo "${digest_var_name} := \"${{ steps.docker_digest.outputs.digest }}\"" > image-digest/makefile-digest.txt
 
           echo "### ${{ matrix.name }}" > image-digest/${{ matrix.name }}.txt
           echo "" >> image-digest/${{ matrix.name }}.txt
