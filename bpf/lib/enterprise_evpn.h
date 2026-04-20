@@ -68,24 +68,26 @@ struct {
 static __always_inline const struct evpn_fib_val *
 evpn_fib_lookup4(__u16 net_id, __be32 addr)
 {
-	const struct evpn_fib_key key = {
-		.lpm_key = { EVPN_FIB_PREFIX_LEN(V4_EVPN_FIB_KEY_LEN), {} },
-		.family = AF_INET,
-		.net_id = net_id,
-		.ip4.be32 = addr,
-	};
+	struct evpn_fib_key key = {};
+
+	key.lpm_key.prefixlen = EVPN_FIB_PREFIX_LEN(V4_EVPN_FIB_KEY_LEN);
+	key.family = AF_INET;
+	key.net_id = net_id;
+	key.ip4.be32 = addr;
+
 	return map_lookup_elem(&cilium_evpn_fib, &key);
 }
 
 static __always_inline const struct evpn_fib_val *
 evpn_fib_lookup6(__u16 net_id, const union v6addr *addr)
 {
-	const struct evpn_fib_key key = {
-		.lpm_key = { EVPN_FIB_PREFIX_LEN(V6_EVPN_FIB_KEY_LEN), {} },
-		.family = AF_INET6,
-		.net_id = net_id,
-		.ip6 = *addr,
-	};
+	struct evpn_fib_key key = {};
+
+	key.lpm_key.prefixlen = EVPN_FIB_PREFIX_LEN(V6_EVPN_FIB_KEY_LEN);
+	key.family = AF_INET6;
+	key.net_id = net_id;
+	key.ip6 = *addr;
+
 	return map_lookup_elem(&cilium_evpn_fib, &key);
 }
 

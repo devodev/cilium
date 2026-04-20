@@ -424,27 +424,29 @@ privnet_fib_lookup(const struct privnet_fib_key *key) {
 
 static __always_inline const struct privnet_fib_val *
 privnet_fib_lookup4(__u16 net_id, __u16 subnet_id, __be32 addr) {
-	const struct privnet_fib_key key = {
-		.lpm_key = { PRIVNET_FIB_PREFIX_LEN(V4_PRIVNET_KEY_LEN), {} },
-		.net_id = net_id,
-		.subnet_id = subnet_id,
-		.family = ENDPOINT_KEY_IPV4,
-		.type = PRIVNET_FIB_KEY_TYPE_DEFAULT,
-		.ip4.be32 = addr,
-	};
+	struct privnet_fib_key key = {};
+
+	key.lpm_key.prefixlen = PRIVNET_FIB_PREFIX_LEN(V4_PRIVNET_KEY_LEN);
+	key.net_id = net_id;
+	key.subnet_id = subnet_id;
+	key.family = ENDPOINT_KEY_IPV4;
+	key.type = PRIVNET_FIB_KEY_TYPE_DEFAULT;
+	key.ip4.be32 = addr;
+
 	return privnet_fib_lookup(&key);
 }
 
 static __always_inline const struct privnet_fib_val *
 privnet_fib_lookup6(__u16 net_id, __u16 subnet_id, union v6addr addr) {
-	const struct privnet_fib_key key = {
-		.lpm_key = { PRIVNET_FIB_PREFIX_LEN(V6_PRIVNET_KEY_LEN), {} },
-		.net_id = net_id,
-		.subnet_id = subnet_id,
-		.family = ENDPOINT_KEY_IPV6,
-		.type = PRIVNET_FIB_KEY_TYPE_DEFAULT,
-		.ip6 = addr,
-	};
+	struct privnet_fib_key key = {};
+
+	key.lpm_key.prefixlen = PRIVNET_FIB_PREFIX_LEN(V6_PRIVNET_KEY_LEN);
+	key.net_id = net_id;
+	key.subnet_id = subnet_id;
+	key.family = ENDPOINT_KEY_IPV6;
+	key.type = PRIVNET_FIB_KEY_TYPE_DEFAULT;
+	key.ip6 = addr;
+
 	return privnet_fib_lookup(&key);
 }
 
@@ -489,13 +491,13 @@ struct {
 
 static __always_inline __u16 privnet_subnet_id_lookup4(__u16 net_id, __be32 addr)
 {
-	const struct privnet_subnet_key key = {
-		.lpm_key = { PRIVNET_SUBNET_PREFIX_LEN(V4_PRIVNET_KEY_LEN), {} },
-		.net_id = net_id,
-		.family = ENDPOINT_KEY_IPV4,
-		.ip4.be32 = addr,
-	};
+	struct privnet_subnet_key key = {};
 	const struct privnet_subnet_val *val;
+
+	key.lpm_key.prefixlen = PRIVNET_SUBNET_PREFIX_LEN(V4_PRIVNET_KEY_LEN);
+	key.net_id = net_id;
+	key.family = ENDPOINT_KEY_IPV4;
+	key.ip4.be32 = addr;
 
 	val = map_lookup_elem(&cilium_privnet_subnets, &key);
 	return val ? val->subnet_id : 0;
@@ -503,13 +505,13 @@ static __always_inline __u16 privnet_subnet_id_lookup4(__u16 net_id, __be32 addr
 
 static __always_inline __u16 privnet_subnet_id_lookup6(__u16 net_id, union v6addr addr)
 {
-	const struct privnet_subnet_key key = {
-		.lpm_key = { PRIVNET_SUBNET_PREFIX_LEN(V6_PRIVNET_KEY_LEN), {} },
-		.net_id = net_id,
-		.family = ENDPOINT_KEY_IPV6,
-		.ip6 = addr,
-	};
+	struct privnet_subnet_key key = {};
 	const struct privnet_subnet_val *val;
+
+	key.lpm_key.prefixlen = PRIVNET_SUBNET_PREFIX_LEN(V6_PRIVNET_KEY_LEN);
+	key.net_id = net_id;
+	key.family = ENDPOINT_KEY_IPV6;
+	key.ip6 = addr;
 
 	val = map_lookup_elem(&cilium_privnet_subnets, &key);
 	return val ? val->subnet_id : 0;
@@ -582,22 +584,22 @@ struct {
 
 static __always_inline __maybe_unused const struct privnet_cidr_identity *
 privnet_cidr_identity_lookup4(const void *map, __be32 addr) {
-	struct privnet_cidr_identity_key key = {
-		.lpm_key = { PRIVNET_CIDR_IDENTITY_PREFIX_LEN(V4_PRIVNET_KEY_LEN), {} },
-		.family = ENDPOINT_KEY_IPV4,
-		.ip4.be32 = addr,
-	};
+	struct privnet_cidr_identity_key key = {};
+
+	key.lpm_key.prefixlen = PRIVNET_CIDR_IDENTITY_PREFIX_LEN(V4_PRIVNET_KEY_LEN);
+	key.family = ENDPOINT_KEY_IPV4;
+	key.ip4.be32 = addr;
 
 	return map_lookup_elem(map, &key);
 }
 
 static __always_inline __maybe_unused const struct privnet_cidr_identity *
 privnet_cidr_identity_lookup6(const void *map, union v6addr addr) {
-	struct privnet_cidr_identity_key key = {
-		.lpm_key = { PRIVNET_CIDR_IDENTITY_PREFIX_LEN(V6_PRIVNET_KEY_LEN), {} },
-		.family = ENDPOINT_KEY_IPV6,
-		.ip6 = addr,
-	};
+	struct privnet_cidr_identity_key key = {};
+
+	key.lpm_key.prefixlen = PRIVNET_CIDR_IDENTITY_PREFIX_LEN(V6_PRIVNET_KEY_LEN);
+	key.family = ENDPOINT_KEY_IPV6;
+	key.ip6 = addr;
 
 	return map_lookup_elem(map, &key);
 }
@@ -1343,22 +1345,22 @@ static __always_inline int privnet_egress_ipv6(struct __ctx_buff *ctx,
 
 static __always_inline __maybe_unused const struct privnet_pip_val *
 privnet_pip_lookup4(__be32 addr) {
-	const struct privnet_pip_key key = {
-		.lpm_key = { PRIVNET_PIP_PREFIX_LEN(V4_PRIVNET_KEY_LEN), {} },
-		.family = ENDPOINT_KEY_IPV4,
-		.ip4.be32 = addr,
-	};
+	struct privnet_pip_key key = {};
+
+	key.lpm_key.prefixlen = PRIVNET_PIP_PREFIX_LEN(V4_PRIVNET_KEY_LEN);
+	key.family = ENDPOINT_KEY_IPV4;
+	key.ip4.be32 = addr;
 
 	return map_lookup_elem(&cilium_privnet_pip, &key);
 }
 
 static __always_inline __maybe_unused const struct privnet_pip_val *
 privnet_pip_lookup6(union v6addr addr) {
-	const struct privnet_pip_key key = {
-		.lpm_key = { PRIVNET_PIP_PREFIX_LEN(V6_PRIVNET_KEY_LEN), {} },
-		.family = ENDPOINT_KEY_IPV6,
-		.ip6 = addr,
-	};
+	struct privnet_pip_key key = {};
+
+	key.lpm_key.prefixlen = PRIVNET_PIP_PREFIX_LEN(V6_PRIVNET_KEY_LEN);
+	key.family = ENDPOINT_KEY_IPV6;
+	key.ip6 = addr;
 
 	return map_lookup_elem(&cilium_privnet_pip, &key);
 }
