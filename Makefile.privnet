@@ -486,10 +486,12 @@ define kind_privnet_test_run_load_images
 	)
 endef
 
-.PHONY: kind-privnet-test-run-local
-kind-privnet-test-run-local:
+.PHONY: kind-privnet-test-build-cilium-cli
+kind-privnet-test-build-cilium-cli:
 	[ -n "$(PRIVNET_CILIUM_CLI_PATH)" ] || $(MAKE) -C cilium-cli
 
+.PHONY: kind-privnet-test-run-local
+kind-privnet-test-run-local: kind-privnet-test-build-cilium-cli
 	$(call kind_privnet_test_run_load_images,$(or $(PRIVNET_CILIUM_CLI_PATH),./cilium-cli/cilium))
 
 	$(or $(PRIVNET_CILIUM_CLI_PATH),./cilium-cli/cilium) \
