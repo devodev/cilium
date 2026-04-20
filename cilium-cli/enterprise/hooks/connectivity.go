@@ -86,7 +86,7 @@ func (ec *EnterpriseConnectivity) addConnectivityTests(cts ...*check.Connectivit
 		return err
 	}
 
-	if err := ec.addBGPTests(cts[0]); err != nil {
+	if err := ec.addBGPTests(cts...); err != nil {
 		return err
 	}
 
@@ -548,12 +548,15 @@ func (ec *EnterpriseConnectivity) addMulticastTests(ct *check.ConnectivityTest) 
 	return nil
 }
 
-func (ec *EnterpriseConnectivity) addBGPTests(ct *check.ConnectivityTest) (err error) {
-	// disable OSS BGPv2 tests if enterprise BGP CP is enabled (OSS CRDs can not be used if enterprise CP is enabled)
-	if ossv2Test, err := ct.GetTest("seq-bgp-control-plane-v2"); err == nil {
-		ossv2Test.WithFeatureRequirements(
-			features.RequireDisabled(enterpriseFeatures.EnterpriseBGPControlPlane),
-		)
+func (ec *EnterpriseConnectivity) addBGPTests(cts ...*check.ConnectivityTest) (err error) {
+	// disable OSS BGP tests if enterprise BGP CP is enabled
+	// (OSS BGP CP can not be used at the same time as CEE)
+	for _, ct := range cts { // look into all concurrent groups
+		if ossv2Test, err := ct.GetTest("bgp-control-plane-v2"); err == nil {
+			ossv2Test.WithFeatureRequirements(
+				features.RequireDisabled(enterpriseFeatures.EnterpriseBGPControlPlane),
+			)
+		}
 	}
 
 	newTest := func(ct *check.ConnectivityTest, name string) *enterpriseCheck.EnterpriseTest {
@@ -566,8 +569,9 @@ func (ec *EnterpriseConnectivity) addBGPTests(ct *check.ConnectivityTest) (err e
 			)
 	}
 
-	// prefix the test name with `seq-` to run it sequentially
-	newTest(ct, "seq-enterprise-bgp-control-plane-v2").
+	// add CEE BGP CP test to group 0 as the remaining CEE tests, for now it always needs to be in the same group
+	// as BFD tests as they are using BGP as well and cannot run concurrently
+	newTest(cts[0], "seq-enterprise-bgp-control-plane-v2").
 		WithScenarios(enterpriseTests.BGPSvcAdvertisements())
 
 	return nil
