@@ -267,6 +267,85 @@ func TestGatewayReconcilerPreservesAssignedServiceFields(t *testing.T) {
 	require.Equal(t, "example.com/custom", *service.Spec.LoadBalancerClass)
 }
 
+func TestGatewayReconcilerSetsGatewayStatusAddressesFromDataplaneService(t *testing.T) {
+	scheme := runtime.NewScheme()
+	require.NoError(t, gatewayv1.Install(scheme))
+	require.NoError(t, appsv1.AddToScheme(scheme))
+	require.NoError(t, corev1.AddToScheme(scheme))
+	require.NoError(t, rbacv1.AddToScheme(scheme))
+
+	gwc := &gatewayv1.GatewayClass{
+		ObjectMeta: metav1.ObjectMeta{Name: "cilium-deployment"},
+		Spec: gatewayv1.GatewayClassSpec{
+			ControllerName: gatewayv1.GatewayController(controllerName),
+		},
+	}
+
+	gw := &gatewayv1.Gateway{
+		ObjectMeta: metav1.ObjectMeta{Name: "example", Namespace: "default"},
+		Spec: gatewayv1.GatewaySpec{
+			GatewayClassName: gatewayv1.ObjectName("cilium-deployment"),
+			Listeners: []gatewayv1.Listener{
+				{
+					Name:     "http",
+					Port:     80,
+					Protocol: gatewayv1.HTTPProtocolType,
+				},
+			},
+		},
+	}
+
+	namespace := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{Name: "default"},
+	}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithStatusSubresource(&gatewayv1.Gateway{}, &gatewayv1.GatewayClass{}, &corev1.Service{}).
+		WithObjects(gwc, namespace, gw).
+		Build()
+
+	r := NewGatewayReconciler(c, scheme, slog.Default(), Config{
+		GatewayAPIDeploymentControlplaneDefaultImage:       "quay.io/cilium/gateway-api-controlplane:test",
+		GatewayAPIDeploymentControlplaneDefaultLogLevel:    "info",
+		GatewayAPIDeploymentControlplaneDefaultReplicas:    2,
+		GatewayAPIDeploymentDataplaneDefaultEnvoyImage:     "quay.io/cilium/cilium-envoy:test",
+		GatewayAPIDeploymentDataplaneDefaultEnvoyLogLevel:  "trace",
+		GatewayAPIDeploymentDataplaneDefaultEnvoyAdminPort: 19001,
+		GatewayAPIDeploymentDataplaneDefaultReplicas:       2,
+	}, &option.DaemonConfig{
+		EnableIPv4: true,
+		EnableIPv6: false,
+	})
+
+	_, err := r.Reconcile(context.Background(), ctrl.Request{NamespacedName: client.ObjectKeyFromObject(gw)})
+	require.NoError(t, err)
+
+	service := &corev1.Service{}
+	require.NoError(t, c.Get(context.Background(), client.ObjectKey{Name: r.dataplaneResourceName(gw), Namespace: gw.Namespace}, service))
+	service.Status.LoadBalancer.Ingress = []corev1.LoadBalancerIngress{
+		{IP: "192.0.2.10"},
+		{Hostname: "gw.example.com"},
+	}
+	require.NoError(t, c.Status().Update(context.Background(), service))
+
+	_, err = r.Reconcile(context.Background(), ctrl.Request{NamespacedName: client.ObjectKeyFromObject(gw)})
+	require.NoError(t, err)
+
+	updatedGateway := &gatewayv1.Gateway{}
+	require.NoError(t, c.Get(context.Background(), client.ObjectKeyFromObject(gw), updatedGateway))
+	require.Equal(t, []gatewayv1.GatewayStatusAddress{
+		{
+			Type:  ptr.To(gatewayv1.IPAddressType),
+			Value: "192.0.2.10",
+		},
+		{
+			Type:  ptr.To(gatewayv1.HostnameAddressType),
+			Value: "gw.example.com",
+		},
+	}, updatedGateway.Status.Addresses)
+}
+
 func TestGatewayReconcilerIgnoresGatewayWithDifferentController(t *testing.T) {
 	scheme := runtime.NewScheme()
 	require.NoError(t, gatewayv1.Install(scheme))

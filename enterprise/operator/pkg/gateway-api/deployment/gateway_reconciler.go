@@ -202,6 +202,12 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req reconcile.Request
 		return controllerruntime.Fail(err)
 	}
 
+	dataplaneService := &corev1.Service{}
+	if err := r.client.Get(ctx, client.ObjectKey{Name: r.dataplaneResourceName(gw), Namespace: gw.Namespace}, dataplaneService); err != nil {
+		return controllerruntime.Fail(fmt.Errorf("failed to get dataplane Service for Gateway status addresses: %w", err))
+	}
+
+	gw.Status.Addresses = gatewayStatusAddressesFromService(dataplaneService)
 	r.setStatusDataplaneReady(gw, metav1.ConditionTrue, "Gateway dataplane resources are reconciled", string(gatewayv1.GatewayReasonReady))
 	r.setStatusControlplaneReady(gw, metav1.ConditionTrue, "Gateway controlplane resources are reconciled", string(gatewayv1.GatewayReasonReady))
 	if err := r.client.Status().Patch(ctx, gw, client.MergeFrom(original)); err != nil {

@@ -58,6 +58,28 @@ func (r *GatewayReconciler) reconcileDataplaneResources(ctx context.Context, gw 
 	return nil
 }
 
+func gatewayStatusAddressesFromService(service *corev1.Service) []gatewayv1.GatewayStatusAddress {
+	addresses := make([]gatewayv1.GatewayStatusAddress, 0, len(service.Status.LoadBalancer.Ingress))
+	for _, ingress := range service.Status.LoadBalancer.Ingress {
+		switch {
+		case ingress.IP != "":
+			addressType := gatewayv1.IPAddressType
+			addresses = append(addresses, gatewayv1.GatewayStatusAddress{
+				Type:  &addressType,
+				Value: ingress.IP,
+			})
+		case ingress.Hostname != "":
+			addressType := gatewayv1.HostnameAddressType
+			addresses = append(addresses, gatewayv1.GatewayStatusAddress{
+				Type:  &addressType,
+				Value: ingress.Hostname,
+			})
+		}
+	}
+
+	return addresses
+}
+
 func (r *GatewayReconciler) reconcileDataplaneDeployment(ctx context.Context, gw *gatewayv1.Gateway) error {
 	desired := r.desiredDataplaneDeployment(gw)
 	deployment := &appsv1.Deployment{}
