@@ -14,7 +14,6 @@ import (
 	"context"
 	"crypto/sha256"
 	_ "embed"
-	"encoding/json"
 	"fmt"
 	"hash/fnv"
 	"strconv"
@@ -31,7 +30,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
-	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/shortener"
 )
 
@@ -440,13 +438,7 @@ func bootstrapConfigMapChecksum(config string) string {
 }
 
 func (r *GatewayReconciler) bootstrapConfigForGateway(gw *gatewayv1.Gateway) string {
-	testListenersJSON, err := json.Marshal(r.bootstrapTestListeners(gw))
-	if err != nil {
-		r.logger.Error("Failed to marshal bootstrap test listeners, falling back to no static listeners", logfields.Error, err)
-		testListenersJSON = []byte("[]")
-	}
-
-	config := strings.Replace(envoyBootstrapConfig, "\"__TEST_LISTENERS__\"", string(testListenersJSON), 1)
+	config := strings.Replace(envoyBootstrapConfig, "__XDS_SERVICE_ADDRESS__", r.controlplaneServiceDNSName(gw), 1)
 	config = strings.Replace(config, "\"__ADMIN_LOOPBACK__\"", strconv.Quote(r.adminLoopbackAddress()), 1)
 	return strings.Replace(config, "__ADMIN_PORT__", strconv.Itoa(r.config.GatewayAPIDeploymentDataplaneDefaultEnvoyAdminPort), 1)
 }
@@ -459,83 +451,14 @@ func (r *GatewayReconciler) adminLoopbackAddress() string {
 	return "127.0.0.1"
 }
 
+func (r *GatewayReconciler) controlplaneServiceDNSName(gw *gatewayv1.Gateway) string {
+	return fmt.Sprintf("%s.%s.svc", r.controlplaneResourceName(gw), gw.Namespace)
+}
+
 func (r *GatewayReconciler) listenerProtocol(protocol gatewayv1.ProtocolType) corev1.Protocol {
 	if protocol == gatewayv1.UDPProtocolType {
 		return corev1.ProtocolUDP
 	}
 
 	return corev1.ProtocolTCP
-}
-
-func (r *GatewayReconciler) bootstrapTestListeners(gw *gatewayv1.Gateway) []map[string]any {
-	listeners := make([]map[string]any, 0, len(gw.Spec.Listeners))
-	responseBody := fmt.Sprintf("gateway: %s\n", gatewayAsEnvoyClusterName(gw))
-	for _, listener := range gw.Spec.Listeners {
-		if listener.Protocol != gatewayv1.HTTPProtocolType {
-			continue
-		}
-
-		listeners = append(listeners, map[string]any{
-			"name": fmt.Sprintf("gateway-%s-listener", listener.Name),
-			"address": map[string]any{
-				"socket_address": map[string]any{
-					"address":    "0.0.0.0",
-					"port_value": listener.Port,
-				},
-			},
-			"filter_chains": []map[string]any{
-				{
-					"filters": []map[string]any{
-						{
-							"name": "envoy.filters.network.http_connection_manager",
-							"typed_config": map[string]any{
-								"@type":       "type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager",
-								"stat_prefix": string(listener.Name),
-								"access_log": []map[string]any{
-									{
-										"name": "envoy.access_loggers.file",
-										"typed_config": map[string]any{
-											"@type": "type.googleapis.com/envoy.extensions.access_loggers.file.v3.FileAccessLog",
-											"path":  "/dev/stdout",
-										},
-									},
-								},
-								"route_config": map[string]any{
-									"virtual_hosts": []map[string]any{
-										{
-											"name":    "gateway-test",
-											"domains": []string{"*"},
-											"routes": []map[string]any{
-												{
-													"match": map[string]any{
-														"prefix": "/",
-													},
-													"direct_response": map[string]any{
-														"status": 200,
-														"body": map[string]any{
-															"inline_string": responseBody,
-														},
-													},
-												},
-											},
-										},
-									},
-								},
-								"http_filters": []map[string]any{
-									{
-										"name": "envoy.filters.http.router",
-										"typed_config": map[string]any{
-											"@type": "type.googleapis.com/envoy.extensions.filters.http.router.v3.Router",
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		})
-	}
-
-	return listeners
 }

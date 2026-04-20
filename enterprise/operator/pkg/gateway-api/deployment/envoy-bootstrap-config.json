@@ -1,6 +1,55 @@
 {
+  "dynamic_resources": {
+    "ads_config": {
+      "api_type": "GRPC",
+      "grpc_services": [
+        {
+          "envoy_grpc": {
+            "cluster_name": "gateway-controlplane-xds"
+          }
+        }
+      ],
+      "set_node_on_first_message_only": true,
+      "transport_api_version": "V3"
+    },
+    "cds_config": {
+      "ads": {},
+      "resource_api_version": "V3"
+    },
+    "lds_config": {
+      "ads": {},
+      "resource_api_version": "V3"
+    }
+  },
   "static_resources": {
-    "listeners": "__TEST_LISTENERS__"
+    "clusters": [
+      {
+        "name": "gateway-controlplane-xds",
+        "type": "STRICT_DNS",
+        "connect_timeout": "5s",
+        "lb_policy": "ROUND_ROBIN",
+        "http2_protocol_options": {},
+        "load_assignment": {
+          "cluster_name": "gateway-controlplane-xds",
+          "endpoints": [
+            {
+              "lb_endpoints": [
+                {
+                  "endpoint": {
+                    "address": {
+                      "socket_address": {
+                        "address": "__XDS_SERVICE_ADDRESS__",
+                        "port_value": 18000
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
   },
   "admin": {
     "access_log": [
