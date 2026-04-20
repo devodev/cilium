@@ -109,11 +109,7 @@ func runTest(t *testing.T, prepareLink func(*netlink.Handle, netlink.Link, strin
 	})
 	require.NoError(t, err, "netlink.AddrList")
 
-	addrs := make([]netip.Addr, 0, len(nlAddrs))
-	for _, nlAddr := range nlAddrs {
-		addr, _ := netip.AddrFromSlice(nlAddr.IP)
-		addrs = append(addrs, addr)
-	}
+	addrs := filterEgressIPs(nlAddrs, "")
 	require.Containsf(t, addrs, egressIP, "egress IP %s not found in %s device", egressIP, ifName)
 
 	// Further Update() with the same entry should not do anything
@@ -148,11 +144,7 @@ func runTest(t *testing.T, prepareLink func(*netlink.Handle, netlink.Link, strin
 	})
 	require.NoError(t, err, "netlink.AddrList")
 
-	addrs = make([]netip.Addr, 0, len(nlAddrs))
-	for _, nlAddr := range nlAddrs {
-		addr, _ := netip.AddrFromSlice(nlAddr.IP)
-		addrs = append(addrs, addr)
-	}
+	addrs = filterEgressIPs(nlAddrs, "")
 	require.NotContainsf(t, addrs, egressIP, "egress IP %s found in %s device after deletion", egressIP, ifName)
 
 	// Further Delete() should not do anything
