@@ -185,6 +185,7 @@ func TestGatewayReconcilerCreatesDeploymentAndService(t *testing.T) {
 		}
 		return false
 	})
+	require.Empty(t, updatedGateway.Status.Addresses)
 }
 
 func TestGatewayReconcilerPreservesAssignedServiceFields(t *testing.T) {
@@ -595,6 +596,12 @@ func TestGatewayReconcilerCleansUpResourcesWhenGatewayClassChanges(t *testing.T)
 			LastTransitionTime: metav1.NewTime(time.Now()),
 		},
 	}
+	updatedGateway.Status.Addresses = []gatewayv1.GatewayStatusAddress{
+		{
+			Type:  ptr.To(gatewayv1.IPAddressType),
+			Value: "192.0.2.10",
+		},
+	}
 	require.NoError(t, c.Status().Update(context.Background(), updatedGateway))
 
 	r := NewGatewayReconciler(c, scheme, slog.Default(), Config{}, &option.DaemonConfig{
@@ -675,4 +682,5 @@ func TestGatewayReconcilerCleansUpResourcesWhenGatewayClassChanges(t *testing.T)
 		}
 		return false
 	})
+	require.Empty(t, updatedGateway.Status.Addresses)
 }

@@ -155,6 +155,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req reconcile.Request
 	if err := r.client.Get(ctx, client.ObjectKey{Name: string(gw.Spec.GatewayClassName)}, gwc); err != nil {
 		if k8serrors.IsNotFound(err) {
 			original := gw.DeepCopy()
+			r.clearGatewayAddresses(gw)
 			r.removeCustomStatusConditions(gw)
 			if cleanupErr := r.cleanupDataplaneResources(ctx, gw); cleanupErr != nil {
 				return controllerruntime.Fail(cleanupErr)
@@ -173,6 +174,7 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, req reconcile.Request
 	if string(gwc.Spec.ControllerName) != controllerName {
 		scopedLog.Debug("GatewayClass does not match the deployment controller")
 		original := gw.DeepCopy()
+		r.clearGatewayAddresses(gw)
 		r.removeCustomStatusConditions(gw)
 		if err := r.cleanupDataplaneResources(ctx, gw); err != nil {
 			return controllerruntime.Fail(err)
@@ -278,4 +280,8 @@ func (r *GatewayReconciler) removeCustomStatusConditions(gw *gatewayv1.Gateway) 
 		}
 	}
 	gw.Status.Conditions = filtered
+}
+
+func (r *GatewayReconciler) clearGatewayAddresses(gw *gatewayv1.Gateway) {
+	gw.Status.Addresses = nil
 }
