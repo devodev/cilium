@@ -4,6 +4,7 @@
 #pragma once
 
 #include "lib/overloadable.h"
+#include "lib/enterprise_vrf.h"
 
 struct egress_gw_ha_policy_key {
 	struct bpf_lpm_trie_key lpm_key;
@@ -266,6 +267,16 @@ int cee_egress_gw_standalone_map_update(struct __ctx_buff *ctx __maybe_unused,
 #endif /* ENABLE_EGRESS_GATEWAY_STANDALONE */
 
 	return CTX_ACT_OK;
+}
+
+static __always_inline
+__u32 cee_egress_gw_vrf_get(__u32 tbid)
+{
+#if defined(ENABLE_EGRESS_GATEWAY_HA) && !defined(ENABLE_EGRESS_GATEWAY_STANDALONE)
+	return enterprise_vrf_map_get((vrf_id)tbid);
+#endif
+
+	return tbid;
 }
 
 #endif /* ENABLE_EGRESS_GATEWAY_COMMON */

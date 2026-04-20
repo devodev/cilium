@@ -718,6 +718,8 @@ snat_v4_needs_masquerade(struct __ctx_buff *ctx __maybe_unused,
 		if (local_ep && local_ep->rt_info)
 			target->tbid = local_ep->rt_info;
 
+		target->tbid = cee_egress_gw_vrf_get(target->tbid);
+
 		return NAT_NEEDED;
 	}
 #endif
