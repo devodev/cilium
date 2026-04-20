@@ -157,7 +157,7 @@ func TestMultipleIPPools(t T) {
 
 	clbi, err := ciliumCli.GetCiliumLoadBalancerIPPool(t.Context(), testName, metav1.GetOptions{})
 	if err != nil {
-		t.Failedf("failed to get LBIPPool (%s): %w", testName, err)
+		t.Failedf("failed to get LBIPPool (%s): %s", testName, err)
 	}
 
 	clbi.Spec.ServiceSelector = &slimmetav1.LabelSelector{
@@ -173,7 +173,7 @@ func TestMultipleIPPools(t T) {
 	}
 
 	if err := ciliumCli.UpdateCiliumLoadBalancerIPPool(t.Context(), clbi, metav1.UpdateOptions{}); err != nil {
-		t.Failedf("failed to update LBIPPool (%s): %w", clbi, err)
+		t.Failedf("failed to update LBIPPool (%s): %s", clbi.ObjectMeta.String(), err)
 	}
 
 	t.Log("Creating additional IP Pools ...")
@@ -187,7 +187,7 @@ func TestMultipleIPPools(t T) {
 		},
 	}
 	if err := ciliumCli.EnsureLBIPPool(t.Context(), lbIPPool1); err != nil {
-		t.Failedf("failed to ensure LBIPPool (%s): %w", additionalPoolName1, err)
+		t.Failedf("failed to ensure LBIPPool (%s): %s", additionalPoolName1, err)
 	}
 
 	t.RegisterCleanup(func(ctx context.Context) error {
@@ -204,7 +204,7 @@ func TestMultipleIPPools(t T) {
 		},
 	}
 	if err := ciliumCli.EnsureLBIPPool(t.Context(), lbIPPool2); err != nil {
-		t.Failedf("failed to ensure LBIPPool (%s): %w", additionalPoolName2, err)
+		t.Failedf("failed to ensure LBIPPool (%s): %s", additionalPoolName2, err)
 	}
 
 	t.RegisterCleanup(func(ctx context.Context) error {

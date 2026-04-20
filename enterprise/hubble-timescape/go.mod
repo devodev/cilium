@@ -1,6 +1,6 @@
 module github.com/isovalent/cilium/enterprise/hubble-timescape
 
-go 1.25.0
+go 1.26.0
 
 require (
 	github.com/cilium/cilium v1.19.1
