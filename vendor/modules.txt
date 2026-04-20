@@ -447,6 +447,36 @@ github.com/containernetworking/cni/pkg/types/create
 github.com/containernetworking/cni/pkg/types/internal
 github.com/containernetworking/cni/pkg/utils
 github.com/containernetworking/cni/pkg/version
+# github.com/corazawaf/coraza/v3 v3.7.0
+## explicit; go 1.25.0
+github.com/corazawaf/coraza/v3
+github.com/corazawaf/coraza/v3/collection
+github.com/corazawaf/coraza/v3/debuglog
+github.com/corazawaf/coraza/v3/experimental/plugins/macro
+github.com/corazawaf/coraza/v3/experimental/plugins/plugintypes
+github.com/corazawaf/coraza/v3/internal/actions
+github.com/corazawaf/coraza/v3/internal/auditlog
+github.com/corazawaf/coraza/v3/internal/bodyprocessors
+github.com/corazawaf/coraza/v3/internal/collections
+github.com/corazawaf/coraza/v3/internal/cookies
+github.com/corazawaf/coraza/v3/internal/corazarules
+github.com/corazawaf/coraza/v3/internal/corazatypes
+github.com/corazawaf/coraza/v3/internal/corazawaf
+github.com/corazawaf/coraza/v3/internal/environment
+github.com/corazawaf/coraza/v3/internal/io
+github.com/corazawaf/coraza/v3/internal/memoize
+github.com/corazawaf/coraza/v3/internal/operators
+github.com/corazawaf/coraza/v3/internal/seclang
+github.com/corazawaf/coraza/v3/internal/strings
+github.com/corazawaf/coraza/v3/internal/sync
+github.com/corazawaf/coraza/v3/internal/transformations
+github.com/corazawaf/coraza/v3/internal/url
+github.com/corazawaf/coraza/v3/internal/variables
+github.com/corazawaf/coraza/v3/types
+github.com/corazawaf/coraza/v3/types/variables
+# github.com/corazawaf/libinjection-go v0.3.2
+## explicit; go 1.24.6
+github.com/corazawaf/libinjection-go
 # github.com/coreos/go-iptables v0.8.0
 ## explicit; go 1.16
 github.com/coreos/go-iptables/iptables
@@ -1007,7 +1037,7 @@ github.com/gobwas/glob/syntax/ast
 github.com/gobwas/glob/syntax/lexer
 github.com/gobwas/glob/util/runes
 github.com/gobwas/glob/util/strings
-# github.com/goccy/go-json v0.10.3
+# github.com/goccy/go-json v0.10.5
 ## explicit; go 1.19
 github.com/goccy/go-json
 github.com/goccy/go-json/internal/decoder
@@ -1018,6 +1048,17 @@ github.com/goccy/go-json/internal/encoder/vm_color_indent
 github.com/goccy/go-json/internal/encoder/vm_indent
 github.com/goccy/go-json/internal/errors
 github.com/goccy/go-json/internal/runtime
+# github.com/goccy/go-yaml v1.18.0
+## explicit; go 1.21.0
+github.com/goccy/go-yaml
+github.com/goccy/go-yaml/ast
+github.com/goccy/go-yaml/internal/errors
+github.com/goccy/go-yaml/internal/format
+github.com/goccy/go-yaml/lexer
+github.com/goccy/go-yaml/parser
+github.com/goccy/go-yaml/printer
+github.com/goccy/go-yaml/scanner
+github.com/goccy/go-yaml/token
 # github.com/godbus/dbus/v5 v5.2.0
 ## explicit; go 1.20
 github.com/godbus/dbus/v5
@@ -1160,6 +1201,12 @@ github.com/gorilla/websocket
 github.com/gosuri/uitable
 github.com/gosuri/uitable/util/strutil
 github.com/gosuri/uitable/util/wordwrap
+# github.com/gotnospirit/makeplural v0.0.0-20180622080156-a5f48d94d976
+## explicit
+github.com/gotnospirit/makeplural/plural
+# github.com/gotnospirit/messageformat v0.0.0-20221001023931-dfe49f1eb092
+## explicit; go 1.18
+github.com/gotnospirit/messageformat
 # github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79
 ## explicit
 github.com/gregjones/httpcache
@@ -1253,6 +1300,12 @@ github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/client/
 github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/client/clientset/versioned/typed/k8s.cni.cncf.io/v1
 github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/client/clientset/versioned/typed/k8s.cni.cncf.io/v1/fake
 github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/utils
+# github.com/kaptinlin/go-i18n v0.1.4
+## explicit; go 1.23.0
+github.com/kaptinlin/go-i18n
+# github.com/kaptinlin/jsonschema v0.4.6
+## explicit; go 1.23.0
+github.com/kaptinlin/jsonschema
 # github.com/kevinburke/ssh_config v1.6.0
 ## explicit; go 1.18
 github.com/kevinburke/ssh_config
@@ -1325,6 +1378,10 @@ github.com/lthibault/jitterbug/v2
 ## explicit; go 1.25.0
 github.com/mackerelio/go-osstat/loadavg
 github.com/mackerelio/go-osstat/memory
+# github.com/magefile/mage v1.17.0
+## explicit; go 1.18
+github.com/magefile/mage/mg
+github.com/magefile/mage/sh
 # github.com/mattn/go-colorable v0.1.14
 ## explicit; go 1.18
 github.com/mattn/go-colorable
@@ -1519,6 +1576,9 @@ github.com/pelletier/go-toml/v2/internal/characters
 github.com/pelletier/go-toml/v2/internal/danger
 github.com/pelletier/go-toml/v2/internal/tracker
 github.com/pelletier/go-toml/v2/unstable
+# github.com/petar-dambovaliev/aho-corasick v0.0.0-20250424160509-463d218d4745
+## explicit; go 1.15
+github.com/petar-dambovaliev/aho-corasick
 # github.com/peterbourgon/diskv v2.0.1+incompatible
 ## explicit
 github.com/peterbourgon/diskv
@@ -1762,6 +1822,12 @@ github.com/tidwall/sjson
 ## explicit; go 1.16
 github.com/u-root/uio/rand
 github.com/u-root/uio/uio
+# github.com/valllabh/ocsf-schema-golang v1.0.3
+## explicit; go 1.22
+github.com/valllabh/ocsf-schema-golang/ocsf/v1_2_0/events/application
+github.com/valllabh/ocsf-schema-golang/ocsf/v1_2_0/events/application/enums
+github.com/valllabh/ocsf-schema-golang/ocsf/v1_2_0/objects
+github.com/valllabh/ocsf-schema-golang/ocsf/v1_2_0/objects/enums
 # github.com/vishvananda/netlink v1.3.2-0.20260404173425-c822ed716ea1
 ## explicit; go 1.23
 github.com/vishvananda/netlink
@@ -3033,6 +3099,10 @@ oras.land/oras-go/v2/registry/remote/credentials/trace
 oras.land/oras-go/v2/registry/remote/errcode
 oras.land/oras-go/v2/registry/remote/internal/errutil
 oras.land/oras-go/v2/registry/remote/retry
+# rsc.io/binaryregexp v0.2.0
+## explicit; go 1.12
+rsc.io/binaryregexp
+rsc.io/binaryregexp/syntax
 # sigs.k8s.io/controller-runtime v0.23.3
 ## explicit; go 1.25.0
 sigs.k8s.io/controller-runtime
