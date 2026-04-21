@@ -59,6 +59,7 @@ ASSIGN_CONFIG(union macaddr, interface_mac, {.addr = mac_one_addr }) /* set devi
 
 #define ASSERT_DROP_REASON(__code, __dir, __reason) \
 	do { \
+		__u64 count = 1; \
 		struct metrics_key key = { \
 			.reason = (__u8)-(__reason), \
 			.dir = __dir, \
@@ -66,12 +67,7 @@ ASSIGN_CONFIG(union macaddr, interface_mac, {.addr = mac_one_addr }) /* set devi
 		if ((__code) != CTX_ACT_DROP) \
 			test_fatal("unexpected status code (expected %d, got %d)", \
 				   CTX_ACT_DROP, *status_code); \
-		val = map_lookup_elem(&cilium_metrics, &key); \
-		if (!val) \
-			test_fatal("metrics entry not found"); \
-		if (val->count != 1) \
-			test_fatal("unexpected metrics count (expected 1, got %d)", \
-				   val->count); \
+		assert_metrics_count(key, count); \
 	} while (0)
 
 /* Use this VNI for all tests. Otherwise, we can't cleanup VNI map correctly. */
@@ -165,7 +161,6 @@ int evpn_ingress_tunnel_key_missing_check(const struct __ctx_buff *ctx)
 {
 	void *data_end = ctx_data_end(ctx);
 	void *data = ctx_data(ctx);
-	struct metrics_value *val;
 	__u32 *status_code;
 
 	test_init();
@@ -217,7 +212,6 @@ int evpn_ingress_zero_vni_check(const struct __ctx_buff *ctx)
 {
 	void *data_end = ctx_data_end(ctx);
 	void *data = ctx_data(ctx);
-	struct metrics_value *val;
 	__u32 *status_code;
 
 	test_init();
@@ -267,7 +261,6 @@ int evpn_ingress_no_vni_entry_check(const struct __ctx_buff *ctx)
 {
 	void *data_end = ctx_data_end(ctx);
 	void *data = ctx_data(ctx);
-	struct metrics_value *val;
 	__u32 *status_code;
 
 	test_init();
@@ -319,7 +312,6 @@ int evpn_ingress_invalid_dst_mac_check(const struct __ctx_buff *ctx)
 {
 	void *data_end = ctx_data_end(ctx);
 	void *data = ctx_data(ctx);
-	struct metrics_value *val;
 	__u32 *status_code;
 
 	test_init();
