@@ -21,5 +21,8 @@ ARG BUILD_DATE
 LABEL org.opencontainers.image.created="${BUILD_DATE}"
 ARG VERSION=0.0.0
 LABEL version=${VERSION}
-RUN mkdir -p /usr/share/licences/isovalent; mv /LICENSE.all /usr/share/licenses/isovalent/LICENSE.dependencies
+RUN rm -rf /licenses && \
+    cp -r /usr/share/licenses /licenses  && \
+    mkdir -p /licenses/isovalent && \
+    mv /LICENSE.all /licenses/isovalent/LICENSE.dependencies
 CMD ["/usr/bin/cilium-dbg"]
