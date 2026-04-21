@@ -187,7 +187,7 @@ features:
       hubble.timescape.enabled: true
 
   PrivateNetworks:
-    maturity: Alpha
+    maturity: Limited
     description: |
       Private networks enable network-level isolation between Cilium-managed endpoints.
     skip-flag-check: true
@@ -195,6 +195,36 @@ features:
       private-networks-enabled: true
     helm:
       enterprise.privateNetworks.enabled: true
+
+  PrivateNetworkExternalEndpoints:
+    maturity: Beta
+    description: |
+      Support for private networks external endpoints.
+    skip-flag-check: true
+    flags:
+      private-networks-external-endpoints-enabled: true
+    helm:
+      enterprise.privateNetworks.externalEndpoints.enabled: true
+
+  PrivateNetworkBridge:
+    maturity: Limited
+    description: |
+      Connectivity to external workloads via the Isovalent Network Bridge
+    skip-flag-check: true
+    flags:
+      private-networks-mode: bridge
+    helm:
+      enterprise.privateNetworks.mode: bridge
+
+  PrivateNetworkLocalAccess:
+    maturity: Limited
+    description: |
+      Connectivity to external workloads via the private network local access feature
+    skip-flag-check: true
+    flags:
+      private-networks-mode: local-access
+    helm:
+      enterprise.privateNetworks.mode: local-access
 
   ILBGatewayAPI:
     maturity: Alpha
@@ -509,7 +539,7 @@ features:
     helm:
       ipam.mode: multi-pool
 
-      
+
   IPAMClusterPool:
     maturity: Stable
     description: |

@@ -38,6 +38,9 @@ enterprise:
     approved:
     - DatapathIPModeDualStack
     - PrivateNetworks
+    - PrivateNetworkExternalEndpoints
+    - PrivateNetworkBridge
+    - PrivateNetworkLocalAccess
     - ClusterMeshMixedRoutingMode
     - EVPN
     - BFD # for ILB

@@ -168,6 +168,13 @@ jobs:
             --set enterprise.privateNetworks.api.tls.certmanager.issuerRef.group=cert-manager.io \
             --set enterprise.privateNetworks.api.tls.certmanager.issuerRef.kind=Issuer \
             --set enterprise.privateNetworks.api.tls.certmanager.issuerRef.name=cilium \
+            --set enterprise.featureGate.strict=true \
+            --set 'enterprise.featureGate.approved[0]'=DatapathIPModeDualStack \
+            --set 'enterprise.featureGate.approved[1]'=ClusterMeshMixedRoutingMode \
+            --set 'enterprise.featureGate.approved[2]'=PrivateNetworks \
+            --set 'enterprise.featureGate.approved[3]'=PrivateNetworkExternalEndpoints \
+            --set 'enterprise.featureGate.approved[4]'=PrivateNetworkBridge \
+            --set 'enterprise.featureGate.approved[5]'=PrivateNetworkLocalAccess \
           "
 
           CILIUM_INSTALL_K8S=" \
