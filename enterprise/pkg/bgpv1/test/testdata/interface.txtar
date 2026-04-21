@@ -185,6 +185,8 @@ spec:
     attributes:
       communities:
         standard: [ "65001:100" ]
+      asPathPrepend:
+        repeat: 2
 
 -- device-eth0.yaml --
 index: 1
@@ -230,13 +232,13 @@ operstatus: unknown # for loopback always unknown
 Prefix   NextHop   Attrs
 -- gobgp-routes-ipv4.expected --
 Prefix               NextHop     Attrs
-192.168.100.100/32   10.99.5.2   [{Origin: i} {AsPath: 65001} {Communities: 65001:100}]
-192.168.100.101/32   10.99.5.2   [{Origin: i} {AsPath: 65001} {Communities: 65001:100}]
+192.168.100.100/32   10.99.5.2   [{Origin: i} {AsPath: 65001 65001 65001} {Communities: 65001:100}]
+192.168.100.101/32   10.99.5.2   [{Origin: i} {AsPath: 65001 65001 65001} {Communities: 65001:100}]
 -- gobgp-routes-ipv4-ds.expected --
 Prefix               NextHop            Attrs
-192.168.100.100/32   fd00::aa:bb:55:2   [{Origin: i} {AsPath: 65001} {Communities: 65001:100}]
-192.168.100.101/32   fd00::aa:bb:55:2   [{Origin: i} {AsPath: 65001} {Communities: 65001:100}]
+192.168.100.100/32   fd00::aa:bb:55:2   [{Origin: i} {AsPath: 65001 65001 65001} {Communities: 65001:100}]
+192.168.100.101/32   fd00::aa:bb:55:2   [{Origin: i} {AsPath: 65001 65001 65001} {Communities: 65001:100}]
 -- gobgp-routes-ipv6.expected --
 Prefix             NextHop            Attrs
-fd00::aabb:1/128   fd00::aa:bb:55:2   [{Origin: i} {AsPath: 65001} {Communities: 65001:100}]
-fd00::aabb:2/128   fd00::aa:bb:55:2   [{Origin: i} {AsPath: 65001} {Communities: 65001:100}]
+fd00::aabb:1/128   fd00::aa:bb:55:2   [{Origin: i} {AsPath: 65001 65001 65001} {Communities: 65001:100}]
+fd00::aabb:2/128   fd00::aa:bb:55:2   [{Origin: i} {AsPath: 65001 65001 65001} {Communities: 65001:100}]

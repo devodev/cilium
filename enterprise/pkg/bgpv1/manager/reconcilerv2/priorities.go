@@ -15,9 +15,10 @@ import ossreconcilerv2 "github.com/cilium/cilium/pkg/bgp/manager/reconciler"
 const (
 	LinkLocalReconcilerName        = "LinkLocal"
 	BFDStateReconcilerName         = "BFDState"
-	NeighborReconcilerName         = ossreconcilerv2.NeighborReconcilerName // needs to match the name of the OSS reconciler we are overriding
-	ServiceReconcilerName          = ossreconcilerv2.ServiceReconcilerName  // needs to match the name of the OSS reconciler we are overriding
-	PodCIDRReconcilerName          = ossreconcilerv2.PodCIDRReconcilerName  // needs to match the name of the OSS reconciler we are overriding
+	NeighborReconcilerName         = ossreconcilerv2.NeighborReconcilerName  // needs to match the name of the OSS reconciler we are overriding
+	ServiceReconcilerName          = ossreconcilerv2.ServiceReconcilerName   // needs to match the name of the OSS reconciler we are overriding
+	PodCIDRReconcilerName          = ossreconcilerv2.PodCIDRReconcilerName   // needs to match the name of the OSS reconciler we are overriding
+	InterfaceReconcilerName        = ossreconcilerv2.InterfaceReconcilerName // needs to match the name of the OSS reconciler we are overriding
 	EgressGatewayIPsReconcilerName = "EgressGatewayIPs"
 	PodCIDRVRFReconcilerName       = "PodCIDRVRF"
 	ServiceVRFReconcilerName       = "ServiceVRF"
@@ -36,9 +37,10 @@ const (
 	// so gobgp will already have desired VPN policies in place.
 	VPNRoutePolicyReconcilerPriority   = NeighborReconcilerPriority - 1
 	EgressGatewayIPsReconcilerPriority = 55
-	NeighborReconcilerPriority         = ossreconcilerv2.NeighborReconcilerPriority - 1 // must be lower (higher priority) than the OSS reconciler we are overriding
-	ServiceReconcilerPriority          = ossreconcilerv2.ServiceReconcilerPriority - 1  // must be lower (higher priority) than the OSS reconciler we are overriding
-	PodCIDRReconcilerPriority          = ossreconcilerv2.PodCIDRReconcilerPriority - 1  // must be lower (higher priority) than the OSS reconciler we are overriding
+	NeighborReconcilerPriority         = ossreconcilerv2.NeighborReconcilerPriority - 1  // must be lower (higher priority) than the OSS reconciler we are overriding
+	ServiceReconcilerPriority          = ossreconcilerv2.ServiceReconcilerPriority - 1   // must be lower (higher priority) than the OSS reconciler we are overriding
+	PodCIDRReconcilerPriority          = ossreconcilerv2.PodCIDRReconcilerPriority - 1   // must be lower (higher priority) than the OSS reconciler we are overriding
+	InterfaceReconcilerPriority        = ossreconcilerv2.InterfaceReconcilerPriority - 1 // must be lower (higher priority) than the OSS reconciler we are overriding
 	LocatorPoolReconcilerPriority      = 45
 	PrivateNetworkReconcilerPriority   = 44
 	ServiceVRFReconcilerPriority       = 41
