@@ -58,7 +58,7 @@ func newControllerRuntimeManager(params controllerRuntimeManagerParams) (ctrl.Ma
 			},
 		},
 		Metrics: metricsserver.Options{
-			BindAddress: config.MetricsBindAddress,
+			BindAddress: "0",
 		},
 		HealthProbeBindAddress: "0",
 	})

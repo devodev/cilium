@@ -33,12 +33,14 @@ var (
 		gops.Cell(defaults.EnableGops, defaultGopsPort),
 		pprof.Cell(pprofConfig),
 		shell.ServerCell(shellSockPath),
+		cell.Provide(newMetricsRegistry),
 
 		cell.ProvidePrivate(newXDSServer),
 		cell.ProvidePrivate(func(server *xdsServer) XDSResourceMutator { return server }),
 
 		cell.ProvidePrivate(newControllerRuntimeManager),
 
+		cell.Invoke(registerMetricsServer),
 		cell.Invoke(registerHealthServer),
 		cell.Invoke(registerXDSServer),
 		cell.Invoke(registerGatewayController),
