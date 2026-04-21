@@ -1,0 +1,53 @@
+{{- if (not .Values.enterprise.networkPolicy.tiers.enabled) -}}
+{{/* Disable creation of policies with the Tier field set. */}}
+
+{{- $failurePolicy := "Fail" -}}
+{{- if (not .Values.enterprise.featureGate.strict) -}}
+{{- $failurePolicy := "Ignore" -}}
+{{- end -}}
+
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: "cilium-disallow-policy-tiers"
+  {{- with .Values.commonLabels }}
+  labels:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  failurePolicy:  {{ $failurePolicy }}
+  matchConstraints:
+    resourceRules:
+      - apiGroups:   ["isovalent.com"]
+        apiVersions: ["v1"]
+        operations:  ["CREATE", "UPDATE"]
+        resources:   ["isovalentnetworkpolicies", "isovalentclusterwidenetworkpolicies"]
+  validations:
+  - expression: >-
+      !has(object.spec) || !has(object.spec.tier)
+    message: Policy tier support is not enabled. Setting tier is disallowed.
+  - expression: >-
+      object.specs.all(spec, !has(spec.tier))
+    message: Policy tier support is not enabled. Setting tier is disallowed.
+
+---
+
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: "cilium-disallow-policy-tiers"
+  {{- with .Values.commonLabels }}
+  labels:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  policyName: "cilium-disallow-policy-tiers"
+  validationActions: [Deny]
+  matchResources:
+    resourceRules:
+      - apiGroups:   ["isovalent.com"]
+        apiVersions: ["v1"]
+        operations:  ["CREATE", "UPDATE"]
+        resources:   ["isovalentnetworkpolicies", "isovalentclusterwidenetworkpolicies"]
+
+{{- end -}}

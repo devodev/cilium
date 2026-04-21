@@ -86,6 +86,7 @@ runs:
 
         # Enterprise specific defaults
         CILIUM_INSTALL_DEFAULTS+=" --helm-set=enterprise.featureGate.minimumMaturity=Alpha \
+        --helm-set=enterprise.networkPolicy.tiers.enabled=true \
         --helm-set=enterprise.clustermesh.phantomServices.enabled=true" # this is needed because we are using OSS workflow to test phantom services
 
         if [ "${{ inputs.debug }}" == "true" ]; then

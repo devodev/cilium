@@ -1784,6 +1784,10 @@
      - Enables multicast in cilium, multicast replication works only in tunnel mode.
      - bool
      - ``false``
+   * - :spelling:ignore:`enterprise.networkPolicy.tiers.enabled`
+     - Add support for tiered policy.
+     - bool
+     - ``false``
    * - :spelling:ignore:`enterprise.privateNetworks.api.port`
      - The TCP port the privnet API server listens to, in "bridge" mode. Otherwise, it represents the fallback port to connect to a candidate INB, if not explicitly advertised by the candidate INB itself.
      - int

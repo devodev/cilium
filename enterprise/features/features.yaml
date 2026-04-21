@@ -254,6 +254,12 @@ features:
     helm:
       enterprise.evpn.enabled: true
 
+  NetworkPolicyTier:
+    maturity: Beta
+    description: Support for tiered network policy.
+    helm:
+      enterprise.networkPolicy.tiers.enabled: true
+
   ##########################################
   # OSS features
   ##########################################

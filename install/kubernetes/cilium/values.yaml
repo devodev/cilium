@@ -1414,6 +1414,7 @@ certgen:
     successfulJobsHistoryLimit: 3
     # -- The number of failed finished jobs to keep
     failedJobsHistoryLimit: 1
+# end of .Values.enterprise
 hubble:
   # -- Enable Hubble (true by default).
   enabled: true
@@ -5506,4 +5507,8 @@ enterprise:
       # This enables support for the DNS HA proxy to write updates directly to
       # BPF when the agent is down. This must also be enabled in the HA proxy;
       # this setting only enables necessary support APIs in the agent.
+      enabled: false
+  networkPolicy:
+    tiers:
+      # -- Add support for tiered policy.
       enabled: false
