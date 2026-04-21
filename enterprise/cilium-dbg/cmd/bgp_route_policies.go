@@ -36,7 +36,7 @@ var bgpRoutePoliciesCmd = &cobra.Command{
 		if err := cfg.Parse(cmd.Flags()); err != nil {
 			return err
 		}
-		shellCmd := "bgp/route-policies-extended"
+		shellCmd := "bgp/route-policies"
 		if bgpInstanceFlag != "" {
 			shellCmd = fmt.Sprintf("%s --instance=%s", shellCmd, bgpInstanceFlag)
 		}
@@ -51,7 +51,7 @@ func init() {
 	bgpRoutePoliciesCmd.Flags().StringVarP(&bgpInstanceFlag, "instance", "i", "", "Name of a Cilium router instance. Lists policies of all instances if omitted.")
 	bgpRoutePoliciesCmd.Flags().StringVarP(&bgpFormatFlag, "format", "f", "table", "Format to write in (table, yaml or json)")
 
-	// override the OSS "bgp route-policies" command with the CEE "bgp/extended-route-policies" shell command
+	// override the OSS "bgp route-policies" command with the CEE "bgp/route-policies" shell command
 	cmd.BgpCmd.RemoveCommand(cmd.BgpRoutePoliciesCmd)
 	cmd.BgpCmd.AddCommand(bgpRoutePoliciesCmd)
 	hive.DefaultShellConfig.Flags(bgpRoutePoliciesCmd.Flags())

@@ -75,7 +75,7 @@ func bgpRIBDumpCommands() []string {
 }
 
 func bgpRIBDumpCommand(ribType, afi, safi string) string {
-	return fmt.Sprintf("cilium-dbg shell -- bgp/routes-extended -a %s %s %s", ribType, afi, safi)
+	return fmt.Sprintf("cilium-dbg shell -- bgp/routes -a %s %s %s", ribType, afi, safi)
 }
 
 func ribDumpCommand() string {
