@@ -63,6 +63,9 @@ bgp/routes in ipv4 unicast --no-age -o bgp-routes-in-ipv4-unicast.actual
 bgp/routes in ipv6 unicast --no-age -o bgp-routes-in-ipv6-unicast.actual
 * cmp bgp-routes-in-ipv6-unicast.expected bgp-routes-in-ipv6-unicast.actual
 
+bgp/route-policies -o bgp-policies.actual
+* cmp bgp-policies.expected bgp-policies.actual
+
 -- cilium-node.yaml --
 apiVersion: cilium.io/v2
 kind: CiliumNode
@@ -150,6 +153,9 @@ metadata:
 spec:
   advertisements:
   - advertisementType: PodCIDR
+    attributes:
+      asPathPrepend:
+        repeat: 2
 
 -- bgp-policy.yaml --
 apiVersion: isovalent.com/v1
@@ -225,3 +231,23 @@ instance0   peer0   fd00:10::/64     fd00:10:99:8::1   -
             peer1   fd00:10::/64     fd00:10:99:8::2   -
 instance1   peer0   fd00:10:1::/64   fd00:10:99:8::3   -
             peer1   fd00:10:2::/64   fd00:10:99:8::4   -
+-- bgp-policies.expected --
+Instance    Policy Name                              Type     Match Peers       Match Families   Match Prefixes (Min..Max Len)   Match Communities   RIB Action   Path Actions
+instance0   allow-local                              import                                                                                          accept       
+instance0   import-user-defined-peer0-ipv4-unicast   import   fd00:10:99:8::1   ipv4/unicast     10.0.0.0/16 (16..32)                                accept       
+instance0   import-user-defined-peer0-ipv6-unicast   import   fd00:10:99:8::1   ipv6/unicast     fd00:10::/32 (32..128)                              accept       
+instance0   import-user-defined-peer1-ipv4-unicast   import   fd00:10:99:8::2   ipv4/unicast     10.0.0.0/16 (16..32)                                accept       
+instance0   import-user-defined-peer1-ipv6-unicast   import   fd00:10:99:8::2   ipv6/unicast     fd00:10::/32 (32..128)                              accept       
+instance0   peer0-ipv4-PodCIDR                       export   fd00:10:99:8::1                    10.244.0.0/24 (24..24)                              accept       ASPathPrepend: Repeat 2
+instance0   peer0-ipv6-PodCIDR                       export   fd00:10:99:8::1                    fd00:10:244::/64 (64..64)                           accept       ASPathPrepend: Repeat 2
+instance0   peer1-ipv4-PodCIDR                       export   fd00:10:99:8::2                    10.244.0.0/24 (24..24)                              accept       ASPathPrepend: Repeat 2
+instance0   peer1-ipv6-PodCIDR                       export   fd00:10:99:8::2                    fd00:10:244::/64 (64..64)                           accept       ASPathPrepend: Repeat 2
+instance1   allow-local                              import                                                                                          accept       
+instance1   import-user-defined-peer0-ipv4-unicast   import   fd00:10:99:8::3   ipv4/unicast     10.0.0.0/16 (16..32)                                accept       
+instance1   import-user-defined-peer0-ipv6-unicast   import   fd00:10:99:8::3   ipv6/unicast     fd00:10::/32 (32..128)                              accept       
+instance1   import-user-defined-peer1-ipv4-unicast   import   fd00:10:99:8::4   ipv4/unicast     10.0.0.0/16 (16..32)                                accept       
+instance1   import-user-defined-peer1-ipv6-unicast   import   fd00:10:99:8::4   ipv6/unicast     fd00:10::/32 (32..128)                              accept       
+instance1   peer0-ipv4-PodCIDR                       export   fd00:10:99:8::3                    10.244.0.0/24 (24..24)                              accept       ASPathPrepend: Repeat 2
+instance1   peer0-ipv6-PodCIDR                       export   fd00:10:99:8::3                    fd00:10:244::/64 (64..64)                           accept       ASPathPrepend: Repeat 2
+instance1   peer1-ipv4-PodCIDR                       export   fd00:10:99:8::4                    10.244.0.0/24 (24..24)                              accept       ASPathPrepend: Repeat 2
+instance1   peer1-ipv6-PodCIDR                       export   fd00:10:99:8::4                    fd00:10:244::/64 (64..64)                           accept       ASPathPrepend: Repeat 2
