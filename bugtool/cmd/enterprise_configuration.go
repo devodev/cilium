@@ -44,6 +44,7 @@ func enterpriseCommands(confDir string, _ string) []string {
 		"cilium-dbg bpf privnet subnets list",
 		"cilium-dbg shell -- privnet/status --color=false",
 		"cilium-dbg shell -- privnet/status -o=json",
+		"cilium-dbg bfd peers",
 	}
 
 	commands = append(commands, bpfMapDumpCommands(bpfMapsPath)...)
