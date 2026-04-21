@@ -116,8 +116,13 @@ type AutoExternalEndpointsConfig struct {
 func (cfg AutoExternalEndpointsConfig) Flags(flags *pflag.FlagSet) {
 	flags.Bool("private-networks-auto-external-endpoints-enabled", cfg.Enabled,
 		"Automatically create PrivateNetworkExternalEndpoints")
+	flags.MarkHidden("private-networks-auto-external-endpoints-enabled")
+
 	flags.String("private-networks-auto-external-endpoints-config-dir", cfg.ConfigDir,
 		"Configuration for the creation of PrivateNetworkExternalEndpoints")
+	flags.MarkHidden("private-networks-auto-external-endpoints-config-dir")
+
 	flags.String("private-networks-auto-external-endpoints-secrets-namespace", cfg.SecretsNamespace,
 		"Kubernetes namespace from which provider secrets are read")
+	flags.MarkHidden("private-networks-auto-external-endpoints-secrets-namespace")
 }
