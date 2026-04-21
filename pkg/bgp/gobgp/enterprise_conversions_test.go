@@ -235,3 +235,136 @@ func TestToGoBGPPeerExtended(t *testing.T) {
 		})
 	}
 }
+
+func TestToGoBGPPolicyStatementExtended(t *testing.T) {
+	tests := []struct {
+		name        string
+		stmt        *types.ExtendedRoutePolicyStatement
+		wantStmt    *gobgp.Statement
+		wantDefSets []*gobgp.DefinedSet
+	}{
+		{
+			name: "Enterprise-specific conditions and actions",
+			stmt: &types.ExtendedRoutePolicyStatement{
+				Conditions: types.ExtendedRoutePolicyConditions{
+					MatchCommunities: &types.RoutePolicyCommunityMatch{
+						Type:        ossTypes.RoutePolicyMatchAny,
+						Communities: []string{"65000:100", "65000:200"},
+					},
+					MatchLargeCommunities: &types.RoutePolicyCommunityMatch{
+						Type:        ossTypes.RoutePolicyMatchAll,
+						Communities: []string{"65000:100:1", "65000:200:2"},
+					},
+				},
+				Actions: types.ExtendedRoutePolicyActions{
+					ASPathPrepend: &types.ExtendedRoutePolicyActionASPathPrepend{
+						Repeat: 3,
+					},
+				},
+			},
+			wantStmt: &gobgp.Statement{
+				Name: "test-statement",
+				Conditions: &gobgp.Conditions{
+					CommunitySet: &gobgp.MatchSet{
+						Name: "test-statement-community",
+						Type: gobgp.MatchSet_ANY,
+					},
+					LargeCommunitySet: &gobgp.MatchSet{
+						Name: "test-statement-large-community",
+						Type: gobgp.MatchSet_ALL,
+					},
+				},
+				Actions: &gobgp.Actions{
+					AsPrepend: &gobgp.AsPrependAction{
+						Repeat:      3,
+						UseLeftMost: true,
+					},
+				},
+			},
+			wantDefSets: []*gobgp.DefinedSet{
+				{
+					DefinedType: gobgp.DefinedType_COMMUNITY,
+					Name:        "test-statement-community",
+					List:        []string{"65000:100", "65000:200"},
+				},
+				{
+					DefinedType: gobgp.DefinedType_LARGE_COMMUNITY,
+					Name:        "test-statement-large-community",
+					List:        []string{"65000:100:1", "65000:200:2"},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotStmt, gotDefSets := toGoBGPPolicyStatementExtended(tt.stmt, "test-statement")
+			require.Equal(t, tt.wantStmt, gotStmt)
+			require.Equal(t, tt.wantDefSets, gotDefSets)
+		})
+	}
+}
+
+func TestToAgentRoutePolicyExtended(t *testing.T) {
+	tests := []struct {
+		name string
+		stmt *gobgp.Statement
+		want *types.ExtendedRoutePolicyStatement
+	}{
+		{
+			name: "Enterprise-specific conditions and actions",
+			stmt: &gobgp.Statement{
+				Name: "test-statement",
+				Conditions: &gobgp.Conditions{
+					CommunitySet: &gobgp.MatchSet{
+						Name: "test-statement-community",
+						Type: gobgp.MatchSet_ANY,
+					},
+					LargeCommunitySet: &gobgp.MatchSet{
+						Name: "test-statement-large-community",
+						Type: gobgp.MatchSet_ALL,
+					},
+				},
+				Actions: &gobgp.Actions{
+					AsPrepend: &gobgp.AsPrependAction{
+						Repeat:      3,
+						UseLeftMost: true,
+					},
+				},
+			},
+			want: &types.ExtendedRoutePolicyStatement{
+				Conditions: types.ExtendedRoutePolicyConditions{
+					MatchCommunities: &types.RoutePolicyCommunityMatch{
+						Type:        ossTypes.RoutePolicyMatchAny,
+						Communities: []string{"65000:100", "65000:200"},
+					},
+					MatchLargeCommunities: &types.RoutePolicyCommunityMatch{
+						Type:        ossTypes.RoutePolicyMatchAll,
+						Communities: []string{"65000:100:1", "65000:200:2"},
+					},
+				},
+				Actions: types.ExtendedRoutePolicyActions{
+					ASPathPrepend: &types.ExtendedRoutePolicyActionASPathPrepend{
+						Repeat: 3,
+					},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := toAgentPolicyStatementExtended(tt.stmt, map[string]*gobgp.DefinedSet{
+				"test-statement-community": {
+					DefinedType: gobgp.DefinedType_COMMUNITY,
+					Name:        "test-statement-community",
+					List:        []string{"65000:100", "65000:200"},
+				},
+				"test-statement-large-community": {
+					DefinedType: gobgp.DefinedType_LARGE_COMMUNITY,
+					Name:        "test-statement-large-community",
+					List:        []string{"65000:100:1", "65000:200:2"},
+				},
+			})
+			require.Equal(t, tt.want, got)
+		})
+	}
+}

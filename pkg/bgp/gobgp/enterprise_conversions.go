@@ -76,7 +76,9 @@ func toGoBGPPolicyExtended(apiPolicy *types.ExtendedRoutePolicy) (*gobgp.Policy,
 }
 
 func toGoBGPPolicyStatementExtended(apiStatement *types.ExtendedRoutePolicyStatement, name string) (*gobgp.Statement, []*gobgp.DefinedSet) {
-	// convert OSS part
+	// Convert OSS part. This part doesn't have any test coverage as we are
+	// relying on the OSS tests. If we cannot reuse the OSS function
+	// anymore, we need to add tests for the common conversions as well.
 	ossStatement := &ossTypes.RoutePolicyStatement{
 		Conditions: apiStatement.Conditions.RoutePolicyConditions,
 		Actions:    apiStatement.Actions.RoutePolicyActions,
@@ -113,6 +115,16 @@ func toGoBGPPolicyStatementExtended(apiStatement *types.ExtendedRoutePolicyState
 		definedSets = append(definedSets, ds)
 	}
 
+	// as path prepend action
+	if apiStatement.Actions.ASPathPrepend != nil {
+		s.Actions.AsPrepend = &gobgp.AsPrependAction{
+			Repeat: apiStatement.Actions.ASPathPrepend.Repeat,
+			// "LeftMost" means the last AS added to the AS path.
+			// For self-originated routes, this means self-ASN.
+			UseLeftMost: true,
+		}
+	}
+
 	return s, definedSets
 }
 
@@ -128,8 +140,9 @@ func toAgentPolicyExtended(p *gobgp.Policy, definedSets map[string]*gobgp.Define
 }
 
 func toAgentPolicyStatementExtended(s *gobgp.Statement, definedSets map[string]*gobgp.DefinedSet) *types.ExtendedRoutePolicyStatement {
-
-	// convert OSS part
+	// Convert OSS part. This part doesn't have any test coverage as we are
+	// relying on the OSS tests. If we cannot reuse the OSS function
+	// anymore, we need to add tests for the common conversions as well.
 	ossStmt := toAgentPolicyStatement(s, definedSets)
 	stmt := &types.ExtendedRoutePolicyStatement{
 		Conditions: types.ExtendedRoutePolicyConditions{
@@ -154,6 +167,12 @@ func toAgentPolicyStatementExtended(s *gobgp.Statement, definedSets map[string]*
 				Type:        toAgentPolicyMatchType(s.Conditions.LargeCommunitySet.Type),
 				Communities: definedSets[s.Conditions.LargeCommunitySet.Name].List,
 			}
+		}
+	}
+
+	if s.Actions != nil && s.Actions.AsPrepend != nil {
+		stmt.Actions.ASPathPrepend = &types.ExtendedRoutePolicyActionASPathPrepend{
+			Repeat: s.Actions.AsPrepend.Repeat,
 		}
 	}
 

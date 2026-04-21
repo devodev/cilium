@@ -131,7 +131,7 @@ func PrintBGPRoutePoliciesTable(w *tabwriter.Writer, instancePolicies map[string
 					formatMatchCommunities(stmt.Conditions.MatchLargeCommunities, "Large: "),
 				}, " "))
 				fmt.Fprintf(w, "%s\t", formatRouteActionType(stmt.Actions.RouteAction))
-				fmt.Fprintf(w, "%s\n", formatPathActions(stmt.Actions.RoutePolicyActions))
+				fmt.Fprintf(w, "%s\n", formatPathActions(stmt.Actions))
 			}
 			if len(policy.Statements) == 0 {
 				fmt.Fprintf(w, "\n")
@@ -204,7 +204,7 @@ func formatRouteActionType(a ossTypes.RoutePolicyAction) string {
 	}
 }
 
-func formatPathActions(a ossTypes.RoutePolicyActions) string {
+func formatPathActions(a types.ExtendedRoutePolicyActions) string {
 	var res []string
 	if len(a.AddCommunities) > 0 {
 		res = append(res, fmt.Sprintf("AddCommunities: %v", a.AddCommunities))
@@ -217,6 +217,9 @@ func formatPathActions(a ossTypes.RoutePolicyActions) string {
 	}
 	if a.NextHop != nil {
 		res = append(res, fmt.Sprintf("NextHop: %s", formatNextHop(a.NextHop)))
+	}
+	if a.ASPathPrepend != nil {
+		res = append(res, fmt.Sprintf("ASPathPrepend: Repeat %d", a.ASPathPrepend.Repeat))
 	}
 	return formatStringArray(res)
 }
