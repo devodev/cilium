@@ -268,7 +268,7 @@ func testZone(t T, client *frrContainer, zone string, node core_v1.Node, vipIP s
 	t.Log("[%s] targeting traffic from client to %s via T1 %s node...", zone, vipIP, node.Name)
 	nodeIP := lookupNodeInternalIP(node)
 	if nodeIP == "" {
-		t.Failedf("failed to lookup %s node internal IP address", node)
+		t.Failedf("failed to lookup %v node internal IP address", node)
 	}
 
 	routeCmd := fmt.Sprintf("ip route add %s/32 via %s metric 1", vipIP, nodeIP)

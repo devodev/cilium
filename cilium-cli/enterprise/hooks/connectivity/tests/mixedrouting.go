@@ -13,6 +13,7 @@ package tests
 import (
 	"context"
 	"fmt"
+	"net"
 	"strings"
 
 	"github.com/cilium/cilium/cilium-cli/connectivity/check"
@@ -269,7 +270,7 @@ func (mrt *mixedRoutingExtraTraffic) Run(ctx context.Context, t *check.Test) {
 				return
 			}
 
-			dst := check.HTTPEndpoint(other.Name, fmt.Sprintf("http://%s:4240/hello", addr))
+			dst := check.HTTPEndpoint(other.Name, "http://"+net.JoinHostPort(addr, "4240")+"/hello")
 			fn := func(a *check.Action) { a.ExecInPod(ctx, ct.CurlCommand(dst, ipFam, true, nil)) }
 			t.NewAction(mrt, other.Name, client, dst, ipFam).Run(fn)
 			t.NewAction(mrt, other.Name, &echo, dst, ipFam).Run(fn)

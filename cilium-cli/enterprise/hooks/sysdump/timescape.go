@@ -207,12 +207,12 @@ func getTimescapeVersion(ctx context.Context, c timescapeBugtoolKubernetesClient
 	// Take the second field and try to parse it
 	fields := strings.Fields(strings.TrimSpace(o.String()))
 	if len(fields) < 2 {
-		return nil, fmt.Errorf("unable to parse timescape version %q of pod %q: %w", o, name, err)
+		return nil, fmt.Errorf("unable to parse timescape version %s of pod %s: %w", o.String(), name, err)
 	}
 	v, _, _ := strings.Cut(strings.TrimSpace(fields[1]), "-") // strips proprietary -releaseX suffix
 	podVersion, err := semver.ParseTolerant(v)
 	if err != nil {
-		return nil, fmt.Errorf("unable to parse timescape version %q of pod %q: %w", o, name, err)
+		return nil, fmt.Errorf("unable to parse timescape version %s of pod %s: %w", o.String(), name, err)
 	}
 
 	return &podVersion, nil
