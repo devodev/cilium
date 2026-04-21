@@ -309,6 +309,7 @@ kind-privnet-install-common: kind-privnet-jetstack-repo
 		--values $(ROOT_DIR)/contrib/testing/privnet/kind-privnet.yaml \
 		--set cluster.name=privnet-inb0 --set cluster.id=2 \
 		--set enterprise.privateNetworks.mode=bridge \
+		--set enterprise.privateNetworks.externalEndpoints.enabled=true \
 		--set routingMode=tunnel \
 		--set enterprise.clustermesh.mixedRoutingMode.enabled=true \
 		$(KIND_PRIVNET_VALUES_FILES) \

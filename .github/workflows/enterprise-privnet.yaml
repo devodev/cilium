@@ -202,6 +202,7 @@ jobs:
 
           CILIUM_INSTALL_INB=" \
             --set enterprise.privateNetworks.mode=bridge \
+            --set enterprise.privateNetworks.externalEndpoints.enabled=true \
             --set routingMode=tunnel \
             --set devices={eth+} \
           "

@@ -502,6 +502,7 @@ cilium-agent [flags]
       --private-networks-api-tls-server-key-file string                  Path to the private networks gRPC server private key file in PEM format
       --private-networks-bridge-gneigh-interval duration                 Interval at which workload cluster endpoints are announced using gratuitous ARP/ND in bridge or local-access mode. Ignored in default mode. (default 1m0s)
       --private-networks-enabled                                         Enable support for private networks
+      --private-networks-external-endpoints-enabled                      Enable support for private network external endpoints
       --private-networks-health-check-interval duration                  The interval for performing health checks against candidate INBs. Ignored in bridge mode. (default 2s)
       --private-networks-health-check-timeout duration                   The timeout after which a candidate INB is considered unhealthy if no health check response is received. Ignored in bridge mode. (default 5s)
       --private-networks-mode string                                     The private networks mode ("default", "local-access" or "bridge") (default "default")

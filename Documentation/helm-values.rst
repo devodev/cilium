@@ -1824,6 +1824,10 @@
      - Enable private networks.  Private networks enable network-level isolation between Cilium-managed endpoints. Endpoints within the same private network can communicate with each other, but are isolated from endpoints in other private networks.
      - bool
      - ``false``
+   * - :spelling:ignore:`enterprise.privateNetworks.externalEndpoints.enabled`
+     - 
+     - bool
+     - ``false``
    * - :spelling:ignore:`enterprise.privateNetworks.healthcheck.interval`
      - The interval for performing health checks against candidate INBs. Ignored in "bridge" mode.
      - string

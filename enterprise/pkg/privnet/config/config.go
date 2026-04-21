@@ -35,6 +35,9 @@ const (
 	// endpoints are announced via gratuitous ARP/ND in bridge mode.
 	FlagBridgeGneighInterval = "private-networks-bridge-gneigh-interval"
 
+	// FlagExternalEndpoints is the flag to enable support for PrivateNetworkExternalEndpoints
+	FlagExternalEndpoints = "private-networks-external-endpoints-enabled"
+
 	// FlagHostReachability is the flag to allow (remote) host traffic into privnet.
 	FlagHostReachability = "private-networks-host-reachability"
 
@@ -72,6 +75,7 @@ var (
 	defaultFlags = Flags{
 		Common:               DefaultCommon,
 		Mode:                 ModeDefault,
+		ExternalEndpoints:    false,
 		BridgeGneighInterval: 1 * time.Minute,
 		HostReachability:     true,
 		HostSNATIPv4:         "169.254.7.1",
@@ -96,6 +100,7 @@ type Flags struct {
 
 	Mode                 string        `mapstructure:"private-networks-mode"`
 	BridgeGneighInterval time.Duration `mapstructure:"private-networks-bridge-gneigh-interval"`
+	ExternalEndpoints    bool          `mapstructure:"private-networks-external-endpoints-enabled"`
 	HostReachability     bool          `mapstructure:"private-networks-host-reachability"`
 	HostSNATIPv4         string        `mapstructure:"private-networks-host-snat-ipv4"`
 	HostSNATIPv6         string        `mapstructure:"private-networks-host-snat-ipv6"`
@@ -108,6 +113,8 @@ func (def Flags) Flags(flags *pflag.FlagSet) {
 
 	flags.Duration(FlagBridgeGneighInterval, def.BridgeGneighInterval,
 		fmt.Sprintf("Interval at which workload cluster endpoints are announced using gratuitous ARP/ND in %s or %s mode. Ignored in %s mode.", ModeBridge, ModeLocalAccess, ModeDefault))
+
+	flags.Bool(FlagExternalEndpoints, def.ExternalEndpoints, "Enable support for private network external endpoints")
 
 	flags.Bool(FlagHostReachability, def.HostReachability, "Allow (remote) host traffic into private networks")
 	flags.MarkHidden(FlagHostReachability)
@@ -123,6 +130,7 @@ type Config struct {
 	Enabled              bool
 	Mode                 string
 	BridgeGneighInterval time.Duration
+	ExternalEndpoints    bool
 	HostReachability     bool
 	HostSNATIPv4         netip.Addr
 	HostSNATIPv6         netip.Addr
@@ -163,6 +171,7 @@ func NewConfig(f Flags) (Config, error) {
 		Enabled:              f.Enabled,
 		Mode:                 f.Mode,
 		BridgeGneighInterval: f.BridgeGneighInterval,
+		ExternalEndpoints:    f.ExternalEndpoints,
 		HostReachability:     f.HostReachability,
 		HostSNATIPv4:         snatIPv4,
 		HostSNATIPv6:         snatIPv6,

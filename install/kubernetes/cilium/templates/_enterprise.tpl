@@ -277,6 +277,7 @@ diagnostics-constants: {{ .Values.enterprise.diagnostics.constants | join "," | 
 # Private networks
 private-networks-enabled: {{ .Values.enterprise.privateNetworks.enabled | quote }}
 private-networks-mode: {{ .Values.enterprise.privateNetworks.mode | quote }}
+private-networks-external-endpoints-enabled: {{ .Values.enterprise.privateNetworks.externalEndpoints.enabled | quote }}
 private-networks-api-port: {{ .Values.enterprise.privateNetworks.api.port | quote }}
 private-networks-health-check-interval: {{ .Values.enterprise.privateNetworks.healthcheck.interval | quote }}
 private-networks-health-check-timeout: {{ .Values.enterprise.privateNetworks.healthcheck.timeout | quote }}

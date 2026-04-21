@@ -5391,6 +5391,10 @@ enterprise:
           # -- Schedule for API certificate regeneration.
           schedule: "0 0 1 */4 *"
           certValidityDuration: 365
+    # Configure support for Cilium-managed external endpoints
+    externalEndpoints:
+      # Enable support for private network external endpoints
+      enabled: false
     # Configure health checks between workload nodes and INBs.
     healthcheck:
       # -- The interval for performing health checks against candidate INBs.

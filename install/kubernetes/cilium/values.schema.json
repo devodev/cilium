@@ -2653,6 +2653,14 @@
             "enabled": {
               "type": "boolean"
             },
+            "externalEndpoints": {
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                }
+              },
+              "type": "object"
+            },
             "healthcheck": {
               "properties": {
                 "interval": {

@@ -1,4 +1,4 @@
-#! --private-networks-enabled --private-networks-mode=bridge --cluster-name=cluster3
+#! --private-networks-enabled --private-networks-mode=bridge --private-networks-external-endpoints-enabled --cluster-name=cluster3
 
 # Create sky namespace
 k8s/add ns-forest.v1.yaml

@@ -83,9 +83,13 @@ var ExternalEndpointsCell = cell.Group(
 	),
 
 	// Observe endpoint events only when running on INB
-	endpoints.EnableEndpointEventObserver(config.Config.EnabledAsBridge),
+	endpoints.EnableEndpointEventObserver(func(cfg config.Config) bool {
+		return cfg.EnabledAsBridge() && cfg.ExternalEndpoints
+	}),
 	// Enable the external endpoint policy map when running on INB
-	extepspolicy.Enable(config.Config.EnabledAsBridge),
+	extepspolicy.Enable(func(cfg config.Config) bool {
+		return cfg.EnabledAsBridge() && cfg.ExternalEndpoints
+	}),
 )
 
 // ExternalEndpoints reconciles various things related to PrivateNetworkExternalEndpoints.
@@ -230,7 +234,7 @@ func (e *ExternalEndpoints) registerK8sReflector(in struct {
 	CRDSync    promise.Promise[k8sSynced.CRDSync]
 	Namespaces statedb.Table[daemonK8s.Namespace]
 }) error {
-	if !e.cfg.EnabledAsBridge() {
+	if !(e.cfg.EnabledAsBridge() && e.cfg.ExternalEndpoints) {
 		return nil
 	}
 
@@ -403,7 +407,7 @@ func (e *externalEndpointK8sReconcilerOps) Prune(ctx context.Context, txn stated
 // across node reboots, as we cannot rely on the filesystem to store this information like we do
 // for regular endpoints.
 func (e *ExternalEndpoints) registerK8sStatusReconciler(client client.Clientset, params reconciler.Params) error {
-	if !e.cfg.EnabledAsBridge() {
+	if !(e.cfg.EnabledAsBridge() && e.cfg.ExternalEndpoints) {
 		return nil
 	}
 
@@ -767,7 +771,7 @@ func (e *ExternalEndpoints) registerEndpointCreationReconciler(in struct {
 
 	EPActivate *EndpointActivationManager
 }) {
-	if !e.cfg.EnabledAsBridge() {
+	if !(e.cfg.EnabledAsBridge() && e.cfg.ExternalEndpoints) {
 		return
 	}
 
@@ -957,7 +961,7 @@ func (e *ExternalEndpoints) registerExternalEndpointRestorer(
 	epLookup endpoints.EndpointGetter,
 	ipam endpoints.IPAM,
 ) endpoints.RestorationNotifierOut {
-	if !e.cfg.EnabledAsBridge() {
+	if !(e.cfg.EnabledAsBridge() && e.cfg.ExternalEndpoints) {
 		return endpoints.RestorationNotifierOut{}
 	}
 
@@ -1068,7 +1072,7 @@ func (e *ExternalEndpoints) startEndpointPolicyMapUpdater(in struct {
 	EPLookup endpoints.EndpointGetter
 	EPEvents endpoints.EndpointEventObserver
 }) {
-	if !e.cfg.EnabledAsBridge() {
+	if !(e.cfg.EnabledAsBridge() && e.cfg.ExternalEndpoints) {
 		return
 	}
 
