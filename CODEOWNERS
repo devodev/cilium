@@ -978,6 +978,7 @@ Makefile* @cilium/build
 /enterprise/operator/pkg/bfd/ @isovalent/traffic-engineering
 /enterprise/operator/pkg/bgpv2/ @isovalent/traffic-engineering
 /enterprise/operator/pkg/evpn/ @isovalent/traffic-engineering
+/enterprise/operator/pkg/gateway-api/ @isovalent/service-mesh
 /enterprise/operator/pkg/lb/ @isovalent/isovalent-loadbalancer
 /enterprise/operator/pkg/multinetwork/ @isovalent/multi-network
 /enterprise/operator/pkg/networkpolicy/ @isovalent/policy-identity-networking
