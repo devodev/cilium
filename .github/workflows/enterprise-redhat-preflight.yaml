@@ -1,0 +1,137 @@
+name: Red Hat preflight checks
+
+# This workflow runs the preflight checks for the component images.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "The release version, also a git reference, e.g. v1.17.5-cee.1"
+        required: true
+      stage:
+        description: "The version stage, i.e. release or CI"
+        type: choice
+        required: true
+        options:
+          - CI
+          - release
+  # Run twice a week at 3am on Monday and Thursday.
+  # Scheduled workflows run for the head of main-ce.
+  schedule:
+    - cron: "0 3 * * MON,THU"
+
+permissions:
+  # To be able to access the repository with actions/checkout.
+  contents: read
+  # To be able to request the JWT from GitHub's OIDC provider.
+  id-token: write
+
+jobs:
+  preflight-checks:
+    name: Run Red Hat preflight checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Echo Workflow Dispatch Inputs
+        run: |
+          echo '${{ tojson(inputs) }}'
+
+      - name: Checkout Cilium
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Cleanup Disk space in runner
+        uses: ./.github/actions/disk-cleanup
+
+      - name: Set up job variables
+        id: vars
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            git checkout ${{ inputs.version }}
+            echo ref="${{ inputs.version }}" >> $GITHUB_OUTPUT
+            if [ "${{ inputs.stage }}" == "release" ]; then
+              echo org="quay.io/${{ vars.QUAY_ORGANIZATION }}" >> $GITHUB_OUTPUT
+              echo is_ci="false" >> $GITHUB_OUTPUT
+            else
+              echo org="quay.io/${{ vars.QUAY_ORGANIZATION_DEV }}" >> $GITHUB_OUTPUT
+              echo check_clife="true"  >> $GITHUB_OUTPUT
+              echo suffix="-ci" >> $GITHUB_OUTPUT
+              echo is_ci="true" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo ref="$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+            echo org="quay.io/${{ vars.QUAY_ORGANIZATION_DEV }}" >> $GITHUB_OUTPUT
+            echo check_clife="true"  >> $GITHUB_OUTPUT
+            echo suffix="-ci" >> $GITHUB_OUTPUT
+            echo is_ci="true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check if CLife image exists
+        if: ${{ steps.vars.outputs.check_clife  == 'true' }}
+        id: image
+        timeout-minutes: 10
+        run: |
+          # Some special handling is needed for clife as it does not get built for every push / PR, per default
+          # only when enterprise/olm is modified.
+          until docker manifest inspect ${{ steps.vars.outputs.org }}/clife-ci:${{ steps.vars.outputs.ref }} &> /dev/null || [[ "${i}" -gt 3 ]]; do sleep 2s; i=$((i + 1)); done
+          if [[ "${i}" -gt 3 ]]; then
+            echo "CLife rebuild needed"
+            echo rebuild_clife='true' >> $GITHUB_OUTPUT
+          else
+            echo "Clife image available"
+            echo rebuild_clife='false' >> $GITHUB_OUTPUT
+          fi
+
+      - name: Login to quay.io
+        if: ${{ steps.vars.outputs.check_clife  == 'true' && steps.image.outputs.rebuild_clife  == 'true' }}
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME_CI }}
+          password: ${{ secrets.QUAY_PASSWORD_CI }}
+
+      - name: Login to registry.redhat.io for pulling images
+        if: ${{ steps.vars.outputs.check_clife  == 'true' && steps.image.outputs.rebuild_clife  == 'true' }}
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: registry.redhat.io
+          username: ${{ secrets.REDHAT_USERNAME_CI }}
+          password: ${{ secrets.REDHAT_PASSWORD_CI }}
+
+      - name: Setup go
+        if: ${{ steps.vars.outputs.check_clife  == 'true' && steps.image.outputs.rebuild_clife  == 'true' }}
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        with:
+          cache: false
+          # renovate: datasource=golang-version depName=go
+          go-version: 1.26.1
+
+      - name: Build and Push CLife image
+        if: ${{ steps.vars.outputs.check_clife  == 'true' && steps.image.outputs.rebuild_clife  == 'true' }}
+        env:
+          IMG: "${{ steps.vars.outputs.org }}/clife-ci:${{ steps.vars.outputs.ref }}"
+          CL_TAG: "${{ steps.vars.outputs.ref }}"
+        working-directory: ./enterprise/olm
+        run: |
+          make docker-buildx VERSION=${{ steps.vars.outputs.ref }}
+
+      - name: Populate helm values # done when CLife is built
+        if: ${{ steps.image.outputs.rebuild_clife  != 'true' }}
+        env:
+          CL_REGISTRY: "${{ steps.vars.outputs.org }}"
+          CL_IS_CI: "${{ steps.vars.outputs.is_ci }}"
+          CL_TAG: "${{ steps.vars.outputs.ref }}"
+        working-directory: ./enterprise/olm
+        run: |
+          make sync-helm-manifests
+          make set-images
+
+      - name: Run the preflight checks
+        env:
+          CL_TAG: "${{ steps.vars.outputs.ref }}"
+          CL_PYXIS_TOKEN: "${{ secrets.RH_API_PYXIS_TOKEN }}"
+          CL_SUBMIT: "false"
+          CL_ORG: "${{ steps.vars.outputs.org }}"
+          CL_SUFFIX: "${{ steps.vars.outputs.suffix }}"
+        working-directory: ./enterprise/olm
+        run: |
+          ./scripts/publish-img-checks-to-redhat.sh
