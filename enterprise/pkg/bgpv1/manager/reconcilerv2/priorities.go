@@ -19,6 +19,7 @@ const (
 	ServiceReconcilerName          = ossreconcilerv2.ServiceReconcilerName   // needs to match the name of the OSS reconciler we are overriding
 	PodCIDRReconcilerName          = ossreconcilerv2.PodCIDRReconcilerName   // needs to match the name of the OSS reconciler we are overriding
 	InterfaceReconcilerName        = ossreconcilerv2.InterfaceReconcilerName // needs to match the name of the OSS reconciler we are overriding
+	PodIPPoolReconcilerName        = ossreconcilerv2.PodIPPoolReconcilerName // needs to match the name of the OSS reconciler we are overriding
 	EgressGatewayIPsReconcilerName = "EgressGatewayIPs"
 	PodCIDRVRFReconcilerName       = "PodCIDRVRF"
 	ServiceVRFReconcilerName       = "ServiceVRF"
@@ -41,6 +42,7 @@ const (
 	ServiceReconcilerPriority          = ossreconcilerv2.ServiceReconcilerPriority - 1   // must be lower (higher priority) than the OSS reconciler we are overriding
 	PodCIDRReconcilerPriority          = ossreconcilerv2.PodCIDRReconcilerPriority - 1   // must be lower (higher priority) than the OSS reconciler we are overriding
 	InterfaceReconcilerPriority        = ossreconcilerv2.InterfaceReconcilerPriority - 1 // must be lower (higher priority) than the OSS reconciler we are overriding
+	PodIPPoolReconcilerPriority        = ossreconcilerv2.PodIPPoolReconcilerPriority - 1 // must be lower (higher priority) than the OSS reconciler we are overriding
 	LocatorPoolReconcilerPriority      = 45
 	PrivateNetworkReconcilerPriority   = 44
 	ServiceVRFReconcilerPriority       = 41

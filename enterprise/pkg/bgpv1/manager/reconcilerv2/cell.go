@@ -56,6 +56,7 @@ var ConfigReconcilers = cell.Group(
 		NewNeighborReconciler,
 		NewPodCIDRReconciler,
 		NewInterfaceReconciler,
+		NewPodIPPoolReconciler,
 		NewNodeStatusReconciler,
 		NewPrivateNetworkReconciler,
 	),
