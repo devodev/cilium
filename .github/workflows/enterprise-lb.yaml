@@ -365,6 +365,11 @@ jobs:
             EXTRA+=" --helm-set-string=extraConfig.loadbalancer-cp-t2-hc-push-enabled=${{ matrix.t2-hc-push }}"
           fi
 
+          if [[ "${{ matrix.zones }}" != "" ]]; then
+            EXTRA+=" --helm-set=envoy.nodeLocality.enabled=true"
+            EXTRA+=" --helm-set-string=extraConfig.loadbalancer-cp-requestid-response=true"
+          fi
+
           cilium install \
              --wait --chart-directory=./install/kubernetes/cilium \
              --helm-set=image.repository=quay.io/isovalent-dev/cilium-ci \

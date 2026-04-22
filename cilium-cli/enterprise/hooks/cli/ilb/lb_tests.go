@@ -59,8 +59,6 @@ var Tests = []func(t T){
 	TestTCPProxyT1Only,
 	TestTCPProxyT1OnlyHealthCheckCustomPort,
 	TestTCPProxyT1OnlyHTTPSHealthCheck,
-	TestTCPProxyT1OnlyPreferSameZone,
-	TestTCPProxyT1OnlyRequireSameZone,
 	TestTCPProxyT1T2,
 	TestTCPProxyAuto,
 	TestTCPProxyIPv6VIPIPv6BackendT1Only,
@@ -108,4 +106,7 @@ var Tests = []func(t T){
 	TestLBK8sBackendClusterServiceDiscovery,
 	TestLBK8sBackendClusterIPv6OnlyBackend,
 	TestLBK8sBackendClusterDualStackBackend,
+	TestTCPProxyT1OnlyPreferSameZone,
+	TestTCPProxyT1OnlyRequireSameZone,
+	TestT2HTTPPreferSameZone,
 }

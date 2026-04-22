@@ -1278,23 +1278,51 @@ func withTCPProxyApplication(opts ...tcpProxyApplicationOption) serviceOption {
 	}
 }
 
-func withPreferSameZone() serviceOption {
+type trafficPolicyOption func(o *isovalentv1alpha1.LBTrafficPolicy)
+
+func withTrafficPolicy(opts ...trafficPolicyOption) serviceOption {
 	return func(o *isovalentv1alpha1.LBService) {
-		o.Spec.TrafficPolicy = &isovalentv1alpha1.LBTrafficPolicy{
-			ZoneAware: &isovalentv1alpha1.LBZoneAware{
-				Mode: isovalentv1alpha1.LBZoneAwareModePreferSameZone,
-			},
+		policy := &isovalentv1alpha1.LBTrafficPolicy{}
+
+		for _, o := range opts {
+			o(policy)
 		}
+
+		o.Spec.TrafficPolicy = policy
 	}
 }
 
-func withRequireSameZone() serviceOption {
-	return func(o *isovalentv1alpha1.LBService) {
-		o.Spec.TrafficPolicy = &isovalentv1alpha1.LBTrafficPolicy{
-			ZoneAware: &isovalentv1alpha1.LBZoneAware{
-				Mode: isovalentv1alpha1.LBZoneAwareModeRequireSameZone,
-			},
+type zoneAware func(o *isovalentv1alpha1.LBZoneAware)
+
+func withZoneAware(opts ...zoneAware) trafficPolicyOption {
+	return func(o *isovalentv1alpha1.LBTrafficPolicy) {
+		zone := &isovalentv1alpha1.LBZoneAware{
+			MinBackendCount: 1,
 		}
+
+		for _, o := range opts {
+			o(zone)
+		}
+
+		o.ZoneAware = zone
+	}
+}
+
+func withMinBackendCount(count uint64) zoneAware {
+	return func(o *isovalentv1alpha1.LBZoneAware) {
+		o.MinBackendCount = count
+	}
+}
+
+func withPreferSameZone() zoneAware {
+	return func(o *isovalentv1alpha1.LBZoneAware) {
+		o.Mode = isovalentv1alpha1.LBZoneAwareModePreferSameZone
+	}
+}
+
+func withRequireSameZone() zoneAware {
+	return func(o *isovalentv1alpha1.LBZoneAware) {
+		o.Mode = isovalentv1alpha1.LBZoneAwareModeRequireSameZone
 	}
 }
 

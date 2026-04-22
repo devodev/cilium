@@ -27,6 +27,7 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
+	"github.com/cilium/cilium/cilium-cli/defaults"
 	isovalentv1alpha1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
 	"github.com/cilium/cilium/pkg/versioncheck"
 )
@@ -38,48 +39,120 @@ type t1ZoneScenario struct {
 	zoneBackend map[string]*hcAppContainer
 }
 
+type zoneFailoverAssert func(t T, client *frrContainer, zone string, node core_v1.Node, vipIP string, zoneBackend map[string]*hcAppContainer, rqMatcher requestMatcher)
+type requestMatcher func(t T, client *frrContainer, zone, nodeName, vipIP string, requestCount int) (requestLogMatcher, error)
+
 func TestTCPProxyT1OnlyPreferSameZone(t T) {
-	testName := "tcp-proxy-t1-only-prefer-same-zone"
-	scenario, ok := setupT1ZoneScenario(t, testName, withPreferSameZone())
-	if !ok {
-		return
-	}
-
-	testCmd := curlCmdVerbose(getURL("", scenario.vipIP))
-	t.Log("Testing %q...", testCmd)
-	stdout, stderr, err := scenario.client.Exec(t.Context(), testCmd)
-	if err != nil {
-		t.Failedf("curl failed (cmd: %q, stdout: %q, stderr: %q): %s", testCmd, stdout, stderr, err)
-	}
-
-	t.Log("Starting same zone routing testing...")
-	for zone, nodes := range scenario.t1ZoneNodes {
-		assertSameZoneRouting(t, scenario.client, zone, nodes[0], scenario.vipIP, scenario.zoneBackend, sendWithInjectedRequestID)
-	}
+	runT1ZoneTest(t, "tcp-proxy-t1-only-prefer-same-zone", withPreferSameZone(), assertPreferZoneFailover)
 }
 
 func TestTCPProxyT1OnlyRequireSameZone(t T) {
-	testName := "tcp-proxy-t1-only-require-same-zone"
-	scenario, ok := setupT1ZoneScenario(t, testName, withRequireSameZone())
+	runT1ZoneTest(t, "tcp-proxy-t1-only-require-same-zone", withRequireSameZone(), assertRequireZoneFailover)
+}
+
+func TestT2HTTPPreferSameZone(t T) {
+	testName := "t2-http-prefer-same-zone"
+	ciliumCli, k8sCli := NewCiliumAndK8sCli(t)
+	dockerCli := NewDockerCli(t)
+
+	if skipIfUnsupportedZoneTests(t, k8sCli) {
+		return
+	}
+
+	t1ZoneNodes, ok := collectZoneNodes(t, k8sCli, "T1", getT1Nodes)
 	if !ok {
 		return
 	}
 
-	testCmd := curlCmdVerbose(getURL("", scenario.vipIP))
-	t.Log("Testing %q...", testCmd)
-	stdout, stderr, err := scenario.client.Exec(t.Context(), testCmd)
-	if err != nil {
-		t.Failedf("curl failed (cmd: %q, stdout: %q, stderr: %q): %s", testCmd, stdout, stderr, err)
+	t2ZoneNodes, ok := collectZoneNodes(t, k8sCli, "T2", getT2Nodes)
+	if !ok {
+		return
 	}
 
-	t.Log("Starting same zone routing testing...")
+	if skipIfT2ZoneAwarenessDisabled(t, k8sCli) {
+		return
+	}
+
+	if skipIfT1AndT2ZonesMistmatch(t1ZoneNodes, t2ZoneNodes) {
+		return
+	}
+
+	scenario := newLBTestScenario(t, testName, ciliumCli, k8sCli, dockerCli)
+
+	t.Log("Creating backend apps...")
+	scenario.addBackendApplications(len(t1ZoneNodes),
+		backendApplicationConfig{
+			h2cEnabled: true,
+			listenPort: 8080,
+		})
+
+	t.Log("Creating clients and add BGP peering ...")
+	client := scenario.addFRRClients(1, frrClientConfig{})[0]
+
+	t.Log("Creating LB VIP resources...")
+	vip := lbVIP(testName)
+	scenario.createLBVIP(vip)
+
+	t.Log("Creating LB BackendPool resources...")
+	backends, zoneBackend := zonedBackendsForScenario(scenario.backendApps, slices.Collect(maps.Keys(t1ZoneNodes)))
+	backendPool := lbBackendPool(testName, backends...)
+	scenario.createLBBackendPool(backendPool)
+
+	t.Log("Creating LB Service resources...")
+	service := lbService(testName,
+		withHTTPProxyApplication(withHttpRoute(testName)),
+		withTrafficPolicy(
+			withZoneAware(
+				withPreferSameZone(),
+				withMinBackendCount(2),
+			),
+		),
+	)
+	scenario.createLBService(service)
+
+	t.Log("Waiting for full VIP connectivity...")
+	vipIP := scenario.waitForFullVIPConnectivity(testName)
+
+	assertVIPConnectivity(t, client, vipIP)
+
+	if skipIfRequestIDUnavailable(t, client, vipIP) {
+		return
+	}
+
+	t.Log("Starting zone testing...")
+	for zone, nodes := range t1ZoneNodes {
+		assertSameZoneRouting(t, client, zone, nodes[0], vipIP, zoneBackend, sendAndCollectResponseIDs)
+	}
+
+	t.Log("Starting zone failover testing...")
+	for zone, nodes := range t1ZoneNodes {
+		assertPreferZoneFailover(t, client, zone, nodes[0], vipIP, zoneBackend, sendAndCollectResponseIDs)
+	}
+}
+
+func runT1ZoneTest(t T, testName string, zoneAwareOpt zoneAware, failoverAssert zoneFailoverAssert) {
+	scenario, ok := setupT1ZoneScenario(t,
+		testName,
+		withTrafficPolicy(
+			withZoneAware(
+				zoneAwareOpt,
+			),
+		),
+	)
+	if !ok {
+		return
+	}
+
+	assertVIPConnectivity(t, scenario.client, scenario.vipIP)
+
+	t.Log("Starting zone routing testing...")
 	for zone, nodes := range scenario.t1ZoneNodes {
 		assertSameZoneRouting(t, scenario.client, zone, nodes[0], scenario.vipIP, scenario.zoneBackend, sendWithInjectedRequestID)
 	}
 
-	t.Log("Starting same zone failover testing...")
+	t.Log("Starting zone failover testing...")
 	for zone, nodes := range scenario.t1ZoneNodes {
-		assertFailoverZoneRouting(t, scenario.client, zone, nodes[0], scenario.vipIP, scenario.zoneBackend)
+		failoverAssert(t, scenario.client, zone, nodes[0], scenario.vipIP, scenario.zoneBackend, sendWithInjectedRequestID)
 	}
 }
 
@@ -87,26 +160,12 @@ func setupT1ZoneScenario(t T, testName string, zoneAwareOpt serviceOption) (t1Zo
 	ciliumCli, k8sCli := NewCiliumAndK8sCli(t)
 	dockerCli := NewDockerCli(t)
 
-	minVersion := ">=1.19.0"
-	currentVersion := GetCiliumVersion(t, k8sCli)
-	if !versioncheck.MustCompile(minVersion)(currentVersion) {
-		fmt.Printf("skipping due to version mismatch - expected: %s - current: %s\n", minVersion, currentVersion.String())
+	if skipIfUnsupportedZoneTests(t, k8sCli) {
 		return t1ZoneScenario{}, false
 	}
 
-	if skipIfOnSingleNode(">1 backends are not supported") {
-		return t1ZoneScenario{}, false
-	}
-
-	t.Log("Collecting T1 nodes...")
-	t1Nodes, err := getT1Nodes(t, k8sCli)
-	if err != nil {
-		t.Failedf("failed to get T1 nodes: %s", err)
-	}
-
-	t1ZoneNodes := getZoneNodes(t1Nodes)
-	if len(t1ZoneNodes) < 2 {
-		fmt.Printf("skipping due to not enough T1 nodes in different zones [%d < 2]\n", len(t1ZoneNodes))
+	t1ZoneNodes, ok := collectZoneNodes(t, k8sCli, "T1", getT1Nodes)
+	if !ok {
 		return t1ZoneScenario{}, false
 	}
 
@@ -153,14 +212,62 @@ func setupT1ZoneScenario(t T, testName string, zoneAwareOpt serviceOption) (t1Zo
 	}, true
 }
 
+func assertVIPConnectivity(t T, client *frrContainer, vipIP string) {
+	testCmd := curlCmdVerbose(getURL("", vipIP))
+	t.Log("Testing %q...", testCmd)
+	stdout, stderr, err := client.Exec(t.Context(), testCmd)
+	if err != nil {
+		t.Failedf("curl failed (cmd: %q, stdout: %q, stderr: %q): %s", testCmd, stdout, stderr, err)
+	}
+}
+
 func getT1Nodes(t T, client *kubernetes.Clientset) ([]core_v1.Node, error) {
-	t1Nodes, err := client.CoreV1().Nodes().List(t.Context(), v1.ListOptions{
-		LabelSelector: "service.cilium.io/node in (t1, t1-t2)",
+	return getNodesBySelector(t, client, "service.cilium.io/node in (t1, t1-t2)")
+}
+
+func getT2Nodes(t T, client *kubernetes.Clientset) ([]core_v1.Node, error) {
+	return getNodesBySelector(t, client, "service.cilium.io/node in (t2, t1-t2)")
+}
+
+func getNodesBySelector(t T, client *kubernetes.Clientset, labelSelector string) ([]core_v1.Node, error) {
+	nodes, err := client.CoreV1().Nodes().List(t.Context(), v1.ListOptions{
+		LabelSelector: labelSelector,
 	})
 	if err != nil {
 		return nil, err
 	}
-	return t1Nodes.Items, nil
+	return nodes.Items, nil
+}
+
+func skipIfUnsupportedZoneTests(t T, k8sCli *kubernetes.Clientset) bool {
+	minVersion := ">=1.19.0"
+	currentVersion := GetCiliumVersion(t, k8sCli)
+	if !versioncheck.MustCompile(minVersion)(currentVersion) {
+		fmt.Printf("skipping due to version mismatch - expected: %s - current: %s\n", minVersion, currentVersion.String())
+		return true
+	}
+
+	if skipIfOnSingleNode(">1 backends are not supported") {
+		return true
+	}
+
+	return false
+}
+
+func collectZoneNodes(t T, client *kubernetes.Clientset, nodeKind string, getNodes func(T, *kubernetes.Clientset) ([]core_v1.Node, error)) (map[string][]core_v1.Node, bool) {
+	t.Log("Collecting %s nodes...", nodeKind)
+	nodes, err := getNodes(t, client)
+	if err != nil {
+		t.Failedf("failed to get %s nodes: %s", nodeKind, err)
+	}
+
+	zoneNodes := getZoneNodes(nodes)
+	if len(zoneNodes) < 2 {
+		fmt.Printf("skipping due to not enough %s nodes in different zones [%d < 2]\n", nodeKind, len(zoneNodes))
+		return nil, false
+	}
+
+	return zoneNodes, true
 }
 
 func getZoneNodes(nodes []core_v1.Node) map[string][]core_v1.Node {
@@ -192,90 +299,141 @@ func zonedBackendsForScenario(backends map[string]*hcAppContainer, zones []strin
 	return backendOptions, zoneBackend
 }
 
-func assertSameZoneRouting(t T, client *frrContainer, zone string, node core_v1.Node, vipIP string, zoneBackend map[string]*hcAppContainer, collectRequestLogMatcher func(t T, client *frrContainer, zone, nodeName, vipIP string, requestCount int) requestLogMatcher) {
-	t.Log("[%s] targeting traffic from client to %s via T1 %s node...", zone, vipIP, node.Name)
-	requestCount := 10
-	defer routeTrafficViaT1Node(t, client, vipIP, node)()
-	matchRequestLog := collectRequestLogMatcher(t, client, zone, node.Name, vipIP, requestCount)
+func skipIfT2ZoneAwarenessDisabled(t T, k8sCli *kubernetes.Clientset) bool {
+	cm, err := k8sCli.CoreV1().ConfigMaps(t.CiliumNamespace()).Get(t.Context(), defaults.ConfigMapName, v1.GetOptions{})
+	if err != nil {
+		t.Failedf("failed to get Cilium ConfigMap [%s/%s]: %s", t.CiliumNamespace(), defaults.ConfigMapName, err)
+	}
+	if cm.Data == nil {
+		t.Failedf("Cilium ConfigMap [%s/%s] is empty", t.CiliumNamespace(), defaults.ConfigMapName)
+	}
 
-	for z, beApp := range zoneBackend {
-		var assertFn func(matchCount int)
-		if z == zone {
-			t.Log("[%s] asserting %d requests reached out backend in the same zone...", zone, requestCount)
-			assertFn = func(matchCount int) {
-				if requestCount != matchCount {
-					t.Failedf("zone %s test failed [sent %d requests, found %d requests]", zone, requestCount, matchCount)
-				}
-			}
-		} else {
-			t.Log("[%s] asserting 0 requests reached out backend in different zone...", zone)
-			assertFn = func(matchCount int) {
-				if matchCount > 0 {
-					t.Failedf("zone %s test failed [sent %d requests, found %d requests]", zone, requestCount, matchCount)
-				}
-			}
+	if cm.Data["envoy-node-locality-enabled"] != "true" {
+		fmt.Printf("skipping due to Envoy node locality config disabled\n")
+		return true
+	}
+
+	return false
+}
+
+func skipIfT1AndT2ZonesMistmatch(t1ZoneNodes, t2ZoneNodes map[string][]core_v1.Node) bool {
+	for zone := range t1ZoneNodes {
+		if _, ok := t2ZoneNodes[zone]; !ok {
+			fmt.Printf("skipping due to missing T2 nodes for zone: %s\n", zone)
+			return true
 		}
-		assertRequestsInBackendLogs(t, beApp, matchRequestLog, assertFn)
 	}
+	return false
 }
 
-func assertFailoverZoneRouting(t T, client *frrContainer, zone string, node core_v1.Node, vipIP string, zoneBackend map[string]*hcAppContainer) {
-	t.Log("[%s] targeting traffic from client to %s via T1 %s node...", zone, vipIP, node.Name)
-	defer routeTrafficViaT1Node(t, client, vipIP, node)()
-
-	beApp, ok := zoneBackend[zone]
-	if !ok {
-		t.Failedf("backend app not found for zone: %s", zone)
+func skipIfRequestIDUnavailable(t T, client *frrContainer, vipIP string) bool {
+	testCmd := curlCmdVerbose(fmt.Sprintf("--max-time 10 http://%s:80/ -I -H \"%s: %s\"", vipIP, requestIDHeader, uuid.New().String()))
+	stdout, stderr, err := client.Exec(t.Context(), testCmd)
+	if err != nil {
+		t.Failedf("curl failed (cmd: %q, stdout: %q, stderr: %q): %s", testCmd, stdout, stderr, err)
 	}
-	beApp.SetHC(t, hcFail)
-	defer beApp.SetHC(t, hcOK)
-
-	requestID := fmt.Sprintf("e2e-test-%s-fail-%d", zone, time.Now().Unix())
-	testCmd := curlCmdVerbose(fmt.Sprintf("--max-time 10 http://%s:80/ -H \"%s: %s\"", vipIP, requestIDHeader, requestID))
-	matchRequestLog := func(line string) bool { return strings.Contains(line, requestID) }
-	hitCount := waitForFailClosedResult(t, client, zone, testCmd)
-	assertFailoverBackendLogs(t, zone, zoneBackend, matchRequestLog, hitCount)
+	if getRequestIDValue(stdout) == "" {
+		fmt.Printf("skipping due to missing %q in HTTP response; test requires request-id in response propagation\n", requestIDHeader)
+		return true
+	}
+	return false
 }
 
-func waitForFailClosedResult(t T, client *frrContainer, zone, testCmd string) int {
-	hitCount := 0
-	eventually(t, func() error {
-		stdout, stderr, err := client.Exec(t.Context(), testCmd)
+func assertSameZoneRouting(t T, client *frrContainer, zone string, node core_v1.Node, vipIP string, zoneBackend map[string]*hcAppContainer, rqMatcher requestMatcher) {
+	withTrafficViaT1Node(t, client, zone, node, vipIP, func() {
+		requestCount := 10
+		matchRequestLog, err := rqMatcher(t, client, zone, node.Name, vipIP, requestCount)
 		if err != nil {
-			return nil
+			t.Failedf("%s", err)
 		}
-		hitCount++
-		return fmt.Errorf("curl still succeeded unexpectedly (cmd: %q, stdout: %q, stderr: %q)", testCmd, stdout, stderr)
-	}, longTimeout, longPollInterval)
-	return hitCount
-}
 
-func assertFailoverBackendLogs(t T, zone string, zoneBackend map[string]*hcAppContainer, matchRequestLog requestLogMatcher, hitCount int) {
-	for z, beApp := range zoneBackend {
-		if z == zone {
-			assertSameZoneFailoverHits(t, zone, z, beApp, matchRequestLog, hitCount)
-			continue
-		}
-		assertNoCrossZoneFailoverHits(t, zone, z, beApp, matchRequestLog)
-	}
-}
+		for beZone, beApp := range zoneBackend {
+			count := countRequestsInBackendLogs(t, beApp, matchRequestLog)
+			if beZone == zone {
+				t.Log("[%s] asserting %d requests reached out backend in the same zone...", zone, requestCount)
+				if requestCount != count {
+					t.Failedf("zone %s test failed [sent %d requests, found %d requests]", zone, requestCount, count)
+				}
+				continue
+			}
 
-func assertSameZoneFailoverHits(t T, zone, backendZone string, beApp *hcAppContainer, matchRequestLog requestLogMatcher, hitCount int) {
-	t.Log("[%s] asserting that only %d requests reached backend in zone %s before fail...", zone, hitCount, backendZone)
-	assertRequestsInBackendLogs(t, beApp, matchRequestLog, func(matchCount int) {
-		if matchCount != hitCount {
-			t.Failedf("zone %s failover test failed [found %d requests in zone %s backend]", zone, matchCount, backendZone)
+			t.Log("[%s] asserting 0 requests reached out backend in different zone...", zone)
+			if count > 0 {
+				t.Failedf("zone %s test failed [sent %d requests, found %d requests]", zone, requestCount, count)
+			}
 		}
 	})
 }
 
-func assertNoCrossZoneFailoverHits(t T, zone, backendZone string, beApp *hcAppContainer, matchRequestLog requestLogMatcher) {
-	t.Log("[%s] asserting 0 requests reached backend in zone %s after fail...", zone, backendZone)
-	assertRequestsInBackendLogs(t, beApp, matchRequestLog, func(matchCount int) {
-		if matchCount > 0 {
-			t.Failedf("zone %s failover test failed [found %d requests in zone %s backend]", zone, matchCount, backendZone)
-		}
+func assertRequireZoneFailover(t T, client *frrContainer, zone string, node core_v1.Node, vipIP string, zoneBackend map[string]*hcAppContainer, _ requestMatcher) {
+	withTrafficViaT1Node(t, client, zone, node, vipIP, func() {
+		withFailedZoneBackend(t, zone, zoneBackend, func() {
+			requestID := fmt.Sprintf("e2e-test-%s-fail-%d", zone, time.Now().Unix())
+			testCmd := curlCmdVerbose(fmt.Sprintf("--max-time 10 http://%s:80/ -H \"%s: %s\"", vipIP, requestIDHeader, requestID))
+			matchRequestLog := func(line string) bool { return strings.Contains(line, requestID) }
+			hitCount := waitForFailClosedResult(t, client, zone, testCmd)
+
+			for beZone, beApp := range zoneBackend {
+				count := countRequestsInBackendLogs(t, beApp, matchRequestLog)
+				if beZone == zone {
+					t.Log("[%s] asserting that only %d requests reached backend in zone %s before fail...", zone, hitCount, beZone)
+					if count != hitCount {
+						t.Failedf("zone %s failover test failed [found %d requests in zone %s backend]", zone, count, beZone)
+					}
+					continue
+				}
+
+				t.Log("[%s] asserting 0 requests reached backend in zone %s after fail...", zone, beZone)
+				if count > 0 {
+					t.Failedf("zone %s failover test failed [found %d requests in zone %s backend]", zone, count, beZone)
+				}
+			}
+		})
 	})
+}
+
+func assertPreferZoneFailover(t T, client *frrContainer, zone string, node core_v1.Node, vipIP string, zoneBackend map[string]*hcAppContainer, rqMatcher requestMatcher) {
+	withTrafficViaT1Node(t, client, zone, node, vipIP, func() {
+		withFailedZoneBackend(t, zone, zoneBackend, func() {
+			eventually(t, func() error {
+				matchRequestLog, err := rqMatcher(t, client, zone, node.Name, vipIP, 1)
+				if err != nil {
+					return err
+				}
+				matchedZones := make([]string, 0, len(zoneBackend))
+				for beZone, app := range zoneBackend {
+					hitCount := countRequestsInBackendLogs(t, app, matchRequestLog)
+					if hitCount == 0 {
+						continue
+					}
+					if hitCount != 1 {
+						return fmt.Errorf("unexpectedly matched %d log lines in zone %s", hitCount, beZone)
+					}
+
+					matchedZones = append(matchedZones, beZone)
+				}
+
+				if len(matchedZones) == 0 {
+					return fmt.Errorf("request was not observed in backend logs")
+				}
+				if len(matchedZones) != 1 {
+					return fmt.Errorf("request unexpectedly reached multiple backend zones: %v", matchedZones)
+				}
+				if matchedZones[0] == zone {
+					return fmt.Errorf("request still reached same-zone backend %s", zone)
+				}
+
+				t.Log("[%s] request failed over to backend zone %s", zone, matchedZones[0])
+				return nil
+			}, longTimeout, longPollInterval)
+		})
+	})
+}
+
+func withTrafficViaT1Node(t T, client *frrContainer, zone string, node core_v1.Node, vipIP string, run func()) {
+	t.Log("[%s] targeting traffic from client to %s via T1 %s node...", zone, vipIP, node.Name)
+	defer routeTrafficViaT1Node(t, client, vipIP, node)()
+	run()
 }
 
 func routeTrafficViaT1Node(t T, client *frrContainer, vipIP string, node core_v1.Node) func() {
@@ -299,9 +457,39 @@ func routeTrafficViaT1Node(t T, client *frrContainer, vipIP string, node core_v1
 	}
 }
 
+func withFailedZoneBackend(t T, zone string, zoneBackend map[string]*hcAppContainer, run func()) {
+	beApp, ok := zoneBackend[zone]
+	if !ok {
+		t.Failedf("backend app not found for zone: %s", zone)
+	}
+
+	beApp.SetHC(t, hcFail)
+	defer beApp.SetHC(t, hcOK)
+	run()
+}
+
+func waitForFailClosedResult(t T, client *frrContainer, zone, testCmd string) int {
+	hitCount := 0
+	eventually(t, func() error {
+		t.Log("[%s] waiting for request to fail ...", zone)
+		stdout, stderr, err := client.Exec(t.Context(), testCmd)
+		if err != nil {
+			if strings.Contains(stderr, "Could not connect to server") {
+				return nil
+			}
+			t.Log("[%s] unexpected error received: %v", zone, err)
+			return err
+		}
+
+		hitCount++
+		return fmt.Errorf("curl still succeeded unexpectedly (cmd: %q, stdout: %q, stderr: %q)", testCmd, stdout, stderr)
+	}, longTimeout, longPollInterval)
+	return hitCount
+}
+
 type requestLogMatcher func(line string) bool
 
-func sendWithInjectedRequestID(t T, client *frrContainer, zone, nodeName, vipIP string, requestCount int) requestLogMatcher {
+func sendWithInjectedRequestID(t T, client *frrContainer, zone, nodeName, vipIP string, requestCount int) (requestLogMatcher, error) {
 	requestID := uuid.New().String()
 
 	t.Log("[%s] sending %d request to T1 %s node...", zone, requestCount, nodeName)
@@ -309,16 +497,40 @@ func sendWithInjectedRequestID(t T, client *frrContainer, zone, nodeName, vipIP 
 		testCmd := curlCmdVerbose(fmt.Sprintf("--max-time 10 http://%s:80/ -H \"%s: %s\"", vipIP, requestIDHeader, requestID))
 		stdout, stderr, err := client.Exec(t.Context(), testCmd)
 		if err != nil {
-			t.Failedf("curl failed (cmd: %q, stdout: %q, stderr: %q): %s", testCmd, stdout, stderr, err)
+			return nil, fmt.Errorf("curl failed (cmd: %q, stdout: %q, stderr: %q): %w", testCmd, stdout, stderr, err)
 		}
 	}
 
 	return func(line string) bool {
 		return getRequestIDValue(line) == requestID
-	}
+	}, nil
 }
 
-func assertRequestsInBackendLogs(t T, beApp *hcAppContainer, matchRequestLog requestLogMatcher, assertFn func(int)) {
+func sendAndCollectResponseIDs(t T, client *frrContainer, zone, nodeName, vipIP string, requestCount int) (requestLogMatcher, error) {
+	requestIDs := make(map[string]struct{}, requestCount)
+
+	t.Log("[%s] sending %d request to T1 %s node...", zone, requestCount, nodeName)
+	for range requestCount {
+		testCmd := curlCmdVerbose(fmt.Sprintf("--max-time 10 http://%s:80/ -I -H \"%s: %s\"", vipIP, requestIDHeader, uuid.New().String()))
+		stdout, stderr, err := client.Exec(t.Context(), testCmd)
+		if err != nil {
+			return nil, fmt.Errorf("curl failed (cmd: %q, stdout: %q, stderr: %q): %w", testCmd, stdout, stderr, err)
+		}
+
+		requestID := getRequestIDValue(stdout)
+		if requestID == "" {
+			return nil, fmt.Errorf("failed due to %q header not found in response", requestIDHeader)
+		}
+		requestIDs[requestID] = struct{}{}
+	}
+
+	return func(line string) bool {
+		_, ok := requestIDs[getRequestIDValue(line)]
+		return ok
+	}, nil
+}
+
+func countRequestsInBackendLogs(t T, beApp *hcAppContainer, matchRequestLog requestLogMatcher) int {
 	beLog, err := beApp.dockerCli.ContainerLogs(t.Context(), beApp.id, container.LogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
@@ -342,7 +554,7 @@ func assertRequestsInBackendLogs(t T, beApp *hcAppContainer, matchRequestLog req
 			matchCount++
 		}
 	}
-	assertFn(matchCount)
+	return matchCount
 }
 
 const requestIDHeader = "x-request-id"
