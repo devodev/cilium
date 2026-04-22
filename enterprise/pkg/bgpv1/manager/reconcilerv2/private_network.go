@@ -365,7 +365,7 @@ func (r *PrivateNetworkReconciler) reconcilePrivateNetworks(
 
 	if reqFullReconcile {
 		r.logger.Debug("Full private network advertisements reconciliation")
-		allWorkloads, err := r.fullReconciliationWorkloadList(metadata) // note: can be called only once per reconcile
+		allWorkloads, fullTx, err := r.fullReconciliationWorkloadList(metadata) // note: can be called only once per reconcile
 		if err != nil {
 			return err
 		}
@@ -375,7 +375,7 @@ func (r *PrivateNetworkReconciler) reconcilePrivateNetworks(
 			}
 			privNetName := vrf.PrivateNetworkRef.Name
 			// populate paths for the workloads of this VRF / privnet
-			desiredPaths, err := r.getPrivNetAFPaths(desiredVRFAdverts[privNetName], desiredVRFEVPN[privNetName], evpnSubnets[privNetName], allWorkloads[privNetName], tx)
+			desiredPaths, err := r.getPrivNetAFPaths(desiredVRFAdverts[privNetName], desiredVRFEVPN[privNetName], evpnSubnets[privNetName], allWorkloads[privNetName], fullTx)
 			if err != nil {
 				return err
 			}
@@ -438,10 +438,10 @@ func (r *PrivateNetworkReconciler) configModified(metadata *privateNetworkReconc
 			evpnSubnets != nil && !evpnSubnets.DeepEqual(&metadata.privnetEvpnSubnets))
 }
 
-func (r *PrivateNetworkReconciler) fullReconciliationWorkloadList(metadata *privateNetworkReconcilerMetadata) (map[string][]*tables.LocalWorkload, error) {
+func (r *PrivateNetworkReconciler) fullReconciliationWorkloadList(metadata *privateNetworkReconcilerMetadata) (map[string][]*tables.LocalWorkload, statedb.ReadTxn, error) {
 	rx, err := r.initFullReconciliationChangeIterators(metadata)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	toReconcile := make(map[string][]*tables.LocalWorkload)
@@ -460,7 +460,7 @@ func (r *PrivateNetworkReconciler) fullReconciliationWorkloadList(metadata *priv
 		for range sgEvents {
 		}
 	}
-	return toReconcile, nil
+	return toReconcile, rx, nil
 }
 
 func (r *PrivateNetworkReconciler) initFullReconciliationChangeIterators(metadata *privateNetworkReconcilerMetadata) (statedb.ReadTxn, error) {
