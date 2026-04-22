@@ -2653,6 +2653,28 @@ func TestEgressCIDRAllocation(t *testing.T) {
 			Status: metav1.ConditionUnknown,
 		},
 	})
+
+	// User-specified EgressInterface is not supported when using IPAM with virtualIP
+	policy.egressGroups[defaultEgressGroupID].egressIP = ""
+	policy.egressGroups[defaultEgressGroupID].iface = "eth0"
+	policy.annotations = map[string]string{
+		virtualEgressIPKey: "true",
+	}
+	k.addPolicy(t, policy)
+	k.assertIegpGatewayStatus(t, gatewayStatus{
+		activeGatewayIPs:  []string{},
+		healthyGatewayIPs: []string{node1IP, node2IP, node3IP, node5IP},
+	})
+	k.assertIegpStatusConditions(t, []metav1.Condition{
+		{
+			Type:   egwIPAMRequestSatisfied,
+			Status: metav1.ConditionFalse,
+		},
+		{
+			Type:   egwIPAMUnsupportedEgressInterface,
+			Status: metav1.ConditionUnknown,
+		},
+	})
 }
 
 // Test that EGW-IPAM prioritizes active nodes over quarantined ones, and if necessary moves the assigned IPs.

@@ -39,10 +39,11 @@ const (
 	// egress gateway IPAM condition types to be set in IEGP status after allocation attempts
 	egwIPAMRequestSatisfied = "isovalent.com/IPAMRequestSatisfied"
 
-	egwIPAMInvalidCIDR         = "isovalent.com/InvalidCIDR"
-	egwIPAMUnsupportedEgressIP = "isovalent.com/UnsupportedEgressIP"
-	egwIPAMPoolExhausted       = "isovalent.com/PoolExhausted"
-	egwIPAMPoolConflicting     = "isovalent.com/PoolConflict"
+	egwIPAMInvalidCIDR                = "isovalent.com/InvalidCIDR"
+	egwIPAMUnsupportedEgressIP        = "isovalent.com/UnsupportedEgressIP"
+	egwIPAMUnsupportedEgressInterface = "isovalent.com/UnsupportedEgressInterface"
+	egwIPAMPoolExhausted              = "isovalent.com/PoolExhausted"
+	egwIPAMPoolConflicting            = "isovalent.com/PoolConflict"
 
 	nodeEgressGatewayKey                = egressGatewayPrefix + "/node"
 	nodeEgressGatewayUnschedulableValue = "unschedulable"
@@ -384,6 +385,23 @@ func (config *PolicyConfig) allocateEgressIPs(logger *slog.Logger, operatorManag
 					Message:            msg,
 				},
 			}...)
+		}
+
+		if config.virtualIP {
+			if iface := config.groupConfigs[i].iface; iface != "" {
+				msg := "interface not supported together with virtual-ip annotation"
+				operatorManager.health.Degraded(msg, fmt.Errorf("found egress interface %s in policy %s", iface, config.id.Name))
+				return groupStatuses, conditionsForFailure(config.generation, []meta_v1.Condition{
+					{
+						Type:               egwIPAMUnsupportedEgressInterface,
+						Status:             meta_v1.ConditionUnknown,
+						ObservedGeneration: config.generation,
+						LastTransitionTime: meta_v1.Now(),
+						Reason:             "noreason",
+						Message:            msg,
+					},
+				}...)
+			}
 		}
 
 		// For all still-active gateways we strive to keep the same allocated Egress IP as before.
