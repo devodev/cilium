@@ -142,8 +142,8 @@ func (k *EgressGatewayOperatorTestSuite) addPolicy(t *testing.T, policy *policyP
 func (k *EgressGatewayOperatorTestSuite) updateEgressGroupMaxGatewayNodes(t *testing.T, policy *policyParams, group, n int) *policyParams {
 	require.True(t, 0 <= group && group < len(policy.egressGroups))
 	policy.egressGroups[group].maxGatewayNodes = n
-	addPolicy(t, k.fakeSet, k.policies, policy)
-	return policy
+
+	return k.addPolicy(t, policy)
 }
 
 func (k *EgressGatewayOperatorTestSuite) getCurrentStatusForUpdate(t *testing.T, policy *policyParams) *policyParams {
@@ -2638,7 +2638,7 @@ func TestEgressCIDRAllocation(t *testing.T) {
 	// User-specified EgressIP are not supported when relying on egress-gateway IPAM
 	policy.egressGroups[defaultEgressGroupID].egressIP = "10.100.255.48"
 	policy.egressGroups[defaultEgressGroupID].iface = "" // clear the interface, since having both iface and egressIP is not supported
-	addPolicy(t, k.fakeSet, k.policies, policy)
+	k.addPolicy(t, policy)
 	k.assertIegpGatewayStatus(t, gatewayStatus{
 		activeGatewayIPs:  []string{},
 		healthyGatewayIPs: []string{node1IP, node2IP, node3IP, node5IP},
