@@ -237,7 +237,7 @@ features:
       enterprise.loadbalancer.gatewayAPI.enabled: true
 
   BGPRouteImport:
-    maturity: Beta
+    maturity: Limited
     description: Import routes to the kernel FIB from BGP
     skip-flag-check: true
     flags:
@@ -246,7 +246,7 @@ features:
       enterprise.bgpControlPlane.routeImport.enabled: true
 
   EVPN:
-    maturity: Beta
+    maturity: Limited
     description: EVPN support
     skip-flag-check: true
     flags:

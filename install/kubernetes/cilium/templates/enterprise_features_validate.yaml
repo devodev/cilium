@@ -23,12 +23,12 @@ WARNING: A Limited feature BFD was enabled, but it is not an approved feature.
   {{- end -}}
 {{- end -}}
 {{- if (eq "true" (print .enterprise.bgpControlPlane.routeImport.enabled))  -}}
-  {{- if (and (gt (get $featureMaturityLevels "Beta") $minimumMaturityOrder) (not (has "BGPRouteImport" .enterprise.featureGate.approved))) -}}
+  {{- if (and (gt (get $featureMaturityLevels "Limited") $minimumMaturityOrder) (not (has "BGPRouteImport" .enterprise.featureGate.approved))) -}}
     {{- if $strictFeatureGates -}}
-      {{- fail "\nBeta feature: BGPRouteImport was enabled, but is not an approved feature. Please contact Isovalent Support for more information on how to grant an exception." -}}
+      {{- fail "\nLimited feature: BGPRouteImport was enabled, but is not an approved feature. Please contact Isovalent Support for more information on how to grant an exception." -}}
     {{- else -}}
       {{ $fails = true }}
-WARNING: A Beta feature BGPRouteImport was enabled, but it is not an approved feature.
+WARNING: A Limited feature BGPRouteImport was enabled, but it is not an approved feature.
     {{- end -}}
   {{- end -}}
 {{- end -}}
@@ -163,12 +163,12 @@ WARNING: A Beta feature DatapathModeNetkit was enabled, but it is not an approve
   {{- end -}}
 {{- end -}}
 {{- if (eq "true" (print .enterprise.evpn.enabled))  -}}
-  {{- if (and (gt (get $featureMaturityLevels "Beta") $minimumMaturityOrder) (not (has "EVPN" .enterprise.featureGate.approved))) -}}
+  {{- if (and (gt (get $featureMaturityLevels "Limited") $minimumMaturityOrder) (not (has "EVPN" .enterprise.featureGate.approved))) -}}
     {{- if $strictFeatureGates -}}
-      {{- fail "\nBeta feature: EVPN was enabled, but is not an approved feature. Please contact Isovalent Support for more information on how to grant an exception." -}}
+      {{- fail "\nLimited feature: EVPN was enabled, but is not an approved feature. Please contact Isovalent Support for more information on how to grant an exception." -}}
     {{- else -}}
       {{ $fails = true }}
-WARNING: A Beta feature EVPN was enabled, but it is not an approved feature.
+WARNING: A Limited feature EVPN was enabled, but it is not an approved feature.
     {{- end -}}
   {{- end -}}
 {{- end -}}
