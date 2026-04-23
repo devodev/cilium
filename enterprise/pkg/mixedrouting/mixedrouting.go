@@ -27,7 +27,6 @@ import (
 	"github.com/cilium/cilium/pkg/datapath/tunnel"
 	"github.com/cilium/cilium/pkg/ipcache"
 	"github.com/cilium/cilium/pkg/logging/logfields"
-	ipcmap "github.com/cilium/cilium/pkg/maps/ipcache"
 	"github.com/cilium/cilium/pkg/metrics"
 	"github.com/cilium/cilium/pkg/node"
 	nodemanager "github.com/cilium/cilium/pkg/node/manager"
@@ -177,7 +176,6 @@ func (mgr *manager) setupEndpointManager(cm *clustermesh.ClusterMesh, lst *dpipc
 
 	clustermesh.InjectCEIPCache(cm, mgr.endpoints)
 	dpipc.InjectCEMap(lst, &ipcmapwr{
-		Map:     ipcmap.IPCacheMap(reg),
 		mutator: mgr.endpoints.mutateRemoteEndpointInfo,
 	})
 }

@@ -350,13 +350,21 @@ func (em *endpointManager) mutateRemoteEndpointInfo(key *ipcmap.Key, rei *ipcmap
 }
 
 type ipcmapwr struct {
-	dpipc.Map
+	next    dpipc.Map
 	mutator func(*ipcmap.Key, *ipcmap.RemoteEndpointInfo)
+}
+
+func (imw *ipcmapwr) SetNext(next dpipc.Map) {
+	imw.next = next
 }
 
 // Update wraps the corresponding ipcachemap.Map method to appropriately mutate
 // the value (setting the tunnel flag) before performing the upsertion operation.
 func (imw *ipcmapwr) Update(key bpf.MapKey, value bpf.MapValue) error {
 	imw.mutator(key.(*ipcmap.Key), value.(*ipcmap.RemoteEndpointInfo))
-	return imw.Map.Update(key, value)
+	return imw.next.Update(key, value)
+}
+
+func (imw *ipcmapwr) Delete(key bpf.MapKey) error {
+	return imw.next.Delete(key)
 }
