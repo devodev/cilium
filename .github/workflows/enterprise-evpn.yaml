@@ -58,6 +58,7 @@ concurrency:
 
 env:
   containerlab_version: 0.74.3
+  junits_directory: cilium-junits
 
 jobs:
   commit-status-start:
@@ -205,20 +206,27 @@ jobs:
         run: |
           cd contrib/containerlab/enterprise/evpn && make config
 
+      - name: Create JUnit report directory
+        run: |
+          mkdir -p ${{ env.junits_directory }}
+
       - name: Run EVPN connectivity tests
         uses: cilium/little-vm-helper@e249f34602b03d331320955be94cbaa2cc4fb6a8 # v0.0.29
         with:
           provision: 'false'
           cmd: |
+            # Forward the GitHub workflow ref used by CODEOWNERS matching into the VM.
+            export GITHUB_WORKFLOW_REF="${GITHUB_WORKFLOW_REF}"
             cd /host/
             ./cilium evpn test --skip-cleanup-on-failure \
-              --vnis=100,200 --vni-containers=clab-evpn-cluster-vni100-host,clab-evpn-cluster-vni200-host
-            # TODO: generate junits from these tests as well
+              --vnis=100,200 --vni-containers=clab-evpn-cluster-vni100-host,clab-evpn-cluster-vni200-host \
+              --log-code-owners --code-owners=${CILIUM_CLI_CODE_OWNERS_PATHS} \
+              --exclude-code-owners=${CILIUM_CLI_EXCLUDE_OWNERS} \
+              --junit-file "${{ env.junits_directory }}/${{ env.job_name }} - evpn (${{ join(matrix.*, ', ') }}).xml" \
+              --junit-property github_job_step="Run EVPN connectivity tests"
 
       - name: Run Cilium connectivity tests
         run: |
-          mkdir -p cilium-junits
-
           # Run only a limited subset of tests to reduce the amount of time required.
           cilium connectivity test \
             ${{ steps.e2e_config.outputs.test_flags }} \
@@ -229,8 +237,8 @@ jobs:
             --test='client-ingress/' \
             --test='client-egress/' \
             --test='check-log-errors' \
-            --junit-file "cilium-junits/${{ env.job_name }} - cluster (${{ join(matrix.*, ', ') }}).xml" \
-            --junit-property github_job_step="Run tests - cluster (${{ join(matrix.*, ', ') }})" \
+            --junit-file "${{ env.junits_directory }}/${{ env.job_name }} - connectivity (${{ join(matrix.*, ', ') }}).xml" \
+            --junit-property github_job_step="Run Cilium connectivity tests (${{ join(matrix.*, ', ') }})" \
             --log-check-extra-exceptions="Netlink error received, restarting"
             # Note: "Netlink error received, restarting" log warning is expected here due to
             # multiple netlink subscriptions caused by using go-ra for BGP unnumbered.
@@ -264,6 +272,7 @@ jobs:
         with:
           artifacts_suffix: "enterprise-evpn-${{ matrix.name }}"
           job_status: "${{ job.status }}"
+          junits-directory: ${{ env.junits_directory }}
           capture_sysdump: true
 
   merge-upload-and-status:
