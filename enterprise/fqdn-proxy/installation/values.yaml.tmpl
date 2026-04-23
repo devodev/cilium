@@ -114,3 +114,26 @@ serviceAccount:
   name: cilium-dnsproxy
   # -- Annotations for the service account
   annotations: {}
+
+startupProbe:
+  # -- Enable startup probe for dnsproxy container.
+  enabled: true
+  # -- Failure threshold of dnsproxy container startup probe.
+  # Allow cilium-dnsproxy to take up to 120s to start up (60 attempts with 2s between attempts).
+  failureThreshold: 60
+  # -- Interval between checks of the startup probe
+  periodSeconds: 2
+livenessProbe:
+  # -- Enable liveness probe for dnsproxy container.
+  enabled: true
+  # -- Failure threshold of dnsproxy container liveness probe.
+  failureThreshold: 10
+  # -- Interval between checks of the liveness probe.
+  periodSeconds: 30
+readinessProbe:
+  # -- Enable readiness probe for dnsproxy container.
+  enabled: true
+  # -- Failure threshold of dnsproxy container readiness probe.
+  failureThreshold: 3
+  # -- Interval between checks of the readiness probe.
+  periodSeconds: 30

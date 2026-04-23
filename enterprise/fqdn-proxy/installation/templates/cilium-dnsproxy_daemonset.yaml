@@ -72,6 +72,56 @@ spec:
 {{- with .Values.extraArgs }}
 {{- toYaml . | trim | nindent 8 }}
 {{- end }}
+        {{- if .Values.startupProbe.enabled }}
+        startupProbe:
+          exec:
+            command:
+            - dnsproxy
+            - shell
+            - --
+            - db/initialized
+            - health
+            - --timeout
+            - 3s
+          periodSeconds: {{ .Values.startupProbe.periodSeconds }}
+          successThreshold: 1
+          failureThreshold: {{ .Values.startupProbe.failureThreshold }}
+          timeoutSeconds: 5
+        {{- end }}
+        {{- if .Values.livenessProbe.enabled }}
+        livenessProbe:
+          exec:
+            command:
+            - dnsproxy
+            - shell
+            - --
+            - health
+            - --match
+            - fqdnha-proxy.job-fqdnha-proxy
+            - --levels
+            - ok
+          periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+          successThreshold: 1
+          failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+          timeoutSeconds: 5
+        {{- end }}
+        {{- if .Values.readinessProbe.enabled }}
+        readinessProbe:
+          exec:
+            command:
+            - dnsproxy
+            - shell
+            - --
+            - health
+            - --match
+            - fqdnha-proxy.job-fqdnha-proxy
+            - --levels
+            - ok
+          periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+          successThreshold: 1
+          failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+          timeoutSeconds: 5
+        {{- end }}
         env:
         - name: K8S_NODE_NAME
           valueFrom:

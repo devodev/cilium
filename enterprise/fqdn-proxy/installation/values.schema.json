@@ -86,6 +86,20 @@
       "items": {},
       "type": "array"
     },
+    "livenessProbe": {
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "failureThreshold": {
+          "type": "integer"
+        },
+        "periodSeconds": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
     "metrics": {
       "properties": {
         "enabled": {
@@ -162,6 +176,20 @@
     "priorityClassName": {
       "type": "string"
     },
+    "readinessProbe": {
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "failureThreshold": {
+          "type": "integer"
+        },
+        "periodSeconds": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
     "resources": {
       "type": "object"
     },
@@ -184,6 +212,20 @@
         },
         "name": {
           "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "startupProbe": {
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "failureThreshold": {
+          "type": "integer"
+        },
+        "periodSeconds": {
+          "type": "integer"
         }
       },
       "type": "object"

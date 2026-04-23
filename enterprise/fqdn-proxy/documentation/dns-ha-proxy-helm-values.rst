@@ -61,6 +61,18 @@
      - Image pull secrets for pulling container images
      - list
      - ``[]``
+   * - :spelling:ignore:`livenessProbe.enabled`
+     - Enable liveness probe for dnsproxy container.
+     - bool
+     - ``true``
+   * - :spelling:ignore:`livenessProbe.failureThreshold`
+     - Failure threshold of dnsproxy container liveness probe.
+     - int
+     - ``10``
+   * - :spelling:ignore:`livenessProbe.periodSeconds`
+     - Interval between checks of the liveness probe.
+     - int
+     - ``30``
    * - :spelling:ignore:`metrics.enabled`
      - Enable Prometheus metrics.
      - bool
@@ -129,6 +141,18 @@
      - The priority class to use for cilium-dnsproxy.
      - string
      - ``"system-node-critical"``
+   * - :spelling:ignore:`readinessProbe.enabled`
+     - Enable readiness probe for dnsproxy container.
+     - bool
+     - ``true``
+   * - :spelling:ignore:`readinessProbe.failureThreshold`
+     - Failure threshold of dnsproxy container readiness probe.
+     - int
+     - ``3``
+   * - :spelling:ignore:`readinessProbe.periodSeconds`
+     - Interval between checks of the readiness probe.
+     - int
+     - ``30``
    * - :spelling:ignore:`resources`
      - Cilium-dnsproxy resource limits & requests ref: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
      - object
@@ -157,6 +181,18 @@
      - The name of the service account
      - string
      - ``"cilium-dnsproxy"``
+   * - :spelling:ignore:`startupProbe.enabled`
+     - Enable startup probe for dnsproxy container.
+     - bool
+     - ``true``
+   * - :spelling:ignore:`startupProbe.failureThreshold`
+     - Failure threshold of dnsproxy container startup probe. Allow cilium-dnsproxy to take up to 120s to start up (60 attempts with 2s between attempts).
+     - int
+     - ``60``
+   * - :spelling:ignore:`startupProbe.periodSeconds`
+     - Interval between checks of the startup probe
+     - int
+     - ``2``
    * - :spelling:ignore:`tolerations`
      - Node tolerations for proxy scheduling to nodes with taints ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
      - list
