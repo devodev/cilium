@@ -1,0 +1,22 @@
+apiVersion: isovalent.com/v1alpha1
+kind: LBBackendPool
+metadata:
+  namespace: default
+  name: lb-1
+spec:
+  backends:
+    - ip: 172.18.0.5
+      port: 8080
+      zone: zone-a
+    - ip: 172.18.0.6
+      port: 8080
+      zone: zone-b
+  healthCheck:
+    intervalSeconds: 30
+    timeoutSeconds: 10
+    healthyThreshold: 2
+    unhealthyThreshold: 2
+    http:
+      host: example.com
+      path: /healthz
+    tlsConfig: {}
