@@ -2640,8 +2640,9 @@ func TestEgressCIDRAllocation(t *testing.T) {
 	policy.egressGroups[defaultEgressGroupID].iface = "" // clear the interface, since having both iface and egressIP is not supported
 	k.addPolicy(t, policy)
 	k.assertIegpGatewayStatus(t, gatewayStatus{
-		activeGatewayIPs:  []string{},
-		healthyGatewayIPs: []string{node1IP, node2IP, node3IP, node5IP},
+		activeGatewayIPs:    []string{},
+		healthyGatewayIPs:   []string{node1IP, node2IP, node3IP, node5IP},
+		egressIPByGatewayIP: map[string]string{},
 	})
 	k.assertIegpStatusConditions(t, []metav1.Condition{
 		{
@@ -2662,8 +2663,9 @@ func TestEgressCIDRAllocation(t *testing.T) {
 	}
 	k.addPolicy(t, policy)
 	k.assertIegpGatewayStatus(t, gatewayStatus{
-		activeGatewayIPs:  []string{},
-		healthyGatewayIPs: []string{node1IP, node2IP, node3IP, node5IP},
+		activeGatewayIPs:    []string{},
+		healthyGatewayIPs:   []string{node1IP, node2IP, node3IP, node5IP},
+		egressIPByGatewayIP: map[string]string{},
 	})
 	k.assertIegpStatusConditions(t, []metav1.Condition{
 		{
