@@ -86,3 +86,15 @@ Create the name of the service account to use
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
+
+{{/*
+Merge required security context for dnsproxy with user supplied securityContext.
+*/}}
+{{- define "dnsproxy.securityContext" -}}
+{{- $caps := list "NET_ADMIN" "NET_RAW" -}}
+{{- if .Values.offlineMode.enabled -}}
+  {{- $caps = append $caps "BPF" -}}
+{{- end -}}
+{{- $ctx := dict "capabilities" (dict "add" $caps) -}}
+{{- mustMerge (deepCopy .Values.securityContext) $ctx | toYaml -}}
+{{- end -}}
