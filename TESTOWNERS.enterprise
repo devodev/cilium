@@ -579,6 +579,7 @@
 /enterprise/pkg/nat/ @isovalent/egress-gateway
 /enterprise/pkg/vni @isovalent/traffic-engineering
 /enterprise/pkg/tunnelip @isovalent/private-networking
+/enterprise/pkg/vrf @isovalent/cilium-datapath
 /enterprise/plugins/cilium-cni/ @isovalent/cilium-agent
 /enterprise/plugins/cilium-cni/pkg/multinetwork/ @isovalent/multi-network
 /enterprise/plugins/cilium-cni/pkg/privnet/ @isovalent/private-networking
@@ -624,6 +625,7 @@
 /pkg/k8s/apis/isovalent.com/client/crds/v1alpha1/isovalentbgp*.yaml @isovalent/traffic-engineering
 /pkg/k8s/apis/isovalent.com/client/crds/v1alpha1/isovalentclusterwideencryptionpolicies.yaml @isovalent/encryption
 /pkg/k8s/apis/isovalent.com/client/crds/v1alpha1/isovalentclusterwidenetworkpolicies.yaml @isovalent/policy-identity-networking
+/pkg/k8s/apis/isovalent.com/client/crds/v1alpha1/isovalentcorevrf*.yaml @isovalent/cilium-datapath
 /pkg/k8s/apis/isovalent.com/client/crds/v1alpha1/isovalentnetworkpolicies.yaml @isovalent/policy-identity-networking
 /pkg/k8s/apis/isovalent.com/client/crds/v1alpha1/isovalentpodnetworks.yaml @isovalent/multi-network
 /pkg/k8s/apis/isovalent.com/client/crds/v1alpha1/lb*.yaml @isovalent/isovalent-loadbalancer
@@ -632,6 +634,7 @@
 /pkg/k8s/apis/isovalent.com/client/crds/v1/isovalentegressgatewaypolicies.yaml @isovalent/egress-gateway
 /pkg/k8s/apis/isovalent.com/v1alpha1/bfd_types.go @isovalent/traffic-engineering
 /pkg/k8s/apis/isovalent.com/v1alpha1/bgp_*_types.go @isovalent/traffic-engineering
+/pkg/k8s/apis/isovalent.com/v1alpha1/ciliumvrf_types.go @isovalent/cilium-datapath
 /pkg/k8s/apis/isovalent.com/v1alpha1/encryption_types.go @isovalent/encryption
 /pkg/k8s/apis/isovalent.com/v1alpha1/fsg_types.go @isovalent/traffic-engineering
 /pkg/k8s/apis/isovalent.com/v1alpha1/lb_types* @isovalent/isovalent-loadbalancer
