@@ -1109,6 +1109,7 @@ Makefile* @cilium/build
 /pkg/k8s/synced/enterprise_* @isovalent/sig-k8s
 /pkg/logging/logfields/enterprise_* @isovalent/cilium-agent
 /pkg/maps/ipcache/*enterprise* @isovalent/dns-proxy
+/pkg/node/addressing/enterprise_addresstype.go @isovalent/private-networking
 /pkg/option/enterprise_* @isovalent/cilium-agent @isovalent/cli
 /pkg/policy/types/enterprise_selector.go @isovalent/private-networking
 /plugins/cilium-cni/cmd/enterprise_* @isovalent/cilium-agent
