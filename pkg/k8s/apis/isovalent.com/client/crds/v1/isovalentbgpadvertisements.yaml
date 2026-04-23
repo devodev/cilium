@@ -293,6 +293,10 @@ spec:
                     rule: self.advertisementType == 'Interface' || !has(self.interface)
                   - message: selector field is not allowed for the 'PodCIDR' advertisementType
                     rule: self.advertisementType != 'PodCIDR' || !has(self.selector)
+                  - message: asPathPrepend cannot be used with the 'PrivateNetwork'
+                      advertisementType
+                    rule: self.advertisementType != 'PrivateNetwork' || !has(self.attributes)
+                      || !has(self.attributes.asPathPrepend)
                 minItems: 1
                 type: array
             required:

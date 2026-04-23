@@ -87,6 +87,7 @@ type IsovalentBGPAdvertisementSpec struct {
 // +kubebuilder:validation:XValidation:rule="self.advertisementType != 'Interface' || has(self.interface)", message="interface field is required for the 'Interface' advertisementType"
 // +kubebuilder:validation:XValidation:rule="self.advertisementType == 'Interface' || !has(self.interface)", message="interface field is not allowed for non-'Interface' advertisementType"
 // +kubebuilder:validation:XValidation:rule="self.advertisementType != 'PodCIDR' || !has(self.selector)", message="selector field is not allowed for the 'PodCIDR' advertisementType"
+// +kubebuilder:validation:XValidation:rule="self.advertisementType != 'PrivateNetwork' || !has(self.attributes) || !has(self.attributes.asPathPrepend)", message="asPathPrepend cannot be used with the 'PrivateNetwork' advertisementType"
 type BGPAdvertisement struct {
 	// AdvertisementType defines type of advertisement which has to be advertised.
 	//
