@@ -5482,6 +5482,9 @@ enterprise:
           issuerRef: {}
           # -- Validity duration of the generated certificate, in days.
           certValidityDuration: 365
+  # -- Devices to prefer for tunneling.
+  # Supports `+` as a wildcard in the device name, for example `eth+`.
+  preferredTunnelEndpointDevices: []
   # Passive inspection for pod traffic
   inspection:
     # -- Enable passive inspection for pod traffic. When enabled, a clone

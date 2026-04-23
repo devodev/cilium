@@ -84,6 +84,9 @@ egress-gateway-ha-icmp-health-probe-failure-threshold: {{ .Values.enterprise.egr
 {{- if .Values.enterprise.clustermesh.mixedRoutingMode.enabled }}
 fallback-routing-mode: tunnel
 {{- end }}
+{{- if .Values.enterprise.preferredTunnelEndpointDevices }}
+preferred-tunnel-endpoint-devices: {{ join "," .Values.enterprise.preferredTunnelEndpointDevices | quote }}
+{{- end }}
 
 
 feature-gates-approved: {{ .Values.enterprise.featureGate.approved | join "," | quote }}

@@ -1784,6 +1784,10 @@
      - Add support for tiered policy.
      - bool
      - ``false``
+   * - :spelling:ignore:`enterprise.preferredTunnelEndpointDevices`
+     - Devices to prefer for tunneling. Supports ``+`` as a wildcard in the device name, for example ``eth+``.
+     - list
+     - ``[]``
    * - :spelling:ignore:`enterprise.privateNetworks.api.port`
      - The TCP port the privnet API server listens to, in "bridge" mode. Otherwise, it represents the fallback port to connect to a candidate INB, if not explicitly advertised by the candidate INB itself.
      - int

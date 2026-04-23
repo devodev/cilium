@@ -2598,6 +2598,10 @@
           },
           "type": "object"
         },
+        "preferredTunnelEndpointDevices": {
+          "items": {},
+          "type": "array"
+        },
         "privateNetworks": {
           "properties": {
             "api": {
