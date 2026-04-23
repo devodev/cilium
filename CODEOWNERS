@@ -1034,6 +1034,7 @@ Makefile* @cilium/build
 /enterprise/pkg/srv6/ @isovalent/traffic-engineering
 /enterprise/pkg/nat/ @isovalent/egress-gateway
 /enterprise/pkg/vni @isovalent/traffic-engineering
+/enterprise/pkg/tunnelip @isovalent/private-networking
 /enterprise/plugins/cilium-cni/ @isovalent/cilium-agent
 /enterprise/plugins/cilium-cni/pkg/multinetwork/ @isovalent/multi-network
 /enterprise/plugins/cilium-cni/pkg/privnet/ @isovalent/private-networking

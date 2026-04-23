@@ -347,6 +347,7 @@ cilium-agent hive dot-graph [flags]
       --pprof-block-profile-rate int                                     Enable goroutine blocking profiling and set the rate of sampled events in nanoseconds (set to 1 to sample all events [warning: performance overhead])
       --pprof-mutex-profile-fraction int                                 Enable mutex contention profiling and set the fraction of sampled events (set to 1 to sample all events)
       --pprof-port uint16                                                Port that pprof listens on (default 6060)
+      --preferred-tunnel-endpoint-devices strings                        Devices to prefer for tunneling. Supports '+' as wildcard in device name, e.g. 'eth+'
       --prepend-iptables-chains                                          Prepend custom iptables chains instead of appending (default true)
       --private-networks-api-port uint16                                 The TCP port the privnet gRPC server listens to, in bridge mode. Otherwise, it represents the fallback port to connect to a candidate INB if not explicitly advertised by the candidate INB itself. (default 4239)
       --private-networks-api-tls-ca-files strings                        Paths to one or more CA certificate files trusted by private networks gRPC peers
