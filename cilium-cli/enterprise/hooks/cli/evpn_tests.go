@@ -61,5 +61,6 @@ func newCmdEVPNTest() *cobra.Command {
 	cmd.Flags().StringVar(&params.CurlImage, "curl-image", defaults.ConnectivityCheckImagesTest["ConnectivityCheckAlpineCurlImage"], "Image path to use for curl")
 	cmd.Flags().StringVar(&params.JSONMockImage, "json-mock-image", defaults.ConnectivityCheckImagesTest["ConnectivityCheckJSONMockImage"], "Image path to use for json mock")
 
+	addCommonJUnitFlags(cmd.Flags(), &params.EnterpriseJUnitParams)
 	return cmd
 }

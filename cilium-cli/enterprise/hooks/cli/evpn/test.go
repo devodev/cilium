@@ -12,12 +12,14 @@ package evpn
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"regexp"
 	"strings"
 	"time"
 
+	"github.com/cilium/cilium/cilium-cli/connectivity/check"
 	"github.com/cilium/cilium/cilium-cli/enterprise/hooks/k8s"
 	"github.com/cilium/cilium/enterprise/pkg/vni"
 )
@@ -27,6 +29,8 @@ const (
 	preflightPollInterval       = 5 * time.Second
 	testCleanupTimeout          = 30 * time.Second
 )
+
+var errEVPNTestFailed = errors.New("evpn test failed")
 
 // allTests holds all EVPN connectivity tests.
 // The tests are expected to be run in a k8s cluster where privnet and EVPN BGP configuration already exists,
@@ -61,6 +65,8 @@ type TestParams struct {
 	PreflightTimeout     time.Duration
 	TestTimeout          time.Duration
 	SkipCleanupOnFailure bool
+
+	check.EnterpriseJUnitParams
 }
 
 type TestRun struct {
@@ -98,6 +104,18 @@ func (r *TestRun) Execute(ctx context.Context) error {
 	testCtx, cancel := context.WithTimeout(ctx, r.params.TestTimeout)
 	defer cancel()
 
+	// initialize JUnit collector
+	junitCollector, err := check.NewEnterpriseJUnitCollector("evpn test", r.params.EnterpriseJUnitParams)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if writeErr := junitCollector.Write(); writeErr != nil {
+			fmt.Fprintf(r.out, "Warning: junit write failed: %v\n", writeErr)
+		}
+		junitCollector.LogCodeOwnersIfNeeded(r.out)
+	}()
+
 	// select tests to run
 	selectedTests, err := filterTests(allTests, r.params.TestFilter)
 	if err != nil {
@@ -108,12 +126,16 @@ func (r *TestRun) Execute(ctx context.Context) error {
 	}
 
 	// run preflight checks and populate r.env
-	if err := r.runPreflight(testCtx); err != nil {
-		return fmt.Errorf("❌ pre-flight checks failed: %w", err)
+	preflightStart := time.Now()
+	err = r.runPreflight(testCtx)
+	junitCollector.CollectTest("evpn-pre-flight-checks", preflightStart, time.Now(), err)
+	if err != nil {
+		fmt.Fprintf(r.out, "❌ pre-flight checks failed: %v\n", err)
+		return errEVPNTestFailed
 	}
 
 	// ensure evpnTest namespace exists
-	if err := ensureNamespace(testCtx, r.client, r.params.TestNamespace); err != nil {
+	if err = ensureNamespace(testCtx, r.client, r.params.TestNamespace); err != nil {
 		return err
 	}
 
@@ -126,9 +148,11 @@ testLoop:
 		case <-testCtx.Done():
 			switch err := ctx.Err(); err {
 			case context.DeadlineExceeded:
-				return fmt.Errorf("❌ test execution timed out: %w", err)
+				fmt.Fprintf(r.out, "❌ test execution timed out: %v\n", err)
+				return errEVPNTestFailed
 			case context.Canceled:
-				return fmt.Errorf("❌ test execution cancelled: %w", err)
+				fmt.Fprintf(r.out, "❌ test execution cancelled: %v\n", err)
+				return errEVPNTestFailed
 			default:
 				return nil
 			}
@@ -136,6 +160,7 @@ testLoop:
 			fmt.Fprintf(r.out, "\n=== [%d/%d] %s ===\n", i+1, len(selectedTests), test.Name())
 			if canRun, reason := test.CanRun(testCtx, r, r.env); !canRun {
 				fmt.Fprintf(r.out, "⚠️ %s test skipped: %s\n", test.Name(), reason)
+				junitCollector.CollectSkippedTest("evpn-"+test.Name(), reason)
 				skippedTests++
 				continue
 			}
@@ -145,7 +170,9 @@ testLoop:
 				fmt.Fprintf(r.out, "⚠️ %s test cleanup failed: %v\n", test.Name(), err)
 			}
 			// Run the test
+			testStart := time.Now()
 			err := test.Run(testCtx, r, r.env)
+			junitCollector.CollectTest("evpn-"+test.Name(), testStart, time.Now(), err)
 			if err == nil {
 				fmt.Fprintf(r.out, "✅ %s test passed\n", test.Name())
 			} else {
@@ -168,7 +195,8 @@ testLoop:
 
 	fmt.Fprintf(r.out, "\n=== Results ===\n")
 	if failedTests > 0 {
-		return fmt.Errorf("❌ %d/%d tests failed", failedTests, len(selectedTests))
+		fmt.Fprintf(r.out, "❌ %d/%d tests failed.\n", failedTests, len(selectedTests))
+		return errEVPNTestFailed
 	}
 	if skippedTests > 0 {
 		fmt.Fprintf(r.out, "✅ %d/%d tests passed, %d/%d skipped.\n", executedTests, len(selectedTests), skippedTests, len(selectedTests))
