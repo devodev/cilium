@@ -55,9 +55,14 @@ db/cmp privnet-mapentries mapentries.v3.table
 # - blue:192.168.250.{20,21} are removed (both endpoints were already shadowed)
 # - blue:192.168.250.251 is removed
 # - blue:192.168.250.252 is added
+# - blue:192.168.250.20/fd10:0:250::20 is added for both INBs (shadowed)
 k8s/add privnet-eps.v2.yaml
 clustermesh/endpoints/delete blue-network/10.245.8.87 endpoint-felidae-cougar-2.json
 clustermesh/endpoints/upsert blue-network/10.245.8.92 endpoint-felidae-cougar-3.json
+clustermesh/endpoints/upsert blue-network/10.245.9.150 endpoint-camelidae-alpaca-2.json
+clustermesh/endpoints/upsert blue-network/fd00:10:245:9::150 endpoint-camelidae-alpaca-2v6.json
+clustermesh/endpoints/upsert blue-network/10.245.8.150 endpoint-felidae-cougar-4.json
+clustermesh/endpoints/upsert blue-network/fd00:10:245:8::150 endpoint-felidae-cougar-4v6.json
 db/cmp privnet-mapentries mapentries.v4.table
 
 # Delete original slice. Since its only endpoint is inactive, there should be no changes
@@ -72,7 +77,7 @@ db/cmp privnet-mapentries mapentries.v5.table
 k8s/add icpn-blue.v2.yaml
 db/cmp privnet-mapentries mapentries.v6.table
 
-# Delete remaining endpoints in blue network (this should unshadow a subnet route)
+# Delete remaining (local) endpoints in blue network (this should unshadow a subnet route and an external endpoint)
 k8s/delete privnet-alt-eps.v1.yaml
 db/cmp privnet-mapentries mapentries.v7.table
 
@@ -100,6 +105,9 @@ spec:
   - name: blue1
     cidrv4: 192.168.250.0/24
     cidrv6: fd10:0:250::0/64
+    routes:
+    - destination: 192.168.250.20/32
+      gateway: 192.168.250.4
   - name: blue2
     cidrv4: 192.168.24.24/32
     cidrv6: fd10:0:224::24/128
@@ -386,6 +394,48 @@ nodeName: crayfish
   }
 }
 
+-- endpoint-felidae-cougar-4.json --
+{
+  "activatedAt": "2025-06-20T15:53:01.435Z",
+  "flags": {
+    "external": true
+  },
+  "ip": "10.245.8.150",
+  "name": "suboptimal-mouse",
+  "network": {
+    "name": "blue-network",
+    "ip": "192.168.250.20",
+    "mac": "ad:e7:f2:bf:1a:24"
+  },
+  "nodeName": "cougar",
+  "source": {
+    "cluster": "felidae",
+    "namespace": "gopher",
+    "name": "privnet-eps-1"
+  }
+}
+
+-- endpoint-felidae-cougar-4v6.json --
+{
+  "activatedAt": "2025-06-20T15:53:01.435Z",
+  "flags": {
+    "external": true
+  },
+  "ip": "fd00:10:245:8::150",
+  "name": "suboptimal-mouse",
+  "network": {
+    "name": "blue-network",
+    "ip": "fd10:0:250::20",
+    "mac": "ad:e7:f2:bf:1a:24"
+  },
+  "nodeName": "cougar",
+  "source": {
+    "cluster": "felidae",
+    "namespace": "gopher",
+    "name": "privnet-eps-1"
+  }
+}
+
 -- endpoint-camelidae-alpaca-1.json --
 {
   "activatedAt": "2025-06-20T15:53:01.435Z",
@@ -398,6 +448,48 @@ nodeName: crayfish
     "name": "blue-network",
     "ip": "192.168.250.201",
     "mac": "ad:e7:f2:bf:0b:58"
+  },
+  "nodeName": "alpaca",
+  "source": {
+    "cluster": "camelidae",
+    "namespace": "gopher",
+    "name": "privnet-eps-1"
+  }
+}
+
+-- endpoint-camelidae-alpaca-2.json --
+{
+  "activatedAt": "2025-06-20T15:53:01.435Z",
+  "flags": {
+    "external": true
+  },
+  "ip": "10.245.9.150",
+  "name": "suboptimal-mouse",
+  "network": {
+    "name": "blue-network",
+    "ip": "192.168.250.20",
+    "mac": "ad:e7:f2:bf:1a:24"
+  },
+  "nodeName": "alpaca",
+  "source": {
+    "cluster": "camelidae",
+    "namespace": "gopher",
+    "name": "privnet-eps-1"
+  }
+}
+
+-- endpoint-camelidae-alpaca-2v6.json --
+{
+  "activatedAt": "2025-06-20T15:53:01.435Z",
+  "flags": {
+    "external": true
+  },
+  "ip": "fd00:10:245:9::150",
+  "name": "suboptimal-mouse",
+  "network": {
+    "name": "blue-network",
+    "ip": "fd10:0:250::20",
+    "mac": "ad:e7:f2:bf:1a:24"
   },
   "nodeName": "alpaca",
   "source": {
@@ -534,10 +626,12 @@ P      blue-network   blue2    fd10:0:250::/64      ::                 0x1/0x1
 Type   Network        Subnet   CIDR                 Nexthop            Peer
 S      blue-network   blue1    0.0.0.0/0            172.128.0.6        N/A
 D      blue-network   blue1    192.168.250.0/23     172.128.0.6        N/A
+X      blue-network   blue1    192.168.250.20/32    10.245.8.150       N/A
 X      blue-network   blue1    192.168.250.200/32   10.245.8.21        N/A
 X      blue-network   blue1    192.168.250.202/32   10.245.8.92        N/A
 S      blue-network   blue1    192.168.252.0/24     172.128.0.6        N/A
 D      blue-network   blue1    fd10:0:250::/64      172.128.0.6        N/A
+X      blue-network   blue1    fd10:0:250::20/128   fd00:10:245:8::150 N/A
 P      blue-network   blue1    192.168.24.24/32     0.0.0.0            0x1/0x2
 P      blue-network   blue1    fd10:0:224::24/128   ::                 0x1/0x2
 S      blue-network   blue2    0.0.0.0/0            172.128.0.6        N/A
@@ -552,9 +646,11 @@ P      blue-network   blue2    fd10:0:250::/64      ::                 0x1/0x1
 Type   Network        Subnet   CIDR                 Nexthop            Peer
 S      blue-network   blue1    0.0.0.0/0            172.128.0.7        N/A
 D      blue-network   blue1    192.168.250.0/23     172.128.0.7        N/A
+X      blue-network   blue1    192.168.250.20/32    10.245.9.150       N/A
 X      blue-network   blue1    192.168.250.201/32   10.245.9.41        N/A
 S      blue-network   blue1    192.168.252.0/24     172.128.0.7        N/A
 D      blue-network   blue1    fd10:0:250::/64      172.128.0.7        N/A
+X      blue-network   blue1    fd10:0:250::20/128   fd00:10:245:9::150 N/A
 P      blue-network   blue1    192.168.24.24/32     0.0.0.0            0x1/0x2
 P      blue-network   blue1    fd10:0:224::24/128   ::                 0x1/0x2
 S      blue-network   blue2    0.0.0.0/0            172.128.0.7        N/A
