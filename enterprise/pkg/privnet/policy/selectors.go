@@ -15,6 +15,7 @@ import (
 
 	"github.com/cilium/cilium/enterprise/pkg/privnet/types"
 	slim_metav1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
+	k8sUtils "github.com/cilium/cilium/pkg/k8s/utils"
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/policy/api"
 	policyTypes "github.com/cilium/cilium/pkg/policy/types"
@@ -24,6 +25,13 @@ var (
 	privateNetworkLabel    = labels.LabelSourceCNI + labels.SourceDelimiter + types.CNINetworkNameLabel
 	privateNetworkLabelAny = labels.LabelSourceAny + labels.SourceDelimiter + types.CNINetworkNameLabel
 )
+
+const privnetLabelPrefix = "com.isovalent.private-network"
+
+func init() {
+	// Register 'com.isovalent.private-network' as a reserved prefix that users may not overwrite
+	k8sUtils.CiliumOwnedLabelPrefixes = append(k8sUtils.CiliumOwnedLabelPrefixes, privnetLabelPrefix)
+}
 
 // hasNetworkSelector returns true if the provided selector has a requirement on types.CNINetworkNameLabel
 func hasNetworkSelector(selector *slim_metav1.LabelSelector) bool {

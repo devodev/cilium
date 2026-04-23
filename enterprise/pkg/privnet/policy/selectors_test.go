@@ -11,12 +11,14 @@
 package policy
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/cilium/cilium/enterprise/pkg/privnet/types"
 	slim_metav1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
+	"github.com/cilium/cilium/pkg/k8s/utils"
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/policy/api"
 	policyTypes "github.com/cilium/cilium/pkg/policy/types"
@@ -217,4 +219,17 @@ func Test_rewriteRuleSelectors(t *testing.T) {
 			require.Equal(t, tt.want, tt.rule)
 		})
 	}
+}
+
+func Test_reservedPrefix(t *testing.T) {
+	require.True(t, strings.HasPrefix(types.CNINetworkNameLabel, privnetLabelPrefix))
+	lbls := map[string]string{
+		"app":                                "foo",
+		"io.cilium.k8s.something":            "cilium internal",
+		"com.isovalent.private-network.name": "malicious",
+	}
+	expected := map[string]string{
+		"app": "foo",
+	}
+	require.Equal(t, expected, utils.RemoveCiliumLabels(lbls))
 }
