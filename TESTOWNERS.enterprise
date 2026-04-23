@@ -459,6 +459,7 @@
 /bugtool/cmd/enterprise_* @isovalent/cli
 /cilium-cli/Makefile.override @isovalent/cli
 /cilium-cli/connectivity/check/enterprise.go @isovalent/cli
+/cilium-cli/connectivity/check/enterprise_* @isovalent/cli
 /cilium-cli/enterprise/ @isovalent/cli
 /cilium-cli/enterprise/hooks/cli/bgp/ @isovalent/traffic-engineering
 /cilium-cli/enterprise/hooks/cli/evpn* @isovalent/traffic-engineering
