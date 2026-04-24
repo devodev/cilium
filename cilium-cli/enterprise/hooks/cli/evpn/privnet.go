@@ -29,6 +29,8 @@ const (
 	// privnetPodAddrOffset is address offset used for allocating test privnet pod IP addresses.
 	// Test will start allocating pod IPs on privnet subnet address + this offset.
 	privnetPodAddrOffset = 10
+
+	privnetNetworkNameLabel = "cni:com.isovalent.private-network.name"
 )
 
 // privnetInfo privnet information retrieved from the cluster.

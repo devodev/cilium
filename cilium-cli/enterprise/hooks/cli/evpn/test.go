@@ -33,6 +33,7 @@ const (
 // This is verified in the pre-flight check, which will not pass if these preconditions are not met.
 var allTests = []evpnTest{
 	newBasicConnectivityTest(),
+	newFabricSecurityGroupsTest(),
 }
 
 type evpnTest interface {
