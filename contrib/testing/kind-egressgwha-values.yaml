@@ -8,3 +8,5 @@ enterprise:
     - EgressGatewayIPv4
   egressGatewayHA:
     enabled: true
+  bgpControlPlane:
+    enabled: true
