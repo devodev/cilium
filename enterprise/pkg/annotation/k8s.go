@@ -96,4 +96,12 @@ const (
 	// LB IP address becomes reachable from the remote clusters, even if a service
 	// with the same namespace/name does not exist there.
 	PhantomServiceKey = CEServicePrefix + "/phantom"
+
+	// ServiceTrafficPolicyZone marks a service for enterprise-only strict
+	// zone-aware backend selection in the agent.
+	ServiceTrafficPolicyZone = ossannotation.ServicePrefix + "/traffic-policy-zone"
+
+	// ServiceTrafficPolicyZoneRequireSameZone enforces strict same-zone backend
+	// selection. If no same-zone backend is available, traffic is dropped.
+	ServiceTrafficPolicyZoneRequireSameZone = "require-same-zone"
 )

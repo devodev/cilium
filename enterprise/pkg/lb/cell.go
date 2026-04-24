@@ -17,6 +17,7 @@ import (
 	"github.com/cilium/cilium/enterprise/pkg/lb/envoyhealthsync"
 	flowlogs "github.com/cilium/cilium/enterprise/pkg/lb/flowlogs"
 	"github.com/cilium/cilium/enterprise/pkg/lb/metrics"
+	"github.com/cilium/cilium/enterprise/pkg/lb/strictzone"
 	"github.com/cilium/cilium/enterprise/pkg/lb/t2servicehealth"
 )
 
@@ -25,5 +26,6 @@ var Cell = cell.Group(
 	metrics.Cell,
 	envoyhealthsync.Cell,
 	envoyhealthcheck.Cell,
+	strictzone.Cell,
 	t2servicehealth.Cell,
 )
