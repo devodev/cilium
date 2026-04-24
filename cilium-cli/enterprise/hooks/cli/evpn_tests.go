@@ -49,6 +49,7 @@ func newCmdEVPNTest() *cobra.Command {
 		},
 	}
 
+	cmd.Flags().StringVar(&params.TestFilter, "test", "", "Only run EVPN tests whose name matches this regular expression")
 	cmd.Flags().StringVar(&params.AgentPodSelector, "agent-pod-selector", defaults.AgentPodSelector, "Label selecting cilium-agent pods")
 	cmd.Flags().StringVar(&params.TestNamespace, "test-namespace", "evpn-test", "Namespace for the resources used by the test")
 	cmd.Flags().BoolVar(&params.SkipCleanupOnFailure, "skip-cleanup-on-failure", false, "Terminate test execution and skip test cleanup on failure")

@@ -14,6 +14,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/cilium/cilium/cilium-cli/enterprise/hooks/k8s"
@@ -40,6 +42,8 @@ type evpnTest interface {
 }
 
 type TestParams struct {
+	TestFilter string
+
 	CiliumNamespace  string
 	AgentPodSelector string
 
@@ -85,6 +89,15 @@ func (r *TestRun) Execute(ctx context.Context) error {
 	testCtx, cancel := context.WithTimeout(ctx, r.params.TestTimeout)
 	defer cancel()
 
+	// select tests to run
+	selectedTests, err := filterTests(allTests, r.params.TestFilter)
+	if err != nil {
+		return fmt.Errorf("❌ invalid EVPN test filter %q: %w", r.params.TestFilter, err)
+	}
+	if len(selectedTests) == 0 {
+		return fmt.Errorf("❌ no EVPN tests match filter %q", r.params.TestFilter)
+	}
+
 	// run preflight checks and populate r.env
 	if err := r.runPreflight(testCtx); err != nil {
 		return fmt.Errorf("❌ pre-flight checks failed: %w", err)
@@ -98,7 +111,7 @@ func (r *TestRun) Execute(ctx context.Context) error {
 	executedTests := 0
 	failedTests := 0
 testLoop:
-	for i, test := range allTests {
+	for i, test := range selectedTests {
 		select {
 		case <-testCtx.Done():
 			switch err := ctx.Err(); err {
@@ -111,7 +124,7 @@ testLoop:
 			}
 		default:
 			executedTests++
-			fmt.Fprintf(r.out, "\n=== [%d/%d] %s ===\n", i+1, len(allTests), test.Name())
+			fmt.Fprintf(r.out, "\n=== [%d/%d] %s ===\n", i+1, len(selectedTests), test.Name())
 			// Perform test cleanup before running
 			if err := test.Cleanup(testCtx, r, r.env); err != nil {
 				fmt.Fprintf(r.out, "Warning: %s test cleanup failed: %v\n", test.Name(), err)
@@ -144,6 +157,25 @@ testLoop:
 	}
 	fmt.Fprintf(r.out, "✅ %d/%d tests passed.\n", executedTests, executedTests)
 	return nil
+}
+
+func filterTests(tests []evpnTest, filter string) ([]evpnTest, error) {
+	filter = strings.TrimSpace(filter)
+	if filter == "" {
+		return tests, nil
+	}
+	matcher, err := regexp.Compile(filter)
+	if err != nil {
+		return nil, err
+	}
+
+	var filtered []evpnTest
+	for _, test := range tests {
+		if matcher.MatchString(test.Name()) {
+			filtered = append(filtered, test)
+		}
+	}
+	return filtered, nil
 }
 
 // runPreflight checks whether the tests can be executed in the target cluster.
