@@ -985,6 +985,7 @@ Makefile* @cilium/build
 /enterprise/operator/pkg/networkpolicy/ @isovalent/policy-identity-networking
 /enterprise/operator/pkg/privnet/ @isovalent/private-networking
 /enterprise/operator/pkg/srv6/ @isovalent/traffic-engineering
+/enterprise/operator/pkg/wafpolicy/ @isovalent/sig-defence
 /enterprise/pkg/annotation/ @isovalent/sig-k8s
 /enterprise/pkg/api/ @isovalent/cni
 /enterprise/pkg/bfd/ @isovalent/traffic-engineering
