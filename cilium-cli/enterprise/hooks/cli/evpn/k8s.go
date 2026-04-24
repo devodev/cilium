@@ -14,6 +14,8 @@ import (
 	"context"
 	"fmt"
 	"net/netip"
+	"strconv"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -22,7 +24,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/utils/ptr"
 
+	"github.com/cilium/cilium/cilium-cli/defaults"
 	"github.com/cilium/cilium/cilium-cli/enterprise/hooks/k8s"
+	evpnconfig "github.com/cilium/cilium/enterprise/pkg/evpn/config"
+	privnetconfig "github.com/cilium/cilium/enterprise/pkg/privnet/config"
 	slimlabels "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/labels"
 )
 
@@ -36,6 +41,58 @@ const (
 	evpnTestComponentLabelKey = "app.kubernetes.io/component"
 	evpnTestContainerName     = "test"
 )
+
+func retrieveEVPNConfig(ctx context.Context, client *k8s.EnterpriseClient, ciliumNamespace string) (evpnConfig, error) {
+	configMap, err := client.GetConfigMap(ctx, ciliumNamespace, defaults.ConfigMapName, metav1.GetOptions{})
+	if err != nil {
+		return evpnConfig{}, fmt.Errorf("failed retrieving ConfigMap %s/%s: %w", ciliumNamespace, defaults.ConfigMapName, err)
+	}
+
+	settings := evpnConfig{
+		evpnEnabled:              evpnconfig.DefaultEVPNEnabled,
+		privateNetworksEnabled:   privnetconfig.DefaultCommon.Enabled,
+		securityGroupTagsEnabled: evpnconfig.DefaultSecurityGroupTagsEnabled,
+		defaultSecurityGroupID:   uint16(evpnconfig.DefaultSecurityGroupID),
+	}
+
+	if raw, ok := configMap.Data[evpnconfig.FlagEvpnEnabled]; ok && strings.TrimSpace(raw) != "" {
+		enabled, err := strconv.ParseBool(strings.TrimSpace(raw))
+		if err != nil {
+			return evpnConfig{}, fmt.Errorf("failed parsing %s from ConfigMap %s/%s: %w",
+				evpnconfig.FlagEvpnEnabled, ciliumNamespace, defaults.ConfigMapName, err)
+		}
+		settings.evpnEnabled = enabled
+	}
+
+	if raw, ok := configMap.Data[privnetconfig.FlagEnable]; ok && strings.TrimSpace(raw) != "" {
+		enabled, err := strconv.ParseBool(strings.TrimSpace(raw))
+		if err != nil {
+			return evpnConfig{}, fmt.Errorf("failed parsing %s from ConfigMap %s/%s: %w",
+				privnetconfig.FlagEnable, ciliumNamespace, defaults.ConfigMapName, err)
+		}
+		settings.privateNetworksEnabled = enabled
+	}
+
+	if raw, ok := configMap.Data[evpnconfig.FlagSecurityGroupTagsEnabled]; ok && strings.TrimSpace(raw) != "" {
+		enabled, err := strconv.ParseBool(strings.TrimSpace(raw))
+		if err != nil {
+			return evpnConfig{}, fmt.Errorf("failed parsing %s from ConfigMap %s/%s: %w",
+				evpnconfig.FlagSecurityGroupTagsEnabled, ciliumNamespace, defaults.ConfigMapName, err)
+		}
+		settings.securityGroupTagsEnabled = enabled
+	}
+
+	if raw, ok := configMap.Data[evpnconfig.FlagDefaultSecurityGroupID]; ok && strings.TrimSpace(raw) != "" {
+		groupID, err := strconv.ParseUint(strings.TrimSpace(raw), 10, 16)
+		if err != nil {
+			return evpnConfig{}, fmt.Errorf("failed parsing %s from ConfigMap %s/%s: %w",
+				evpnconfig.FlagDefaultSecurityGroupID, ciliumNamespace, defaults.ConfigMapName, err)
+		}
+		settings.defaultSecurityGroupID = uint16(groupID)
+	}
+
+	return settings, nil
+}
 
 func ensureNamespace(ctx context.Context, client *k8s.EnterpriseClient, namespace string) error {
 	_, err := client.GetNamespace(ctx, namespace, metav1.GetOptions{})

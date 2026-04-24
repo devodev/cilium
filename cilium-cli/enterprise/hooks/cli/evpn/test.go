@@ -59,8 +59,16 @@ type TestRun struct {
 }
 
 type testEnv struct {
+	evpnConfig   evpnConfig
 	evpnPrivnets map[string]privnetInfo
 	bgpNodeInfo  map[string]bgpNodeInfo
+}
+
+type evpnConfig struct {
+	evpnEnabled              bool
+	privateNetworksEnabled   bool
+	securityGroupTagsEnabled bool
+	defaultSecurityGroupID   uint16
 }
 
 func NewTestRun(out io.Writer, params TestParams, client *k8s.EnterpriseClient) *TestRun {
@@ -151,6 +159,17 @@ func (r *TestRun) runPreflight(ctx context.Context) error {
 	defer ticker.Stop()
 
 	for {
+		config, err := retrieveEVPNConfig(pfCtx, r.client, r.params.CiliumNamespace)
+		if err != nil {
+			return err
+		}
+		if !config.privateNetworksEnabled {
+			return fmt.Errorf("private networks are disabled in the agent configuration")
+		}
+		if !config.evpnEnabled {
+			return fmt.Errorf("EVPN is disabled in the agent configuration")
+		}
+
 		evpnPrivnets, err := r.retrieveEVPNPrivateNetworks(pfCtx)
 		if err != nil {
 			return err
@@ -169,6 +188,7 @@ func (r *TestRun) runPreflight(ctx context.Context) error {
 			r.env = &testEnv{
 				evpnPrivnets: evpnPrivnets,
 				bgpNodeInfo:  bgpNodeInfo,
+				evpnConfig:   config,
 			}
 			fmt.Fprintf(r.out, "Pre-flight checks passed\n")
 			return nil
