@@ -1115,5 +1115,9 @@ func (manager *Manager) AdvertisedEgressIPs(policySelector *slimv1.LabelSelector
 			egressIPs[policyConfig.id] = append(egressIPs[policyConfig.id], gwc.egressIP)
 		}
 	}
+
+	manager.logger.Debug("advertise EgressIPs",
+		logfieldsAdvertisedEgressIPs, egressIPs)
+
 	return egressIPs, nil
 }

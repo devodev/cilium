@@ -65,6 +65,8 @@ const (
 
 	logfieldsNeededGateways = "neededGateways"
 
+	logfieldsAdvertisedEgressIPs = "AdvertisedEgressIPs"
+
 	// loggingGatewayNodeBatchSize is the max number of the pipeline input nodes
 	// we will log per line in logPolicyHealthyGatewayIPs.
 	// We use this to break up batches of gateway node IP data into separate log
