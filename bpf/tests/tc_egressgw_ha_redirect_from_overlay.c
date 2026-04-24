@@ -13,6 +13,8 @@
 #define ENCAP_IFINDEX	42
 #define IFACE_IFINDEX	44
 
+#define EGRESS_IFINDEX	IFACE_IFINDEX
+
 #define ctx_redirect mock_ctx_redirect
 static __always_inline __maybe_unused int
 mock_ctx_redirect(const struct __sk_buff *ctx __maybe_unused,
@@ -245,6 +247,46 @@ int egressgw_ha_drop_no_egress_ip_check(const struct __ctx_buff *ctx)
 	});
 
 	del_egressgw_ha_policy_entry(CLIENT_IP, EXTERNAL_SVC_IP, 32);
+
+	return ret;
+}
+
+/* Test that a packet matching an egress gateway policy on the from-overlay program
+ * gets correctly redirected to the target netdev. Also when the policy has an
+ * egress ifindex.
+ */
+PKTGEN("tc", "tc_egressgw_ha_redirect_from_overlay_with_egress_interface")
+int egressgw_ha_redirect_ifindex_pktgen(struct __ctx_buff *ctx)
+{
+	return egressgw_pktgen(ctx, (struct egressgw_test_ctx) {
+			.test = TEST_REDIRECT,
+			.redirect = true,
+		});
+}
+
+SETUP("tc", "tc_egressgw_ha_redirect_from_overlay_with_egress_interface")
+int egressgw_ha_redirect_ifindex_setup(struct __ctx_buff *ctx)
+{
+	if (mock_fib_lookup_init())
+		return TEST_ERROR;
+
+	add_egressgw_ha_policy_entry(CLIENT_IP, EXTERNAL_SVC_IP & 0xffffff, 24, 1,
+				     { GATEWAY_NODE_IP }, EGRESS_IP, EGRESS_IFINDEX);
+
+	return overlay_receive_packet(ctx);
+}
+
+CHECK("tc", "tc_egressgw_ha_redirect_from_overlay_with_egress_interface")
+int egressgw_ha_redirect_ifindex_check(const struct __ctx_buff *ctx)
+{
+	if (mock_fib_lookup_assert())
+		return TEST_ERROR;
+
+	int ret = egressgw_status_check(ctx, (struct egressgw_test_ctx) {
+			.status_code = TC_ACT_REDIRECT,
+	});
+
+	del_egressgw_ha_policy_entry(CLIENT_IP, EXTERNAL_SVC_IP & 0xffffff, 24);
 
 	return ret;
 }
