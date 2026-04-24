@@ -1,0 +1,19 @@
+apiVersion: isovalent.com/v1alpha1
+kind: LBService
+metadata:
+  namespace: default
+  name: lb-1
+spec:
+  vipRef:
+    name: lb-1
+  port: 80
+  trafficPolicy:
+    zoneAware:
+      mode: requireSameZone
+  applications:
+    tcpProxy:
+      forceDeploymentMode: t1-only
+      forceForwardingMode: dsr
+      routes:
+        - backendRef:
+            name: lb-1

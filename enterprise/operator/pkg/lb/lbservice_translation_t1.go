@@ -102,6 +102,10 @@ func (r *lbServiceT1Translator) DesiredService(model *lbService) *corev1.Service
 		}
 	}
 
+	if (model.isTCPProxyT1OnlyMode() || model.isUDPProxyT1OnlyMode()) && model.zoneAwareMode == lbServiceZoneAwareModeRequireSameZone {
+		annotations[annotation.ServiceTrafficPolicyZone] = annotation.ServiceTrafficPolicyZoneRequireSameZone
+	}
+
 	annotations["loadbalancer.isovalent.com/type"] = "t1"
 
 	// write T1 node ips as hash to annotation. This way a reconciliation of the K8s Service gets enforced if any of the Node labels change

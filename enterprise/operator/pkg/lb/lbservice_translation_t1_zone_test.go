@@ -18,6 +18,7 @@ import (
 	discoveryv1 "k8s.io/api/discovery/v1"
 	"k8s.io/utils/ptr"
 
+	"github.com/cilium/cilium/enterprise/pkg/annotation"
 	"github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/labels"
 )
 
@@ -438,14 +439,16 @@ func TestUDPEndpointSubsetsFromBackends(t *testing.T) {
 	}
 }
 
-func TestDesiredServiceTrafficDistributionFromZoneAwareMode(t *testing.T) {
+func TestDesiredServiceZoneAwareMode(t *testing.T) {
 	tr := &lbServiceT1Translator{}
 	vip := "100.64.0.100"
 
 	testCases := []struct {
 		name                     string
 		mode                     lbServiceZoneAwareModeType
+		applications             lbApplications
 		expectedTrafficDistValue *string
+		expectedAnnotation       string
 	}{
 		{
 			name:                     "disabled does not set traffic distribution",
@@ -455,11 +458,41 @@ func TestDesiredServiceTrafficDistributionFromZoneAwareMode(t *testing.T) {
 		{
 			name:                     "prefer same zone sets prefer close",
 			mode:                     lbServiceZoneAwareModePreferSameZone,
+			applications:             lbApplications{tcpProxy: &lbApplicationTCPProxy{tierMode: tierModeT1}},
 			expectedTrafficDistValue: ptr.To(corev1.ServiceTrafficDistributionPreferClose),
 		},
 		{
-			name:                     "require same zone does not set traffic distribution",
-			mode:                     lbServiceZoneAwareModeRequireSameZone,
+			name: "require same zone adds annotation for tcp t1-only",
+			mode: lbServiceZoneAwareModeRequireSameZone,
+			applications: lbApplications{
+				tcpProxy: &lbApplicationTCPProxy{tierMode: tierModeT1},
+			},
+			expectedTrafficDistValue: nil,
+			expectedAnnotation:       annotation.ServiceTrafficPolicyZoneRequireSameZone,
+		},
+		{
+			name: "require same zone adds annotation for udp t1-only",
+			mode: lbServiceZoneAwareModeRequireSameZone,
+			applications: lbApplications{
+				udpProxy: &lbApplicationUDPProxy{tierMode: tierModeT1},
+			},
+			expectedTrafficDistValue: nil,
+			expectedAnnotation:       annotation.ServiceTrafficPolicyZoneRequireSameZone,
+		},
+		{
+			name: "prefer same zone does not add annotation",
+			mode: lbServiceZoneAwareModePreferSameZone,
+			applications: lbApplications{
+				tcpProxy: &lbApplicationTCPProxy{tierMode: tierModeT1},
+			},
+			expectedTrafficDistValue: ptr.To(corev1.ServiceTrafficDistributionPreferClose),
+		},
+		{
+			name: "require same zone does not add annotation for t1 t2 tcp",
+			mode: lbServiceZoneAwareModeRequireSameZone,
+			applications: lbApplications{
+				tcpProxy: &lbApplicationTCPProxy{tierMode: tierModeT2},
+			},
 			expectedTrafficDistValue: nil,
 		},
 	}
@@ -475,12 +508,14 @@ func TestDesiredServiceTrafficDistributionFromZoneAwareMode(t *testing.T) {
 					assignedIPv4: &vip,
 				},
 				zoneAwareMode:   tc.mode,
+				applications:    tc.applications,
 				t1LabelSelector: labels.Everything(),
 			}
 
 			svc := tr.DesiredService(model)
 			require.NotNil(t, svc)
 			require.Equal(t, tc.expectedTrafficDistValue, svc.Spec.TrafficDistribution)
+			require.Equal(t, tc.expectedAnnotation, svc.Annotations[annotation.ServiceTrafficPolicyZone])
 		})
 	}
 }
