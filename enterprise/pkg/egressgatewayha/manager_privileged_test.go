@@ -1957,9 +1957,10 @@ func TestPrivilegedEgressGatewayManagerIPAMWithVirtualIP(t *testing.T) {
 	k.addEndpoint(t, "ep-1", ep1IP, ep1Labels, node1IP)
 
 	// Create an IPAM policy with virtual EgressIPs.
-	k.addPolicy(t, &policyParams{
-		name: "policy-1",
-		uid:  policy1UID,
+	policy1 := k.addPolicy(t, &policyParams{
+		name:   "policy-1",
+		uid:    policy1UID,
+		labels: advertisePolicyLabels,
 		annotations: map[string]string{
 			virtualEgressIPKey: "true",
 		},
@@ -1978,5 +1979,9 @@ func TestPrivilegedEgressGatewayManagerIPAMWithVirtualIP(t *testing.T) {
 
 	k.assertEgressRules(t, []egressRule{
 		{ep1IP, destCIDR, "10.100.0.1", node1IP, 0},
+	})
+	k.assertBGPSignal(t, k.manager)
+	k.assertAdvertisedEgressIPs(t, k.manager, advertisePolicySelector, map[types.NamespacedName][]string{
+		{Name: policy1.name}: {"10.100.0.1"},
 	})
 }
