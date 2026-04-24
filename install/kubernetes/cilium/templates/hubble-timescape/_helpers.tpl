@@ -151,6 +151,22 @@ grpc:
 
 {{- define "hubble.timescape.ingester.k8sImporter.clusterRole.rules" -}}
 - apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - apiextensions.k8s.io
+  resources:
+  - customresourcedefinitions
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
   - networking.k8s.io
   resources:
   - networkpolicies
@@ -165,6 +181,15 @@ grpc:
   - ciliumclusterwidenetworkpolicies
   - ciliumidentities
   - ciliumnodes
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - isovalent.com
+  resources:
+  - isovalentnetworkpolicies
+  - isovalentclusterwidenetworkpolicies
   verbs:
   - get
   - list

@@ -2535,8 +2535,8 @@ hubble:
       # @schema
       override: ~
       repository: quay.io/isovalent/hubble-timescape-lite
-      tag: v1.18.3
-      digest: sha256:42f2f79287562220f9dc4ddb897d90a952c692d078eb578020eddfec38b2bcef
+      tag: v1.19.0-rc.1
+      digest: sha256:fbe5761d6cbdaa8ebc2e6c7dac37fbef3b7b561fd8eefd79b1b822dba71402e1
       useDigest: true
       pullPolicy: "Always"
     clickhouse:
@@ -2549,8 +2549,8 @@ hubble:
         # @schema
         override: ~
         repository: quay.io/isovalent/clickhouse-server
-        tag: 25.8.11.66-alpine
-        digest: sha256:32a477a44e92a37347e6df7684a1e6cce01f5af73d356e03ca13383da0bdf8b3
+        tag: 26.3.4.11-alpine-202604081305
+        digest: sha256:f6ad48a62601fc94b15ffb48323772c446a35d4fabb0cfeeea30a6a95c6ec830
         useDigest: true
         pullPolicy: "Always"
       resources: {}
@@ -2795,8 +2795,8 @@ hubble:
       # @schema
       override: ~
       repository: quay.io/isovalent/hubble-rbac
-      tag: v1.10.8
-      digest: sha256:4f99a8bdd7d7e5c89dbe51fa99953e806e9ea2bc7bcc7e8537fef35b359abfb7
+      tag: v1.10.10
+      digest: sha256:8e23e9d743948d2423c5a2b9a7dc0c681178d188b5b320e6a1c8838b6bc2f806
       useDigest: true
       pullPolicy: "Always"
     extraArgs: {}
