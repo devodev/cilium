@@ -40,6 +40,8 @@ func init() {
 		"privnet_subnet_val":           {privnet.SubnetVal{}},
 		"privnet_cidr_identity_key":    {privnet.CIDRIdentityKey{}},
 		"privnet_cidr_identity":        {privnet.CIDRIdentityVal{}},
+		"privnet_arp_sender_key":       {privnet.ARPSenderKey{}},
+		"privnet_arp_sender_val":       {privnet.ARPSenderVal{}},
 		"vni_key":                      {vniMap.VNIKey{}},
 		"vni_val":                      {vniMap.VNIVal{}},
 		"evpn_fib_key":                 {evpn.FIBKey{}},

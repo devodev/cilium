@@ -13,6 +13,8 @@ add_type(struct egress_gw_standalone_key);
 add_type(struct egress_gw_standalone_entry);
 add_type(struct encryption_policy_key);
 add_type(struct encryption_policy_entry);
+add_type(struct privnet_arp_sender_key);
+add_type(struct privnet_arp_sender_val);
 add_type(struct privnet_fib_key);
 add_type(struct privnet_fib_val);
 add_type(struct privnet_pip_key);
