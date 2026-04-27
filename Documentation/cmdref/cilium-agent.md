@@ -70,6 +70,7 @@ cilium-agent [flags]
       --bpf-policy-map-max int                                           Maximum number of entries in endpoint policy map (per endpoint) (default 16384)
       --bpf-policy-map-pressure-metrics-threshold float                  Sets threshold for emitting pressure metrics of policy maps (default 0.1)
       --bpf-policy-stats-map-max int                                     Maximum number of entries in bpf policy stats map (default 65536)
+      --bpf-privnet-arp-sender-map-max uint32                            Maximum number of entries in the private network ARP sender map. (default 16384)
       --bpf-privnet-cidr-identity-map-max uint32                         Maximum number of entries in the private network CIDR identity map. (default 128000)
       --bpf-privnet-ct-maps-map-max uint32                               Maximum number of entries in the private network BPF map of CT maps. (default 512)
       --bpf-privnet-devices-map-max uint32                               Maximum number of entries in the private network devices BPF map. (default 16384)
