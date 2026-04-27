@@ -499,7 +499,7 @@ jobs:
         working-directory: ./enterprise/olm
         env:
           # renovate: datasource=github-releases depName=mikefarah/yq
-          yq_version: 4.52.5
+          yq_version: 4.53.2
           # renovate: datasource=github-releases depName=operator-framework/operator-registry
           opm_version: 1.65.0
           VERSION: "${{ steps.tag.outputs.tag }}"

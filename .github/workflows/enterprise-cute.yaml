@@ -41,7 +41,7 @@ env:
   name: ${{ github.run_id }}
   USE_GKE_GCLOUD_AUTH_PLUGIN: True
   # renovate: datasource=github-releases depName=kubernetes/kubernetes
-  kubectl_version: v1.35.3
+  kubectl_version: v1.36.0
   terraform_version: 1.10.5
   upload_dir: github-upload
   artifact_retention_days: 15
@@ -516,7 +516,7 @@ jobs:
 
       - name: Send notification
         if: ${{ always() && steps.vars.outputs.notify != '' }}
-        uses: slackapi/slack-github-action@af78098f536edbc4de71162a307590698245be95 # v3.0.1
+        uses: slackapi/slack-github-action@03ea5433c137af7c0495bc0cad1af10403fc800c # v3.0.2
         with:
           method: chat.postMessage
           token: ${{ secrets.CUTE_SLACK_BOT_TOKEN }}
