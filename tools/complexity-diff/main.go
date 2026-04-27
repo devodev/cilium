@@ -6,6 +6,7 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"maps"
 	"os"
@@ -34,23 +35,45 @@ type verifierComplexityRecord struct {
 }
 
 func main() {
-	if len(os.Args) != 4 {
-		panic("usage: complexity-diff <old> <new> <diff>")
+	diffFile := flag.String("diff-file", "", "File to store the complexity diff")
+	flag.Usage = func() {
+		fmt.Fprintf(flag.CommandLine.Output(), "Usage: go run ./tools/complexity-diff [flags] <old> [new]\n")
+		flag.PrintDefaults()
 	}
 
-	oldFile := os.Args[1]
-	newFile := os.Args[2]
-	diffFile := os.Args[3]
+	flag.Parse()
+	if flag.NArg() == 0 {
+		flag.Usage()
+		os.Exit(1)
+	}
+
+	oldFile := flag.Arg(0)
 
 	oldRecords, err := loadRecords(oldFile)
 	if err != nil {
 		panic(err)
 	}
-	newRecords, err := loadRecords(newFile)
-	if err != nil {
-		panic(err)
-	}
 
+	if flag.NArg() == 2 {
+		newFile := flag.Arg(1)
+		newRecords, err := loadRecords(newFile)
+		if err != nil {
+			panic(err)
+		}
+
+		printDiffRecords(oldRecords, newRecords)
+		if *diffFile != "" {
+			dumpDiffRecords(oldRecords, newRecords, *diffFile)
+		}
+
+		// If two files were given, then printCurrentState() should run on the second,
+		// with the new records.
+		oldRecords = newRecords
+	}
+	printCurrentState(oldRecords)
+}
+
+func printDiffRecords(oldRecords, newRecords map[string]verifierComplexityRecord) {
 	diffRecords := calcDiffRecords(oldRecords, newRecords, true)
 
 	minMaxInsnsProcessed := calcMinMax(diffRecords, func(r verifierComplexityRecord) int {
@@ -67,28 +90,32 @@ func main() {
 		return r.MapCount
 	})
 	printTop15MinMax("largest differences by map count", minMaxMapCount, percentMapCount, colorRelativeChange)
+}
 
+func printCurrentState(newRecords map[string]verifierComplexityRecord) {
 	var sortedNewRecords []verifierComplexityRecord
 	for _, key := range slices.Sorted(maps.Keys(newRecords)) {
 		sortedNewRecords = append(sortedNewRecords, newRecords[key])
 	}
 
-	minMaxInsnsProcessed = calcMinMax(sortedNewRecords, func(r verifierComplexityRecord) int {
+	minMaxInsnsProcessed := calcMinMax(sortedNewRecords, func(r verifierComplexityRecord) int {
 		return r.InsnsProcessed
 	})
-	printTop15MinMax("largest instructions processed", minMaxInsnsProcessed, percentInsnsProcessed, colorAbsoluteValue)
+	printTop15MinMax("largest instructions processed", minMaxInsnsProcessed, percentInsnsProcessed, colorAbsoluteValueExponential)
 
-	minMaxStackDepth = calcMinMax(sortedNewRecords, func(r verifierComplexityRecord) int {
+	minMaxStackDepth := calcMinMax(sortedNewRecords, func(r verifierComplexityRecord) int {
 		return r.StackDepth
 	})
 	printTop15MinMax("largest stack depth", minMaxStackDepth, percentStackDepth, colorAbsoluteValue)
 
-	minMaxMapCount = calcMinMax(sortedNewRecords, func(r verifierComplexityRecord) int {
+	minMaxMapCount := calcMinMax(sortedNewRecords, func(r verifierComplexityRecord) int {
 		return r.MapCount
 	})
 	printTop15MinMax("largest map count", minMaxMapCount, percentMapCount, colorAbsoluteValue)
+}
 
-	diffRecords = calcDiffRecords(oldRecords, newRecords, false)
+func dumpDiffRecords(oldRecords, newRecords map[string]verifierComplexityRecord, diffFile string) {
+	diffRecords := calcDiffRecords(oldRecords, newRecords, false)
 
 	// Sort diff records to be more logically grouped for human consumption, even though its JSON.
 	sort.Slice(diffRecords, func(i, j int) bool {
@@ -158,7 +185,7 @@ func percentMapCount(i int) float64 {
 }
 
 func colorRelativeChange(program string, i int, p float64) string {
-	s := fmt.Sprintf("%s %+d (%.2f\\\\%%)", program, i, p)
+	s := fmt.Sprintf("%+d (%.2f\\\\%%) for %s", i, p, program)
 	if p == 0 {
 		return texNoColor(s)
 	}
@@ -171,12 +198,27 @@ func colorRelativeChange(program string, i int, p float64) string {
 }
 
 func colorAbsoluteValue(program string, i int, p float64) string {
-	s := fmt.Sprintf("%s %d (%.2f\\\\%%)", program, i, p)
-	if p > 80 {
+	s := fmt.Sprintf("%d (%.2f\\\\%%) for %s", i, p, program)
+	if p > 90 {
 		return texRed(s)
 	}
+	if p > 75 {
+		return texOrange(s)
+	}
 
-	return texGreen(s)
+	return texNoColor(s)
+}
+
+func colorAbsoluteValueExponential(program string, i int, p float64) string {
+	s := fmt.Sprintf("%d (%.2f\\\\%%) for %s", i, p, program)
+	if p > 70 {
+		return texRed(s)
+	}
+	if p > 50 {
+		return texOrange(s)
+	}
+
+	return texNoColor(s)
 }
 
 func texNoColor(s string) string {
@@ -189,6 +231,10 @@ func texGreen(s string) string {
 
 func texRed(s string) string {
 	return "$\\color{red}{\\textsf{" + s + "}}$"
+}
+
+func texOrange(s string) string {
+	return "$\\color{orange}{\\textsf{" + s + "}}$"
 }
 
 type minMax struct {

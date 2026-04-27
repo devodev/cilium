@@ -300,6 +300,100 @@ func TestPrivilegedEgressGatewayCEGPParser(t *testing.T) {
 	cegp, _ = newCEGP(&policy)
 	_, err = ParseCEGP(cegp)
 	require.Error(t, err)
+
+	// IPv6 egress IP with IPv6 destination CIDR should succeed
+	policy = policyParams{
+		name:             "policy-ipv6",
+		destinationCIDRs: []string{destCIDRv6},
+		policyGwParams: []policyGatewayParams{
+			{
+				egressIP: egressIP1v6,
+			},
+		},
+	}
+
+	cegp, _ = newCEGP(&policy)
+	_, err = ParseCEGP(cegp)
+	require.NoError(t, err)
+
+	// IPv6 egress IP with IPv4 destination CIDR should succeed
+	// (egressIP selects the interface, IPv4 is derived from it)
+	policy = policyParams{
+		name:             "policy-ipv6-with-v4-dest",
+		destinationCIDRs: []string{destCIDR},
+		policyGwParams: []policyGatewayParams{
+			{
+				egressIP: egressIP1v6,
+			},
+		},
+	}
+
+	cegp, _ = newCEGP(&policy)
+	_, err = ParseCEGP(cegp)
+	require.NoError(t, err)
+
+	// IPv4 egress IP with IPv6 destination CIDR should succeed
+	// (egressIP selects the interface, IPv6 is derived from it)
+	policy = policyParams{
+		name:             "policy-ipv4-with-v6-dest",
+		destinationCIDRs: []string{destCIDRv6},
+		policyGwParams: []policyGatewayParams{
+			{
+				egressIP: egressIP1,
+			},
+		},
+	}
+
+	cegp, _ = newCEGP(&policy)
+	_, err = ParseCEGP(cegp)
+	require.NoError(t, err)
+
+	// Dual-stack destination CIDRs with IPv4 egress IP should succeed
+	// (egressIP selects the interface, IPv6 is derived from it)
+	policy = policyParams{
+		name:             "policy-dualstack-v4",
+		destinationCIDRs: []string{destCIDR, destCIDRv6},
+		policyGwParams: []policyGatewayParams{
+			{
+				egressIP: egressIP1,
+			},
+		},
+	}
+
+	cegp, _ = newCEGP(&policy)
+	_, err = ParseCEGP(cegp)
+	require.NoError(t, err)
+
+	// Dual-stack destination CIDRs with IPv6 egress IP should succeed
+	// (egressIP selects the interface, IPv4 is derived from it)
+	policy = policyParams{
+		name:             "policy-dualstack-v6",
+		destinationCIDRs: []string{destCIDR, destCIDRv6},
+		policyGwParams: []policyGatewayParams{
+			{
+				egressIP: egressIP1v6,
+			},
+		},
+	}
+
+	cegp, _ = newCEGP(&policy)
+	_, err = ParseCEGP(cegp)
+	require.NoError(t, err)
+
+	// Dual-stack destination CIDRs with interface (no egress IP) should succeed
+	policy = policyParams{
+		name:             "policy-dualstack-iface",
+		destinationCIDRs: []string{destCIDR, destCIDRv6},
+		policyGwParams: []policyGatewayParams{
+			{
+				iface: testInterface1,
+			},
+		},
+	}
+
+	cegp, _ = newCEGP(&policy)
+	_, err = ParseCEGP(cegp)
+	require.NoError(t, err)
 }
 
 func TestPrivilegedEgressGatewayManager(t *testing.T) {
@@ -911,6 +1005,18 @@ func TestPrivilegedMultigatewayPolicy(t *testing.T) {
 	addPolicyAndReconcile(t, egressGatewayManager, k.policies, &policy1)
 	ipV4ExpectedpolicyMap = assignEndpoints(eps, nodes, 0, true)
 	ipV6ExpectedpolicyMap = assignEndpoints(eps, nodes, ifIndex1, false)
+	assertEgressRules4(t, policyMap4, ipV4ExpectedpolicyMap)
+	assertEgressRules6(t, policyMap6, ipV6ExpectedpolicyMap)
+
+	// Update one gateway so it no longer matches the policy and check that the endpoints get
+	// redistributed across the remaining gateways.
+	nodes[1].labels = nodeGroupNotFoundLabels
+	updatedNode := newCiliumNode(node2, node2IP, nodes[1].labels)
+	addNodeAndReconcile(t, k, egressGatewayManager, &updatedNode)
+	nodes[1].node = &updatedNode
+
+	ipV4ExpectedpolicyMap = assignEndpoints(eps, []testNodes{nodes[0], nodes[2]}, 0, true)
+	ipV6ExpectedpolicyMap = assignEndpoints(eps, []testNodes{nodes[0], nodes[2]}, ifIndex1, false)
 	assertEgressRules4(t, policyMap4, ipV4ExpectedpolicyMap)
 	assertEgressRules6(t, policyMap6, ipV6ExpectedpolicyMap)
 

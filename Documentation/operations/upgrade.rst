@@ -300,6 +300,11 @@ Informational Notes
   warning log. Existing empty policies already present in the cluster are not
   affected, but any create or update that results in an empty policy will be
   rejected.
+* Cilium MCS-API implementation now uses the ``v1beta1`` version of the
+  MCS-API CRDs. Note that ``v1alpha1`` remains fully supported, and this
+  upgrade should be fully transparent. You are still encouraged to update
+  your ``ServiceExport`` resources to ``v1beta1`` to benefit from future
+  improvements and prepare for the eventual deprecation of ``v1alpha1``.
 
 Changes to Features
 ~~~~~~~~~~~~~~~~~~~
@@ -371,6 +376,33 @@ from Cilium.
 * The Helm value ``hubble.redact.kafka.apiKey`` and the corresponding
   ``hubble-redact-kafka-apikey`` agent flag have been removed as part of
   dropping Kafka support.
+
+* The previously deprecated and ignored ``--ces-slice-mode`` operator flag has been removed.
+
+* The previously deprecated ``--node-port-algorithm`` agent flag has been removed
+  in favor of ``--bpf-lb-algorithm`` (``loadBalancer.algorithm`` Helm value).
+
+* The previously deprecated ``--node-port-mode`` agent flag has been removed
+  in favor of the ``--bpf-lb-mode`` (``loadBalancer.mode`` Helm value).
+
+* The previously deprecated and ignored ``--enable-ipsec-encrypted-overlay`` agent
+  flag (Helm ``encryption.ipsec.encryptedOverlay``) has been removed.
+
+* The previously deprecated ``--enable-encryption-strict-mode`` agent flag
+  (Helm ``encryption.strictMode.enabled``) has been removed in favor of
+  ``--enable-encryption-strict-mode-egress`` (Helm ``encryption.strictMode.egress.enabled``).
+
+* The previously deprecated ``--encryption-strict-mode-cidr`` agent flag
+  (Helm ``encryption.strictMode.cidrs``) has been removed in favor of
+  ``--encryption-strict-egress-cidr"`` (Helm ``encryption.strictMode.egress.cidrs``).
+
+* The previously deprecated ``--encryption-strict-mode-allow-remote-node-identities``
+  agent flag (Helm ``encryption.strictMode.allowRemoteNodeIdentities``) has been
+  removed in favor of ``--encryption-strict-egress-allow-remote-node-identities``
+  (Helm ``encryption.strictMode.egress.allowRemoteNodeIdentities``).
+
+* The previously deprecated ``--k8s-api-server`` agent flag has been removed in
+  favor of ``--k8s-api-server-urls`` (Helm ``k8s.apiServerURLs`` value).
 
 Changes to Metrics
 ~~~~~~~~~~~~~~~~~~

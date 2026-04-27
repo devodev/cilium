@@ -27,7 +27,7 @@ func (*Agent) SPI() uint8 {
 	return 4
 }
 
-func (*Agent) StartBackgroundJobs(node.Handler) error {
+func (*Agent) StartBackgroundJobs(node.Handler, <-chan struct{}) error {
 	return nil
 }
 
@@ -53,7 +53,6 @@ func (a *Agent) Enabled() bool {
 
 type Config struct {
 	EnableIPsec                              bool
-	EncryptedOverlay                         bool
 	UseCiliumInternalIPForIPsec              bool
 	DNSProxyInsecureSkipTransparentModeCheck bool
 }

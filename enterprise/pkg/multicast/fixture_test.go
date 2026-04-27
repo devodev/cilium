@@ -206,10 +206,10 @@ func newFixture(t *testing.T, ctx context.Context, req *require.Assertions, init
 			return &option.DaemonConfig{}
 		}),
 
-		// fake IPSec config with encrypted overlay enabled
+		// fake IPSec config with IPsec enabled
 		cell.Provide(func() ipsecConfigTypes.Config {
 			return ipsecTypes.Config{
-				EncryptedOverlay: true,
+				EnableIPsec: true,
 			}
 		}),
 
