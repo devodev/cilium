@@ -119,6 +119,7 @@ const (
 	CiliumPerCPUTraceID                 = "cilium_percpu_trace_id"
 	CiliumPolicyV2                      = "cilium_policy_v2"
 	CiliumPolicystats                   = "cilium_policystats"
+	CiliumPrivnetARPSenderCache         = "cilium_privnet_arp_sender_cache"
 	CiliumPrivnetCIDRIdentity           = "cilium_privnet_cidr_identity"
 	CiliumPrivnetCT4Global              = "cilium_privnet_ct4_global"
 	CiliumPrivnetCT4GlobalInner         = "cilium_privnet_ct4_global_inner"
@@ -1289,6 +1290,20 @@ func newCiliumPolicystatsSpec(btf *btf.Spec) *ebpf.MapSpec {
 	}
 }
 
+func newCiliumPrivnetARPSenderCacheSpec(btf *btf.Spec) *ebpf.MapSpec {
+	return &ebpf.MapSpec{
+		Name:       CiliumPrivnetARPSenderCache,
+		Type:       ebpf.Hash,
+		KeySize:    4,
+		Key:        anyTypeByName(btf, "privnet_arp_sender_key"),
+		ValueSize:  4,
+		Value:      anyTypeByName(btf, "privnet_arp_sender_val"),
+		MaxEntries: 16384,
+		Flags:      unix.BPF_F_NO_PREALLOC | unix.BPF_F_RDONLY_PROG,
+		Pinning:    ebpf.PinByName,
+	}
+}
+
 func newCiliumPrivnetCIDRIdentitySpec(btf *btf.Spec) *ebpf.MapSpec {
 	return &ebpf.MapSpec{
 		Name:       CiliumPrivnetCIDRIdentity,
@@ -1837,6 +1852,7 @@ var _outer []newMapFn = []newMapFn{
 	newCiliumPerCPUTraceIDSpec,
 	newCiliumPolicyV2Spec,
 	newCiliumPolicystatsSpec,
+	newCiliumPrivnetARPSenderCacheSpec,
 	newCiliumPrivnetCIDRIdentitySpec,
 	newCiliumPrivnetCT4GlobalSpec,
 	newCiliumPrivnetCT6GlobalSpec,

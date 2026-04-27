@@ -260,6 +260,15 @@ struct privnet_subnet_val {
 	__u16 subnet_id;
 };
 
+struct privnet_arp_sender_key {
+	__u16 net_id;
+	__u16 subnet_id;
+};
+
+struct privnet_arp_sender_val {
+	__be32 ipv4;
+};
+
 static __always_inline int
 privnet_nat_v4_addr(struct __ctx_buff *ctx, __be32 old_addr, __be32 new_addr, int addr_off)
 {
@@ -602,6 +611,32 @@ privnet_cidr_identity_lookup6(const void *map, union v6addr addr) {
 	key.ip6 = addr;
 
 	return map_lookup_elem(map, &key);
+}
+
+struct {
+	__uint(type, BPF_MAP_TYPE_HASH);
+	__type(key, struct privnet_arp_sender_key);
+	__type(value, struct privnet_arp_sender_val);
+	__uint(pinning, LIBBPF_PIN_BY_NAME);
+	__uint(max_entries, PRIVNET_ARP_SENDER_MAP_SIZE);
+	__uint(map_flags, BPF_F_NO_PREALLOC | BPF_F_RDONLY_PROG_COND);
+} cilium_privnet_arp_sender_cache __section_maps_btf;
+
+static __always_inline __be32
+privnet_get_arp_sender(__u16 net_id, __u16 subnet_id)
+{
+	struct privnet_arp_sender_key key = {
+		.net_id = net_id,
+		.subnet_id = subnet_id,
+	};
+	struct privnet_arp_sender_val *val;
+	__be32 ipv4 = 0;
+
+	val = map_lookup_elem(&cilium_privnet_arp_sender_cache, &key);
+	if (val)
+		ipv4 = val->ipv4;
+
+	return ipv4;
 }
 
 static __always_inline bool

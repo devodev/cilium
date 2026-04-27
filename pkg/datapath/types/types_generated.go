@@ -946,6 +946,19 @@ type PolicyVerdictNotify struct {
 	Pad         uint32
 }
 
+// PrivnetARPSenderKey is generated from the BPF C type privnet_arp_sender_key.
+type PrivnetARPSenderKey struct {
+	_        structs.HostLayout
+	NetID    uint16
+	SubnetID uint16
+}
+
+// PrivnetARPSenderVal is generated from the BPF C type privnet_arp_sender_val.
+type PrivnetARPSenderVal struct {
+	_    structs.HostLayout
+	IPv4 uint32
+}
+
 // PrivnetCIDRIdentity is generated from the BPF C type privnet_cidr_identity.
 type PrivnetCIDRIdentity struct {
 	_           structs.HostLayout
