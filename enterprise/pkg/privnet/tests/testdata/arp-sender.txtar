@@ -1,0 +1,196 @@
+#! --private-networks-enabled --private-networks-mode=local-access
+
+hive start
+db/initialized private-networks privnet-routes privnet-subnets
+
+# Add a ClusterwidePrivateNetwork with 2 subnets, plus its node attachment
+k8s/add icpn.yaml pnna.yaml
+# Setup parent device for the local-access attachment
+db/insert devices device.eth1.yaml
+
+# Step 1: Add 1 local (same-node) + 1 remote (other-node) endpoint in subnet1.
+# Only the local endpoint should be selected.
+privnet/epm-create subnet-1-ep1.json
+k8s/add other-node-ep.yaml
+# Verify statedb table
+db/cmp privnet-arp-senders arp.v1.table
+# Verify map contents
+privnet/maps-dump privnet_arp_sender_cache arp-actual.map
+* cmp arp.v1.map arp-actual.map
+
+# Step 2: Add another local endpoint in subnet1, and a local endpoint in subnet2.
+# subnet1 selection is unchanged (first-wins); subnet2 picks the new endpoint.
+privnet/epm-create subnet-1-ep2.json
+privnet/epm-create subnet-2-ep1.json
+# Verify statedb table
+db/cmp privnet-arp-senders arp.v2.table
+# Verify map contents
+privnet/maps-dump privnet_arp_sender_cache arp-actual.map
+* cmp arp.v2.map arp-actual.map
+
+# Step 3: Remove subnet-1-ep1 -> reconciler picks the remaining local endpoint
+# in subnet1 (subnet-1-ep2). subnet2 selection unchanged.
+privnet/epm-delete bar/subnet-1-ep1
+# Verify statedb table
+db/cmp privnet-arp-senders arp.v3.table
+# Verify map contents
+privnet/maps-dump privnet_arp_sender_cache arp-actual.map
+* cmp arp.v3.map arp-actual.map
+
+# Step 4: Remove subnet2 from the ClusterwidePrivateNetwork.
+# subnet2 ARP sender entry is removed; subnet1 remains.
+k8s/update icpn-no-subnet2.yaml
+# Verify statedb table
+db/cmp privnet-arp-senders arp.v4.table
+# Verify map contents
+privnet/maps-dump privnet_arp_sender_cache arp-actual.map
+* cmp arp.v4.map arp-actual.map
+
+# ----
+
+-- device.eth1.yaml --
+index: 10
+name: eth1
+type: veth
+operstatus: up
+selected: true
+
+-- icpn.yaml --
+apiVersion: isovalent.com/v1alpha1
+kind: ClusterwidePrivateNetwork
+metadata:
+  name: direct-maggot
+spec:
+  subnets:
+  - name: subnet1
+    cidrv4: 192.168.250.0/24
+    cidrv6: fd10:0:250::0/64
+  - name: subnet2
+    cidrv4: 192.168.251.0/24
+    cidrv6: fd10:0:251::0/64
+
+-- icpn-no-subnet2.yaml --
+apiVersion: isovalent.com/v1alpha1
+kind: ClusterwidePrivateNetwork
+metadata:
+  name: direct-maggot
+spec:
+  subnets:
+  - name: subnet1
+    cidrv4: 192.168.250.0/24
+    cidrv6: fd10:0:250::0/64
+
+-- pnna.yaml --
+apiVersion: isovalent.com/v1alpha1
+kind: PrivateNetworkNodeAttachment
+metadata:
+  name: direct-maggot-na
+spec:
+  privateNetworkRef:
+    name: direct-maggot
+  attachments:
+    - interface: eth1
+
+-- other-node-ep.yaml --
+apiVersion: isovalent.com/v1alpha1
+kind: PrivateNetworkEndpointSlice
+metadata:
+  namespace: default
+  name: direct-maggot-other-ep
+endpoints:
+- activatedAt: "2025-06-20T16:00:01.000000Z"
+  endpoint:
+    addressing:
+      ipv4: 10.244.5.108
+      ipv6: fd10:0:250::23
+    name: gracious-gerbil
+  interface:
+    addressing:
+      ipv4: 192.168.250.4
+      ipv6: fd10:0:250::4
+    mac: 00:50:56:ad:11:97
+    network: direct-maggot
+nodeName: cricket
+
+-- subnet-1-ep1.json --
+{
+  "ID": 16,
+  "addressing": {
+    "ipv4": "10.244.5.116",
+    "ipv6": "fd00:10:244:5::116"
+  },
+  "k8s-pod-name": "subnet-1-ep1",
+  "k8s-namespace": "bar",
+  "mac": "00:50:56:ad:11:02",
+  "properties": {
+    "isovalent-privnet-network": "direct-maggot",
+    "isovalent-privnet-activated-at": "2025-09-17T12:41:00.000000Z",
+    "isovalent-privnet-ipv4-addr": "192.168.250.10",
+    "isovalent-privnet-ipv6-addr": "fd10:0:250::10"
+  }
+}
+
+-- subnet-1-ep2.json --
+{
+  "ID": 17,
+  "addressing": {
+    "ipv4": "10.244.5.117",
+    "ipv6": "fd00:10:244:5::117"
+  },
+  "k8s-pod-name": "subnet-1-ep2",
+  "k8s-namespace": "bar",
+  "mac": "00:50:56:ad:11:03",
+  "properties": {
+    "isovalent-privnet-network": "direct-maggot",
+    "isovalent-privnet-activated-at": "2025-09-17T12:42:00.000000Z",
+    "isovalent-privnet-ipv4-addr": "192.168.250.20",
+    "isovalent-privnet-ipv6-addr": "fd10:0:250::20"
+  }
+}
+
+-- subnet-2-ep1.json --
+{
+  "ID": 18,
+  "addressing": {
+    "ipv4": "10.244.5.118",
+    "ipv6": "fd00:10:244:5::118"
+  },
+  "k8s-pod-name": "subnet-2-ep1",
+  "k8s-namespace": "bar",
+  "mac": "00:50:56:ad:11:04",
+  "properties": {
+    "isovalent-privnet-network": "direct-maggot",
+    "isovalent-privnet-activated-at": "2025-09-17T12:43:00.000000Z",
+    "isovalent-privnet-ipv4-addr": "192.168.251.10",
+    "isovalent-privnet-ipv6-addr": "fd10:0:251::10"
+  }
+}
+
+-- arp.v1.table --
+Network         NetworkID   Subnet    SubnetID   IPv4
+direct-maggot   0x1         subnet1   0x1        192.168.250.10
+
+-- arp.v2.table --
+Network         NetworkID   Subnet    SubnetID   IPv4
+direct-maggot   0x1         subnet1   0x1        192.168.250.10
+direct-maggot   0x1         subnet2   0x2        192.168.251.10
+
+-- arp.v3.table --
+Network         NetworkID   Subnet    SubnetID   IPv4
+direct-maggot   0x1         subnet1   0x1        192.168.250.20
+direct-maggot   0x1         subnet2   0x2        192.168.251.10
+
+-- arp.v4.table --
+Network         NetworkID   Subnet    SubnetID   IPv4
+direct-maggot   0x1         subnet1   0x1        192.168.250.20
+
+-- arp.v1.map --
+0x1/0x1 -> 192.168.250.10
+-- arp.v2.map --
+0x1/0x1 -> 192.168.250.10
+0x1/0x2 -> 192.168.251.10
+-- arp.v3.map --
+0x1/0x1 -> 192.168.250.20
+0x1/0x2 -> 192.168.251.10
+-- arp.v4.map --
+0x1/0x1 -> 192.168.250.20
