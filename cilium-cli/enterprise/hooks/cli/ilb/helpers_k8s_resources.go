@@ -1288,6 +1288,16 @@ func withPreferSameZone() serviceOption {
 	}
 }
 
+func withRequireSameZone() serviceOption {
+	return func(o *isovalentv1alpha1.LBService) {
+		o.Spec.TrafficPolicy = &isovalentv1alpha1.LBTrafficPolicy{
+			ZoneAware: &isovalentv1alpha1.LBZoneAware{
+				Mode: isovalentv1alpha1.LBZoneAwareModeRequireSameZone,
+			},
+		}
+	}
+}
+
 type tcpProxyApplicationOption func(o *isovalentv1alpha1.LBServiceApplicationTCPProxy)
 
 func withTCPForceDeploymentMode(forceDeploymentMode isovalentv1alpha1.LBTCPProxyForceDeploymentModeType) tcpProxyApplicationOption {

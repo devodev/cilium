@@ -197,6 +197,18 @@ jobs:
             # Don't run the extlb tests, those are run in a separate matrix entry
             run-tests: "!LBK8sBackendCluster"
             t2-hc-push: "true"
+          - name: "10"
+            mode: "multi-node"
+            kind-ip-family: "ipv4"
+            kernel: "6.1-20240710.064909"
+            use-remote-address: "true"
+            xff-num-trusted-hops: 0
+            nr-of-worker-nodes: 3
+            t1-nodes: "kind-control-plane kind-worker"
+            t2-nodes: "kind-worker2 kind-worker3"
+            zones: "zone-a zone-b"
+            # Don't run the extlb tests, those are run in a separate matrix entry
+            run-tests: "!LBK8sBackendCluster"
 
     timeout-minutes: 120
 
@@ -265,6 +277,35 @@ jobs:
         run: |
           export DOCKER_HOST="tcp://127.0.0.1:22375"
           kubectl label node ${{ matrix.t1t2-nodes }} service.cilium.io/node=t1-t2
+
+      - name: Label T1 and T2 nodes with zones
+        if: ${{ matrix.zones != '' }}
+        shell: bash
+        run: |
+          zones="${{ matrix.zones }}"
+          t1_nodes="${{ matrix.t1-nodes }}"
+          t2_nodes="${{ matrix.t2-nodes }}"
+
+          read -r -a zones_arr <<< "$zones"
+          export DOCKER_HOST="tcp://127.0.0.1:22375"
+
+          label_nodes() {
+            local node_list="$1"
+            local -a nodes_arr
+            local zone_idx=0
+
+            read -r -a nodes_arr <<< "$node_list"
+
+            for node in "${nodes_arr[@]}"; do
+              zone="${zones_arr[zone_idx % ${#zones_arr[@]}]}"
+              echo "Labeling $node with topology.kubernetes.io/zone=$zone"
+              kubectl label node "$node" topology.kubernetes.io/zone=$zone
+              ((zone_idx += 1))
+            done
+          }
+
+          label_nodes "$t1_nodes"
+          label_nodes "$t2_nodes"
 
       - name: Configure unprivileged port range
         shell: bash
