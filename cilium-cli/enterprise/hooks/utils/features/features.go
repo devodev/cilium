@@ -15,7 +15,10 @@ import (
 	"fmt"
 
 	"github.com/blang/semver/v4"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/cilium/cilium/cilium-cli/connectivity/check"
 	"github.com/cilium/cilium/cilium-cli/defaults"
@@ -66,6 +69,9 @@ const (
 	// When enabled, a clone of every pod packet is mirrored to a dedicated
 	// inspection interface for out-of-band IDS analysis.
 	PassiveInspection features.Feature = "enable-passive-inspection"
+
+	// Whether or not the Tier field can be set in IsovalentNetworkPolicy
+	NetworkPolicyTier features.Feature = "network-policy-tier"
 )
 
 func Detect(ctx context.Context, ct *check.ConnectivityTest) error {
@@ -88,6 +94,32 @@ func Detect(ctx context.Context, ct *check.ConnectivityTest) error {
 		}
 	}
 
+	if err := extractPolicyTierFeature(ctx, ct); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func extractPolicyTierFeature(ctx context.Context, ct *check.ConnectivityTest) error {
+	for _, client := range ct.Clients() {
+		// NetworkPolicyTier is enabled / disabled via a VAP
+		vap := &unstructured.Unstructured{}
+		vap.SetGroupVersionKind(schema.GroupVersionKind{
+			Group: "admissionregistration.k8s.io", Version: "v1", Kind: "ValidatingAdmissionPolicy",
+		})
+		_, err := client.GetGeneric(ctx, "", "cilium-disallow-policy-tiers", vap)
+		if apierrors.IsNotFound(err) {
+			continue
+		} else if err != nil {
+			return fmt.Errorf("could not retrieve admissionregistration.k8s.io/v1::ValidatingAdmissionPolicy cilium-disallow-policy-tiers: %w", err)
+		}
+		// otherwise, we found the VAP and thus this feature is disabled
+		ct.Features[NetworkPolicyTier] = features.Status{Enabled: false}
+		return nil
+	}
+
+	ct.Features[NetworkPolicyTier] = features.Status{Enabled: true}
 	return nil
 }
 
