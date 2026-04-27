@@ -31,6 +31,7 @@ var Cell = cell.Group(
 	NodeAttachmentCell,
 	CTMapsCell,
 	DhcpLeasesCell,
+	ARPMapCell,
 
 	// Infrastructure shared between some of the reconcilers
 	cell.Provide(

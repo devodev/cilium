@@ -75,6 +75,9 @@ func mockBPFMapCell(t testing.TB) cell.Cell {
 					Val: pnmaps.NewSubnetVal(0xfd),
 				},
 			),
+			registerFakeBPFMap[*pnmaps.ARPSenderKeyVal](
+				pnmaps.ARPSenderMapName, 16384, true,
+			),
 			registerFakeBPFMap[*pnmaps.CIDRIdentityKeyVal](
 				pnmaps.CIDRIdentityMapName, 128000, true,
 				&pnmaps.CIDRIdentityKeyVal{
