@@ -45,6 +45,27 @@ privnet_net_ip_arp_req = (
         hwsrc=pd.mac_one, hwdst=pd.mac_bcast)
 )
 
+## arp_req_egress is arp packet with sip = node_ip
+privnet_net_ip_arp_req_egress = (
+        Ether(dst=pd.mac_bcast, src=pd.mac_one) /
+        ARP(op="who-has", psrc=pd.v4_node_one, pdst=v4_pod_two_netip,
+            hwsrc=pd.mac_one, hwdst=pd.mac_bcast)
+)
+
+## garp_egress is arp req packet with sip == dip
+privnet_net_ip_garp_egress = (
+    Ether(dst=pd.mac_bcast, src=pd.mac_one) /
+    ARP(op="who-has", psrc=v4_pod_two_netip, pdst=v4_pod_two_netip,
+        hwsrc=pd.mac_one, hwdst=pd.mac_bcast)
+)
+
+## arp_probe is the arp req with sender IP 0.0.0.0.
+privnet_net_ip_arp_probe = (
+        Ether(dst=pd.mac_bcast, src=pd.mac_one) /
+        ARP(op="who-has", psrc="0.0.0.0", pdst=v4_pod_two_netip,
+            hwsrc=pd.mac_one, hwdst=pd.mac_bcast)
+)
+
 privnet_net_ip_arp_res = (
     Ether(dst=pd.mac_one, src=pd.mac_two) /
     ARP(op="is-at", psrc=v4_pod_two_netip, pdst=v4_pod_one_netip,

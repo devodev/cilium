@@ -2378,6 +2378,51 @@ static __always_inline bool ipv4_addr_is_link_local(const __be32 ip4)
 	return (bpf_ntohl(ip4) >> 16) == 0xA9FE /* 169 254 */;
 }
 
+/* handle_privnet_arp_egress - rewrite the SIP of an egress ARP request
+ * to the privnet per-subnet "sender IP". Falls back to 0.0.0.0
+ * (ARP probe) when the agent is not alive. No-op for non-requests,
+ * gratuitous announcements.
+ */
+static __always_inline int
+handle_privnet_arp_egress(struct __ctx_buff *ctx, __u16 net_id)
+{
+	void *data_end = (void *)(long)ctx->data_end;
+	void *data = (void *)(long)ctx->data;
+	struct arphdr *arp = data + ETH_HLEN;
+	struct arp_eth *arp_eth;
+	__u16 subnet_id = 0;
+	__be32 sender_ip = 0;
+	__u32 sip_off = 0;
+
+	if (data + ETH_HLEN + sizeof(*arp) + sizeof(*arp_eth) > data_end)
+		return DROP_INVALID;
+
+	if (arp->ar_op != bpf_htons(ARPOP_REQUEST))
+		return CTX_ACT_OK;
+
+	arp_eth = data + ETH_HLEN + sizeof(*arp);
+
+	/* Preserve gratuitous announcements (sip == tip) */
+	if (arp_eth->ar_sip == arp_eth->ar_tip)
+		return CTX_ACT_OK;
+
+	subnet_id = privnet_subnet_id_lookup4(net_id, arp_eth->ar_tip);
+	if (!subnet_id)
+		return CTX_ACT_OK;
+
+	if (privnet_agent_alive())
+		sender_ip = privnet_get_arp_sender(net_id, subnet_id);
+
+	/* ARP sip_off = 28 ( Eth 14 + ARP HDR 8 + SIP OFFSET 6 ) */
+	sip_off = ETH_HLEN + sizeof(struct arphdr) +
+		  offsetof(struct arp_eth, ar_sip);
+
+	if (ctx_store_bytes(ctx, sip_off, &sender_ip, sizeof(sender_ip), 0) < 0)
+		return DROP_WRITE_ERROR;
+
+	return CTX_ACT_OK;
+}
+
 static __always_inline int
 handle_privnet_arp(struct __ctx_buff *ctx, const __u16 net_id,
 		   const union v4addr *ep_addr __maybe_unused)

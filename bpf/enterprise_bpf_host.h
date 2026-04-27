@@ -230,33 +230,40 @@ enterprise_privnet_do_netdev(struct __ctx_buff *ctx, __u16 proto, __u32 __maybe_
 	return ret;
 }
 
-static __always_inline void enterprise_privnet_to_netdev(void)
+static __always_inline int
+enterprise_privnet_to_netdev(struct __ctx_buff *ctx, __u16 proto)
 {
 	const __u16 *local_net_id;
 
-	if (!CONFIG(privnet_enable))
+	if (!CONFIG(privnet_enable)) {
 		/* Private networks is not enabled. We're always in P-IP space. */
-		return set_privnet_net_ids(PRIVNET_PIP_NET_ID, PRIVNET_PIP_NET_ID);
+		set_privnet_net_ids(PRIVNET_PIP_NET_ID, PRIVNET_PIP_NET_ID);
+		return CTX_ACT_OK;
+	}
 
 	local_net_id = privnet_get_net_id(CONFIG(interface_ifindex));
-	if (local_net_id && *local_net_id)
+	if (local_net_id && *local_net_id) {
 		/* The netdev is directly attached to a private network. Anything entering
 		 * or leaving this interface is in the configured network.
 		 */
-		return set_privnet_net_ids(*local_net_id, *local_net_id);
-
-	if (!CONFIG(privnet_bridge_enable))
+		set_privnet_net_ids(*local_net_id, *local_net_id);
+		if (proto == bpf_htons(ETH_P_ARP))
+			return handle_privnet_arp_egress(ctx, *local_net_id);
+	} else if (!CONFIG(privnet_bridge_enable)) {
 		/* We're not on the bridge, and the netdev is not attached to a private network.
 		 * The source is always in PIP space. The destination is unknown, as it might be
 		 * encapsulated unknown flow traffic. Let userspace figure it out.
 		 */
-		return set_privnet_net_ids(PRIVNET_PIP_NET_ID, PRIVNET_UNKNOWN_NET_ID);
+		set_privnet_net_ids(PRIVNET_PIP_NET_ID, PRIVNET_UNKNOWN_NET_ID);
+	} else {
+		/* We're on the bridge, and the netdev is not attached to a private network. The destination
+		 * is always in PIP space. The source is unknown, as it might be encapsulated unknown flow
+		 * traffic. Let userspace figure it out.
+		 */
+		set_privnet_net_ids(PRIVNET_UNKNOWN_NET_ID, PRIVNET_PIP_NET_ID);
+	}
 
-	/* We're on the bridge, and the netdev is not attached to a private network. The destination
-	 * is always in PIP space. The source is unknown, as it might be encapsulated unknown flow
-	 * traffic. Let userspace figure it out.
-	 */
-	return set_privnet_net_ids(PRIVNET_UNKNOWN_NET_ID, PRIVNET_PIP_NET_ID);
+	return CTX_ACT_OK;
 }
 
 static __always_inline void enterprise_privnet_from_netdev(void)

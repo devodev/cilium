@@ -403,3 +403,26 @@ privnet_v4_del_cidr_identity_entry(__be32 prefix, __u8 prefix_len)
 	};
 	map_delete_elem(&cilium_privnet_cidr_identity, &key);
 }
+
+static __always_inline void
+privnet_v4_add_arp_sender(__u16 net_id, __u16 subnet_id, __be32 ipv4)
+{
+	struct privnet_arp_sender_key key = {
+		.net_id = net_id,
+		.subnet_id = subnet_id,
+	};
+	struct privnet_arp_sender_val val = { .ipv4 = ipv4 };
+
+	map_update_elem(&cilium_privnet_arp_sender_cache, &key, &val, BPF_ANY);
+}
+
+static __always_inline void
+privnet_v4_del_arp_sender(__u16 net_id, __u16 subnet_id)
+{
+	struct privnet_arp_sender_key key = {
+		.net_id = net_id,
+		.subnet_id = subnet_id,
+	};
+
+	map_delete_elem(&cilium_privnet_arp_sender_cache, &key);
+}

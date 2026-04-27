@@ -1340,6 +1340,11 @@ int cil_to_netdev(struct __ctx_buff *ctx)
 	/* Load the ethertype just once: */
 	validate_ethertype(ctx, &proto);
 
+	/* Set privnet netID info. Needs to happen before any possible notify */
+	ret = enterprise_privnet_to_netdev(ctx, proto);
+	if (IS_ERR(ret))
+		goto drop_err;
+
 	/* Trace before clearing skb->cb */
 #ifdef ENABLE_IPSEC
 	if (magic == MARK_MAGIC_ENCRYPT)
@@ -1351,9 +1356,6 @@ int cil_to_netdev(struct __ctx_buff *ctx)
 
 	bpf_clear_meta(ctx);
 	check_and_store_ip_trace_id(ctx);
-
-	/* Set privnet netID info. Needs to happen before any possible notify */
-	enterprise_privnet_to_netdev();
 
 	if (magic == MARK_MAGIC_HOST || magic == MARK_MAGIC_OVERLAY || magic == MARK_MAGIC_ENCRYPT)
 		src_sec_identity = HOST_ID;

@@ -37,6 +37,18 @@ const __u8 privnet_net_ip_arp_res[] = {
 	SCAPY_BUF_BYTES(privnet_net_ip_arp_res)
 };
 
+const __u8 privnet_net_ip_arp_req_egress[] = {
+	SCAPY_BUF_BYTES(privnet_net_ip_arp_req_egress)
+};
+
+const __u8 privnet_net_ip_garp_egress[] = {
+	SCAPY_BUF_BYTES(privnet_net_ip_garp_egress)
+};
+
+const __u8 privnet_net_ip_arp_probe[] = {
+	SCAPY_BUF_BYTES(privnet_net_ip_arp_probe)
+};
+
 const __u8 privnet_netdev_ns[] = {
 	SCAPY_BUF_BYTES(privnet_netdev_ns)
 };
@@ -468,5 +480,156 @@ int privnet_dhcp_reply_from_netdev_redirect_check(struct __ctx_buff *ctx)
 	assert_privnet_net_ids(NET_ID, NET_ID);
 
 	privnet_del_device_entry(IFINDEX);
+	test_finish();
+}
+
+PKTGEN("tc", "10_arp_egress_sip_rewritten")
+int privnet_arp_egress_sip_rewritten_pktgen(struct __ctx_buff *ctx)
+{
+	build_privnet_packet(ctx, privnet_net_ip_arp_req_egress);
+	return 0;
+}
+
+SETUP("tc", "10_arp_egress_sip_rewritten")
+int privnet_arp_egress_sip_rewritten_setup(struct __ctx_buff *ctx)
+{
+	privnet_add_device_entry(IFINDEX, NET_ID, NULL, NULL);
+	privnet_watchdog_set(ktime_get_ns(), 3000000000ULL);
+	privnet_v4_add_subnet_entry(NET_ID, SUBNET_V4, SUBNET_V4_LEN, SUBNET_ID);
+	privnet_v4_add_arp_sender(NET_ID, SUBNET_ID, V4_NET_IP_1);
+
+	return netdev_send_packet(ctx);
+}
+
+CHECK("tc", "10_arp_egress_sip_rewritten")
+int privnet_arp_egress_sip_rewritten_check(struct __ctx_buff *ctx)
+{
+	test_init();
+
+	assert_status_code(ctx, TC_ACT_OK);
+
+	ASSERT_CTX_BUF_OFF("privnet_arp_egress_sip_rewritten", "Ether", ctx,
+			   sizeof(__u32), privnet_net_ip_arp_req,
+			   sizeof(privnet_net_ip_arp_req));
+
+	assert_privnet_net_ids(NET_ID, NET_ID);
+
+	privnet_v4_del_arp_sender(NET_ID, SUBNET_ID);
+	privnet_v4_del_subnet_entry(NET_ID, SUBNET_V4, SUBNET_V4_LEN);
+	privnet_del_device_entry(IFINDEX);
+
+	test_finish();
+}
+
+PKTGEN("tc", "11_arp_egress_garp_unchanged")
+int privnet_arp_egress_garp_unchanged_pktgen(struct __ctx_buff *ctx)
+{
+	build_privnet_packet(ctx, privnet_net_ip_garp_egress);
+	return 0;
+}
+
+SETUP("tc", "11_arp_egress_garp_unchanged")
+int privnet_arp_egress_garp_unchanged_setup(struct __ctx_buff *ctx)
+{
+	privnet_add_device_entry(IFINDEX, NET_ID, NULL, NULL);
+	privnet_watchdog_set(ktime_get_ns(), 3000000000ULL);
+	privnet_v4_add_subnet_entry(NET_ID, SUBNET_V4, SUBNET_V4_LEN, SUBNET_ID);
+	privnet_v4_add_arp_sender(NET_ID, SUBNET_ID, V4_NET_IP_1);
+
+	return netdev_send_packet(ctx);
+}
+
+CHECK("tc", "11_arp_egress_garp_unchanged")
+int privnet_arp_egress_garp_unchanged_check(struct __ctx_buff *ctx)
+{
+	test_init();
+
+	assert_status_code(ctx, TC_ACT_OK);
+
+	ASSERT_CTX_BUF_OFF("privnet_arp_egress_garp_unchanged", "Ether", ctx,
+			   sizeof(__u32), privnet_net_ip_garp_egress,
+			   sizeof(privnet_net_ip_garp_egress));
+
+	assert_privnet_net_ids(NET_ID, NET_ID);
+
+	privnet_v4_del_arp_sender(NET_ID, SUBNET_ID);
+	privnet_v4_del_subnet_entry(NET_ID, SUBNET_V4, SUBNET_V4_LEN);
+	privnet_del_device_entry(IFINDEX);
+
+	test_finish();
+}
+
+PKTGEN("tc", "12_arp_egress_probe_no_sender_cache")
+int privnet_arp_egress_probe_no_sender_cache_pktgen(struct __ctx_buff *ctx)
+{
+	build_privnet_packet(ctx, privnet_net_ip_arp_req_egress);
+	return 0;
+}
+
+SETUP("tc", "12_arp_egress_probe_no_sender_cache")
+int privnet_arp_egress_probe_no_sender_cache_setup(struct __ctx_buff *ctx)
+{
+	privnet_add_device_entry(IFINDEX, NET_ID, NULL, NULL);
+	privnet_watchdog_set(ktime_get_ns(), 3000000000ULL);
+	privnet_v4_add_subnet_entry(NET_ID, SUBNET_V4, SUBNET_V4_LEN, SUBNET_ID);
+	/* intentionally no privnet_v4_add_arp_sender() */
+
+	return netdev_send_packet(ctx);
+}
+
+CHECK("tc", "12_arp_egress_probe_no_sender_cache")
+int privnet_arp_egress_probe_no_sender_cache_check(struct __ctx_buff *ctx)
+{
+	test_init();
+
+	assert_status_code(ctx, TC_ACT_OK);
+
+	ASSERT_CTX_BUF_OFF("privnet_arp_egress_probe_no_sender_cache", "Ether", ctx,
+			   sizeof(__u32), privnet_net_ip_arp_probe,
+			   sizeof(privnet_net_ip_arp_probe));
+
+	assert_privnet_net_ids(NET_ID, NET_ID);
+
+	privnet_v4_del_subnet_entry(NET_ID, SUBNET_V4, SUBNET_V4_LEN);
+	privnet_del_device_entry(IFINDEX);
+
+	test_finish();
+}
+
+PKTGEN("tc", "13_arp_egress_probe_watchdog_expired")
+int privnet_arp_egress_probe_watchdog_expired_pktgen(struct __ctx_buff *ctx)
+{
+	build_privnet_packet(ctx, privnet_net_ip_arp_req_egress);
+	return 0;
+}
+
+SETUP("tc", "13_arp_egress_probe_watchdog_expired")
+int privnet_arp_egress_probe_watchdog_expired_setup(struct __ctx_buff *ctx)
+{
+	privnet_add_device_entry(IFINDEX, NET_ID, NULL, NULL);
+	privnet_watchdog_set(ktime_get_ns() - 5000000000ULL, 3000000000ULL);
+	privnet_v4_add_subnet_entry(NET_ID, SUBNET_V4, SUBNET_V4_LEN, SUBNET_ID);
+	privnet_v4_add_arp_sender(NET_ID, SUBNET_ID, V4_NET_IP_1);
+
+	return netdev_send_packet(ctx);
+}
+
+CHECK("tc", "13_arp_egress_probe_watchdog_expired")
+int privnet_arp_egress_probe_watchdog_expired_check(struct __ctx_buff *ctx)
+{
+	test_init();
+
+	assert_status_code(ctx, TC_ACT_OK);
+
+	ASSERT_CTX_BUF_OFF("privnet_arp_egress_probe_watchdog_expired", "Ether", ctx,
+			   sizeof(__u32), privnet_net_ip_arp_probe,
+			   sizeof(privnet_net_ip_arp_probe));
+
+	assert_privnet_net_ids(NET_ID, NET_ID);
+
+	privnet_v4_del_arp_sender(NET_ID, SUBNET_ID);
+	privnet_v4_del_subnet_entry(NET_ID, SUBNET_V4, SUBNET_V4_LEN);
+	privnet_del_device_entry(IFINDEX);
+
 	test_finish();
 }
