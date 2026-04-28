@@ -491,6 +491,7 @@ contributors across the globe, there is almost always someone available to help.
 | enterprise.multiNetwork.autoDirectNodeRoutes | bool | `true` | Enable multi-network aware automatic L2 routing between nodes |
 | enterprise.multiNetwork.enabled | bool | `false` | Enables the multi-network feature in Cilium CNI |
 | enterprise.multicast.enabled | bool | `false` | Enables multicast in cilium, multicast replication works only in tunnel mode. |
+| enterprise.networkPolicy.tiers.enabled | bool | `false` | Add support for tiered policy. |
 | enterprise.privateNetworks.api.port | int | `4239` | The TCP port the privnet API server listens to, in "bridge" mode. Otherwise, it represents the fallback port to connect to a candidate INB, if not explicitly advertised by the candidate INB itself. |
 | enterprise.privateNetworks.api.tls | object | `{"certmanager":{"certValidityDuration":365,"issuerRef":{}},"cronJob":{"certValidityDuration":365,"schedule":"0 0 1 */4 *"},"enabled":false,"manual":{"client":{"existingSecret":""},"server":{"existingSecret":""}},"method":"manual"}` | Configuration for TLS certificates for the privnet API. |
 | enterprise.privateNetworks.api.tls.certmanager | object | `{"certValidityDuration":365,"issuerRef":{}}` | Configure the cert-manager specific parameters. Only applicable when method is "certmanager". |

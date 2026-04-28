@@ -57,7 +57,7 @@ func (me *MapEntry) Equal(other *MapEntry) bool {
 
 // Key returns the key uniquely identifying this endpoint in the nat table.
 func (me *MapEntry) Key() MapEntryKey {
-	return newMapEntryKey(me.Target.NetworkName, me.Target.SubnetName, me.Type, me.Target.CIDR)
+	return newMapEntryKey(me.Target.NetworkName, me.Target.SubnetName, me.Kind(), me.Target.CIDR)
 }
 
 func (me MapEntry) String() string {
@@ -106,6 +106,10 @@ func (me MapEntry) TableRow() []string {
 		}(),
 		me.Status.String(),
 	}
+}
+
+func (me MapEntry) Kind() MapEntryKind {
+	return me.Type.Kind()
 }
 
 // MapEntryType represents the type of the PIP/FIB map entry.
@@ -174,6 +178,38 @@ func (typ *MapEntryType) UnmarshalText(in []byte) error {
 	}
 
 	return nil
+}
+
+func (typ MapEntryType) Kind() MapEntryKind {
+	switch typ {
+	case MapEntryTypePeeringRoute:
+		return MapEntryKindPeering
+	default:
+		return MapEntryKindDefault
+	}
+}
+
+// MapEntryKind indicates the kind of the map entry.
+// The kind of an entry is based in its type. There can't
+// be two entries with the same NetIP and kind in the same
+// subnet.
+type MapEntryKind uint8
+
+const (
+	// MapEntryKindDefault is the kind of (external) endpoints and routes
+	MapEntryKindDefault MapEntryKind = iota
+	// MapEntryKindPeering is the kind for peering routes, which may co-exist
+	// with other mapentries
+	MapEntryKindPeering
+)
+
+func (kind MapEntryKind) String() string {
+	switch kind {
+	case MapEntryKindPeering:
+		return "P"
+	default:
+		return "D"
+	}
 }
 
 // MapEntryTarget represents the target network CIDR reachable via this entry.
@@ -247,12 +283,12 @@ func newMapEntryKeyFromNetworkSubnet(network NetworkName, subnet SubnetName) Map
 	return newMapEntryKeyFromNetwork(network) + MapEntryKey(subnet) + indexDelimiter
 }
 
-func newMapEntryKeyFromNetworkSubnetAndType(network NetworkName, subnet SubnetName, typ MapEntryType) MapEntryKey {
-	return newMapEntryKeyFromNetworkSubnet(network, subnet) + MapEntryKey(typ.String()+indexDelimiter)
+func newMapEntryKeyFromNetworkSubnetAndKind(network NetworkName, subnet SubnetName, kind MapEntryKind) MapEntryKey {
+	return newMapEntryKeyFromNetworkSubnet(network, subnet) + MapEntryKey(kind.String()+indexDelimiter)
 }
 
-func newMapEntryKey(network NetworkName, subnet SubnetName, typ MapEntryType, networkCIDR netip.Prefix) MapEntryKey {
-	return newMapEntryKeyFromNetworkSubnetAndType(network, subnet, typ) + MapEntryKey(networkCIDR.String())
+func newMapEntryKey(network NetworkName, subnet SubnetName, kind MapEntryKind, networkCIDR netip.Prefix) MapEntryKey {
+	return newMapEntryKeyFromNetworkSubnetAndKind(network, subnet, kind) + MapEntryKey(networkCIDR.String())
 }
 
 // mapEntryNetTypeKey is <network>|<type>
@@ -278,7 +314,7 @@ func newMapEntryIDNetIPKey(networkID NetworkID, netIP netip.Addr) mapEntryIDNetI
 }
 
 var (
-	mapEntriesTypeNetCIDRIndex = statedb.Index[*MapEntry, MapEntryKey]{
+	mapEntriesKindNetCIDRIndex = statedb.Index[*MapEntry, MapEntryKey]{
 		Name: "network-subnet-cidr",
 		FromObject: func(obj *MapEntry) index.KeySet {
 			return index.NewKeySet(obj.Key().Key())
@@ -312,23 +348,23 @@ var (
 		Unique:     false,
 	}
 
-	// MapEntryByKey queries the map entries table by entry type, network name and CIDR.
-	MapEntryByKey = mapEntriesTypeNetCIDRIndex.Query
+	// MapEntryByKey queries the map entries table by entry kind, network name and CIDR.
+	MapEntryByKey = mapEntriesKindNetCIDRIndex.Query
 )
 
 // MapEntriesByNetwork queries the map entries table by network name.
 func MapEntriesByNetwork(network NetworkName) statedb.Query[*MapEntry] {
-	return mapEntriesTypeNetCIDRIndex.Query(newMapEntryKeyFromNetwork(network))
+	return mapEntriesKindNetCIDRIndex.Query(newMapEntryKeyFromNetwork(network))
 }
 
 // MapEntriesByNetworkSubnet queries the map entries table by network and subnet name.
 func MapEntriesByNetworkSubnet(network NetworkName, subnet SubnetName) statedb.Query[*MapEntry] {
-	return mapEntriesTypeNetCIDRIndex.Query(newMapEntryKeyFromNetworkSubnet(network, subnet))
+	return mapEntriesKindNetCIDRIndex.Query(newMapEntryKeyFromNetworkSubnet(network, subnet))
 }
 
-// MapEntriesByNetworkSubnetAndType queries the map entries table by network and subnet name and entry type.
-func MapEntriesByNetworkSubnetAndType(network NetworkName, subnet SubnetName, typ MapEntryType) statedb.Query[*MapEntry] {
-	return mapEntriesTypeNetCIDRIndex.Query(newMapEntryKeyFromNetworkSubnetAndType(network, subnet, typ))
+// MapEntriesByNetworkSubnetAndKind queries the map entries table by network and subnet name and entry kind.
+func MapEntriesByNetworkSubnetAndKind(network NetworkName, subnet SubnetName, kind MapEntryKind) statedb.Query[*MapEntry] {
+	return mapEntriesKindNetCIDRIndex.Query(newMapEntryKeyFromNetworkSubnetAndKind(network, subnet, kind))
 }
 
 // MapEntriesByNetworkAndType queries the map entries table by network name and entry type.
@@ -336,9 +372,9 @@ func MapEntriesByNetworkAndType(network NetworkName, typ MapEntryType) statedb.Q
 	return mapEntriesNetTypeIndex.Query(newMapEntryNetTypeKey(network, typ))
 }
 
-// MapEntryByTypeNetworkSubnetCIDR queries the map entries table by entry type, network and subnet name and CIDR.
-func MapEntryByTypeNetworkSubnetCIDR(network NetworkName, subnet SubnetName, typ MapEntryType, networkCIDR netip.Prefix) statedb.Query[*MapEntry] {
-	return MapEntryByKey(newMapEntryKey(network, subnet, typ, networkCIDR))
+// MapEntryByKindNetworkSubnetCIDR queries the map entries table by entry kind, network and subnet name and CIDR.
+func MapEntryByKindNetworkSubnetCIDR(network NetworkName, subnet SubnetName, kind MapEntryKind, networkCIDR netip.Prefix) statedb.Query[*MapEntry] {
+	return MapEntryByKey(newMapEntryKey(network, subnet, kind, networkCIDR))
 }
 
 // MapEntriesForEndpointsByIDNetIP queries the map entries table by network ID and network IP. It will only return
@@ -351,7 +387,7 @@ func NewMapEntriesTable(db *statedb.DB) (statedb.RWTable[*MapEntry], error) {
 	return statedb.NewTable(
 		db,
 		"privnet-mapentries",
-		mapEntriesTypeNetCIDRIndex,
+		mapEntriesKindNetCIDRIndex,
 		mapEntriesNetTypeIndex,
 		mapEntriesIDNetIPIndex,
 	)

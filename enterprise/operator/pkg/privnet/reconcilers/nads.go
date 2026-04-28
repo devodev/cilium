@@ -440,10 +440,17 @@ func (n *NetworkAttachmentDefinitions) desiredNADName(
 	// * Network names conform to the RFC 1123 DNS Subdomain Names format (i.e., max 253 characters);
 	// * Subnet names conform to the RFC 1123 Label Names format (i.e., max 63 characters);
 	// * NAD names conform to the RFC 1123 DNS Subdomain Names format (i.e., max 253 characters);
+	//   additionally, the Openshift webhook enforces the '^[a-z-1-9]([-a-z0-9]*[a-z0-9])?$' regex,
+	//   preventing names starting with 0, and any dot.
 	//
 	// the NAD name is constructed as the concatenation of the network and subnet name, with the
 	// network name being potentially shortened if it exceeds 180 characters (this leaves 10
 	// characters of room for separators and hashes to guarantee uniqueness).
+	network = tables.NetworkName(strings.ReplaceAll(string(network), ".", "-"))
+	if strings.HasPrefix(string(network), "0") {
+		network = "nad-" + network
+	}
+
 	const maxNetworkNameLen = 180
 	if len(network) > maxNetworkNameLen {
 		var hash = sha256.Sum256([]byte(network))

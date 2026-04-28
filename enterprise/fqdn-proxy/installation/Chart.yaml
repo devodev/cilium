@@ -1,6 +1,6 @@
 apiVersion: v2
 name: cilium-dnsproxy
-description: Cilium DNS Proxy
+description: DNS Proxy for Isovalent Enterprise Grade eBPF-based Networking, Security, and Observability
 
 # A chart can be either an 'application' or a 'library' chart.
 #

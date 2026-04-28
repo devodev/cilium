@@ -44,10 +44,54 @@ mock_ctx_redirect(const struct __sk_buff *ctx __maybe_unused,
 	return CTX_ACT_DROP;
 }
 
+struct fib_lookup_settings {
+	bool fib_lookup_called;
+};
+
+struct {
+	__uint(type, BPF_MAP_TYPE_ARRAY);
+	__uint(key_size, sizeof(__u32));
+	__uint(value_size, sizeof(struct fib_lookup_settings));
+	__uint(max_entries, 1);
+} fib_lookup_settings_map __section_maps_btf;
+
+static __always_inline __maybe_unused int
+mock_fib_lookup_init()
+{
+	__u32 key = 0;
+	struct fib_lookup_settings *settings = map_lookup_elem(&fib_lookup_settings_map, &key);
+
+	if (!settings)
+		return -1;
+
+	settings->fib_lookup_called = false;
+	return 0;
+}
+
+static __always_inline __maybe_unused int
+mock_fib_lookup_assert()
+{
+	__u32 key = 0;
+	struct fib_lookup_settings *settings = map_lookup_elem(&fib_lookup_settings_map, &key);
+
+	if (!settings)
+		return -1;
+	if (!settings->fib_lookup_called)
+		return -2;
+
+	return 0;
+}
+
 static __always_inline __maybe_unused long
 mock_fib_lookup(void *ctx __maybe_unused, struct bpf_fib_lookup *params __maybe_unused,
 		int plen __maybe_unused, __u32 flags __maybe_unused)
 {
+	__u32 key = 0;
+	struct fib_lookup_settings *settings = map_lookup_elem(&fib_lookup_settings_map, &key);
+
+	if (settings)
+		settings->fib_lookup_called = true;
+
 	if (params && params->ipv4_src == EGRESS_IP2)
 		params->ifindex = SECONDARY_IFACE_IFINDEX;
 
@@ -70,6 +114,9 @@ int egressgw_ha_snat1_pktgen(struct __ctx_buff *ctx)
 SETUP("tc", "tc_egressgw_ha_snat1")
 int egressgw_ha_snat1_setup(struct __ctx_buff *ctx)
 {
+	if (mock_fib_lookup_init())
+		return TEST_ERROR;
+
 	add_egressgw_ha_policy_entry(CLIENT_IP, EXTERNAL_SVC_IP & 0xffffff, 24, 1,
 				     { GATEWAY_NODE_IP }, EGRESS_IP, 0);
 	ipcache_v4_add_entry(EGRESS_IP, 0, HOST_ID, 0, 0);
@@ -82,6 +129,9 @@ int egressgw_ha_snat1_setup(struct __ctx_buff *ctx)
 CHECK("tc", "tc_egressgw_ha_snat1")
 int egressgw_ha_snat1_check(const struct __ctx_buff *ctx)
 {
+	if (mock_fib_lookup_assert())
+		return TEST_ERROR;
+
 	return egressgw_snat_check(ctx, (struct egressgw_test_ctx) {
 			.test = TEST_HA_SNAT1,
 			.packets = 1,
@@ -165,6 +215,9 @@ int egressgw_ha_snat1_4_pktgen(struct __ctx_buff *ctx)
 SETUP("tc", "tc_egressgw_ha_snat1_4_inactive_gw")
 int egressgw_ha_snat1_4_setup(struct __ctx_buff *ctx)
 {
+	if (mock_fib_lookup_init())
+		return TEST_ERROR;
+
 	add_egressgw_ha_policy_entry(CLIENT_IP, EXTERNAL_SVC_IP & 0xffffff, 24, 0,
 				     { 0 }, EGRESS_IP, 0);
 
@@ -176,6 +229,9 @@ int egressgw_ha_snat1_4_setup(struct __ctx_buff *ctx)
 CHECK("tc", "tc_egressgw_ha_snat1_4_inactive_gw")
 int egressgw_ha_snat1_4_check(const struct __ctx_buff *ctx)
 {
+	if (mock_fib_lookup_assert())
+		return TEST_ERROR;
+
 	return egressgw_snat_check(ctx, (struct egressgw_test_ctx) {
 			.test = TEST_HA_SNAT1,
 			.packets = 4,
@@ -194,6 +250,9 @@ int egressgw_ha_snat2_pktgen(struct __ctx_buff *ctx)
 SETUP("tc", "tc_egressgw_ha_snat2")
 int egressgw_ha_snat2_setup(struct __ctx_buff *ctx)
 {
+	if (mock_fib_lookup_init())
+		return TEST_ERROR;
+
 	add_egressgw_ha_policy_entry(CLIENT_IP, EXTERNAL_SVC_IP & 0xffffff, 24, 1,
 				     { GATEWAY_NODE_IP }, EGRESS_IP, 0);
 
@@ -205,6 +264,9 @@ int egressgw_ha_snat2_setup(struct __ctx_buff *ctx)
 CHECK("tc", "tc_egressgw_ha_snat2")
 int egressgw_ha_snat2_check(struct __ctx_buff *ctx)
 {
+	if (mock_fib_lookup_assert())
+		return TEST_ERROR;
+
 	int ret = egressgw_snat_check(ctx, (struct egressgw_test_ctx) {
 			.test = TEST_HA_SNAT2,
 			.packets = 1,
@@ -231,6 +293,9 @@ int egressgw_ha_tuple_collision1_pktgen(struct __ctx_buff *ctx)
 SETUP("tc", "tc_egressgw_ha_tuple_collision1")
 int egressgw_ha_tuple_collision1_setup(struct __ctx_buff *ctx)
 {
+	if (mock_fib_lookup_init())
+		return TEST_ERROR;
+
 	add_egressgw_ha_policy_entry(CLIENT_IP, EXTERNAL_SVC_IP & 0xffffff, 24, 1,
 				     { GATEWAY_NODE_IP }, EGRESS_IP, 0);
 	ipcache_v4_add_entry(EGRESS_IP, 0, HOST_ID, 0, 0);
@@ -243,6 +308,9 @@ int egressgw_ha_tuple_collision1_setup(struct __ctx_buff *ctx)
 CHECK("tc", "tc_egressgw_ha_tuple_collision1")
 int egressgw_ha_tuple_collision1_check(const struct __ctx_buff *ctx)
 {
+	if (mock_fib_lookup_assert())
+		return TEST_ERROR;
+
 	int ret = egressgw_snat_check(ctx, (struct egressgw_test_ctx) {
 			.test = TEST_SNAT_TUPLE_COLLISION,
 			.packets = 1,
@@ -265,6 +333,9 @@ int egressgw_ha_tuple_collision2_pktgen(struct __ctx_buff *ctx)
 SETUP("tc", "tc_egressgw_ha_tuple_collision2")
 int egressgw_ha_tuple_collision2_setup(struct __ctx_buff *ctx)
 {
+	if (mock_fib_lookup_init())
+		return TEST_ERROR;
+
 	add_egressgw_ha_policy_entry(CLIENT_IP, EXTERNAL_SVC_IP & 0xffffff, 24, 1,
 				     { GATEWAY_NODE_IP }, EGRESS_IP3, 0);
 	ipcache_v4_add_entry(EGRESS_IP3, 0, HOST_ID, 0, 0);
@@ -277,6 +348,9 @@ int egressgw_ha_tuple_collision2_setup(struct __ctx_buff *ctx)
 CHECK("tc", "tc_egressgw_ha_tuple_collision2")
 int egressgw_ha_tuple_collision2_check(const struct __ctx_buff *ctx)
 {
+	if (mock_fib_lookup_assert())
+		return TEST_ERROR;
+
 	return egressgw_snat_check(ctx, (struct egressgw_test_ctx) {
 			.test = TEST_SNAT_TUPLE_COLLISION,
 			.tuple_collision = true,
@@ -414,6 +488,9 @@ int egressgw_fib_redirect_pktgen(struct __ctx_buff *ctx)
 SETUP("tc", "tc_egressgw_fib_redirect")
 int egressgw_fib_redirect_setup(struct __ctx_buff *ctx)
 {
+	if (mock_fib_lookup_init())
+		return TEST_ERROR;
+
 	add_egressgw_ha_policy_entry(CLIENT_IP, EXTERNAL_SVC_IP & 0xffffff, 24, 1,
 				     { GATEWAY_NODE_IP }, EGRESS_IP2, 0);
 	ipcache_v4_add_entry(EGRESS_IP2, 0, HOST_ID, 0, 0);
@@ -426,6 +503,9 @@ int egressgw_fib_redirect_setup(struct __ctx_buff *ctx)
 CHECK("tc", "tc_egressgw_fib_redirect")
 int egressgw_fib_redirect_check(const struct __ctx_buff *ctx __maybe_unused)
 {
+	if (mock_fib_lookup_assert())
+		return TEST_ERROR;
+
 	int ret = egressgw_snat_check(ctx, (struct egressgw_test_ctx) {
 			.test = TEST_FIB,
 			.redirect = true,

@@ -393,6 +393,13 @@ enterprise:
       # this setting only enables necessary support APIs in the agent.
       enabled: false
 
+  networkPolicy:
+    tiers:
+      # -- Add support for tiered policy.
+      enabled: false
+
+# end of .Values.enterprise
+
 hubble:
   # -- Enables support for integrated Hubble Timescape.
   timescape:

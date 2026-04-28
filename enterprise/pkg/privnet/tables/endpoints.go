@@ -97,7 +97,7 @@ func (ep Endpoint) ToMapEntry(subnet SubnetSpec, isLocallyConnected, announce bo
 // ToMapEntryKey returns the key uniquely identifying the corresponding entry in
 // the map entries table.
 func (ep Endpoint) ToMapEntryKey() MapEntryKey {
-	return newMapEntryKey(NetworkName(ep.Network.Name), ep.Subnet, ep.MapEntryType(),
+	return newMapEntryKey(NetworkName(ep.Network.Name), ep.Subnet, ep.MapEntryType().Kind(),
 		netip.PrefixFrom(ep.Network.IP, ep.Network.IP.BitLen()))
 }
 

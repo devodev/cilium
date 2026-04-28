@@ -2585,6 +2585,19 @@
           },
           "type": "object"
         },
+        "networkPolicy": {
+          "properties": {
+            "tiers": {
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                }
+              },
+              "type": "object"
+            }
+          },
+          "type": "object"
+        },
         "privateNetworks": {
           "properties": {
             "api": {

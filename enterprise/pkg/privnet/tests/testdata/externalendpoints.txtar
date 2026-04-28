@@ -524,12 +524,12 @@ cluster3/sky/foobar-worker-1      dashing-raven   blue      subnet-blue-1    fc0
 -- mapentries.expected.v3.table --
 Type   Network   Subnet           CIDR                  Nexthop              IfIndex   MAC                 L2Ann   VNI   Peer
 D      blue      subnet-blue-1    192.168.250.0/24      0.0.0.0              N/A       N/A                 No      0     N/A
-D      blue      subnet-blue-1    fc00:0:250::/96       ::                   N/A       N/A                 No      0     N/A
 X      blue      subnet-blue-1    192.168.250.42/32     10.244.5.113         N/A       ff:22:f1:22:21:51   No      N/A   N/A
+D      blue      subnet-blue-1    fc00:0:250::/96       ::                   N/A       N/A                 No      0     N/A
 X      blue      subnet-blue-1    fc00:0:250::42/128    fd00:10:244:5::113   N/A       ff:22:f1:22:21:51   No      N/A   N/A
 D      green     subnet-green-1   10.0.100.0/24         0.0.0.0              N/A       N/A                 No      0     N/A
-D      green     subnet-green-1   fd00:10:100::/96      ::                   N/A       N/A                 No      0     N/A
 X      green     subnet-green-1   10.0.100.13/32        10.244.5.114         N/A       00:50:56:ad:11:99   No      N/A   N/A
+D      green     subnet-green-1   fd00:10:100::/96      ::                   N/A       N/A                 No      0     N/A
 X      green     subnet-green-1   fd00:10:100::13/128   fd00:10:244:5::114   N/A       00:50:56:ad:11:99   No      N/A   N/A
 -- EOF --
 

@@ -15,6 +15,8 @@ import (
 
 	"github.com/cilium/cilium/cilium-cli/connectivity/check"
 	"github.com/cilium/cilium/cilium-cli/connectivity/tests"
+	enterpriseFeatures "github.com/cilium/cilium/cilium-cli/enterprise/hooks/utils/features"
+	"github.com/cilium/cilium/cilium-cli/utils/features"
 )
 
 //go:embed manifests/network-policy/client-ingress-to-echo-ordered-ns.yaml
@@ -92,6 +94,7 @@ func (ec *EnterpriseConnectivity) addOrderedPolicyTests(ct *check.ConnectivityTe
 	ct.AddTest(test4).
 		WithResources(templates["clientIngressToEchoTieredNS"]).
 		WithCiliumVersion(">=1.20.0").
+		WithFeatureRequirements(features.RequireEnabled(enterpriseFeatures.NetworkPolicyTier)).
 		WithScenarios(
 			tests.PodToPod(tests.WithSourceLabelsOption(clientLabel)),  // Client to echo should be allowed
 			tests.PodToPod(tests.WithSourceLabelsOption(client2Label)), // Client2 to echo should be denied
@@ -107,6 +110,7 @@ func (ec *EnterpriseConnectivity) addOrderedPolicyTests(ct *check.ConnectivityTe
 	ct.AddTest(test5).
 		WithResources(templates["clientIngressToEchoTieredWildcard"]).
 		WithCiliumVersion(">=1.20.0").
+		WithFeatureRequirements(features.RequireEnabled(enterpriseFeatures.NetworkPolicyTier)).
 		WithScenarios(
 			tests.PodToPod(tests.WithSourceLabelsOption(clientLabel)),  // Client to echo should be allowed
 			tests.PodToPod(tests.WithSourceLabelsOption(client2Label)), // Client2 to echo should be denied
@@ -122,6 +126,7 @@ func (ec *EnterpriseConnectivity) addOrderedPolicyTests(ct *check.ConnectivityTe
 	ct.AddTest(test6).
 		WithResources(templates["clientIngressToEchoTieredWildcardPass"]).
 		WithCiliumVersion(">=1.20.0").
+		WithFeatureRequirements(features.RequireEnabled(enterpriseFeatures.NetworkPolicyTier)).
 		WithScenarios(
 			tests.PodToPod(tests.WithSourceLabelsOption(clientLabel)),  // Client to echo should be allowed
 			tests.PodToPod(tests.WithSourceLabelsOption(client2Label)), // Client2 to echo should be denied

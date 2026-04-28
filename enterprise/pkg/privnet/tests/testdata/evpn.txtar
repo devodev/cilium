@@ -63,11 +63,11 @@ icpn-evpn   subnet2  fd10:0:252::/64    N/A
 
 -- mapentries.v1.table --
 Type   Network     Subnet    CIDR              Nexthop   VNI  Peer
-P      icpn-evpn   subnet1   192.168.252.0/24  0.0.0.0   0    0x1/0x2
-P      icpn-evpn   subnet1   fd10:0:252::/64   ::        0    0x1/0x2
 V      icpn-evpn   subnet1   0.0.0.0/0         0.0.0.0   100  N/A
 V      icpn-evpn   subnet1   ::/0              ::        100  N/A
-P      icpn-evpn   subnet2   192.168.250.0/24  0.0.0.0   0    0x1/0x1
-P      icpn-evpn   subnet2   fd10:0:250::/64   ::        0    0x1/0x1
+P      icpn-evpn   subnet1   192.168.252.0/24  0.0.0.0   0    0x1/0x2
+P      icpn-evpn   subnet1   fd10:0:252::/64   ::        0    0x1/0x2
 V      icpn-evpn   subnet2   10.0.0.0/8        0.0.0.0   100  N/A
 V      icpn-evpn   subnet2   10::/8            ::        100  N/A
+P      icpn-evpn   subnet2   192.168.250.0/24  0.0.0.0   0    0x1/0x1
+P      icpn-evpn   subnet2   fd10:0:250::/64   ::        0    0x1/0x1

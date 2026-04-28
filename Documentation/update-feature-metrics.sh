@@ -11,14 +11,14 @@ observability_dir="${script_dir}/observability"
 helm_generator="${source_dir}/tools/feature-helm-generator/feature-helm-generator"
 
 # cilium-agent
-${source_dir}/daemon/cilium-agent metrics dump features "${tmp_dir}"
+${source_dir}/enterprise/daemon/cilium-agent metrics dump features "${tmp_dir}"
 ${helm_generator} --prom-file "${tmp_dir}/cilium-agent.feature-metrics.prom" \
     --metrics-prefix cilium_feature \
     --metrics-separators adv_connect_and_lb,controlplane,datapath,network_policies \
     > "${observability_dir}/feature-metrics-agent.txt"
 
 # cilium-operator
-${source_dir}/operator/cilium-operator metrics dump features "${tmp_dir}"
+${source_dir}/enterprise/operator/cilium-operator metrics dump features "${tmp_dir}"
 ${helm_generator} --prom-file "${tmp_dir}/cilium-operator.feature-metrics.prom" \
     --metrics-prefix cilium_operator_feature \
     --metrics-separators adv_connect_and_lb \
