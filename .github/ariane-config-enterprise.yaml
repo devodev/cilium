@@ -11,6 +11,7 @@ triggers:
       - enterprise-olm-build-ci.yaml # only built on olm changes
       - enterprise-kind-integrated-timescape.yaml
       - enterprise-build-images-ci.yaml
+      - enterprise-build-images-chainguard-ci.yaml
 
   # This trigger needs to be kept in sync with enterprise-ariane-scheduled.yaml workflow
   /test\s*:
@@ -149,6 +150,7 @@ triggers:
   /build-images: #this trigger is not meant to be used in comments, as oss build workflows are not triggered by Ariane. Having this trigger allows us to have others depend on oss images workflow though.
     workflows:
     - enterprise-build-images-ci.yaml
+    - enterprise-build-images-chainguard-ci.yaml
 
 # This trigger needs to be kept in sync with enterprise-ariane-scheduled.yaml workflow
 schedule:

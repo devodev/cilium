@@ -1,0 +1,373 @@
+name: Enterprise Chainguard Image CI Build
+
+# Any change in triggers needs to be reflected in the concurrency group.
+on:
+  workflow_dispatch:
+    inputs:
+      PR-number:
+        description: "Pull request number."
+        required: true
+      context-ref:
+        description: "Context in which the workflow runs. If PR is from a fork, will be the PR target branch (general case). If PR is NOT from a fork, will be the PR branch itself (this allows committers to test changes to workflows directly from PRs)."
+        required: true
+      SHA:
+        description: "SHA under test (head of the PR branch)."
+        required: true
+      base-SHA:
+        description: "SHA of the base branch (target branch of the PR)."
+        required: false
+      extra-args:
+        description: "[JSON object] Arbitrary arguments passed from the trigger comment via regex capture group. Parse with 'fromJson(inputs.extra-args).argName' in workflow."
+        required: false
+        default: '{}'
+
+  push:
+    branches:
+      - main-ce
+      - ft/main-ce/**
+  merge_group:
+    types: [checks_requested]
+
+  # If the cache was cleaned we should re-build the cache with the latest commit
+  workflow_run:
+    workflows:
+     - "Image CI Cache Cleaner"
+    branches:
+     - main-ce
+     - ft/main-ce/**
+    types:
+     - completed
+
+permissions:
+  # To be able to access the repository with `actions/checkout`
+  contents: read
+  # Required to generate OIDC tokens for `sigstore/cosign-installer` authentication
+  id-token: write
+  statuses: write
+  actions: read
+  # to get PR author
+  pull-requests: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.PR-number || github.event.after }}
+  cancel-in-progress: true
+
+jobs:
+  echo-inputs:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    name: Echo Workflow Dispatch Inputs
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Echo Workflow Dispatch Inputs
+        run: |
+          echo '${{ tojson(inputs) }}'
+
+  commit-status-start:
+    name: Commit Status Start
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Set initial commit status
+        uses: myrotvorets/set-commit-status-action@3730c0a348a2ace3c110851bed53331bc6406e9f # v2.0.1
+        with:
+          sha: ${{ inputs.SHA || github.sha }}
+
+  build-and-push-prs:
+    timeout-minutes: 45
+    name: Build and Push Chainguard Images
+    runs-on: ${{ vars.GH_RUNNER_EXTRA_POWER_UBUNTU_LATEST || 'ubuntu-24.04' }}
+    outputs:
+      sha: ${{ steps.tag.outputs.sha }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: cilium
+            dockerfile: ./enterprise/images/chainguard/cilium/Dockerfile
+            platforms: linux/amd64,linux/arm64
+            image_name: cilium
+
+          - name: operator
+            dockerfile: ./enterprise/images/chainguard/operator/Dockerfile
+            platforms: linux/amd64,linux/arm64
+            image_name: operator-generic
+            build_args: |
+              OPERATOR_VARIANT=generic
+
+          - name: operator-aws
+            dockerfile: ./enterprise/images/chainguard/operator/Dockerfile
+            platforms: linux/amd64,linux/arm64
+            image_name: operator-aws
+            build_args: |
+              OPERATOR_VARIANT=aws
+
+          - name: operator-azure
+            dockerfile: ./enterprise/images/chainguard/operator/Dockerfile
+            platforms: linux/amd64,linux/arm64
+            image_name: operator-azure
+            build_args: |
+              OPERATOR_VARIANT=azure
+
+          - name: operator-alibabacloud
+            dockerfile: ./enterprise/images/chainguard/operator/Dockerfile
+            platforms: linux/amd64,linux/arm64
+            image_name: operator-alibabacloud
+            build_args: |
+              OPERATOR_VARIANT=alibabacloud
+
+          - name: hubble-relay
+            dockerfile: ./enterprise/images/chainguard/hubble-relay/Dockerfile
+            platforms: linux/amd64,linux/arm64
+            image_name: hubble-relay
+
+          - name: clustermesh-apiserver
+            dockerfile: ./enterprise/images/chainguard/clustermesh-apiserver/Dockerfile
+            platforms: linux/amd64,linux/arm64
+            image_name: clustermesh-apiserver
+
+          - name: standalone-dns-proxy
+            dockerfile: ./enterprise/images/chainguard/standalone-dns-proxy/Dockerfile
+            platforms: linux/amd64,linux/arm64
+            image_name: standalone-dns-proxy
+
+          - name: cilium-cli
+            dockerfile: ./enterprise/images/chainguard/cilium-cli/Dockerfile
+            platforms: linux/amd64
+            require-dir: cilium-cli
+            image_name: cilium-cli
+
+          - name: cilium-dnsproxy
+            dockerfile: ./enterprise/images/chainguard/cilium-dnsproxy/Dockerfile
+            platforms: linux/amd64,linux/arm64
+            image_name: cilium-dnsproxy
+
+    steps:
+      - name: Checkout pull request branch
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ inputs.SHA || github.sha }}
+          persist-credentials: false
+
+      - name: Cleanup Disk space in runner
+        if: runner.name == 'ubuntu-24.04'
+        uses: ./.github/actions/disk-cleanup
+
+      - name: Set Environment Variables
+        uses: ./.github/actions/set-env-variables
+
+      - name: Setup docker volumes into /mnt
+        shell: bash
+        run: |
+          sudo systemctl stop docker
+          sudo mv /var/lib/docker/volumes /mnt/docker-volumes
+          sudo ln -s /mnt/docker-volumes /var/lib/docker/volumes
+          sudo systemctl start docker
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+        with:
+          buildkitd-config-inline: |
+            [worker.oci]
+             gc=false
+
+      - name: Login to Artifactory
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ${{ vars.ARTIFACTORY_HOST }}
+          username: ${{ vars.ARTIFACTORY_USERNAME }}
+          password: ${{ secrets.ARTIFACTORY_PASSWORD }}
+
+      - name: Getting image tag
+        id: tag
+        run: |
+          if [ "${{ inputs.SHA }}" != "" ]; then
+            sha=${{ inputs.SHA }}
+          elif [ "${{ github.event.pull_request.head.sha }}" != "" ]; then
+            sha=${{ github.event.pull_request.head.sha }}
+          else
+            sha=${{ github.sha }}
+          fi
+          echo sha=${sha} >> $GITHUB_OUTPUT
+
+          tag=${sha}
+          echo tag=${tag} >> $GITHUB_OUTPUT
+
+          if [[ "${{ github.event_name == 'push' }}" == "true" ]]; then
+            if [[ "${{ github.ref_name }}" == "${{ github.event.repository.default_branch }}" ]]; then
+              floating_tag=latest
+            else
+              floating_tag="${{ github.ref_name }}"
+              floating_tag=${floating_tag##*/}
+            fi
+            echo floating_tag=${floating_tag} >> $GITHUB_OUTPUT
+          fi
+
+          registry="${{ vars.ARTIFACTORY_HOST }}/isovalent-eng-docker"
+          normal_tag="${registry}/${{ matrix.image_name }}-ci:${tag}"
+          race_tag="${normal_tag}-race"
+          unstripped_tag="${normal_tag}-unstripped"
+          extra_tags="--tag ${normal_tag}"
+
+          if [ -n "${floating_tag}" ]; then
+            floating_normal_tag="${registry}/${{ matrix.image_name }}-ci:${floating_tag}"
+            extra_tags="${extra_tags} --tag ${floating_normal_tag}"
+          fi
+
+          if [[ "${{ github.event_name }}" == 'merge_group' || "${{ github.event_name }}" == 'push' ]]; then
+            # Don't build race and unstripped images for merge_group or push events.
+            race_tag=""
+            unstripped_tag=""
+          fi
+
+          echo primary_tag=${normal_tag} >> $GITHUB_OUTPUT
+          echo race_tag=${race_tag} >> $GITHUB_OUTPUT
+          echo unstripped_tag=${unstripped_tag} >> $GITHUB_OUTPUT
+          echo extra_tags=${extra_tags} >> $GITHUB_OUTPUT
+
+      # Load Golang cache build from GitHub
+      - name: Restore Golang cache build from GitHub
+        uses: actions/cache/restore@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        id: go-cache
+        with:
+          path: /tmp/.cache/go
+          key: ${{ runner.os }}-go-${{ matrix.name }}-cache-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-${{ matrix.name }}-cache-
+
+      - name: Create cache directories if they don't exist
+        if: ${{ steps.go-cache.outputs.cache-hit != 'true' }}
+        shell: bash
+        run: |
+          mkdir -p /tmp/.cache/go
+
+      # Import GitHub's cache build to docker cache
+      - name: Copy ${{ matrix.name }} Golang cache to docker cache
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        with:
+          provenance: false
+          context: /tmp/.cache/go
+          file: ./images/cache/Dockerfile
+          push: false
+          platforms: linux/amd64
+          target: import-cache
+
+      - name: Check build constraints
+        id: check
+        run: |
+          if [[ -z "${{ matrix.require-dir }}" ]] ||
+             [[ -d "${{ matrix.require-dir }}" ]]; then
+            echo build="true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: CI Build ${{ matrix.name }}
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        id: docker_build_ci
+        with:
+          provenance: false
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          platforms: ${{ matrix.platforms }}
+          tags: ${{ steps.tag.outputs.primary_tag }}
+          build-args: ${{ matrix.build_args }}
+
+      - name: CI race detection Build ${{ matrix.name }}
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        id: docker_build_ci_detect_race_condition
+        if: ${{ steps.check.outputs.build != '' && steps.tag.outputs.race_tag != '' }}
+        with:
+          provenance: false
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          platforms: linux/amd64
+          tags: ${{ steps.tag.outputs.race_tag }}
+          target: release
+          build-args: |
+            ${{ matrix.build_args }}
+            MODIFIERS="LOCKDEBUG=1 RACE=1"
+
+      - name: CI Unstripped Binaries Build ${{ matrix.name }}
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        id: docker_build_ci_unstripped
+        if: ${{ steps.check.outputs.build != '' && steps.tag.outputs.unstripped_tag != '' }}
+        with:
+          provenance: false
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          platforms: linux/amd64
+          tags: ${{ steps.tag.outputs.unstripped_tag }}
+          target: release
+          build-args: |
+            ${{ matrix.build_args }}
+            MODIFIERS="NOSTRIP=1"
+
+      - name: CI Image Releases digests
+        shell: bash
+        run: |
+          mkdir -p image-digest/
+          digest="${{ steps.docker_build_ci.outputs.digest }}"
+          if [ "${{ github.event_name == 'push' && !startsWith(github.ref_name, 'ft/') }}" = "true" ]; then
+            echo "${{ vars.ARTIFACTORY_HOST }}/isovalent-eng-docker/${{ matrix.image_name }}-ci:${{ steps.tag.outputs.floating_tag }}@${digest}" > image-digest/${{ matrix.image_name }}.txt
+          fi
+          echo "${{ steps.tag.outputs.primary_tag }}@${digest}" >> image-digest/${{ matrix.image_name }}.txt
+
+      - name: Upload artifact digests
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: image-digest ${{ matrix.image_name }}
+          path: image-digest
+          retention-days: 1
+
+      - name: Check for disk usage
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          df -h
+
+  image-digests:
+    if: ${{ always() }}
+    name: Display Digests
+    runs-on: ubuntu-24.04
+    needs: build-and-push-prs
+    steps:
+      - name: Downloading Image Digests
+        shell: bash
+        run: |
+          mkdir -p image-digest/
+
+      - name: Download digests of all images built
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: image-digest/
+          pattern: "*image-digest *"
+
+      - name: Image Digests Output
+        shell: bash
+        run: |
+          cd image-digest/
+          find -type f | sort | xargs -d '\n' cat
+
+  push-chart:
+    name: Push dev chart
+    needs: build-and-push-prs
+    permissions:
+      contents: read
+      pull-requests: read
+      statuses: write
+    uses: ./.github/workflows/enterprise-chainguard-push-chart-ci.yaml
+    with:
+      checkout_ref: ${{ needs.build-and-push-prs.outputs.sha }}
+      image_tag: ${{ needs.build-and-push-prs.outputs.sha }}
+    secrets: inherit
+
+  merge-upload-and-status:
+    name: Merge Upload and Status
+    if: ${{ always() }}
+    needs: push-chart
+    uses: ./.github/workflows/common-post-jobs.yaml
+    secrets: inherit
+    with:
+      context-ref: ${{ inputs.context-ref || github.sha }}
+      sha: ${{ inputs.SHA || github.sha }}
+      success: ${{ needs.push-chart.result == 'success' }}
