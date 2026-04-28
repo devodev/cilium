@@ -44,6 +44,7 @@ func TestDesiredNADName(t *testing.T) {
 	for _, nad := range []tables.NetworkAttachmentDefinition{
 		{NamespacedName: NN{Namespace: "default", Name: "baz"}, CNIConfig: cfg("cod", "sunfish"), Managed: true},
 		{NamespacedName: NN{Namespace: "default", Name: "bar"}, CNIConfig: cfg("cod", "javelin")},
+		{NamespacedName: NN{Namespace: "default", Name: "qux"}, CNIConfig: cfg("012345.shy.cod", "raccoon"), Managed: true},
 	} {
 		nads.Insert(wtx, nad)
 	}
@@ -56,6 +57,7 @@ func TestDesiredNADName(t *testing.T) {
 		{NamespacedName: NN{Namespace: "other", Name: "cod-raccoon-ap5"}, Network: "cod", Subnet: "other"},
 		{NamespacedName: NN{Namespace: "other", Name: "cod-raccoon-klt"}, Network: "cod", Subnet: "other"},
 		{NamespacedName: NN{Namespace: "other", Name: "cod-raccoon-bil"}, Network: "cod", Subnet: "other"},
+		{NamespacedName: NN{Namespace: "other", Name: "nad-012345-shy-cod-raccoon"}, Network: "012345.shy.cod", Subnet: "other"},
 		{NamespacedName: NN{
 			Namespace: "other",
 			Name:      fmt.Sprintf("%s-6a2p-%s", strings.Repeat("a", 180), strings.Repeat("b", 63)),
@@ -114,6 +116,33 @@ func TestDesiredNADName(t *testing.T) {
 			namespace: "other",
 			expected:  fmt.Sprintf("%s-6a2p-%s-sm6", strings.Repeat("a", 180), strings.Repeat("b", 63)),
 		},
+		{
+			name:    "match, no conflict, name with dots and leading 0",
+			network: "012345.shy.cod", subnet: "raccoon", namespace: "default",
+			expected: "qux",
+		},
+		{
+			name:    "no match, no conflict, name with dots",
+			network: "shy.cod", subnet: "raccoon", namespace: "other",
+			expected: "shy-cod-raccoon",
+		},
+		{
+			name:    "no match, no conflict, leading 0",
+			network: "012345-foo", subnet: "raccoon", namespace: "other",
+			expected: "nad-012345-foo-raccoon",
+		},
+		{
+			name:      "no match, no conflict, long name with dots and leading 0",
+			network:   tables.NetworkName("00." + strings.Repeat("a", 250)),
+			subnet:    tables.SubnetName(strings.Repeat("b", 63)),
+			namespace: "other",
+			expected:  fmt.Sprintf("nad-00-%s-4tp1-%s", strings.Repeat("a", 173), strings.Repeat("b", 63)),
+		},
+		{
+			name:    "no match, conflict, name with dots and leading 0",
+			network: "012345.shy.cod", subnet: "raccoon", namespace: "other",
+			expected: "nad-012345-shy-cod-raccoon-r2b",
+		},
 	}
 
 	for _, tt := range tests {
@@ -128,6 +157,7 @@ func TestDesiredNADName(t *testing.T) {
 			require.NoError(t, err, "reconciler.desiredNADName")
 			require.Equal(t, tt.expected, got)
 			require.LessOrEqual(t, len(got), 253)
+			require.Regexp(t, `^[a-z-1-9]([-a-z0-9]*[a-z0-9])?$`, got)
 		})
 	}
 }
