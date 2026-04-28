@@ -81,6 +81,9 @@ const (
 	egressIP2   = "192.168.102.1"
 	egressCIDR2 = "192.168.102.1/24"
 
+	ipamIP1  = "10.100.0.1"
+	ipamCIDR = "10.100.0.0/24"
+
 	zeroIP4 = "0.0.0.0"
 
 	// Special values for gatewayIP, see pkg/egressgateway/manager.go

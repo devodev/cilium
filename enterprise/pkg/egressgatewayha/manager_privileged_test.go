@@ -1919,7 +1919,7 @@ func TestPrivilegedEgressGatewayManagerIPAMWithEgressCIDRs(t *testing.T) {
 		uid:              policy1UID,
 		endpointLabels:   ep1Labels,
 		destinationCIDRs: []string{destCIDR},
-		egressCIDRs:      []string{"10.100.0.0/24"},
+		egressCIDRs:      []string{ipamCIDR},
 		egressGroups: []egressGroupParams{{
 			iface:             testInterface1,
 			nodeLabels:        nodeGroup1Labels,
@@ -1936,15 +1936,22 @@ func TestPrivilegedEgressGatewayManagerIPAMWithEgressCIDRs(t *testing.T) {
 	// Simulate the operator assigning an egress IP from the pool to node1.
 	policy1.egressGroups[0].activeGatewayIPs = []string{node1IP}
 	policy1.egressGroups[0].egressIPByGatewayIP = map[string]string{
-		node1IP: "10.100.0.1",
+		node1IP: ipamIP1,
 	}
 	k.addPolicy(t, policy1)
 
 	// Now the local node should be configured as a gateway using the
-	// IPAM-assigned IP (10.100.0.1), not the interface IP (egressIP1).
+	// IPAM-assigned IP
 	k.assertEgressRules(t, []egressRule{
-		{ep1IP, destCIDR, "10.100.0.1", node1IP, ifIndex1},
+		{ep1IP, destCIDR, ipamIP1, node1IP, ifIndex1},
 	})
+
+	key := ent_tables.EgressIPKey{
+		Addr:      netip.MustParseAddr(ipamIP1),
+		Interface: testInterface1,
+	}
+	_, _, found := k.manager.egressIPTable.Get(k.manager.db.ReadTxn(), ent_tables.EgressIPEntryIndex.Query(key))
+	require.True(t, found)
 }
 
 // TestPrivilegedEgressGatewayManagerIPAMWithVirtualIP verifies that an IPAM
@@ -1966,24 +1973,31 @@ func TestPrivilegedEgressGatewayManagerIPAMWithVirtualIP(t *testing.T) {
 		},
 		endpointLabels:   ep1Labels,
 		destinationCIDRs: []string{destCIDR},
-		egressCIDRs:      []string{"10.100.0.0/24"},
+		egressCIDRs:      []string{ipamCIDR},
 		egressGroups: []egressGroupParams{{
 			nodeLabels:        nodeGroup1Labels,
 			healthyGatewayIPs: []string{node1IP},
 			activeGatewayIPs:  []string{node1IP},
 			egressIPByGatewayIP: map[string]string{
-				node1IP: "10.100.0.1",
+				node1IP: ipamIP1,
 			},
 		}},
 	})
 
 	k.assertEgressRules(t, []egressRule{
-		{ep1IP, destCIDR, "10.100.0.1", node1IP, 0},
+		{ep1IP, destCIDR, ipamIP1, node1IP, 0},
 	})
 	k.assertBGPSignal(t, k.manager)
 	k.assertAdvertisedEgressIPs(t, k.manager, advertisePolicySelector, map[types.NamespacedName][]string{
 		{Name: policy1.name}: {"10.100.0.1"},
 	})
+
+	key := ent_tables.EgressIPKey{
+		Addr:      netip.MustParseAddr(ipamIP1),
+		Interface: "",
+	}
+	_, _, found := k.manager.egressIPTable.Get(k.manager.db.ReadTxn(), ent_tables.EgressIPEntryIndex.Query(key))
+	require.True(t, found)
 }
 
 // TestPrivilegedOnAddEgressPolicyPreservesGatewayConfig verifies that an IEGP
