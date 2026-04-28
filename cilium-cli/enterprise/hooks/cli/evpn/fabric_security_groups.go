@@ -194,7 +194,7 @@ func (t *fabricSecurityGroupsTest) perAppLabelGroupIDs(appGroupIDs map[string]ui
 func (t *fabricSecurityGroupsTest) Cleanup(ctx context.Context, run *TestRun, env *testEnv) error {
 	fmt.Fprintf(run.out, "Cleaning up test resources...\n")
 
-	if err := cleanupPods(ctx, run.client, run.params.TestNamespace, testPodLabels(t.Name())); err != nil {
+	if err := cleanupPods(ctx, run.client, run.params.TestNamespace, testResourceLabels(t.Name())); err != nil {
 		return fmt.Errorf("failed to clean up test pods: %w", err)
 	}
 
@@ -213,7 +213,7 @@ func (t *fabricSecurityGroupsTest) deployPodsForPrivnets(ctx context.Context, ru
 			if err != nil {
 				return err
 			}
-			pod.labels = testPodLabels(t.Name())
+			pod.labels = testResourceLabels(t.Name())
 			maps.Copy(pod.labels, map[string]string{appLabelKey: appLabelValue(i)})
 			t.testPods = append(t.testPods, pod)
 
@@ -291,7 +291,7 @@ func (t *fabricSecurityGroupsTest) createFabricSecurityGroup(ctx context.Context
 	fsg := &v1alpha1.FabricSecurityGroup{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:   strconv.FormatUint(uint64(groupID), 10),
-			Labels: testPodLabels(t.Name()),
+			Labels: testResourceLabels(t.Name()),
 		},
 		Spec: v1alpha1.FabricSecurityGroupSpec{
 			EndpointSelector: &slimv1.LabelSelector{
@@ -394,7 +394,7 @@ func (t *fabricSecurityGroupsTest) deleteFabricSecurityGroup(ctx context.Context
 }
 
 func (t *fabricSecurityGroupsTest) cleanupFabricSecurityGroups(ctx context.Context, run *TestRun) error {
-	labels := testPodLabels(t.Name())
+	labels := testResourceLabels(t.Name())
 
 	list, err := run.client.EnterpriseCiliumClientset.IsovalentV1alpha1().FabricSecurityGroups().List(ctx, metav1.ListOptions{
 		LabelSelector: slimlabels.FormatLabels(labels),

@@ -39,7 +39,7 @@ func (t *basicConnectivityTest) Run(ctx context.Context, run *TestRun, env *test
 	}
 
 	for _, testPod := range testPods {
-		pod, err := buildPrivnetK8sPod(testPod, run.params, testPodLabels(t.Name()))
+		pod, err := buildPrivnetK8sPod(testPod, run.params, testResourceLabels(t.Name()))
 		if err != nil {
 			return err
 		}
@@ -79,7 +79,7 @@ func (t *basicConnectivityTest) Run(ctx context.Context, run *TestRun, env *test
 func (t *basicConnectivityTest) Cleanup(ctx context.Context, run *TestRun, env *testEnv) error {
 	fmt.Fprintf(run.out, "Cleaning up test resources...\n")
 
-	if err := cleanupPods(ctx, run.client, run.params.TestNamespace, testPodLabels(t.Name())); err != nil {
+	if err := cleanupPods(ctx, run.client, run.params.TestNamespace, testResourceLabels(t.Name())); err != nil {
 		return fmt.Errorf("failed to clean up EVPN test pods: %w", err)
 	}
 	return nil

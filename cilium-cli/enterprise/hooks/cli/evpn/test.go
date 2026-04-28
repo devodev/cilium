@@ -34,6 +34,7 @@ const (
 var allTests = []evpnTest{
 	newBasicConnectivityTest(),
 	newFabricSecurityGroupsTest(),
+	newPolicyEgressTest(),
 }
 
 type evpnTest interface {

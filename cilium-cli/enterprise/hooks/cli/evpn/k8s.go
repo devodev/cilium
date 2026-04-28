@@ -191,7 +191,7 @@ func pingFromPod(ctx context.Context, t *TestRun, pod *corev1.Pod, target netip.
 	return nil
 }
 
-func testPodLabels(testName string) map[string]string {
+func testResourceLabels(testName string) map[string]string {
 	return map[string]string{
 		evpnTestLabelKey:          evpnTestLabelValue,
 		evpnTestComponentLabelKey: testName,
