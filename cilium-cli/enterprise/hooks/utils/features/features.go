@@ -72,6 +72,10 @@ const (
 
 	// Whether or not the Tier field can be set in IsovalentNetworkPolicy
 	NetworkPolicyTier features.Feature = "network-policy-tier"
+
+	// Whether or not proxylib is enabled.
+	// Only relevant for v1.19-ce
+	ProxyLib features.Feature = "proxylib"
 )
 
 func Detect(ctx context.Context, ct *check.ConnectivityTest) error {
@@ -197,6 +201,10 @@ func extractFromConfigMap(ctx context.Context, ct *check.ConnectivityTest) error
 
 	ct.Features[PassiveInspection] = features.Status{
 		Enabled: cm.Data[string(PassiveInspection)] == "true",
+	}
+
+	ct.Features[ProxyLib] = features.Status{
+		Enabled: cm.Data["enable-proxylib"] == "true",
 	}
 
 	return nil

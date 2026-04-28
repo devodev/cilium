@@ -47,6 +47,7 @@ func (ec *EnterpriseConnectivity) addOrderedPolicyTests(ct *check.ConnectivityTe
 	ct.AddTest(test1).
 		WithResources(templates["clientIngressToEchoOrderedNS"]).
 		WithCiliumVersion(">=1.17.0 !1.19.0"). // v1.19.0 didn't have ordered policy
+		WithFeatureRequirements(features.RequireDisabled(enterpriseFeatures.ProxyLib)).
 		WithScenarios(
 			tests.PodToPod(tests.WithSourceLabelsOption(clientLabel)),  // Client to echo should be allowed
 			tests.PodToPod(tests.WithSourceLabelsOption(client2Label)), // Client2 to echo should be denied
@@ -62,6 +63,7 @@ func (ec *EnterpriseConnectivity) addOrderedPolicyTests(ct *check.ConnectivityTe
 	ct.AddTest(test2).
 		WithResources(templates["clientIngressToEchoOrderedWildcard"]).
 		WithCiliumVersion(">=1.17.0 !1.19.0").
+		WithFeatureRequirements(features.RequireDisabled(enterpriseFeatures.ProxyLib)).
 		WithScenarios(
 			tests.PodToPod(tests.WithSourceLabelsOption(clientLabel)),  // Client to echo should be allowed
 			tests.PodToPod(tests.WithSourceLabelsOption(client2Label)), // Client2 to echo should be denied
@@ -73,12 +75,12 @@ func (ec *EnterpriseConnectivity) addOrderedPolicyTests(ct *check.ConnectivityTe
 			return check.ResultOK, check.ResultOK
 		})
 
-	// This test triggered a latent proxylib bug -- not an ordered policy bug.
-	// Proxylib was removed in v1.20
 	test3 := check.NewTest("ordered-policy-portrange", ct.Params().Verbose, ct.Params().Debug)
 	ct.AddTest(test3).
 		WithResources(templates["clientIngressToEchoOrderedPortrange"]).
-		WithCiliumVersion(">=1.20.0").
+		WithCiliumVersion(">=1.19.3").
+		// This test triggered a latent proxylib bug -- not an ordered policy bug.
+		WithFeatureRequirements(features.RequireDisabled(enterpriseFeatures.ProxyLib)).
 		WithScenarios(
 			tests.PodToPod(tests.WithSourceLabelsOption(clientLabel)),  // Client to echo should be allowed
 			tests.PodToPod(tests.WithSourceLabelsOption(client2Label)), // Client2 to echo should be denied
@@ -93,8 +95,9 @@ func (ec *EnterpriseConnectivity) addOrderedPolicyTests(ct *check.ConnectivityTe
 	test4 := check.NewTest("tiered-policy-ns", ct.Params().Verbose, ct.Params().Debug)
 	ct.AddTest(test4).
 		WithResources(templates["clientIngressToEchoTieredNS"]).
-		WithCiliumVersion(">=1.20.0").
+		WithCiliumVersion(">=1.19.3").
 		WithFeatureRequirements(features.RequireEnabled(enterpriseFeatures.NetworkPolicyTier)).
+		WithFeatureRequirements(features.RequireDisabled(enterpriseFeatures.ProxyLib)).
 		WithScenarios(
 			tests.PodToPod(tests.WithSourceLabelsOption(clientLabel)),  // Client to echo should be allowed
 			tests.PodToPod(tests.WithSourceLabelsOption(client2Label)), // Client2 to echo should be denied
@@ -109,8 +112,9 @@ func (ec *EnterpriseConnectivity) addOrderedPolicyTests(ct *check.ConnectivityTe
 	test5 := check.NewTest("tiered-policy-wildcard", ct.Params().Verbose, ct.Params().Debug)
 	ct.AddTest(test5).
 		WithResources(templates["clientIngressToEchoTieredWildcard"]).
-		WithCiliumVersion(">=1.20.0").
+		WithCiliumVersion(">=1.19.3").
 		WithFeatureRequirements(features.RequireEnabled(enterpriseFeatures.NetworkPolicyTier)).
+		WithFeatureRequirements(features.RequireDisabled(enterpriseFeatures.ProxyLib)).
 		WithScenarios(
 			tests.PodToPod(tests.WithSourceLabelsOption(clientLabel)),  // Client to echo should be allowed
 			tests.PodToPod(tests.WithSourceLabelsOption(client2Label)), // Client2 to echo should be denied
@@ -125,8 +129,9 @@ func (ec *EnterpriseConnectivity) addOrderedPolicyTests(ct *check.ConnectivityTe
 	test6 := check.NewTest("tiered-policy-wildcard-pass", ct.Params().Verbose, ct.Params().Debug)
 	ct.AddTest(test6).
 		WithResources(templates["clientIngressToEchoTieredWildcardPass"]).
-		WithCiliumVersion(">=1.20.0").
+		WithCiliumVersion(">=1.19.3").
 		WithFeatureRequirements(features.RequireEnabled(enterpriseFeatures.NetworkPolicyTier)).
+		WithFeatureRequirements(features.RequireDisabled(enterpriseFeatures.ProxyLib)).
 		WithScenarios(
 			tests.PodToPod(tests.WithSourceLabelsOption(clientLabel)),  // Client to echo should be allowed
 			tests.PodToPod(tests.WithSourceLabelsOption(client2Label)), // Client2 to echo should be denied

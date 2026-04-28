@@ -42,3 +42,19 @@ specs:
           - port: "8080"
             protocol: "TCP"
   order: 2
+
+# Ensure that Envoy can accept ordered rules
+# (This stanza doesn't actually select any traffic)
+- endpointSelector: {}
+  ingress:
+    - fromEndpoints:
+      - matchExpressions:
+          - { key: io.cilium.k8s.policy.cluster, operator: Exists }
+      toPorts:
+        - ports:
+          - port: "8081"
+            protocol: "TCP"
+          rules:
+            http:
+              - path: "/foo"
+  order: 2
