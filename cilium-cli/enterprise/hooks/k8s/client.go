@@ -89,6 +89,10 @@ func (c *EnterpriseClient) CreateIsovalentMulticastGroup(ctx context.Context, cm
 	return c.EnterpriseCiliumClientset.IsovalentV1alpha1().IsovalentMulticastGroups().Create(ctx, cmg, opts)
 }
 
+func (c *EnterpriseClient) GetIsovalentInspectionConfig(ctx context.Context, name string, opts metav1.GetOptions) (*isovalentv1alpha1.IsovalentInspectionConfig, error) {
+	return c.EnterpriseCiliumClientset.IsovalentV1alpha1().IsovalentInspectionConfigs().Get(ctx, name, opts)
+}
+
 func (c *EnterpriseClient) UpdateIsovalentMulticastGroup(ctx context.Context, cmg *isovalentv1alpha1.IsovalentMulticastGroup, opts metav1.UpdateOptions) (*isovalentv1alpha1.IsovalentMulticastGroup, error) {
 	return c.EnterpriseCiliumClientset.IsovalentV1alpha1().IsovalentMulticastGroups().Update(ctx, cmg, opts)
 }

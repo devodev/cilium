@@ -14,6 +14,7 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"maps"
 	"strings"
 
 	"github.com/spf13/pflag"
@@ -27,6 +28,9 @@ import (
 	enterpriseTests "github.com/cilium/cilium/cilium-cli/enterprise/hooks/connectivity/tests"
 	enterpriseFeatures "github.com/cilium/cilium/cilium-cli/enterprise/hooks/utils/features"
 	"github.com/cilium/cilium/cilium-cli/utils/features"
+	k8sConst "github.com/cilium/cilium/pkg/k8s/apis/cilium.io"
+	slimv1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
+	"github.com/cilium/cilium/pkg/policy/api"
 	"github.com/cilium/cilium/pkg/versioncheck"
 )
 
@@ -479,15 +483,134 @@ func (d diagnosticsScenario) Run(ctx context.Context, t *check.Test) {
 
 var _ check.Scenario = diagnosticsScenario{}
 
+func inspectionWorkloadName(scope, suffix string) string {
+	return fmt.Sprintf("%s-%s", scope, suffix)
+}
+
+func inspectionWorkloadLabels(scope string, extra map[string]string) map[string]string {
+	labels := enterpriseTests.InspectionScopeLabels(scope)
+	if labels == nil {
+		labels = map[string]string{}
+	}
+	maps.Copy(labels, extra)
+	return labels
+}
+
 func (ec *EnterpriseConnectivity) addPassiveInspectionTests(ct *check.ConnectivityTest) error {
 	entCT := enterpriseCheck.NewEnterpriseConnectivityTest(ct)
+	includedScenarioExcludedNamespace := fmt.Sprintf("%s-inspection-included-skip-%d", ct.Params().TestNamespace, ct.Params().TestNamespaceIndex)
+	excludedScenarioNamespace := fmt.Sprintf("%s-inspection-excluded-%d", ct.Params().TestNamespace, ct.Params().TestNamespaceIndex)
+	passiveInspectionScope := "passive-inspection-phased"
+	includedNamespaceScope := "passive-inspection-included-namespace"
+	selectedPodsScope := "passive-inspection-selected-pods"
+	excludedNamespaceScope := "passive-inspection-excluded-namespace"
+	passiveInspectionSelectors := enterpriseTests.InspectionSelectorsForScope(passiveInspectionScope)
+	includedNamespaceSelectors := enterpriseTests.InspectionSelectorsForScope(includedNamespaceScope)
+	excludedNamespaceSelectors := enterpriseTests.InspectionSelectorsForScope(excludedNamespaceScope)
+	selectedPodSelector := enterpriseTests.InspectionScopedSelector(selectedPodsScope,
+		fmt.Sprintf("%s=%s", enterpriseTests.InspectionSelectionLabelKey, enterpriseTests.InspectionSelectionSelected))
+	skippedPodSelector := enterpriseTests.InspectionScopedSelector(selectedPodsScope,
+		fmt.Sprintf("%s=%s", enterpriseTests.InspectionSelectionLabelKey, enterpriseTests.InspectionSelectionSkipped))
+
 	entCT.NewEnterpriseTest("passive-inspection").
 		WithFeatureRequirements(
 			features.RequireEnabled(enterpriseFeatures.PassiveInspection),
 		).
-		WithInspectionSnifferDaemonSet(enterpriseCheck.InspectionSnifferDaemonSetParams{}).
-		WithInspectionSenderDeployment(enterpriseCheck.InspectionSenderDeploymentParams{}).
-		WithScenarios(enterpriseTests.PassiveInspectionVerification())
+		WithInspectionSnifferDaemonSet(enterpriseCheck.InspectionSnifferDaemonSetParams{
+			Name:   inspectionWorkloadName(passiveInspectionScope, "sniffer"),
+			Labels: enterpriseTests.InspectionScopeLabels(passiveInspectionScope),
+		}).
+		WithInspectionSenderDeployment(enterpriseCheck.InspectionSenderDeploymentParams{
+			Name:   inspectionWorkloadName(passiveInspectionScope, "sender"),
+			Labels: enterpriseTests.InspectionScopeLabels(passiveInspectionScope),
+		}).
+		WithInspectionSenderDeployment(enterpriseCheck.InspectionSenderDeploymentParams{
+			Name:   inspectionWorkloadName(includedNamespaceScope, "sender"),
+			Labels: enterpriseTests.InspectionScopeLabels(includedNamespaceScope),
+		}).
+		WithInspectionSenderDeployment(enterpriseCheck.InspectionSenderDeploymentParams{
+			Name:      inspectionWorkloadName(includedNamespaceScope, "sender"),
+			Namespace: includedScenarioExcludedNamespace,
+			Labels:    enterpriseTests.InspectionScopeLabels(includedNamespaceScope),
+		}).
+		WithInspectionSenderDeployment(enterpriseCheck.InspectionSenderDeploymentParams{
+			Name: inspectionWorkloadName(selectedPodsScope, "sender-selected"),
+			Labels: inspectionWorkloadLabels(selectedPodsScope, map[string]string{
+				enterpriseTests.InspectionSelectionLabelKey: enterpriseTests.InspectionSelectionSelected,
+			}),
+		}).
+		WithInspectionSenderDeployment(enterpriseCheck.InspectionSenderDeploymentParams{
+			Name: inspectionWorkloadName(selectedPodsScope, "sender-skipped"),
+			Labels: inspectionWorkloadLabels(selectedPodsScope, map[string]string{
+				enterpriseTests.InspectionSelectionLabelKey: enterpriseTests.InspectionSelectionSkipped,
+			}),
+		}).
+		WithInspectionSenderDeployment(enterpriseCheck.InspectionSenderDeploymentParams{
+			Name:   inspectionWorkloadName(excludedNamespaceScope, "sender"),
+			Labels: enterpriseTests.InspectionScopeLabels(excludedNamespaceScope),
+		}).
+		WithInspectionSenderDeployment(enterpriseCheck.InspectionSenderDeploymentParams{
+			Name:      inspectionWorkloadName(excludedNamespaceScope, "sender"),
+			Namespace: excludedScenarioNamespace,
+			Labels:    enterpriseTests.InspectionScopeLabels(excludedNamespaceScope),
+		}).
+		WithScenarios(enterpriseTests.PassiveInspectionPhasedVerification(
+			enterpriseTests.PassiveInspectionPhase{
+				Name:                   "default",
+				DeleteInspectionConfig: true,
+				SnifferSelector:        passiveInspectionSelectors.SnifferSelector,
+				IncludedSelector:       passiveInspectionSelectors.SenderSelector,
+				IncludedTagPrefix:      "inspection-default-",
+			},
+			enterpriseTests.PassiveInspectionPhase{
+				Name: "included-namespace",
+				EndpointSelector: &api.EndpointSelector{LabelSelector: &slimv1.LabelSelector{
+					MatchLabels: map[string]string{
+						k8sConst.PodNamespaceLabel:              ct.Params().TestNamespace,
+						enterpriseTests.InspectionScopeLabelKey: includedNamespaceScope,
+					},
+				}},
+				SnifferSelector:   passiveInspectionSelectors.SnifferSelector,
+				IncludedSelector:  includedNamespaceSelectors.SenderSelector,
+				IncludedTagPrefix: "inspection-namespace-include-",
+				ExcludedNamespace: includedScenarioExcludedNamespace,
+				ExcludedSelector:  includedNamespaceSelectors.SenderSelector,
+				ExcludedTagPrefix: "inspection-namespace-exclude-",
+			},
+			enterpriseTests.PassiveInspectionPhase{
+				Name: "selected-pods",
+				EndpointSelector: &api.EndpointSelector{LabelSelector: &slimv1.LabelSelector{
+					MatchLabels: map[string]string{
+						enterpriseTests.InspectionScopeLabelKey:     selectedPodsScope,
+						enterpriseTests.InspectionSelectionLabelKey: enterpriseTests.InspectionSelectionSelected,
+					},
+				}},
+				SnifferSelector:   passiveInspectionSelectors.SnifferSelector,
+				IncludedSelector:  selectedPodSelector,
+				IncludedTagPrefix: "inspection-pod-include-",
+				ExcludedSelector:  skippedPodSelector,
+				ExcludedTagPrefix: "inspection-pod-exclude-",
+			},
+			enterpriseTests.PassiveInspectionPhase{
+				Name: "excluded-namespace",
+				EndpointSelector: &api.EndpointSelector{LabelSelector: &slimv1.LabelSelector{
+					MatchLabels: map[string]string{
+						enterpriseTests.InspectionScopeLabelKey: excludedNamespaceScope,
+					},
+					MatchExpressions: []slimv1.LabelSelectorRequirement{{
+						Key:      k8sConst.PodNamespaceLabel,
+						Operator: slimv1.LabelSelectorOpNotIn,
+						Values:   []string{excludedScenarioNamespace},
+					}},
+				}},
+				SnifferSelector:   passiveInspectionSelectors.SnifferSelector,
+				IncludedSelector:  excludedNamespaceSelectors.SenderSelector,
+				IncludedTagPrefix: "inspection-notin-include-",
+				ExcludedNamespace: excludedScenarioNamespace,
+				ExcludedSelector:  excludedNamespaceSelectors.SenderSelector,
+				ExcludedTagPrefix: "inspection-notin-exclude-",
+			},
+		))
 
 	return nil
 }

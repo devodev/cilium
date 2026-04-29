@@ -14,6 +14,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -34,8 +35,30 @@ import (
 )
 
 const (
-	kindMulticastName = "multicast"
+	kindMulticastName                       = "multicast"
+	inspectionNamespaceDeletionPollInterval = 500 * time.Millisecond
 )
+
+func waitForNamespaceDeletion(ctx context.Context, client *k8s.Client, ns string) error {
+	ticker := time.NewTicker(inspectionNamespaceDeletionPollInterval)
+	defer ticker.Stop()
+
+	for {
+		_, err := client.GetNamespace(ctx, ns, metav1.GetOptions{})
+		if err != nil {
+			if k8sErrors.IsNotFound(err) {
+				return nil
+			}
+			return fmt.Errorf("unable to get namespace %s while waiting for deletion: %w", ns, err)
+		}
+
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("waiting for namespace %s deletion: %w", ns, ctx.Err())
+		case <-ticker.C:
+		}
+	}
+}
 
 type deploymentParameters struct {
 	Name                          string
@@ -287,9 +310,6 @@ func (t *EnterpriseTest) deleteDeployments(ctx context.Context) error {
 	return nil
 }
 
-// ─── Inspection deployment / DaemonSet lifecycle ─────────────────────────────
-
-// addInspectionDaemonSet registers a DaemonSet to be applied during test setup.
 func (t *EnterpriseTest) addInspectionDaemonSet(ds *appsv1.DaemonSet) error {
 	if ds == nil {
 		return fmt.Errorf("nil DaemonSet")
@@ -297,14 +317,17 @@ func (t *EnterpriseTest) addInspectionDaemonSet(ds *appsv1.DaemonSet) error {
 	if ds.Name == "" {
 		return fmt.Errorf("DaemonSet name is empty")
 	}
-	if _, exists := t.inspectionDaemonSets[ds.Name]; exists {
-		return fmt.Errorf("DaemonSet %s already registered in test scope", ds.Name)
+	if ds.Namespace == "" {
+		ds.Namespace = t.ctx.Params().TestNamespace
 	}
-	t.inspectionDaemonSets[ds.Name] = ds
+	key := fmt.Sprintf("%s/%s", ds.Namespace, ds.Name)
+	if _, exists := t.inspectionDaemonSets[key]; exists {
+		return fmt.Errorf("DaemonSet %s already registered in test scope", key)
+	}
+	t.inspectionDaemonSets[key] = ds
 	return nil
 }
 
-// addInspectionDeployment registers a Deployment to be applied during test setup.
 func (t *EnterpriseTest) addInspectionDeployment(dep *appsv1.Deployment) error {
 	if dep == nil {
 		return fmt.Errorf("nil Deployment")
@@ -312,39 +335,68 @@ func (t *EnterpriseTest) addInspectionDeployment(dep *appsv1.Deployment) error {
 	if dep.Name == "" {
 		return fmt.Errorf("Deployment name is empty")
 	}
-	if _, exists := t.inspectionDeploys[dep.Name]; exists {
-		return fmt.Errorf("Deployment %s already registered in test scope", dep.Name)
+	if dep.Namespace == "" {
+		dep.Namespace = t.ctx.Params().TestNamespace
 	}
-	t.inspectionDeploys[dep.Name] = dep
+	key := fmt.Sprintf("%s/%s", dep.Namespace, dep.Name)
+	if _, exists := t.inspectionDeploys[key]; exists {
+		return fmt.Errorf("Deployment %s already registered in test scope", key)
+	}
+	t.inspectionDeploys[key] = dep
 	return nil
 }
 
-// applyInspectionWorkloads creates all registered inspection DaemonSets and
-// Deployments, waits for them to be ready, and registers a cleanup finalizer.
 func (t *EnterpriseTest) applyInspectionWorkloads(ctx context.Context) error {
 	if len(t.inspectionDaemonSets) == 0 && len(t.inspectionDeploys) == 0 {
 		return nil
 	}
 
-	ns := t.ctx.Params().TestNamespace
+	namespaces := map[string]struct{}{}
+	for _, ds := range t.inspectionDaemonSets {
+		namespaces[ds.Namespace] = struct{}{}
+	}
+	for _, dep := range t.inspectionDeploys {
+		namespaces[dep.Namespace] = struct{}{}
+	}
+	createdNamespaces := map[string]map[string]struct{}{}
 
-	for _, client := range t.ctx.Clients() {
-		_, err := client.GetNamespace(ctx, ns, metav1.GetOptions{})
-		if err != nil {
-			t.ctx.Logf("✨ [%s] Creating namespace %s for inspection connectivity check...", client.ClusterName(), ns)
-			namespace := &corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:        ns,
-					Annotations: t.ctx.Params().NamespaceAnnotations,
-				},
+	for ns := range namespaces {
+		for _, client := range t.ctx.Clients() {
+			currentNS, err := client.GetNamespace(ctx, ns, metav1.GetOptions{})
+			if err == nil && currentNS.Status.Phase == corev1.NamespaceTerminating {
+				t.ctx.Logf("⏳ [%s] Waiting for terminating namespace %s to disappear before recreating it...", client.ClusterName(), ns)
+				if err := waitForNamespaceDeletion(ctx, client, ns); err != nil {
+					return err
+				}
+				err = k8sErrors.NewNotFound(corev1.Resource("namespaces"), ns)
 			}
-			if _, err = client.CreateNamespace(ctx, namespace, metav1.CreateOptions{}); err != nil {
-				return fmt.Errorf("unable to create namespace %s: %w", ns, err)
+			if err != nil {
+				if !k8sErrors.IsNotFound(err) {
+					return fmt.Errorf("unable to get namespace %s: %w", ns, err)
+				}
+
+				t.ctx.Logf("✨ [%s] Creating namespace %s for inspection connectivity check...", client.ClusterName(), ns)
+				namespace := &corev1.Namespace{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:        ns,
+						Annotations: t.ctx.Params().NamespaceAnnotations,
+					},
+				}
+				if _, err = client.CreateNamespace(ctx, namespace, metav1.CreateOptions{}); err != nil && !k8sErrors.IsAlreadyExists(err) {
+					return fmt.Errorf("unable to create namespace %s: %w", ns, err)
+				}
+				if ns != t.ctx.Params().TestNamespace {
+					if _, ok := createdNamespaces[client.ClusterName()]; !ok {
+						createdNamespaces[client.ClusterName()] = map[string]struct{}{}
+					}
+					createdNamespaces[client.ClusterName()][ns] = struct{}{}
+				}
 			}
 		}
 	}
 
 	for _, ds := range t.inspectionDaemonSets {
+		ns := ds.Namespace
 		for _, client := range t.ctx.clients.clients() {
 			t.Infof("📜[%s] Deploying inspection sniffer DaemonSet %s...", client.ClusterName(), ds.Name)
 
@@ -360,6 +412,7 @@ func (t *EnterpriseTest) applyInspectionWorkloads(ctx context.Context) error {
 	}
 
 	for _, dep := range t.inspectionDeploys {
+		ns := dep.Namespace
 		for _, client := range t.ctx.clients.clients() {
 			t.Infof("📜[%s] Deploying inspection sender Deployment %s...", client.ClusterName(), dep.Name)
 
@@ -375,10 +428,23 @@ func (t *EnterpriseTest) applyInspectionWorkloads(ctx context.Context) error {
 	}
 
 	t.WithFinalizer(func(_ context.Context) error {
-		return t.deleteInspectionWorkloads(context.TODO())
+		if err := t.deleteInspectionWorkloads(context.TODO()); err != nil {
+			return err
+		}
+		for _, client := range t.ctx.clients.clients() {
+			for ns := range createdNamespaces[client.ClusterName()] {
+				t.Infof("📜[%s] Deleting inspection namespace %s...", client.ClusterName(), ns)
+				err := client.DeleteNamespace(context.TODO(), ns, metav1.DeleteOptions{})
+				if err != nil && !k8sErrors.IsNotFound(err) {
+					return fmt.Errorf("unable to delete namespace %s: %w", ns, err)
+				}
+			}
+		}
+		return nil
 	})
 
 	for _, ds := range t.inspectionDaemonSets {
+		ns := ds.Namespace
 		for _, client := range t.ctx.clients.clients() {
 			if err := check.WaitForDaemonSet(ctx, t.ctx, client.Client, ns, ds.Name); err != nil {
 				t.Failf("inspection sniffer DaemonSet %s is not ready: %s", ds.Name, err)
@@ -386,6 +452,7 @@ func (t *EnterpriseTest) applyInspectionWorkloads(ctx context.Context) error {
 		}
 	}
 	for _, dep := range t.inspectionDeploys {
+		ns := dep.Namespace
 		for _, client := range t.ctx.clients.clients() {
 			if err := check.WaitForDeployment(ctx, t.ctx, client.Client, ns, dep.Name); err != nil {
 				t.Failf("inspection sender Deployment %s is not ready: %s", dep.Name, err)
@@ -397,9 +464,8 @@ func (t *EnterpriseTest) applyInspectionWorkloads(ctx context.Context) error {
 }
 
 func (t *EnterpriseTest) deleteInspectionWorkloads(ctx context.Context) error {
-	ns := t.ctx.Params().TestNamespace
-
 	for _, ds := range t.inspectionDaemonSets {
+		ns := ds.Namespace
 		for _, client := range t.ctx.clients.clients() {
 			t.Infof("📜[%s] Deleting inspection sniffer DaemonSet %s...", client.ClusterName(), ds.Name)
 			err := client.Clientset.AppsV1().DaemonSets(ns).Delete(ctx, ds.Name, metav1.DeleteOptions{})
@@ -414,6 +480,7 @@ func (t *EnterpriseTest) deleteInspectionWorkloads(ctx context.Context) error {
 	}
 
 	for _, dep := range t.inspectionDeploys {
+		ns := dep.Namespace
 		for _, client := range t.ctx.clients.clients() {
 			t.Infof("📜[%s] Deleting inspection sender Deployment %s...", client.ClusterName(), dep.Name)
 			err := client.DeleteDeployment(ctx, ns, dep.Name, metav1.DeleteOptions{})

@@ -21,7 +21,26 @@ import (
 	policyTypes "github.com/cilium/cilium/pkg/policy/types"
 )
 
-func TestEndpointFilter_EnabledForEndpoint(t *testing.T) {
+func TestEndpointFilter_EnabledForEndpoint_UsesEndpointLabels(t *testing.T) {
+	selector := policyTypes.NewLabelSelectorFromLabels(
+		labels.NewLabel(ciliumio.PodNamespaceMetaNameLabel, "payments", labels.LabelSourceK8s),
+	)
+
+	store := NewSelectorStore()
+	store.SetSelector(selector)
+	filter := NewEndpointFilter(Config{Enabled: true}, store)
+
+	require.True(t, filter.EnabledForEndpoint(fakeSelectorEndpoint{id: newFakeIdentity(map[string]string{
+		ciliumio.PodNamespaceMetaNameLabel: "payments",
+		"app":                              "checkout",
+	})}))
+	require.False(t, filter.EnabledForEndpoint(fakeSelectorEndpoint{id: newFakeIdentity(map[string]string{
+		ciliumio.PodNamespaceMetaNameLabel: "default",
+		"app":                              "client",
+	})}))
+}
+
+func TestEndpointFilter_EnabledForEndpoint_UsesCachedIdentity(t *testing.T) {
 	selector := policyTypes.NewLabelSelectorFromLabels(
 		labels.NewLabel(ciliumio.PodNamespaceMetaNameLabel, "payments", labels.LabelSourceK8s),
 	)
@@ -42,17 +61,8 @@ func TestEndpointFilter_EnabledForEndpoint(t *testing.T) {
 	store.SetSelector(selector)
 	filter := NewEndpointFilter(Config{Enabled: true}, store)
 
-	require.True(t, filter.EnabledForEndpoint(fakeSelectorEndpoint{id: newFakeIdentity(map[string]string{
-		ciliumio.PodNamespaceMetaNameLabel: "payments",
-		"app":                              "checkout",
-	})}))
 	require.True(t, filter.EnabledForEndpoint(fakeConfigEndpoint{id: matchedIdentity}))
 	require.False(t, filter.EnabledForEndpoint(fakeConfigEndpoint{id: unmatchedIdentity, properties: map[string]any{PropertyEndpointEnabled: true}}))
-
-	require.False(t, NewEndpointFilter(Config{}, store).EnabledForEndpoint(fakeConfigEndpoint{
-		id:         matchedIdentity,
-		properties: map[string]any{PropertyEndpointEnabled: true},
-	}))
 }
 
 func TestEndpointFilter_EnabledForEndpoint_IgnoresHostIdentity(t *testing.T) {
@@ -86,6 +96,16 @@ func TestEndpointFilter_EnabledForEndpoint_FallsBackToPropertyWhenSelectorUnavai
 	filter := NewEndpointFilter(Config{Enabled: true}, NewSelectorStore())
 
 	require.True(t, filter.EnabledForEndpoint(fakeConfigEndpoint{
+		properties: map[string]any{PropertyEndpointEnabled: true},
+	}))
+	require.False(t, filter.EnabledForEndpoint(fakeConfigEndpoint{
+		properties: map[string]any{PropertyEndpointEnabled: false},
+	}))
+	require.False(t, filter.EnabledForEndpoint(fakeConfigEndpoint{}))
+}
+
+func TestEndpointFilter_EnabledForEndpoint_DisabledOrNilFilter(t *testing.T) {
+	require.False(t, NewEndpointFilter(Config{}, NewSelectorStore()).EnabledForEndpoint(fakeConfigEndpoint{
 		properties: map[string]any{PropertyEndpointEnabled: true},
 	}))
 	require.False(t, (*EndpointFilter)(nil).EnabledForEndpoint(fakeConfigEndpoint{

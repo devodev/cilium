@@ -120,9 +120,24 @@ func (t *EnterpriseTest) addICEPs(iceps ...*isovalentv1alpha1.IsovalentClusterwi
 	return err
 }
 
+func (t *EnterpriseTest) addInspectionConfig(cfg *isovalentv1alpha1.IsovalentInspectionConfig) error {
+	if cfg == nil {
+		return errors.New("cannot add nil IsovalentInspectionConfig to test")
+	}
+	if cfg.Name != isovalentv1alpha1.InspectionConfigName {
+		return fmt.Errorf("IsovalentInspectionConfig must use singleton name %q", isovalentv1alpha1.InspectionConfigName)
+	}
+	if t.inspectionConfig != nil {
+		return fmt.Errorf("IsovalentInspectionConfig %q already registered in test scope", t.inspectionConfig.Name)
+	}
+
+	t.inspectionConfig = cfg
+	return nil
+}
+
 // applyPolicies applies all the Test's registered network policies.
 func (t *EnterpriseTest) applyPolicies(ctx context.Context) error {
-	if len(t.iegps) == 0 && len(t.imgs) == 0 && len(t.iceps) == 0 {
+	if len(t.iegps) == 0 && len(t.imgs) == 0 && len(t.iceps) == 0 && t.inspectionConfig == nil {
 		return nil
 	}
 
@@ -156,6 +171,23 @@ func (t *EnterpriseTest) applyPolicies(ctx context.Context) error {
 		}
 	}
 
+	if t.inspectionConfig != nil {
+		t.Infof("📜 Applying IsovalentInspectionConfig '%s'..", t.inspectionConfig.Name)
+		for _, client := range t.Context().clients.clients() {
+			current, err := client.GetIsovalentInspectionConfig(ctx, t.inspectionConfig.Name, metav1.GetOptions{})
+			if err != nil && !k8serrors.IsNotFound(err) {
+				return fmt.Errorf("retrieving IsovalentInspectionConfig failed: %w", err)
+			}
+			if err == nil {
+				key := fmt.Sprintf("%s/%s", client.ClusterName(), t.inspectionConfig.Name)
+				t.originalInspectionConfigs[key] = current.DeepCopy()
+			}
+			if _, err := client.ApplyGeneric(ctx, t.inspectionConfig); err != nil {
+				return fmt.Errorf("applying IsovalentInspectionConfig failed: %w", err)
+			}
+		}
+	}
+
 	// Register a finalizer with the Test immediately to enable cleanup.
 	// If we return a cleanup closure from this function, cleanup cannot be
 	// performed if the user cancels during the policy revision wait time.
@@ -183,12 +215,16 @@ func (t *EnterpriseTest) applyPolicies(ctx context.Context) error {
 		t.Debugf("📜 Successfully applied %d IsovalentClusterwideEncryptionPolicies", len(t.iceps))
 	}
 
+	if t.inspectionConfig != nil {
+		t.Debugf("📜 Successfully applied IsovalentInspectionConfig %q", t.inspectionConfig.Name)
+	}
+
 	return nil
 }
 
 // deletePolicies deletes a given set of network policies from the cluster.
 func (t *EnterpriseTest) deletePolicies(ctx context.Context) error {
-	if len(t.iegps) == 0 && len(t.imgs) == 0 && len(t.iceps) == 0 {
+	if len(t.iegps) == 0 && len(t.imgs) == 0 && len(t.iceps) == 0 && t.inspectionConfig == nil {
 		return nil
 	}
 
@@ -222,6 +258,22 @@ func (t *EnterpriseTest) deletePolicies(ctx context.Context) error {
 		}
 	}
 
+	if t.inspectionConfig != nil {
+		t.Infof("📜 Restoring IsovalentInspectionConfig '%s'..", t.inspectionConfig.Name)
+		for _, client := range t.Context().clients.clients() {
+			key := fmt.Sprintf("%s/%s", client.ClusterName(), t.inspectionConfig.Name)
+			if originalConfig, ok := t.originalInspectionConfigs[key]; ok {
+				if _, err := client.ApplyGeneric(ctx, originalConfig); err != nil {
+					return fmt.Errorf("restoring IsovalentInspectionConfig: %w", err)
+				}
+				continue
+			}
+			if err := client.DeleteGeneric(ctx, t.inspectionConfig); err != nil && !k8serrors.IsNotFound(err) {
+				return fmt.Errorf("deleting IsovalentInspectionConfig: %w", err)
+			}
+		}
+	}
+
 	if len(t.iegps) > 0 {
 		t.Debugf("📜 Successfully deleted %d IsovalentEgressGatewayPolicies", len(t.iegps))
 	}
@@ -232,6 +284,10 @@ func (t *EnterpriseTest) deletePolicies(ctx context.Context) error {
 
 	if len(t.iceps) > 0 {
 		t.Debugf("📜 Successfully deleted %d IsovalentClusterwideEncryptionPolicies", len(t.iceps))
+	}
+
+	if t.inspectionConfig != nil {
+		t.Debugf("📜 Successfully restored/deleted IsovalentInspectionConfig %q", t.inspectionConfig.Name)
 	}
 
 	return nil

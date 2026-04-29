@@ -199,6 +199,69 @@ func TestInspectionReconciler_ReconcileEndpointState(t *testing.T) {
 	}
 }
 
+func TestInspectionReconciler_ReconcileEndpointStateAlreadyConverged(t *testing.T) {
+	r := newTestReconciler(t)
+	r.upsertConfig(&isovalent_api_v1alpha1.IsovalentInspectionConfig{
+		ObjectMeta: metav1.ObjectMeta{Name: isovalent_api_v1alpha1.InspectionConfigName},
+		Spec: isovalent_api_v1alpha1.IsovalentInspectionConfigSpec{
+			EndpointSelector: endpointSelector(map[string]string{
+				ciliumio.PodNamespaceLabel: "payments",
+			}),
+		},
+	})
+
+	tests := []struct {
+		name      string
+		ep        *fakeEndpoint
+		wantValue bool
+	}{
+		{
+			name: "matched endpoint already enabled",
+			ep: newFakeEndpoint(
+				"payments",
+				"checkout-0",
+				map[string]string{"app": "checkout"},
+				nil,
+				map[string]any{inspectionConfig.PropertyEndpointEnabled: true},
+			),
+			wantValue: true,
+		},
+		{
+			name: "unmatched endpoint already disabled",
+			ep: newFakeEndpoint(
+				"default",
+				"client-0",
+				map[string]string{"app": "client"},
+				nil,
+				map[string]any{inspectionConfig.PropertyEndpointEnabled: false},
+			),
+			wantValue: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			regenerations := 0
+			r.reconcileEndpointState(tt.ep, func() { regenerations++ })
+			require.Equal(t, tt.wantValue, tt.ep.properties[inspectionConfig.PropertyEndpointEnabled])
+			require.Zero(t, regenerations)
+		})
+	}
+}
+
+func TestInspectionReconciler_ReconcileEndpointStateUnauthoritativeDoesNotRegenerate(t *testing.T) {
+	r := &inspectionReconciler{
+		selectorStore: inspectionConfig.NewSelectorStore(),
+	}
+	ep := newFakeEndpoint("payments", "checkout-0", map[string]string{"app": "checkout"}, nil, nil)
+
+	regenerations := 0
+	r.reconcileEndpointState(ep, func() { regenerations++ })
+
+	require.Nil(t, ep.properties[inspectionConfig.PropertyEndpointEnabled])
+	require.Zero(t, regenerations)
+}
+
 func TestInspectionReconciler_DefaultConfigLifecycle(t *testing.T) {
 	r := newTestReconciler(t)
 

@@ -31,6 +31,7 @@ import (
 	isovalentv1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
 	isovalentv1alpha1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
 	slimv1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
+	"github.com/cilium/cilium/pkg/policy/api"
 )
 
 //go:embed manifests/egress-gateway-policy.yaml
@@ -55,6 +56,13 @@ type EnterpriseTest struct {
 
 	// Isovalent Clusterwide Encryption Policies active during this test.
 	iceps map[string]*isovalentv1alpha1.IsovalentClusterwideEncryptionPolicy
+
+	// Isovalent singleton inspection config active during this test.
+	inspectionConfig *isovalentv1alpha1.IsovalentInspectionConfig
+
+	// originalInspectionConfigs stores any preexisting cluster-scoped config by cluster/name
+	// so tests can restore it on cleanup.
+	originalInspectionConfigs map[string]*isovalentv1alpha1.IsovalentInspectionConfig
 
 	// inspection DaemonSets (one-per-node sniffers) active during this test.
 	inspectionDaemonSets map[string]*appsv1.DaemonSet
@@ -367,6 +375,31 @@ func (t *EnterpriseTest) WithIsovalentClusterwideEncryptionPolicy(policy string)
 	return t
 }
 
+type InspectionConfigParams struct {
+	EndpointSelector *api.EndpointSelector
+}
+
+func (t *EnterpriseTest) WithIsovalentInspectionConfig(params InspectionConfigParams) *EnterpriseTest {
+	config := &isovalentv1alpha1.IsovalentInspectionConfig{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       isovalentv1alpha1.IsovalentInspectionConfigKindDefinition,
+			APIVersion: "isovalent.com/v1alpha1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: isovalentv1alpha1.InspectionConfigName,
+		},
+		Spec: isovalentv1alpha1.IsovalentInspectionConfigSpec{
+			EndpointSelector: params.EndpointSelector,
+		},
+	}
+
+	if err := t.addInspectionConfig(config); err != nil {
+		t.Fatalf("Adding inspection config to connectivity context: %s", err)
+	}
+
+	return t
+}
+
 func (t *EnterpriseTest) WithScenarios(sl ...check.Scenario) *EnterpriseTest {
 	t.Test.WithScenarios(sl...)
 
@@ -376,9 +409,17 @@ func (t *EnterpriseTest) WithScenarios(sl ...check.Scenario) *EnterpriseTest {
 // InspectionSnifferDaemonSetParams holds the parameters for a sniffer DaemonSet
 // that captures traffic on the inspection interface.
 type InspectionSnifferDaemonSetParams struct {
+	// Name controls the sniffer DaemonSet, ServiceAccount, and container name.
+	// Defaults to "inspection-sniffer" if empty.
+	Name string
+
 	// Image is the container image to use; must have tcpdump available.
 	// Defaults to nicolaka/netshoot if empty.
 	Image string
+
+	// Labels are added to sniffer pods so each inspection scenario can select
+	// only its own DaemonSet pods.
+	Labels map[string]string
 }
 
 // WithInspectionSnifferDaemonSet adds a sniffer DaemonSet that will be deployed
@@ -388,7 +429,7 @@ func (t *EnterpriseTest) WithInspectionSnifferDaemonSet(params InspectionSniffer
 	if params.Image == "" {
 		params.Image = "nicolaka/netshoot:v0.15"
 	}
-	ds := enterpriseTests.NewInspectionSnifferDaemonSet(t.ctx.Params().TestNamespace, params.Image)
+	ds := enterpriseTests.NewInspectionSnifferDaemonSet(t.ctx.Params().TestNamespace, params.Name, params.Image, params.Labels)
 	if err := t.addInspectionDaemonSet(ds); err != nil {
 		t.Fatalf("Adding inspection sniffer DaemonSet: %s", err)
 	}
@@ -397,9 +438,20 @@ func (t *EnterpriseTest) WithInspectionSnifferDaemonSet(params InspectionSniffer
 
 // InspectionSenderDeploymentParams holds the parameters for a sender Deployment.
 type InspectionSenderDeploymentParams struct {
+	// Name controls the sender Deployment name.
+	// Defaults to "inspection-sender" if empty.
+	Name string
+
 	// Image is the container image to use; must have /dev/udp support (bash or busybox ash).
 	// Defaults to nicolaka/netshoot if empty.
 	Image string
+
+	// Namespace controls where the sender Deployment is created.
+	Namespace string
+
+	// Labels are added to the sender pods so inspection selectors can match
+	// specific workloads.
+	Labels map[string]string
 }
 
 // WithInspectionSenderDeployment adds a two-replica sender Deployment spread
@@ -408,7 +460,10 @@ func (t *EnterpriseTest) WithInspectionSenderDeployment(params InspectionSenderD
 	if params.Image == "" {
 		params.Image = "nicolaka/netshoot:v0.15"
 	}
-	dep := enterpriseTests.NewInspectionSenderDeployment(t.ctx.Params().TestNamespace, params.Image)
+	if params.Namespace == "" {
+		params.Namespace = t.ctx.Params().TestNamespace
+	}
+	dep := enterpriseTests.NewInspectionSenderDeployment(params.Namespace, params.Name, params.Image, params.Labels)
 	if err := t.addInspectionDeployment(dep); err != nil {
 		t.Fatalf("Adding inspection sender Deployment: %s", err)
 	}
