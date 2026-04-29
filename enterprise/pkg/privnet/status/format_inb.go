@@ -35,19 +35,37 @@ func (s NodeStatus) formatINBNode() string {
 		sb.WriteString("\n")
 	}
 
+	sb.WriteString("\n")
+	sb.WriteString(s.formatConnectedClusters())
+
 	return sb.String()
 }
 
+func (s NodeStatus) formatConnectedClusters() string {
+	clusterStrs := []string{}
+	for _, cc := range s.ConnectedClusters {
+		if cc.Name == s.Cluster {
+			continue
+		}
+		clusterStrs = append(clusterStrs, fmtHghlt(fmt.Sprintf("%s (%d Nodes)", cc.Name, len(cc.NodeNames))))
+	}
+	if len(clusterStrs) == 0 {
+		return fmtWrn("No clusters connected") + "\n"
+	}
+	return fmtWrapLineItemsTitle("Connected Clusters", clusterStrs, 24, 100)
+}
+
 func (pn NetworkStatus) formatINBNetwork(connectedClusters []ConnectedCluster, localCluster tables.ClusterName, localNode tables.NodeName) string {
+	sum := summarizeConnectedCluster(pn, connectedClusters, localCluster, localNode)
+
 	sb := strings.Builder{}
 
-	sb.WriteString(fmtIndent(pn.inbNetworkStatusLine(98), 2))
+	sb.WriteString(fmtIndent(pn.inbNetworkStatusLine(sum, 98), 2))
 
 	sb.WriteString(fmtIndent(pn.INBStatus.formatInterfaces(96), 4))
 	sb.WriteString(fmtIndent(pn.formatSubnets(96), 4))
 	sb.WriteString(fmtIndent(pn.formatRoutes(96), 4))
 
-	sum := summarizeConnectedCluster(pn, connectedClusters, localCluster, localNode)
 	sb.WriteString(fmtIndent(sum.formatINBEndpointBar(96), 4))
 	sb.WriteString("\n")
 	sb.WriteString(fmtIndent(sum.formatINBServedNodes(localCluster), 4))
@@ -55,7 +73,7 @@ func (pn NetworkStatus) formatINBNetwork(connectedClusters []ConnectedCluster, l
 	return sb.String()
 }
 
-func (pn NetworkStatus) inbNetworkStatusLine(width int) string {
+func (pn NetworkStatus) inbNetworkStatusLine(sum connectedEndpointsSummary, width int) string {
 	errStr := ""
 	if len(pn.Errors) > 0 {
 		errStr = fmtIndent(fmtErr(strings.Join(pn.Errors, "\n"))+"\n", 4)
@@ -70,16 +88,19 @@ func (pn NetworkStatus) inbNetworkStatusLine(width int) string {
 	return fmtBar(
 		fmt.Sprintf("Network %s", fmtHghlt(pn.Name)),
 		fmt.Sprintf("Active Interfaces %d", activeInterfaces),
-		pn.inbNetworkStatus(),
+		pn.inbNetworkStatus(sum),
 		width,
 	) + errStr
 }
-func (pn NetworkStatus) inbNetworkStatus() string {
-	if pn.INBStatus.Serving {
+func (pn NetworkStatus) inbNetworkStatus(sum connectedEndpointsSummary) string {
+	switch {
+	case pn.INBStatus.Serving && sum.activeNodes() > 0:
 		return fmtOk("SERVING")
-	} else if len(pn.Errors) == 0 {
+	case pn.INBStatus.Serving:
+		return fmtInfo("STANDBY")
+	case len(pn.Errors) == 0:
 		return fmtWrn("NOT SERVING")
-	} else {
+	default:
 		return fmtErr("DEGRADED")
 	}
 }
@@ -129,6 +150,9 @@ func (sum connectedEndpointsSummary) formatINBEndpointBar(width int) string {
 }
 
 func (sum connectedEndpointsSummary) formatINBServedNodes(localCluster tables.ClusterName) string {
+	if len(sum.clusters) < 2 {
+		return fmtInfo("Not severing any cluster")
+	}
 
 	const title = "Served Nodes"
 	sb := strings.Builder{}
@@ -152,4 +176,12 @@ func (sum connectedEndpointsSummary) formatINBServedNodes(localCluster tables.Cl
 	}
 	w.Flush()
 	return fmtIndentTitle(title, sb.String(), 20)
+}
+
+func (sum connectedEndpointsSummary) activeNodes() int {
+	activeNodes := 0
+	for _, cluster := range sum.clusters {
+		activeNodes += cluster.activeNodes
+	}
+	return activeNodes
 }

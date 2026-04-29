@@ -15,6 +15,8 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
+	"github.com/cilium/cilium/enterprise/pkg/privnet/config"
 )
 
 const (
@@ -157,12 +159,18 @@ func fmtBar(left, mid, right string, width int) string {
 
 func (s NodeStatus) nodeStatus() string {
 
-	if slices.ContainsFunc(s.Networks, func(net NetworkStatus) bool {
+	switch {
+	case slices.ContainsFunc(s.Networks, func(net NetworkStatus) bool {
 		return len(net.Errors) > 0
-	}) {
+	}):
 		return "Status  " + fmtErr("DEGRADED")
+	case s.Mode == config.ModeBridge && len(s.ConnectedClusters) < 2:
+		return "Status  " + fmtWrn("NOT CONNECTED")
+	case len(s.Networks) == 0:
+		return "Status  " + fmtInfo("READY")
+	default:
+		return "Status  " + fmtOk("OK")
 	}
-	return "Status  " + fmtOk("OK")
 }
 
 func (s NetworkStatus) formatSubnets(width int) string {

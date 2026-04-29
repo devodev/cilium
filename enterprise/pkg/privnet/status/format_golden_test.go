@@ -294,6 +294,93 @@ func TestFormatGolden(t *testing.T) {
 			},
 		},
 		{
+			name:   "connected INB",
+			golden: "connected-inb",
+			status: NodeStatus{
+				Name:    "inb-0",
+				Cluster: "inb-west",
+				ConnectedClusters: []ConnectedCluster{
+					{
+						Name: "inb-west",
+						NodeNames: []types.NodeName{
+							"inb-0",
+						},
+					},
+					{
+						Name: "cluster-west",
+						NodeNames: []types.NodeName{
+							"worker-0",
+							"worker-1",
+							"worker-2",
+						},
+					},
+					{
+						Name: "cluster-east",
+						NodeNames: []types.NodeName{
+							"worker-0",
+							"worker-1",
+							"worker-2",
+						},
+					},
+				},
+				Enabled: true,
+				Mode:    "bridge",
+			},
+		},
+		{
+			name:   "INB without workload cluster",
+			golden: "disconnected-inb",
+			status: NodeStatus{
+				Name:    "inb-0",
+				Cluster: "inb-west",
+				ConnectedClusters: []ConnectedCluster{
+					{
+						Name: "inb-west",
+						NodeNames: []types.NodeName{
+							"inb-0",
+						},
+					},
+				},
+				Enabled: true,
+				Mode:    "bridge",
+				Networks: []NetworkStatus{
+					{
+						Name: "blue",
+						Routes: []Route{
+							{
+								Destination: netip.MustParsePrefix("0.0.0.0/0"),
+								Gateway:     netip.MustParseAddr("192.168.1.1"),
+							},
+						},
+						Subnets: []Subnet{
+							{
+								CIDRv4: netip.MustParsePrefix("192.168.1.1/24"),
+							},
+						},
+						Endpoints: []EndpointStatus{
+							{
+								Name:     "extEp",
+								Cluster:  "inb-west",
+								Node:     "inb-0",
+								IPv4:     netip.MustParseAddr("10.0.1.10"),
+								NetIPv4:  netip.MustParseAddr("192.168.1.100"),
+								External: true,
+							},
+						},
+						INBStatus: INBStatus{
+							Serving: true,
+							Interfaces: []Interface{
+								{
+									Name:  "eth0",
+									Index: 45,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
 			name:   "worker without inb",
 			golden: "worker-no-connected-inb",
 			status: NodeStatus{

@@ -362,6 +362,8 @@ Network Bridge                             foobar-worker-1                      
 
     Served Nodes        felidae        1/2 (2/2 endpoints)
 
+
+Connected Clusters      felidae (2 Nodes)
 -- status-1.json --
 {
   "revision": 2,
@@ -534,6 +536,8 @@ Network Bridge                             foobar-worker-1                      
 
     Served Nodes        felidae        0/2 (0/2 endpoints)
 
+
+Connected Clusters      felidae (2 Nodes)
 -- status-2.json --
 {
   "revision": 2,

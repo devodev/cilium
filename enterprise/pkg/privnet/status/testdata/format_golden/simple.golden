@@ -10,3 +10,5 @@ Network Bridge                                  [36minb-0[0m                  
     Served Nodes        [32mcluster-east   1/3 (1/1 endpoints)[0m
                         [32mcluster-west   2/3 (2/3 endpoints)[0m
 
+
+Connected Clusters      [36mcluster-west (3 Nodes)[0m  [36mcluster-east (3 Nodes)[0m
