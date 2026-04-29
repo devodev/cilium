@@ -372,6 +372,7 @@ externallyCreated
 extraConfig
 facto
 failover
+falsy
 fcfs
 fec
 fieldAggregate
@@ -857,6 +858,7 @@ tracestate
 transpiling
 triager
 triagers
+truthy
 tsne
 tunables
 tunings

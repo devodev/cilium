@@ -682,37 +682,27 @@ privnet_host_snat_ingress6(struct __ctx_buff *ctx __maybe_unused)
 {
 	int ret = 0;
 #if defined(ENABLE_IPV6) && defined(ENABLE_NODEPORT)
-	struct ipv6_nat_target *target;
-	struct ipv6_ct_tuple *tuple;
+	struct snat_v6_args *args = AUX(snat_v6_args);
 	void *data, *data_end;
 	struct ipv6hdr *ip6;
 	fraginfo_t fraginfo;
 	int hdrlen, l4_off;
 	__s8 ext_err = 0;
-	int zero = 0;
 
-	tuple = map_lookup_elem(&ct_tuple_storage, &zero);
-	if (!tuple)
-		return DROP_INVALID;
-
-	target = map_lookup_elem(&nat_target_storage, &zero);
-	if (!target)
-		return DROP_INVALID;
-
-	memset(target, 0, sizeof(*target));
-	target->addr = CONFIG(privnet_host_snat_ipv6);
-	target->min_port = NODEPORT_PORT_MIN_NAT;
-	target->max_port = NODEPORT_PORT_MAX_NAT;
+	memset(args, 0, sizeof(*args));
+	args->target.addr = CONFIG(privnet_host_snat_ipv6);
+	args->target.min_port = NODEPORT_PORT_MIN_NAT;
+	args->target.max_port = NODEPORT_PORT_MAX_NAT;
 
 	if (!revalidate_data(ctx, &data, &data_end, &ip6))
 		return DROP_INVALID;
 
-	tuple->nexthdr = ip6->nexthdr;
-	hdrlen = ipv6_hdrlen_with_fraginfo(ctx, &tuple->nexthdr, &fraginfo);
+	args->tuple.nexthdr = ip6->nexthdr;
+	hdrlen = ipv6_hdrlen_with_fraginfo(ctx, &args->tuple.nexthdr, &fraginfo);
 	if (hdrlen < 0)
 		return hdrlen;
 
-	snat_v6_init_tuple(ip6, NAT_DIR_EGRESS, tuple);
+	snat_v6_init_tuple(ip6, NAT_DIR_EGRESS, &args->tuple);
 
 	l4_off = (__u32)(((void *)ip6 - data) + hdrlen);
 

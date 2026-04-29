@@ -350,6 +350,9 @@ contributors across the globe, there is almost always someone available to help.
 | daemon.enableSourceIPVerification | bool | `true` | enableSourceIPVerification is a boolean flag to enable or disable the Source IP verification of endpoints. This flag is useful when Cilium is chained with other CNIs.  By default, this functionality is enabled |
 | daemon.runPath | string | `"/var/run/cilium"` | Configure where Cilium runtime state should be stored. |
 | dashboards | object | `{"annotations":{},"enabled":false,"label":"grafana_dashboard","labelValue":"1","namespace":null}` | Grafana dashboards for cilium-agent grafana can import dashboards based on the label and value ref: https://github.com/grafana/helm-charts/tree/main/charts/grafana#sidecar-for-dashboards |
+| datapathPlugins | object | `{"enabled":false,"stateDir":"/var/run/cilium/plugins"}` | Plugins to inject custom BPF into the datapath. |
+| datapathPlugins.enabled | bool | `false` | Enable datapath plugins. |
+| datapathPlugins.stateDir | string | `"/var/run/cilium/plugins"` | Parent directory for per-plugin state directories. |
 | debug.enabled | bool | `false` | Enable debug logging |
 | debug.metricsSamplingInterval | string | `"5m"` | Set the agent-internal metrics sampling frequency. This sets the frequency of the internal sampling of the agent metrics. These are available via the "cilium-dbg shell -- metrics -s" command and are part of the metrics HTML page included in the sysdump. @schema type: [null, string] @schema |
 | debug.verbose | string | `nil` | Configure verbosity levels for debug logging This option is used to enable debug messages for operations related to such sub-system such as (e.g. kvstore, envoy, datapath, policy, or tagged), and flow is for enabling debug messages emitted per request, message and connection. Multiple values can be set via a space-separated string (e.g. "datapath envoy").  Applicable values: - flow - kvstore - envoy - datapath - policy - tagged |
@@ -382,7 +385,6 @@ contributors across the globe, there is almost always someone available to help.
 | enableNonDefaultDenyPolicies | bool | `false` | Enable Non-Default-Deny policies |
 | enableXTSocketFallback | bool | `true` | Enables the fallback compatibility solution for when the xt_socket kernel module is missing and it is needed for the datapath L7 redirection to work properly. See documentation for details on when this can be disabled: https://docs.cilium.io/en/stable/operations/system_requirements/#linux-kernel. |
 | encryption.enabled | bool | `false` | Enable transparent network encryption. |
-| encryption.ipsec.encryptedOverlay | bool | `false` | Enable IPsec encrypted overlay |
 | encryption.ipsec.interface | string | `""` | The interface to use for encrypted traffic. |
 | encryption.ipsec.keyFile | string | `"keys"` | Name of the key file inside the Kubernetes secret configured via secretName. |
 | encryption.ipsec.keyRotationDuration | string | `"5m"` | Maximum duration of the IPsec key rotation. The previous key will be removed after that delay. |
@@ -390,13 +392,10 @@ contributors across the globe, there is almost always someone available to help.
 | encryption.ipsec.mountPath | string | `"/etc/ipsec"` | Path to mount the secret inside the Cilium pod. |
 | encryption.ipsec.secretName | string | `"cilium-ipsec-keys"` | Name of the Kubernetes secret containing the encryption keys. |
 | encryption.nodeEncryption | bool | `false` | Enable encryption for pure node to node traffic. This option is only effective when encryption.type is set to "wireguard". |
-| encryption.strictMode | object | `{"allowRemoteNodeIdentities":false,"cidr":"","egress":{"allowRemoteNodeIdentities":false,"cidr":"","enabled":false},"enabled":false,"ingress":{"enabled":false}}` | Configure the Encryption Pod2Pod strict mode. |
-| encryption.strictMode.allowRemoteNodeIdentities | bool | `false` | Allow dynamic lookup of remote node identities. (deprecated: please use encryption.strictMode.egress.allowRemoteNodeIdentities) This is required when tunneling is used or direct routing is used and the node CIDR and pod CIDR overlap. |
-| encryption.strictMode.cidr | string | `""` | CIDR for the Encryption Pod2Pod strict mode. (deprecated: please use encryption.strictMode.egress.cidr) |
+| encryption.strictMode | object | `{"egress":{"allowRemoteNodeIdentities":false,"cidr":"","enabled":false},"ingress":{"enabled":false}}` | Configure the Encryption Pod2Pod strict mode. |
 | encryption.strictMode.egress.allowRemoteNodeIdentities | bool | `false` | Allow dynamic lookup of remote node identities. This is required when tunneling is used or direct routing is used and the node CIDR and pod CIDR overlap. |
 | encryption.strictMode.egress.cidr | string | `""` | CIDR for the Encryption Pod2Pod strict egress mode. |
 | encryption.strictMode.egress.enabled | bool | `false` | Enable strict egress encryption. |
-| encryption.strictMode.enabled | bool | `false` | Enable Encryption Pod2Pod strict mode. (deprecated: please use encryption.strictMode.egress.enabled) |
 | encryption.strictMode.ingress.enabled | bool | `false` | Enable strict ingress encryption. When enabled, all unencrypted overlay ingress traffic will be dropped. This option is only applicable when WireGuard and tunneling are enabled. |
 | encryption.type | string | `"ipsec"` | Encryption method. Can be one of ipsec, wireguard or ztunnel. |
 | encryption.wireguard.persistentKeepalive | string | `"0s"` | Controls WireGuard PersistentKeepalive option. Set 0s to disable. |

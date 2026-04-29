@@ -113,7 +113,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Set initial commit status
-        uses: cilium/cilium/.github/actions/set-commit-status@b782452ab683b087ff1d521bad71e81010524b63 # main
+        uses: cilium/cilium/.github/actions/set-commit-status@354584b6acb8b1d0203ab1001815fc50916979be # main
         with:
           sha: ${{ inputs.SHA || github.sha }}
 
@@ -180,7 +180,7 @@ jobs:
             jq --argjson modes "$MODES" '[.[] | select(.["test-l7"] != "true") | del(."key-two", ."test-l7") | . as $entry | [$modes[] | . as $m | $entry + {mode: $m}]] | flatten' configs.json > matrix.json
             CONFIG_COUNT=$(jq 'length' matrix.json)
             echo "::notice::Including only test-l7: false configurations (${CONFIG_COUNT} configs - L3/L4 testing only)"
-            echo "timeout=40" >> $GITHUB_OUTPUT
+            echo "timeout=60" >> $GITHUB_OUTPUT
           fi
           echo "Generated matrix:"
           cat /tmp/generated/e2e/matrix.json
@@ -221,7 +221,7 @@ jobs:
           echo '${{ toJSON(matrix) }}'
 
       - name: Set commit status to pending
-        uses: cilium/cilium/.github/actions/set-commit-status@b782452ab683b087ff1d521bad71e81010524b63 # main
+        uses: cilium/cilium/.github/actions/set-commit-status@354584b6acb8b1d0203ab1001815fc50916979be # main
         with:
           sha: ${{ inputs.SHA || github.sha }}
 
@@ -344,6 +344,7 @@ jobs:
           encryption: ${{ matrix.encryption }}
           encryption-node: ${{ matrix.encryption-node }}
           encryption-strict-egress: ${{ matrix.encryption-strict-egress }}
+          encryption-strict-ingress: ${{ matrix.encryption-strict-ingress }}
           egress-gateway: ${{ matrix.egress-gateway }}
           host-fw: ${{ matrix.host-fw }}
           mutual-auth: false

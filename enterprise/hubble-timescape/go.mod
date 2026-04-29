@@ -136,8 +136,8 @@ require (
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/kustomize/api v0.21.1 // indirect
 	sigs.k8s.io/kustomize/kyaml v0.21.1 // indirect
-	sigs.k8s.io/mcs-api v0.3.1-0.20260224125735-0f775a3eff97 // indirect
-	sigs.k8s.io/network-policy-api v0.1.8-0.20260408165732-72895f2a4a97 // indirect
+	sigs.k8s.io/mcs-api v0.4.2-0.20260415161103-2525ee33f2a4 // indirect
+	sigs.k8s.io/network-policy-api v0.2.0 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.2 // indirect
 	sigs.k8s.io/yaml v1.6.0 // indirect

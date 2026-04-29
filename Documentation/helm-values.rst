@@ -1216,6 +1216,18 @@
      - Grafana dashboards for cilium-agent grafana can import dashboards based on the label and value ref: https://github.com/grafana/helm-charts/tree/main/charts/grafana#sidecar-for-dashboards
      - object
      - ``{"annotations":{},"enabled":false,"label":"grafana_dashboard","labelValue":"1","namespace":null}``
+   * - :spelling:ignore:`datapathPlugins`
+     - Plugins to inject custom BPF into the datapath.
+     - object
+     - ``{"enabled":false,"stateDir":"/var/run/cilium/plugins"}``
+   * - :spelling:ignore:`datapathPlugins.enabled`
+     - Enable datapath plugins.
+     - bool
+     - ``false``
+   * - :spelling:ignore:`datapathPlugins.stateDir`
+     - Parent directory for per-plugin state directories.
+     - string
+     - ``"/var/run/cilium/plugins"``
    * - :spelling:ignore:`debug.enabled`
      - Enable debug logging
      - bool
@@ -1344,10 +1356,6 @@
      - Enable transparent network encryption.
      - bool
      - ``false``
-   * - :spelling:ignore:`encryption.ipsec.encryptedOverlay`
-     - Enable IPsec encrypted overlay
-     - bool
-     - ``false``
    * - :spelling:ignore:`encryption.ipsec.interface`
      - The interface to use for encrypted traffic.
      - string
@@ -1379,15 +1387,7 @@
    * - :spelling:ignore:`encryption.strictMode`
      - Configure the Encryption Pod2Pod strict mode.
      - object
-     - ``{"allowRemoteNodeIdentities":false,"cidr":"","egress":{"allowRemoteNodeIdentities":false,"cidr":"","enabled":false},"enabled":false,"ingress":{"enabled":false}}``
-   * - :spelling:ignore:`encryption.strictMode.allowRemoteNodeIdentities`
-     - Allow dynamic lookup of remote node identities. (deprecated: please use encryption.strictMode.egress.allowRemoteNodeIdentities) This is required when tunneling is used or direct routing is used and the node CIDR and pod CIDR overlap.
-     - bool
-     - ``false``
-   * - :spelling:ignore:`encryption.strictMode.cidr`
-     - CIDR for the Encryption Pod2Pod strict mode. (deprecated: please use encryption.strictMode.egress.cidr)
-     - string
-     - ``""``
+     - ``{"egress":{"allowRemoteNodeIdentities":false,"cidr":"","enabled":false},"ingress":{"enabled":false}}``
    * - :spelling:ignore:`encryption.strictMode.egress.allowRemoteNodeIdentities`
      - Allow dynamic lookup of remote node identities. This is required when tunneling is used or direct routing is used and the node CIDR and pod CIDR overlap.
      - bool
@@ -1398,10 +1398,6 @@
      - ``""``
    * - :spelling:ignore:`encryption.strictMode.egress.enabled`
      - Enable strict egress encryption.
-     - bool
-     - ``false``
-   * - :spelling:ignore:`encryption.strictMode.enabled`
-     - Enable Encryption Pod2Pod strict mode. (deprecated: please use encryption.strictMode.egress.enabled)
      - bool
      - ``false``
    * - :spelling:ignore:`encryption.strictMode.ingress.enabled`

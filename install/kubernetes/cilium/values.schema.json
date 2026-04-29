@@ -1799,6 +1799,17 @@
       },
       "type": "object"
     },
+    "datapathPlugins": {
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "stateDir": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
     "debug": {
       "properties": {
         "enabled": {
@@ -1923,9 +1934,6 @@
         },
         "ipsec": {
           "properties": {
-            "encryptedOverlay": {
-              "type": "boolean"
-            },
             "interface": {
               "type": "string"
             },
@@ -1952,12 +1960,6 @@
         },
         "strictMode": {
           "properties": {
-            "allowRemoteNodeIdentities": {
-              "type": "boolean"
-            },
-            "cidr": {
-              "type": "string"
-            },
             "egress": {
               "properties": {
                 "allowRemoteNodeIdentities": {
@@ -1971,9 +1973,6 @@
                 }
               },
               "type": "object"
-            },
-            "enabled": {
-              "type": "boolean"
             },
             "ingress": {
               "properties": {

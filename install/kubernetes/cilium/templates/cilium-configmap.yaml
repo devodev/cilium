@@ -749,7 +749,6 @@ data:
     {{- if .Values.encryption.ipsec.keyRotationDuration }}
   ipsec-key-rotation-duration: {{ include "validateDuration" .Values.encryption.ipsec.keyRotationDuration | quote }}
     {{- end }}
-  enable-ipsec-encrypted-overlay: {{ .Values.encryption.ipsec.encryptedOverlay | quote }}
   {{- else if eq .Values.encryption.type "wireguard" }}
   enable-wireguard: {{ .Values.encryption.enabled | quote }}
     {{- if .Values.encryption.wireguard.persistentKeepalive }}
@@ -761,13 +760,6 @@ data:
   {{- if .Values.encryption.nodeEncryption }}
   encrypt-node: {{ .Values.encryption.nodeEncryption | quote }}
   {{- end }}
-{{- end }}
-
-{{- if .Values.encryption.strictMode.enabled }}
-  # --- DEPRECATED: Please use encryption.strictMode.egress.enabled instead
-  enable-encryption-strict-mode-egress: {{ .Values.encryption.strictMode.enabled | quote }}
-  encryption-strict-egress-cidr: {{ .Values.encryption.strictMode.cidr | quote }}
-  encryption-strict-egress-allow-remote-node-identities: {{ .Values.encryption.strictMode.allowRemoteNodeIdentities | quote }}
 {{- end }}
 
 {{- if .Values.encryption.strictMode.ingress.enabled }}
@@ -1533,6 +1525,9 @@ data:
   ignore-flags-drift-checker: {{ join "," .Values.configDriftDetection.ignoredKeys | quote }}
   {{- end }}
 {{- end }}
+
+  enable-datapath-plugins: {{ .Values.datapathPlugins.enabled | quote }}
+  datapath-plugins-state-dir: {{ .Values.datapathPlugins.stateDir | quote }}
 
 # Extra config allows adding arbitrary properties to the cilium config.
 # By putting it at the end of the ConfigMap, it's also possible to override existing properties.

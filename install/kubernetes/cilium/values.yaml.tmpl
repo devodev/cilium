@@ -871,6 +871,12 @@ conntrackGCMaxInterval: ""
 # -- (string) Configure timeout in which Cilium will exit if CRDs are not available
 # @default -- `"5m"`
 crdWaitTimeout: ""
+# -- Plugins to inject custom BPF into the datapath.
+datapathPlugins:
+  # -- Enable datapath plugins.
+  enabled: false
+  # -- Parent directory for per-plugin state directories.
+  stateDir: /var/run/cilium/plugins
 daemon:
   # -- Configure where Cilium runtime state should be stored.
   runPath: "/var/run/cilium"
@@ -1139,13 +1145,6 @@ encryption:
   nodeEncryption: false
   # -- Configure the Encryption Pod2Pod strict mode.
   strictMode:
-    # -- Enable Encryption Pod2Pod strict mode. (deprecated: please use encryption.strictMode.egress.enabled)
-    enabled: false
-    # -- CIDR for the Encryption Pod2Pod strict mode. (deprecated: please use encryption.strictMode.egress.cidr)
-    cidr: ""
-    # -- Allow dynamic lookup of remote node identities. (deprecated: please use encryption.strictMode.egress.allowRemoteNodeIdentities)
-    # This is required when tunneling is used or direct routing is used and the node CIDR and pod CIDR overlap.
-    allowRemoteNodeIdentities: false
     egress:
       # -- Enable strict egress encryption.
       enabled: false
@@ -1174,8 +1173,6 @@ encryption:
     # -- Maximum duration of the IPsec key rotation. The previous key will be
     # removed after that delay.
     keyRotationDuration: "5m"
-    # -- Enable IPsec encrypted overlay
-    encryptedOverlay: false
   wireguard:
     # -- Controls WireGuard PersistentKeepalive option. Set 0s to disable.
     persistentKeepalive: 0s
