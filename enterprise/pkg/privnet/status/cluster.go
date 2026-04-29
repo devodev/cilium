@@ -233,6 +233,37 @@ func mergeINBs(networks []nodeNetworkStatus) []merged[ConnectedINB] {
 	)
 }
 
+type connectedClusterBrief struct {
+	name      tables.ClusterName
+	nodeCount int
+}
+
+func mergeConnectedClusters(nstatus []NodeStatus, allNodes []tables.NodeName) []merged[connectedClusterBrief] {
+
+	CCPerNode := map[connectedClusterBrief][]tables.NodeName{}
+	for _, node := range nstatus {
+		for _, cc := range node.ConnectedClusters {
+			b := connectedClusterBrief{
+				name:      cc.Name,
+				nodeCount: len(cc.NodeNames),
+			}
+			CCPerNode[b] = append(CCPerNode[b], node.Name)
+		}
+	}
+	mergedCC := []merged[connectedClusterBrief]{}
+	for r, ns := range CCPerNode {
+		mergedCC = append(mergedCC, merged[connectedClusterBrief]{
+			nodes: ns,
+			entry: r,
+		})
+	}
+	slices.SortFunc(mergedCC, func(a, b merged[connectedClusterBrief]) int {
+		return cmp.Compare(a.unwrap().name, b.unwrap().name)
+	})
+
+	return mergedCC
+}
+
 func nodesWithNetwork(networks []nodeNetworkStatus, totalNodes []tables.NodeName) (nodesWithNetwork []tables.NodeName, nodesWithoutNetwork []tables.NodeName) {
 	for _, n := range totalNodes {
 		if slices.ContainsFunc(networks, func(ns nodeNetworkStatus) bool {

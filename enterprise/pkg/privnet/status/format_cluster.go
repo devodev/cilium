@@ -67,6 +67,9 @@ func (ps ClusterStatus) Format(color bool) string {
 		sb.WriteString(fmtInfo("No Private Networks configured"))
 		sb.WriteString("\n")
 	}
+	sb.WriteString(
+		ps.formatConnectedClusters(100),
+	)
 
 	out := sb.String()
 
@@ -217,4 +220,28 @@ func (s mergedNetworkStatus) formatConnectedINBs(allNodes []tables.NodeName) str
 		}
 	}
 	return fmtIndentTitle(title, sb.String(), 20)
+}
+
+func (s ClusterStatus) formatConnectedClusters(width int) string {
+	nodes := s.nodeNames()
+	ccSum := mergeConnectedClusters(s.Nodes, nodes)
+
+	if len(ccSum) < 2 {
+		// Only the local cluster. Don't add a line for it
+		return ""
+	}
+	ccStrings := []string{}
+	for _, cc := range ccSum {
+		if cc.unwrap().name == s.Name {
+			continue
+		}
+		str := fmt.Sprintf("%s (%d Nodes)", cc.unwrap().name, cc.unwrap().nodeCount)
+		if len(cc.nodes) < len(nodes) {
+			str = fmtWrn(str)
+		} else {
+			str = fmtInfo(str)
+		}
+		ccStrings = append(ccStrings, str)
+	}
+	return "\n" + fmtWrapLineItemsTitle("Connected Clusters/INBs", ccStrings, 25, width) + "\n"
 }
