@@ -21,6 +21,10 @@ const (
 	// inspection. It follows the cilium_* naming convention used by all
 	// other agent-managed interfaces and is not user-configurable.
 	InterfaceName = "cilium_inspect"
+
+	// PropertyEndpointEnabled stores whether passive inspection remains enabled
+	// for a specific endpoint after applying the singleton inspection config.
+	PropertyEndpointEnabled = "inspection.isovalent.com/effective-enabled"
 )
 
 // Config groups the passive inspection configuration.

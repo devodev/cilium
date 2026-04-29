@@ -69,6 +69,10 @@ type IsovalentCoreVRFNodeStatusListerExpansion interface{}
 // IsovalentFQDNGroupLister.
 type IsovalentFQDNGroupListerExpansion interface{}
 
+// IsovalentInspectionConfigListerExpansion allows custom methods to be added to
+// IsovalentInspectionConfigLister.
+type IsovalentInspectionConfigListerExpansion interface{}
+
 // IsovalentMulticastGroupListerExpansion allows custom methods to be added to
 // IsovalentMulticastGroupLister.
 type IsovalentMulticastGroupListerExpansion interface{}

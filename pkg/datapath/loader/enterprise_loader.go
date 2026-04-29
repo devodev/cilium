@@ -55,7 +55,7 @@ var EnterpriseCell = cell.Module(
 type EnterpriseLoader struct {
 	privnetConfig       pnconfig.Config
 	evpnConfig          evpnConfig.Config
-	inspectionConfig    inspectionConfig.Config
+	inspectionFilter    *inspectionConfig.EndpointFilter
 	encryptionPolicyCfg encryptionPolicyTypes.Config
 	db                  *statedb.DB
 	deviceTable         statedb.Table[*tables.Device]
@@ -66,7 +66,7 @@ func newEnterpriseLoader(in struct {
 
 	PrivnetConfig       pnconfig.Config
 	EvpnConfig          evpnConfig.Config
-	InspectionConfig    inspectionConfig.Config
+	InspectionFilter    *inspectionConfig.EndpointFilter
 	EncryptionPolicyCfg encryptionPolicyTypes.Config
 	DB                  *statedb.DB
 	DeviceTable         statedb.Table[*tables.Device]
@@ -74,7 +74,7 @@ func newEnterpriseLoader(in struct {
 	return &EnterpriseLoader{
 		privnetConfig:       in.PrivnetConfig,
 		evpnConfig:          in.EvpnConfig,
-		inspectionConfig:    in.InspectionConfig,
+		inspectionFilter:    in.InspectionFilter,
 		encryptionPolicyCfg: in.EncryptionPolicyCfg,
 		db:                  in.DB,
 		deviceTable:         in.DeviceTable,
@@ -110,7 +110,7 @@ func (l *EnterpriseLoader) registerEndpointConfig(pd *privnetDHCPDevice) {
 			}
 		}
 
-		if l.inspectionConfig.Enabled {
+		if l.inspectionFilter.EnabledForEndpoint(ep) {
 			dev, _, found := l.deviceTable.Get(l.db.ReadTxn(), tables.DeviceNameIndex.Query(inspectionConfig.InterfaceName))
 			if found {
 				cfg.PassiveInspectionEnable = true

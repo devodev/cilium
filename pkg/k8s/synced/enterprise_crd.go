@@ -23,6 +23,7 @@ func AllIsovalentCRDResourceNames() []string {
 		CRDResourceName(v1alpha1.IFGName),
 		CRDResourceName(v1alpha1.IPNName),
 		CRDResourceName(v1alpha1.ICEPName),
+		CRDResourceName(v1alpha1.IsovalentInspectionConfigName),
 		CRDResourceName(v1alpha1.IsovalentNetworkPolicyName),
 		CRDResourceName(v1alpha1.IsovalentClusterwideNetworkPolicyName),
 		CRDResourceName(v1alpha1.IsovalentWAFPolicyName),

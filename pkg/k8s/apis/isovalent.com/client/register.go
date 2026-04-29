@@ -85,6 +85,9 @@ const (
 	// IsovalentClusterwideEncryptionPolicyCRDName is the full name of the IsovalentClusterwideEncryptionPolicyCRDName CRD.
 	IsovalentClusterwideEncryptionPolicyCRDName = k8sconstv1alpha1.ICEPKindDefinition + "/" + k8sconstv1alpha1.CustomResourceDefinitionVersion
 
+	// IsovalentInspectionConfigCRDName is the full name of the IsovalentInspectionConfig CRD.
+	IsovalentInspectionConfigCRDName = k8sconstv1alpha1.IsovalentInspectionConfigKindDefinition + "/" + k8sconstv1alpha1.CustomResourceDefinitionVersion
+
 	// LBServiceCRDName is the full name of the LBService CRD.
 	LBServiceCRDName = k8sconstv1alpha1.LBServiceKindDefinition + "/" + k8sconstv1alpha1.CustomResourceDefinitionVersion
 
@@ -218,6 +221,10 @@ func CustomResourceDefinitionList() map[string]*CRDList {
 		synced.CRDResourceName(k8sconstv1alpha1.ICEPName): {
 			Name:     IsovalentClusterwideEncryptionPolicyCRDName,
 			FullName: k8sconstv1alpha1.ICEPName,
+		},
+		synced.CRDResourceName(k8sconstv1alpha1.IsovalentInspectionConfigName): {
+			Name:     IsovalentInspectionConfigCRDName,
+			FullName: k8sconstv1alpha1.IsovalentInspectionConfigName,
 		},
 		synced.CRDResourceName(k8sconstv1alpha1.LBServiceName): {
 			Name:     LBServiceCRDName,
@@ -360,6 +367,9 @@ var (
 	//go:embed crds/v1alpha1/isovalentclusterwideencryptionpolicies.yaml
 	crdsv1Alpha1IsovalentClusterwideEncryptionPolicyOverrides []byte
 
+	//go:embed crds/v1alpha1/isovalentinspectionconfigs.yaml
+	crdsv1Alpha1IsovalentInspectionConfigs []byte
+
 	//go:embed crds/v1alpha1/lbservices.yaml
 	crdsv1Alpha1LBServices []byte
 
@@ -459,6 +469,8 @@ func GetPregeneratedCRD(logger *slog.Logger, crdName string) apiextensionsv1.Cus
 		crdBytes = crdsv1Alpha1IsovalentBGPVRFConfigs
 	case IsovalentClusterwideEncryptionPolicyCRDName:
 		crdBytes = crdsv1Alpha1IsovalentClusterwideEncryptionPolicyOverrides
+	case IsovalentInspectionConfigCRDName:
+		crdBytes = crdsv1Alpha1IsovalentInspectionConfigs
 	case LBServiceCRDName:
 		crdBytes = crdsv1Alpha1LBServices
 	case LBBackendPoolCRDName:

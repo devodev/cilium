@@ -43,6 +43,8 @@ type Interface interface {
 	IsovalentCoreVRFNodeStatuses() IsovalentCoreVRFNodeStatusInformer
 	// IsovalentFQDNGroups returns a IsovalentFQDNGroupInformer.
 	IsovalentFQDNGroups() IsovalentFQDNGroupInformer
+	// IsovalentInspectionConfigs returns a IsovalentInspectionConfigInformer.
+	IsovalentInspectionConfigs() IsovalentInspectionConfigInformer
 	// IsovalentMulticastGroups returns a IsovalentMulticastGroupInformer.
 	IsovalentMulticastGroups() IsovalentMulticastGroupInformer
 	// IsovalentMulticastNodes returns a IsovalentMulticastNodeInformer.
@@ -168,6 +170,11 @@ func (v *version) IsovalentCoreVRFNodeStatuses() IsovalentCoreVRFNodeStatusInfor
 // IsovalentFQDNGroups returns a IsovalentFQDNGroupInformer.
 func (v *version) IsovalentFQDNGroups() IsovalentFQDNGroupInformer {
 	return &isovalentFQDNGroupInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+}
+
+// IsovalentInspectionConfigs returns a IsovalentInspectionConfigInformer.
+func (v *version) IsovalentInspectionConfigs() IsovalentInspectionConfigInformer {
+	return &isovalentInspectionConfigInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
 // IsovalentMulticastGroups returns a IsovalentMulticastGroupInformer.

@@ -29,6 +29,7 @@ rules:
   - isovalentbfdnodeconfigs.isovalent.com
   - isovalentbfdnodeconfigoverrides.isovalent.com
   - isovalentclusterwideencryptionpolicies.isovalent.com
+  - isovalentinspectionconfigs.isovalent.com
   - isovalentnetworkpolicies.isovalent.com
   - isovalentclusterwidenetworkpolicies.isovalent.com
   - isovalentwafpolicies.isovalent.com

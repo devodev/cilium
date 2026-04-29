@@ -175,6 +175,7 @@
 /Documentation/security/standalone-dns-proxy.rst @isovalent/dns-proxy
 /examples/hubble/ @isovalent/hubble
 /examples/kubernetes-egress-gateway/ @isovalent/egress-gateway
+/examples/kubernetes-inspection/ @isovalent/sig-defence
 /examples/kubernetes/ @isovalent/sig-k8s
 /examples/kubernetes/clustermesh/ @isovalent/clustermesh
 /examples/minikube/ @isovalent/sig-k8s

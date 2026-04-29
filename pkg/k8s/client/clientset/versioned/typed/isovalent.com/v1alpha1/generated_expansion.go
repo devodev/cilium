@@ -37,6 +37,8 @@ type IsovalentCoreVRFNodeStatusExpansion interface{}
 
 type IsovalentFQDNGroupExpansion interface{}
 
+type IsovalentInspectionConfigExpansion interface{}
+
 type IsovalentMulticastGroupExpansion interface{}
 
 type IsovalentMulticastNodeExpansion interface{}

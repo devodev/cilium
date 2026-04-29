@@ -79,6 +79,10 @@ func (c *FakeIsovalentV1alpha1) IsovalentFQDNGroups() v1alpha1.IsovalentFQDNGrou
 	return newFakeIsovalentFQDNGroups(c)
 }
 
+func (c *FakeIsovalentV1alpha1) IsovalentInspectionConfigs() v1alpha1.IsovalentInspectionConfigInterface {
+	return newFakeIsovalentInspectionConfigs(c)
+}
+
 func (c *FakeIsovalentV1alpha1) IsovalentMulticastGroups() v1alpha1.IsovalentMulticastGroupInterface {
 	return newFakeIsovalentMulticastGroups(c)
 }

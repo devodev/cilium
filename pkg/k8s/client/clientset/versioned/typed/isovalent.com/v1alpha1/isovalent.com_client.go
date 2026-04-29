@@ -31,6 +31,7 @@ type IsovalentV1alpha1Interface interface {
 	IsovalentCoreVRFsGetter
 	IsovalentCoreVRFNodeStatusesGetter
 	IsovalentFQDNGroupsGetter
+	IsovalentInspectionConfigsGetter
 	IsovalentMulticastGroupsGetter
 	IsovalentMulticastNodesGetter
 	IsovalentNetworkPoliciesGetter
@@ -117,6 +118,10 @@ func (c *IsovalentV1alpha1Client) IsovalentCoreVRFNodeStatuses() IsovalentCoreVR
 
 func (c *IsovalentV1alpha1Client) IsovalentFQDNGroups() IsovalentFQDNGroupInterface {
 	return newIsovalentFQDNGroups(c)
+}
+
+func (c *IsovalentV1alpha1Client) IsovalentInspectionConfigs() IsovalentInspectionConfigInterface {
+	return newIsovalentInspectionConfigs(c)
 }
 
 func (c *IsovalentV1alpha1Client) IsovalentMulticastGroups() IsovalentMulticastGroupInterface {

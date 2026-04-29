@@ -58,6 +58,11 @@ const (
 	MulticastNodeKindDefinition = "IsovalentMulticastNode"
 	MulticastNodeName           = MulticastNodePluralName + "." + CustomResourceDefinitionGroup
 
+	// IsovalentInspectionConfig
+	IsovalentInspectionConfigPluralName     = "isovalentinspectionconfigs"
+	IsovalentInspectionConfigKindDefinition = "IsovalentInspectionConfig"
+	IsovalentInspectionConfigName           = IsovalentInspectionConfigPluralName + "." + CustomResourceDefinitionGroup
+
 	// IsovalentBFDProfile
 	IsovalentBFDProfilePluralName     = "isovalentbfdprofiles"
 	IsovalentBFDProfileKindDefinition = "IsovalentBFDProfile"
@@ -214,6 +219,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&IsovalentMulticastGroupList{},
 		&IsovalentMulticastNode{},
 		&IsovalentMulticastNodeList{},
+		&IsovalentInspectionConfig{},
+		&IsovalentInspectionConfigList{},
 		&IsovalentBFDProfile{},
 		&IsovalentBFDProfileList{},
 		&IsovalentBFDNodeConfig{},

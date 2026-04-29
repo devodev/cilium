@@ -11,29 +11,27 @@
 package config
 
 import (
-	"github.com/cilium/hive/cell"
+	"log/slog"
 
+	"github.com/cilium/cilium/pkg/identity"
+	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/policy"
 )
 
-var Cell = cell.Group(
-	cell.Config(defaultConfig),
-	cell.Provide(
-		newSelectorStore,
-		NewEndpointFilter,
-	),
-)
+type selectorCacheUser struct{}
 
-type selectorStoreParams struct {
-	cell.In
-
-	PolicyRepo policy.PolicyRepository `optional:"true"`
+func (*selectorCacheUser) IdentitySelectionUpdated(
+	*slog.Logger,
+	policy.CachedSelector,
+	[]identity.NumericIdentity,
+	[]identity.NumericIdentity,
+) {
 }
 
-func newSelectorStore(params selectorStoreParams) *SelectorStore {
-	store := NewSelectorStore()
-	if params.PolicyRepo != nil {
-		store.selectorCache = params.PolicyRepo.GetSelectorCache()
-	}
-	return store
+func (*selectorCacheUser) IdentitySelectionCommit(*slog.Logger, policy.SelectorSnapshot) {}
+
+func (*selectorCacheUser) IsPeerSelector() bool { return false }
+
+func (*selectorCacheUser) GetRuleLabels(policy.CachedSelector) labels.LabelArrayList {
+	return nil
 }

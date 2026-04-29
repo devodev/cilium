@@ -15,6 +15,7 @@ import (
 
 	"github.com/cilium/cilium/enterprise/pkg/inspection/config"
 	"github.com/cilium/cilium/enterprise/pkg/inspection/datapath"
+	"github.com/cilium/cilium/enterprise/pkg/inspection/reconciler"
 )
 
 var Cell = cell.Module(
@@ -23,4 +24,5 @@ var Cell = cell.Module(
 
 	config.Cell,
 	datapath.Cell,
+	reconciler.Cell,
 )

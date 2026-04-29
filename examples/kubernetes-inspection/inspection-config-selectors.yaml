@@ -1,0 +1,20 @@
+apiVersion: isovalent.com/v1alpha1
+kind: IsovalentInspectionConfig
+metadata:
+  name: inspection
+spec:
+  # Mirror traffic for all pods in the "payments" namespace, except those
+  # labelled app=checkout-canary. The endpointSelector uses the same label
+  # semantics as CiliumNetworkPolicy: namespaces are addressable via the
+  # reserved "k8s:io.kubernetes.pod.namespace" label, and matchExpressions
+  # support In/NotIn for both opt-in and opt-out selection.
+  endpointSelector:
+    matchExpressions:
+      - key: k8s:io.kubernetes.pod.namespace
+        operator: In
+        values:
+          - payments
+      - key: k8s:app
+        operator: NotIn
+        values:
+          - checkout-canary

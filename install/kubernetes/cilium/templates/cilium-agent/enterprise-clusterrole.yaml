@@ -120,6 +120,16 @@ rules:
     - watch
     - get
 {{- end }}
+{{- if .Values.enterprise.inspection.enabled }}
+- apiGroups:
+    - isovalent.com
+  resources:
+    - isovalentinspectionconfigs
+  verbs:
+    - list
+    - watch
+    - get
+{{- end }}
 {{- if .Values.enterprise.privateNetworks.enabled }}
 - apiGroups:
     - isovalent.com

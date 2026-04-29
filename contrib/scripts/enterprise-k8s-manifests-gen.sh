@@ -27,6 +27,7 @@ CRDS_ISOVALENT_V1="isovalentegressgatewaypolicies \
 
 # Set CRDS_ISOVALENT_V1ALPHA1 with the list of CRDs for v1alpha1
 CRDS_ISOVALENT_V1ALPHA1="isovalentfqdngroups \
+                         isovalentinspectionconfigs \
                          isovalentsrv6sidmanagers \
                          isovalentsrv6locatorpools \
                          isovalentsrv6egresspolicies \

@@ -360,6 +360,14 @@ annotations:
       description: |
         IsovalentClusterwideEncryptionPolicy defines the encryption policies for
         pods and their communication peers
+    - kind: IsovalentInspectionConfig
+      version: v1alpha1
+      name: isovalentinspectionconfigs.isovalent.com
+      displayName: Isovalent Inspection Config
+      description: |
+        IsovalentInspectionConfig defines the singleton cluster-scoped passive
+        inspection configuration, including selector-based include/exclude
+        controls for traffic mirroring.
     - kind: IsovalentBFDNodeConfigOverride
       version: v1alpha1
       name: isovalentbfdnodeconfigoverrides.isovalent.com

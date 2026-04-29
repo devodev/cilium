@@ -10,30 +10,18 @@
 
 package config
 
-import (
-	"github.com/cilium/hive/cell"
+import "github.com/cilium/cilium/pkg/identity"
 
-	"github.com/cilium/cilium/pkg/policy"
-)
-
-var Cell = cell.Group(
-	cell.Config(defaultConfig),
-	cell.Provide(
-		newSelectorStore,
-		NewEndpointFilter,
-	),
-)
-
-type selectorStoreParams struct {
-	cell.In
-
-	PolicyRepo policy.PolicyRepository `optional:"true"`
+// SelectorEndpoint is the subset of endpoint state needed to evaluate
+// CNP-style endpoint selectors.
+type SelectorEndpoint interface {
+	K8sNamespaceAndPodNameIsSet() bool
+	GetSecurityIdentity() (*identity.Identity, error)
 }
 
-func newSelectorStore(params selectorStoreParams) *SelectorStore {
-	store := NewSelectorStore()
-	if params.PolicyRepo != nil {
-		store.selectorCache = params.PolicyRepo.GetSelectorCache()
-	}
-	return store
+// EndpointConfig is the subset of datapath endpoint config needed to evaluate
+// whether passive inspection should be enabled.
+type EndpointConfig interface {
+	GetIdentity() identity.NumericIdentity
+	GetPropertyValue(key string) any
 }

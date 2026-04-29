@@ -11,29 +11,18 @@
 package config
 
 import (
-	"github.com/cilium/hive/cell"
+	"testing"
 
-	"github.com/cilium/cilium/pkg/policy"
+	"github.com/spf13/pflag"
+	"github.com/stretchr/testify/require"
 )
 
-var Cell = cell.Group(
-	cell.Config(defaultConfig),
-	cell.Provide(
-		newSelectorStore,
-		NewEndpointFilter,
-	),
-)
+func TestConfig_Flags(t *testing.T) {
+	flags := pflag.NewFlagSet("inspection-test", pflag.ContinueOnError)
 
-type selectorStoreParams struct {
-	cell.In
+	Config{Enabled: true}.Flags(flags)
 
-	PolicyRepo policy.PolicyRepository `optional:"true"`
-}
-
-func newSelectorStore(params selectorStoreParams) *SelectorStore {
-	store := NewSelectorStore()
-	if params.PolicyRepo != nil {
-		store.selectorCache = params.PolicyRepo.GetSelectorCache()
-	}
-	return store
+	got, err := flags.GetBool(FlagEnable)
+	require.NoError(t, err)
+	require.True(t, got)
 }
