@@ -23,6 +23,7 @@ Manage private network maps
 ### SEE ALSO
 
 * [cilium-dbg bpf](cilium-dbg_bpf.md)	 - Direct access to local BPF maps
+* [cilium-dbg bpf private-network arp-sender](cilium-dbg_bpf_private-network_arp-sender.md)	 - Manage the private-network ARP sender map
 * [cilium-dbg bpf private-network cidr-identity](cilium-dbg_bpf_private-network_cidr-identity.md)	 - Manage the private-network CIDR identity map
 * [cilium-dbg bpf private-network devices](cilium-dbg_bpf_private-network_devices.md)	 - Manage the private-network devices map
 * [cilium-dbg bpf private-network fib](cilium-dbg_bpf_private-network_fib.md)	 - Manage the private-network FIB map

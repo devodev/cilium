@@ -13,6 +13,7 @@ package privnet
 import (
 	"encoding"
 	"fmt"
+	"log/slog"
 	"net/netip"
 
 	"github.com/cilium/hive/cell"
@@ -154,4 +155,15 @@ func (a *ARPSenderKeyVal) MapKey() bpf.MapKey {
 // MapValue implements KeyValue
 func (a *ARPSenderKeyVal) MapValue() bpf.MapValue {
 	return &a.Val
+}
+
+func OpenPinnedARPSenderMap(logger *slog.Logger) (*ARPSenderMap, error) {
+	path := bpf.MapPath(logger, ARPSenderMapName)
+
+	m, err := bpf.OpenMap(path, &ARPSenderKey{}, &ARPSenderVal{})
+	if err != nil {
+		return nil, err
+	}
+
+	return &ARPSenderMap{Map: m}, nil
 }
