@@ -266,6 +266,7 @@ waf-enabled: {{ .Values.enterprise.waf.enabled | quote }}
 waf-mode: {{ .Values.enterprise.waf.mode | quote }}
 waf-policy-profile: {{ .Values.enterprise.waf.policyProfile | quote }}
 waf-failure-mode: {{ .Values.enterprise.waf.failureMode | quote }}
+waf-inline-rules-config-map: {{ .Values.enterprise.waf.inlineRulesConfigMap | quote }}
 {{- end }}
 
 {{- if or .Values.envoyConfig.enabled .Values.ingressController.enabled .Values.gatewayAPI.enabled (and (hasKey .Values "loadBalancer") (eq .Values.loadBalancer.l7.backend "envoy")) }}

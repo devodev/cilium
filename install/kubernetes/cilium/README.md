@@ -530,6 +530,7 @@ contributors across the globe, there is almost always someone available to help.
 | enterprise.srv6.locatorPoolEnabled | bool | `false` | Enables custom SRv6 SID locator pool operator support. |
 | enterprise.waf.enabled | bool | `false` | Enable WAF policy validation and default WAF settings in the enterprise operator. |
 | enterprise.waf.failureMode | string | `"Open"` | Default WAF failure mode for operator-managed resources.  Valid values are: Open, Close |
+| enterprise.waf.inlineRulesConfigMap | string | `"waf-inline-rules"` | Name of the ConfigMap used to publish shared WAF inline rule bundles. |
 | enterprise.waf.mode | string | `"Enforce"` | Default WAF mode for operator-managed resources.  Valid values are: Monitor, Enforce |
 | enterprise.waf.policyProfile | string | `"balanced"` | Default WAF managed policy profile for operator-managed resources.  Valid values are: max_security, high_security, balanced, low_friction, min_friction |
 | envoy.affinity | object | `{"nodeAffinity":{"requiredDuringSchedulingIgnoredDuringExecution":{"nodeSelectorTerms":[{"matchExpressions":[{"key":"cilium.io/no-schedule","operator":"NotIn","values":["true"]}]}]}},"podAffinity":{"requiredDuringSchedulingIgnoredDuringExecution":[{"labelSelector":{"matchLabels":{"k8s-app":"cilium"}},"topologyKey":"kubernetes.io/hostname"}]},"podAntiAffinity":{"requiredDuringSchedulingIgnoredDuringExecution":[{"labelSelector":{"matchLabels":{"k8s-app":"cilium-envoy"}},"topologyKey":"kubernetes.io/hostname"}]}}` | Affinity for cilium-envoy. |

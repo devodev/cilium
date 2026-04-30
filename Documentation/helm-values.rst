@@ -1936,6 +1936,10 @@
      - Default WAF failure mode for operator-managed resources.  Valid values are: Open, Close
      - string
      - ``"Open"``
+   * - :spelling:ignore:`enterprise.waf.inlineRulesConfigMap`
+     - Name of the ConfigMap used to publish shared WAF inline rule bundles.
+     - string
+     - ``"waf-inline-rules"``
    * - :spelling:ignore:`enterprise.waf.mode`
      - Default WAF mode for operator-managed resources.  Valid values are: Monitor, Enforce
      - string
