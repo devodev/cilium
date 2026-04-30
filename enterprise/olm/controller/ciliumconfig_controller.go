@@ -96,6 +96,8 @@ type CiliumConfigReconciler struct {
 //+kubebuilder:rbac:groups=networking.k8s.io,resources=ingressclasses,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=admissionregistration.k8s.io,resources=mutatingwebhookconfigurations,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=admissionregistration.k8s.io,resources=validatingwebhookconfigurations,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=admissionregistration.k8s.io,resources=validatingadmissionpolicies,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=admissionregistration.k8s.io,resources=validatingadmissionpolicybindings,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=gatewayclasses,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=monitoring.coreos.com,resources=servicemonitors,verbs=get;list;watch;create;update;patch;delete
@@ -316,7 +318,9 @@ func initGVKs(builder *builder.Builder, mgrConfig *rest.Config, logger logr.Logg
 		Owns(&networkingv1.Ingress{}).
 		Owns(&networkingv1.IngressClass{}).
 		Owns(&admissionregistrationv1.ValidatingWebhookConfiguration{}).
-		Owns(&admissionregistrationv1.MutatingWebhookConfiguration{})
+		Owns(&admissionregistrationv1.MutatingWebhookConfiguration{}).
+		Owns(&admissionregistrationv1.ValidatingAdmissionPolicy{}).
+		Owns(&admissionregistrationv1.ValidatingAdmissionPolicyBinding{})
 	d := discovery.NewDiscoveryClientForConfigOrDie(mgrConfig)
 	apisMissing = []string{}
 	GVKs = []schema.GroupVersionKind{
@@ -428,6 +432,16 @@ func initGVKs(builder *builder.Builder, mgrConfig *rest.Config, logger logr.Logg
 		{
 			Group:   "admissionregistration.k8s.io",
 			Kind:    "ValidatingWebhookConfigurationList",
+			Version: "v1",
+		},
+		{
+			Group:   "admissionregistration.k8s.io",
+			Kind:    "ValidatingAdmissionPolicyList",
+			Version: "v1",
+		},
+		{
+			Group:   "admissionregistration.k8s.io",
+			Kind:    "ValidatingAdmissionPolicyBindingList",
 			Version: "v1",
 		},
 	}
