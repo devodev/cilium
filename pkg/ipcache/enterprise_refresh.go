@@ -16,12 +16,13 @@ import (
 	cmtypes "github.com/cilium/cilium/pkg/clustermesh/types"
 )
 
-// RefreshByHost re-emits the current IPCache entries that use the provided host IP.
+// RefreshByHost re-emits the current IPCache entries that use the provided host IP
+// to the provided (BPF) listener.
 // Returns the number of refreshed entries.
 // This is used by enterprise/pkg/tunnelip to re-emit all IPCache entries for
 // a host IP whose tunnel mapping is now known and can be now inserted into the
 // BPF map.
-func (ipc *IPCache) RefreshByHost(hostIP net.IP) int {
+func (ipc *IPCache) RefreshByHost(listener IPIdentityMappingListener, hostIP net.IP) int {
 	if hostIP == nil {
 		return 0
 	}
@@ -49,26 +50,24 @@ func (ipc *IPCache) RefreshByHost(hostIP net.IP) int {
 		endpointFlags := ipc.getEndpointFlagsRLocked(ip)
 		cidrCluster, err := cmtypes.ParsePrefixCluster(ip)
 		if err != nil {
-			if addrCluster, err := cmtypes.ParseAddrCluster(ip); err != nil { // Endpoint IP or Endpoint IP with ClusterID
+			addrCluster, err := cmtypes.ParseAddrCluster(ip)
+			if err != nil {
 				continue
-			} else {
-				cidrCluster = addrCluster.AsPrefixCluster()
 			}
+			cidrCluster = addrCluster.AsPrefixCluster()
 		}
 
-		for _, listener := range ipc.listeners {
-			listener.OnIPIdentityCacheChange(
-				Upsert,
-				cidrCluster,
-				entryHostIP,
-				entryHostIP,
-				&identity,
-				identity,
-				encryptKey,
-				k8sMeta,
-				endpointFlags,
-			)
-		}
+		listener.OnIPIdentityCacheChange(
+			Upsert,
+			cidrCluster,
+			entryHostIP,
+			entryHostIP,
+			&identity,
+			identity,
+			encryptKey,
+			k8sMeta,
+			endpointFlags,
+		)
 		count++
 	}
 

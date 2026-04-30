@@ -66,7 +66,7 @@ type params struct {
 }
 
 type refreshingIPCache interface {
-	RefreshByHost(net.IP) int
+	RefreshByHost(ipcache.IPIdentityMappingListener, net.IP) int
 }
 
 type tunnelIPNodes interface {
@@ -74,13 +74,14 @@ type tunnelIPNodes interface {
 }
 
 type manager struct {
-	logger     *slog.Logger
-	ipc        refreshingIPCache
-	nodes      tunnelIPNodes
-	tunnelConf tunnel.Config
-	db         *statedb.DB
-	devices    statedb.Table[*dptables.Device]
-	devFilter  dptables.DeviceFilter
+	logger      *slog.Logger
+	ipc         refreshingIPCache
+	bpfListener ipcache.IPIdentityMappingListener
+	nodes       tunnelIPNodes
+	tunnelConf  tunnel.Config
+	db          *statedb.DB
+	devices     statedb.Table[*dptables.Device]
+	devFilter   dptables.DeviceFilter
 
 	next dpipc.Map
 
@@ -88,19 +89,20 @@ type manager struct {
 	nodeToTunnelEndpoint map[netip.Addr]netip.Addr
 }
 
-func newManager(in params) *manager {
+func newManager(in params, bpfListener ipcache.IPIdentityMappingListener) *manager {
 	if len(in.Config.PreferredTunnelEndpointDevices) == 0 {
 		return nil
 	}
 
 	return &manager{
-		logger:     in.Logger,
-		ipc:        in.IPCache,
-		nodes:      in.Nodes,
-		tunnelConf: in.TunnelConf,
-		db:         in.DB,
-		devices:    in.Devices,
-		devFilter:  dptables.DeviceFilter(in.Config.PreferredTunnelEndpointDevices),
+		logger:      in.Logger,
+		ipc:         in.IPCache,
+		bpfListener: bpfListener,
+		nodes:       in.Nodes,
+		tunnelConf:  in.TunnelConf,
+		db:          in.DB,
+		devices:     in.Devices,
+		devFilter:   dptables.DeviceFilter(in.Config.PreferredTunnelEndpointDevices),
 
 		nodeToTunnelEndpoint: make(map[netip.Addr]netip.Addr),
 	}
@@ -230,7 +232,7 @@ func (m *manager) NodeAdd(newNode nodeTypes.Node) error {
 	m.mu.Unlock()
 
 	for _, hostIP := range hostsToRefresh {
-		m.ipc.RefreshByHost(hostIP)
+		m.ipc.RefreshByHost(m.bpfListener, hostIP)
 	}
 	return nil
 }
@@ -276,7 +278,7 @@ func (m *manager) reconcileTunnelEndpoints(devices iter.Seq[*dptables.Device]) {
 
 	for hostAddr := range hostsToRefresh.Members() {
 		ip := hostAddr.As16()
-		m.ipc.RefreshByHost(ip[:])
+		m.ipc.RefreshByHost(m.bpfListener, ip[:])
 	}
 }
 

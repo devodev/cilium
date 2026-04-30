@@ -66,7 +66,7 @@ var Cell = cell.Module(
 	cell.Invoke(Config.Validate),
 
 	cell.Invoke(func(p params, listener *dpipc.BPFListener, nodes nodemanager.NodeManager, jobs job.Group, localNodeStore *node.LocalNodeStore) {
-		mgr := newManager(p)
+		mgr := newManager(p, listener)
 		if mgr == nil {
 			return
 		}

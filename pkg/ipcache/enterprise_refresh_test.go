@@ -76,7 +76,7 @@ func TestIPCacheRefreshByHost(t *testing.T) {
 	require.NoError(t, err)
 
 	listener.events = nil
-	count := s.IPIdentityCache.RefreshByHost(hostIP)
+	count := s.IPIdentityCache.RefreshByHost(listener, hostIP)
 	require.Equal(t, 1, count)
 	require.Len(t, listener.events, 1)
 
@@ -91,7 +91,7 @@ func TestIPCacheRefreshByHost(t *testing.T) {
 	require.Equal(t, "pod-a", event.k8sMeta.PodName)
 
 	listener.events = nil
-	count = s.IPIdentityCache.RefreshByHost(net.ParseIP("192.0.2.99"))
+	count = s.IPIdentityCache.RefreshByHost(listener, net.ParseIP("192.0.2.99"))
 	require.Zero(t, count)
 	require.Empty(t, listener.events)
 }

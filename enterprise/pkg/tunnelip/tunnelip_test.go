@@ -26,6 +26,7 @@ import (
 	"github.com/cilium/cilium/pkg/bpf"
 	dptables "github.com/cilium/cilium/pkg/datapath/tables"
 	"github.com/cilium/cilium/pkg/datapath/tunnel"
+	"github.com/cilium/cilium/pkg/ipcache"
 	ipcmap "github.com/cilium/cilium/pkg/maps/ipcache"
 	"github.com/cilium/cilium/pkg/node"
 	"github.com/cilium/cilium/pkg/node/addressing"
@@ -59,7 +60,7 @@ type fakeTunnelIPCache struct {
 	refreshed []net.IP
 }
 
-func (f *fakeTunnelIPCache) RefreshByHost(hostIP net.IP) int {
+func (f *fakeTunnelIPCache) RefreshByHost(_ ipcache.IPIdentityMappingListener, hostIP net.IP) int {
 	f.refreshed = append(f.refreshed, hostIP)
 	return 1
 }
@@ -338,7 +339,7 @@ func TestSyncLocalNodeTunnelIPs(t *testing.T) {
 		tunnelIPs,
 	)
 
-	ln, err := store.Get(context.Background())
+	ln, err := store.Get(t.Context())
 	require.NoError(t, err)
 	require.Equal(t, []string{"192.0.2.1", "10.0.0.2", "10.0.0.8", "198.51.100.10"}, addressStrings(ln.IPAddresses))
 
