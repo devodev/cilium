@@ -188,11 +188,8 @@ func TestResolveForLBService(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			actual, err := ResolveForLBService(service, tc.policies, defaults)
-			require.NoError(t, err)
 
-			// require.Equal(t, tc.expectedState, resolution.State)
-			// require.Equal(t, tc.expectedEffectiveConfig, resolution.Config)
-			// require.Len(t, resolution.PolicyRefs, tc.expectedPolicyRefsSize)
+			require.NoError(t, err)
 			require.Equal(t, tc.expected, actual)
 		})
 	}

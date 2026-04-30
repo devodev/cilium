@@ -11,6 +11,7 @@
 package wafpolicy
 
 import (
+	"encoding/json"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -30,9 +31,7 @@ import (
 )
 
 func TestReconcilerSetsAcceptedCondition(t *testing.T) {
-	scheme := runtime.NewScheme()
-	utilruntime.Must(corev1.AddToScheme(scheme))
-	utilruntime.Must(isovalentv1alpha1.AddToScheme(scheme))
+	scheme := newTestWAFScheme(t)
 
 	testCases := []struct {
 		name           string
@@ -164,96 +163,196 @@ func TestReconcilerSetsAcceptedCondition(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			k8sClient := fake.NewClientBuilder().
-				WithScheme(scheme).
-				WithStatusSubresource(&isovalentv1alpha1.IsovalentWAFPolicy{}).
-				WithObjects(tc.policy.DeepCopy()).
-				Build()
+			reconciler, k8sClient := newTestPolicyReconciler(t, scheme, tc.policy.DeepCopy())
 
-			reconciler := newReconciler(hivetest.Logger(t), k8sClient, k8sClient, "kube-system", "")
-
-			_, err := reconciler.Reconcile(t.Context(), ctrl.Request{
-				NamespacedName: types.NamespacedName{
-					Namespace: tc.policy.Namespace,
-					Name:      tc.policy.Name,
-				},
-			})
-			require.NoError(t, err, "unexpected reconciler error")
-
-			updatedPolicy := &isovalentv1alpha1.IsovalentWAFPolicy{}
-			err = k8sClient.Get(t.Context(), client.ObjectKeyFromObject(tc.policy), updatedPolicy)
-			require.NoError(t, err, "unexpected update policy error")
-
-			condition := updatedPolicy.GetStatusCondition(isovalentv1alpha1.ConditionTypeIsovalentWAFPolicyAccepted)
-			require.NotNil(t, condition)
-			require.Equal(t, tc.expectedStatus, condition.Status)
+			requireReconciledPolicy(t, reconciler, tc.policy)
+			requireAcceptedConditionStatus(t, k8sClient, tc.policy, tc.expectedStatus)
 		})
 	}
 }
 
-func TestBuildInlineBundleEntries(t *testing.T) {
+func TestReconcilePolicyInlineRules(t *testing.T) {
+	expectedInline, err := BuildInlineRules(`SecAction "id:1000,phase:1,pass,nolog"`)
+	require.NoError(t, err)
+
+	otherInline, err := BuildInlineRules(`SecAction "id:1001,phase:1,pass,nolog"`)
+	require.NoError(t, err)
+
+	scheme := newTestWAFScheme(t)
+
 	testCases := []struct {
-		name     string
-		policy   *isovalentv1alpha1.IsovalentWAFPolicy
-		expected map[string]string
+		name                    string
+		policy                  *isovalentv1alpha1.IsovalentWAFPolicy
+		inlineRulesData         map[string]string
+		inlineRulesMetadata     map[string]string
+		expectedInlineRulesData map[string]string
+		expectedMetadataData    map[string]inlineMetadata
 	}{
 		{
-			name:   "custom rules produce inline bundle entry",
+			name:   "publishes desired hash and garbage collects stale entry",
 			policy: newInlineBundlePolicy(),
-			expected: func() map[string]string {
-				expectedInline, err := BuildInlineRules(`SecAction "id:1000,phase:1,pass,nolog"`)
-				require.NoError(t, err)
-				return map[string]string{
-					expectedInline.HashKey: expectedInline.Inline,
-				}
-			}(),
-		},
-		{
-			name:     "missing custom rules return no entries",
-			policy:   &isovalentv1alpha1.IsovalentWAFPolicy{},
-			expected: nil,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			actual, err := buildInlineBundleEntries(tc.policy)
-			require.NoError(t, err)
-			require.Equal(t, tc.expected, actual)
-		})
-	}
-}
-
-func TestMergeInlineBundleData(t *testing.T) {
-	testCases := []struct {
-		name     string
-		existing map[string]string
-		updates  map[string]string
-		expected map[string]string
-	}{
-		{
-			name:     "keeps existing entries and adds new keys",
-			existing: map[string]string{"stale": "stale"},
-			updates:  map[string]string{"new": "value"},
-			expected: map[string]string{
+			inlineRulesData: map[string]string{
 				"stale": "stale",
-				"new":   "value",
+			},
+			inlineRulesMetadata: map[string]string{
+				"stale": `{"policies":["team-a/policy-inline"]}`,
+			},
+			expectedInlineRulesData: map[string]string{
+				expectedInline.HashKey: expectedInline.Inline,
+			},
+			expectedMetadataData: map[string]inlineMetadata{
+				expectedInline.HashKey: {Policies: []string{"team-a/policy-inline"}},
 			},
 		},
 		{
-			name:     "updates override existing keys",
-			existing: map[string]string{"same": "old"},
-			updates:  map[string]string{"same": "new"},
-			expected: map[string]string{"same": "new"},
+			name: "reuses existing desired hash and removes old hash reference",
+			policy: &isovalentv1alpha1.IsovalentWAFPolicy{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "team-a",
+					Name:      "policy-inline",
+				},
+				Spec: isovalentv1alpha1.IsovalentWAFPolicySpec{
+					Rules: &isovalentv1alpha1.IsovalentWAFPolicyRules{
+						Custom: &isovalentv1alpha1.IsovalentWAFCustomRules{
+							Inline: expectedInline.Inline,
+						},
+					},
+				},
+			},
+			inlineRulesData: map[string]string{
+				expectedInline.HashKey: expectedInline.Inline,
+				otherInline.HashKey:    otherInline.Inline,
+			},
+			inlineRulesMetadata: map[string]string{
+				expectedInline.HashKey: `{"policies":["team-b/policy-inline"]}`,
+				otherInline.HashKey:    `{"policies":["team-a/policy-inline"]}`,
+			},
+			expectedInlineRulesData: map[string]string{
+				expectedInline.HashKey: expectedInline.Inline,
+			},
+			expectedMetadataData: map[string]inlineMetadata{
+				expectedInline.HashKey: {Policies: []string{"team-a/policy-inline", "team-b/policy-inline"}},
+			},
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			actual := mergeInlineBundleData(tc.existing, tc.updates)
-			require.Equal(t, tc.expected, actual)
+			reconciler, k8sClient := newTestReconcilerWithInlineBundleState(
+				t,
+				scheme,
+				tc.inlineRulesData,
+				tc.inlineRulesMetadata,
+			)
+
+			require.NoError(t, reconciler.reconcilePolicyInlineRules(t.Context(), tc.policy.Namespace+"/"+tc.policy.Name, tc.policy))
+			requireInlineBundleState(t, k8sClient, tc.expectedInlineRulesData, tc.expectedMetadataData)
 		})
 	}
+}
+
+func newTestWAFScheme(t *testing.T) *runtime.Scheme {
+	t.Helper()
+
+	scheme := runtime.NewScheme()
+	utilruntime.Must(corev1.AddToScheme(scheme))
+	utilruntime.Must(isovalentv1alpha1.AddToScheme(scheme))
+	return scheme
+}
+
+func newTestPolicyReconciler(
+	t *testing.T,
+	scheme *runtime.Scheme,
+	objects ...client.Object,
+) (*reconciler, client.Client) {
+	t.Helper()
+
+	k8sClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithStatusSubresource(&isovalentv1alpha1.IsovalentWAFPolicy{}).
+		WithObjects(objects...).
+		Build()
+
+	return newReconciler(hivetest.Logger(t), k8sClient, k8sClient, "kube-system", ""), k8sClient
+}
+
+func newTestReconcilerWithInlineBundleState(
+	t *testing.T,
+	scheme *runtime.Scheme,
+	inlineRules, inlineRulesMetadata map[string]string,
+) (*reconciler, client.Client) {
+	t.Helper()
+
+	inlineRulesCM := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "kube-system",
+			Name:      DefaultInlineRulesCM,
+			Labels:    configMapLabels(),
+		},
+		Data: combineInlineBundleData(inlineRulesMetadata, inlineRules),
+	}
+
+	k8sClient := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(inlineRulesCM).
+		Build()
+
+	return newReconciler(hivetest.Logger(t), k8sClient, k8sClient, "kube-system", ""), k8sClient
+}
+
+func requireReconciledPolicy(t *testing.T, reconciler *reconciler, policy *isovalentv1alpha1.IsovalentWAFPolicy) {
+	t.Helper()
+
+	_, err := reconciler.Reconcile(t.Context(), ctrl.Request{
+		NamespacedName: types.NamespacedName{
+			Namespace: policy.Namespace,
+			Name:      policy.Name,
+		},
+	})
+	require.NoError(t, err, "unexpected reconciler error")
+}
+
+func requireAcceptedConditionStatus(
+	t *testing.T,
+	k8sClient client.Client,
+	policy *isovalentv1alpha1.IsovalentWAFPolicy,
+	expectedStatus metav1.ConditionStatus,
+) {
+	t.Helper()
+
+	updatedPolicy := &isovalentv1alpha1.IsovalentWAFPolicy{}
+	err := k8sClient.Get(t.Context(), client.ObjectKeyFromObject(policy), updatedPolicy)
+	require.NoError(t, err, "unexpected update policy error")
+
+	condition := updatedPolicy.GetStatusCondition(isovalentv1alpha1.ConditionTypeIsovalentWAFPolicyAccepted)
+	require.NotNil(t, condition)
+	require.Equal(t, expectedStatus, condition.Status)
+}
+
+func requireInlineBundleState(
+	t *testing.T,
+	k8sClient client.Client,
+	expectedInlineRules map[string]string,
+	expectedInlineRulesMetadata map[string]inlineMetadata,
+) {
+	t.Helper()
+
+	updatedInlineCM := &corev1.ConfigMap{}
+	err := k8sClient.Get(t.Context(), types.NamespacedName{
+		Namespace: "kube-system",
+		Name:      DefaultInlineRulesCM,
+	}, updatedInlineCM)
+	require.NoError(t, err)
+	require.Equal(t, expectedInlineRules, extractInlineRules(updatedInlineCM.Data))
+
+	for hashKey, expectedMetadata := range expectedInlineRulesMetadata {
+		var actualMetadata inlineMetadata
+		actualMetadataData := extractInlineMetadata(updatedInlineCM.Data)
+		err = json.Unmarshal([]byte(actualMetadataData[hashKey]), &actualMetadata)
+		require.NoError(t, err)
+		require.Equal(t, expectedMetadata, actualMetadata)
+	}
+	require.Len(t, extractInlineMetadata(updatedInlineCM.Data), len(expectedInlineRulesMetadata))
 }
 
 func newInlineBundlePolicy() *isovalentv1alpha1.IsovalentWAFPolicy {

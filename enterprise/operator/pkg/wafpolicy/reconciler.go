@@ -14,12 +14,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"maps"
 
-	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -71,6 +67,7 @@ func (r *reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 
 	scopedLog.Debug("Reconciling IsovalentWAFPolicy")
 	policy := &isovalentv1alpha1.IsovalentWAFPolicy{}
+	policyRef := fmt.Sprintf("%s/%s", req.Namespace, req.Name)
 	if err := r.client.Get(ctx, req.NamespacedName, policy); err != nil {
 		if !k8serrors.IsNotFound(err) {
 			return controllerruntime.Fail(fmt.Errorf("failed to get IsovalentWAFPolicy: %w", err))
@@ -86,19 +83,18 @@ func (r *reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	}
 
 	validationErr := Validate(policy)
-	if err := r.updateAcceptedCondition(ctx, policy, validationErr); err != nil {
+	if err := r.reconcilePolicyStatus(ctx, policy, validationErr); err != nil {
 		return controllerruntime.Fail(err)
 	}
-
 	if validationErr == nil {
-		if err := r.publishInlineBundle(ctx, policy); err != nil {
-			return controllerruntime.Fail(fmt.Errorf("failed to publish WAF inline bundle: %w", err))
+		if err := r.reconcilePolicyInlineRules(ctx, policyRef, policy); err != nil {
+			return controllerruntime.Fail(fmt.Errorf("failed to reconcile WAF inline rules: %w", err))
 		}
 	}
 	return controllerruntime.Success()
 }
 
-func (r *reconciler) updateAcceptedCondition(ctx context.Context, policy *isovalentv1alpha1.IsovalentWAFPolicy, validationErr error) error {
+func (r *reconciler) reconcilePolicyStatus(ctx context.Context, policy *isovalentv1alpha1.IsovalentWAFPolicy, validationErr error) error {
 	condition := Condition(policy, validationErr)
 	if !SetCondition(policy, condition) {
 		return nil
@@ -109,86 +105,29 @@ func (r *reconciler) updateAcceptedCondition(ctx context.Context, policy *isoval
 	return nil
 }
 
-func (r *reconciler) publishInlineBundle(ctx context.Context, policy *isovalentv1alpha1.IsovalentWAFPolicy) error {
-	entries, err := buildInlineBundleEntries(policy)
-	if err != nil {
+func (r *reconciler) reconcilePolicyInlineRules(ctx context.Context, policyRef string, policy *isovalentv1alpha1.IsovalentWAFPolicy) error {
+	var desiredHashKey, desiredInline string
+	if policy != nil && policy.Spec.Rules != nil && policy.Spec.Rules.Custom != nil {
+		rules, err := BuildInlineRules(policy.Spec.Rules.Custom.Inline)
+		if err != nil {
+			return fmt.Errorf("failed to build WAF inline bundle data: %w", err)
+		}
+		desiredHashKey = rules.HashKey
+		desiredInline = rules.Inline
+	}
+
+	if err := r.reconcileInlineBundleCM(ctx, policyRef, desiredHashKey, desiredInline); err != nil {
 		return err
 	}
-	if len(entries) == 0 {
-		r.logger.Debug("WAF policy does not contain custom inline rules")
-		return nil
-	}
 
-	inlineCM := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: r.namespace,
-			Name:      r.inlineRulesCM,
-		},
-	}
-
-	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		if err := r.cmReader.Get(ctx, client.ObjectKeyFromObject(inlineCM), inlineCM); err != nil {
-			if !k8serrors.IsNotFound(err) {
-				return err
-			}
-
-			applyInlineBundleData(inlineCM, entries)
-			if err := r.client.Create(ctx, inlineCM); err != nil {
-				if k8serrors.IsAlreadyExists(err) {
-					return k8serrors.NewConflict(corev1.Resource("configmaps"), r.inlineRulesCM, err)
-				}
-				return err
-			}
-			return nil
-		}
-
-		applyInlineBundleData(inlineCM, entries)
-		if err := r.client.Update(ctx, inlineCM); err != nil {
-			return err
-		}
-		return nil
-	})
-	if err != nil {
-		return fmt.Errorf("failed to create or update inline WAF bundle ConfigMap: %w", err)
-	}
-
-	r.logger.Debug(
-		"WAF inline bundle ConfigMap has been updated",
+	logAttrs := []any{
 		logfields.K8sNamespace, policy.Namespace,
 		logfields.Name, policy.Name,
-		logfields.ConfigMapName, client.ObjectKeyFromObject(inlineCM),
-	)
-
+		logfields.PolicyKey, policyRef,
+	}
+	if desiredHashKey != "" {
+		logAttrs = append(logAttrs, logfields.PolicyKeysAdded, []string{desiredHashKey})
+	}
+	r.logger.Debug("WAF inline bundle ConfigMap has been reconciled", logAttrs...)
 	return nil
-}
-
-func buildInlineBundleEntries(policy *isovalentv1alpha1.IsovalentWAFPolicy) (map[string]string, error) {
-	if policy == nil || policy.Spec.Rules == nil || policy.Spec.Rules.Custom == nil {
-		return nil, nil
-	}
-
-	inlineRules, err := BuildInlineRules(policy.Spec.Rules.Custom.Inline)
-	if err != nil {
-		return nil, err
-	}
-
-	return map[string]string{
-		inlineRules.HashKey: inlineRules.Inline,
-	}, nil
-}
-
-func applyInlineBundleData(cm *corev1.ConfigMap, entries map[string]string) {
-	cm.Data = mergeInlineBundleData(cm.Data, entries)
-	cm.Labels = map[string]string{
-		"app.kubernetes.io/name":       "waf-runtime-rules",
-		"app.kubernetes.io/managed-by": "cilium-operator",
-		"app.kubernetes.io/part-of":    "cilium",
-	}
-}
-
-func mergeInlineBundleData(existing, updates map[string]string) map[string]string {
-	merged := make(map[string]string, len(existing)+len(updates))
-	maps.Copy(merged, existing)
-	maps.Copy(merged, updates)
-	return merged
 }
