@@ -20,6 +20,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/utils/ptr"
 
 	"github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
@@ -59,27 +60,15 @@ type networkAttachmentAnnotation struct {
 	MAC     string `json:"mac,omitempty"`
 }
 
-func (r *TestRun) retrieveEVPNPrivateNetworks(ctx context.Context) (map[string]privnetInfo, error) {
+func (r *TestRun) retrieveEVPNPrivateNetworks(ctx context.Context, requestedVNIs []uint32) (map[string]privnetInfo, error) {
 	list, err := r.client.EnterpriseCiliumClientset.IsovalentV1alpha1().ClusterwidePrivateNetworks().List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("error listing ClusterwidePrivateNetworks: %w", err)
 	}
 
-	networks := make(map[string]privnetInfo, len(list.Items))
-	for i := range list.Items {
-		network := &list.Items[i]
-		if network.Spec.VNI == nil {
-			continue
-		}
-		evpnSubnets := evpnEnabledSubnets(network)
-		if len(evpnSubnets) == 0 {
-			continue
-		}
-		networks[network.Name] = privnetInfo{
-			Name:        network.Name,
-			VNI:         *network.Spec.VNI,
-			EVPNSubnets: evpnSubnets,
-		}
+	networks, err := selectEVPNPrivateNetworks(list.Items, requestedVNIs)
+	if err != nil {
+		return nil, err
 	}
 
 	for name, privNet := range networks {
@@ -88,12 +77,40 @@ func (r *TestRun) retrieveEVPNPrivateNetworks(ctx context.Context) (map[string]p
 	return networks, nil
 }
 
+func selectEVPNPrivateNetworks(allNetworks []v1alpha1.ClusterwidePrivateNetwork, requestedVNIs []uint32) (map[string]privnetInfo, error) {
+	requestedVNISet := sets.New(requestedVNIs...)
+	evpnNetworks := make(map[string]privnetInfo, len(allNetworks))
+
+	for i := range allNetworks {
+		network := &allNetworks[i]
+		if network.Spec.VNI == nil {
+			continue
+		}
+		if requestedVNISet.Len() > 0 {
+			if !requestedVNISet.Has(*network.Spec.VNI) {
+				continue
+			}
+		}
+		evpnSubnets := evpnEnabledSubnets(network)
+		if len(evpnSubnets) == 0 {
+			continue
+		}
+		evpnNetworks[network.Name] = privnetInfo{
+			Name:        network.Name,
+			VNI:         *network.Spec.VNI,
+			EVPNSubnets: evpnSubnets,
+		}
+	}
+	return evpnNetworks, nil
+}
+
 func evpnEnabledSubnets(network *v1alpha1.ClusterwidePrivateNetwork) []*v1alpha1.SubnetSpec {
 	var res []*v1alpha1.SubnetSpec
-	for _, subnet := range network.Spec.Subnets {
+	for i := range network.Spec.Subnets {
+		subnet := &network.Spec.Subnets[i]
 		for _, route := range subnet.Routes {
 			if route.Gateway == v1alpha1.EVPNRoute {
-				res = append(res, &subnet)
+				res = append(res, subnet)
 				break
 			}
 		}

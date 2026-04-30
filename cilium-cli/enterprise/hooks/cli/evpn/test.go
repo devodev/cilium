@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -44,7 +45,9 @@ type evpnTest interface {
 }
 
 type TestParams struct {
-	TestFilter string
+	TestFilter    string
+	VNIs          []string
+	VNIContainers []string
 
 	CiliumNamespace  string
 	AgentPodSelector string
@@ -65,9 +68,10 @@ type TestRun struct {
 }
 
 type testEnv struct {
-	evpnConfig   evpnConfig
-	evpnPrivnets map[string]privnetInfo
-	bgpNodeInfo  map[string]bgpNodeInfo
+	evpnConfig    evpnConfig
+	evpnPrivnets  map[string]privnetInfo
+	bgpNodeInfo   map[string]bgpNodeInfo
+	vniContainers map[uint32]string
 }
 
 type evpnConfig struct {
@@ -189,6 +193,23 @@ func (r *TestRun) runPreflight(ctx context.Context) error {
 
 	fmt.Fprintf(r.out, "=== Pre-flight checks ===\n")
 
+	requestedVNIs, err := parseRequestedVNIs(r.params.VNIs)
+	if err != nil {
+		return err
+	}
+	if len(requestedVNIs) > 0 {
+		fmt.Fprintf(r.out, "Using requested EVPN VNIs: %v\n", r.params.VNIs)
+	}
+	vniContainers, err := parseVNIContainers(requestedVNIs, r.params.VNIContainers)
+	if err != nil {
+		return err
+	}
+	for _, vni := range requestedVNIs {
+		if containerName, ok := vniContainers[vni]; ok {
+			fmt.Fprintf(r.out, "Using Docker container %s for VNI %d connectivity tests\n", containerName, vni)
+		}
+	}
+
 	ticker := time.NewTicker(preflightPollInterval)
 	defer ticker.Stop()
 
@@ -204,7 +225,7 @@ func (r *TestRun) runPreflight(ctx context.Context) error {
 			return fmt.Errorf("EVPN is disabled in the agent configuration")
 		}
 
-		evpnPrivnets, err := r.retrieveEVPNPrivateNetworks(pfCtx)
+		evpnPrivnets, err := r.retrieveEVPNPrivateNetworks(pfCtx, requestedVNIs)
 		if err != nil {
 			return err
 		}
@@ -220,9 +241,10 @@ func (r *TestRun) runPreflight(ctx context.Context) error {
 			fmt.Fprintf(r.out, "Pre-flight not ready yet: missing learned RT-5 routes on nodes %v\n", nodesMissingRT5s)
 		} else {
 			r.env = &testEnv{
-				evpnPrivnets: evpnPrivnets,
-				bgpNodeInfo:  bgpNodeInfo,
-				evpnConfig:   config,
+				evpnPrivnets:  evpnPrivnets,
+				bgpNodeInfo:   bgpNodeInfo,
+				evpnConfig:    config,
+				vniContainers: vniContainers,
 			}
 			fmt.Fprintf(r.out, "Pre-flight checks passed\n")
 			return nil
@@ -234,6 +256,52 @@ func (r *TestRun) runPreflight(ctx context.Context) error {
 		case <-ticker.C:
 		}
 	}
+}
+
+func parseRequestedVNIs(rawVNIs []string) ([]uint32, error) {
+	if len(rawVNIs) == 0 {
+		return nil, nil
+	}
+	res := make([]uint32, 0, len(rawVNIs))
+	for _, field := range rawVNIs {
+		vni, err := strconv.ParseUint(field, 10, 32)
+		if err != nil {
+			return nil, fmt.Errorf("invalid --vnis value %q: %w", field, err)
+		}
+		res = append(res, uint32(vni))
+	}
+	if len(res) == 0 {
+		return nil, nil
+	}
+	if len(res) < preflightMinPrivateNetworks {
+		return nil, fmt.Errorf("--vnis must contain at least %d VNIs", preflightMinPrivateNetworks)
+	}
+	return res, nil
+}
+
+func parseVNIContainers(vniList []uint32, containers []string) (map[uint32]string, error) {
+	if len(containers) == 0 {
+		return nil, nil
+	}
+	if len(vniList) == 0 {
+		return nil, fmt.Errorf("--vni-containers can only be used with --vnis")
+	}
+	if len(containers) != len(vniList) {
+		return nil, fmt.Errorf("--vni-containers must contain the same number of entries as --vnis")
+	}
+
+	vniContainers := make(map[uint32]string, len(containers))
+	for i, vni := range vniList {
+		containerName := strings.TrimSpace(containers[i])
+		if containerName == "" {
+			return nil, fmt.Errorf("invalid --vni-containers value %q", containers[i])
+		}
+		if _, exists := vniContainers[vni]; exists {
+			return nil, fmt.Errorf("--vni-containers requires unique --vnis values, duplicate VNI %d", vni)
+		}
+		vniContainers[vni] = containerName
+	}
+	return vniContainers, nil
 }
 
 func nodesMissingLearnedRT5(privateNetworks map[string]privnetInfo, infos map[string]bgpNodeInfo) []string {

@@ -50,6 +50,8 @@ func newCmdEVPNTest() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&params.TestFilter, "test", "", "Only run EVPN tests whose name matches this regular expression")
+	cmd.Flags().StringSliceVar(&params.VNIs, "vnis", nil, "Comma-separated list of EVPN VNIs to use for testing; when set, only private networks matching these VNIs are used")
+	cmd.Flags().StringSliceVar(&params.VNIContainers, "vni-containers", nil, "Comma-separated list of Docker containers to use for connectivity testing, positionally mapped to --vnis entries")
 	cmd.Flags().StringVar(&params.AgentPodSelector, "agent-pod-selector", defaults.AgentPodSelector, "Label selecting cilium-agent pods")
 	cmd.Flags().StringVar(&params.TestNamespace, "test-namespace", "evpn-test", "Namespace for the resources used by the test")
 	cmd.Flags().BoolVar(&params.SkipCleanupOnFailure, "skip-cleanup-on-failure", false, "Terminate test execution and skip test cleanup on failure")
