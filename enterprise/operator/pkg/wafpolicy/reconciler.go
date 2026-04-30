@@ -74,11 +74,17 @@ func (r *reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		}
 
 		scopedLog.Debug("IsovalentWAFPolicy not found - assuming it has been deleted")
+		if err := r.removePolicyInlineRules(ctx, policyRef); err != nil {
+			return controllerruntime.Fail(fmt.Errorf("failed to reconcile WAF inline rules for deleted policy: %w", err))
+		}
 		return controllerruntime.Success()
 	}
 
 	if policy.GetDeletionTimestamp() != nil {
-		scopedLog.Debug("IsovalentWAFPolicy is marked for deletion - waiting for actual deletion")
+		scopedLog.Debug("IsovalentWAFPolicy is marked for deletion - removing published inline rules")
+		if err := r.removePolicyInlineRules(ctx, policyRef); err != nil {
+			return controllerruntime.Fail(fmt.Errorf("failed to reconcile WAF inline rules for deleting policy: %w", err))
+		}
 		return controllerruntime.Success()
 	}
 
@@ -86,10 +92,15 @@ func (r *reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	if err := r.reconcilePolicyStatus(ctx, policy, validationErr); err != nil {
 		return controllerruntime.Fail(err)
 	}
-	if validationErr == nil {
-		if err := r.reconcilePolicyInlineRules(ctx, policyRef, policy); err != nil {
-			return controllerruntime.Fail(fmt.Errorf("failed to reconcile WAF inline rules: %w", err))
+	if validationErr != nil {
+		if err := r.removePolicyInlineRules(ctx, policyRef); err != nil {
+			return controllerruntime.Fail(fmt.Errorf("failed to reconcile WAF inline rules for invalid policy: %w", err))
 		}
+		return controllerruntime.Success()
+	}
+
+	if err := r.reconcilePolicyInlineRules(ctx, policyRef, policy); err != nil {
+		return controllerruntime.Fail(fmt.Errorf("failed to reconcile WAF inline rules: %w", err))
 	}
 	return controllerruntime.Success()
 }

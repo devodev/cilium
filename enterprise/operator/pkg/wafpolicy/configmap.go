@@ -14,6 +14,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"slices"
 
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -77,6 +78,47 @@ func (r *reconciler) reconcileInlineBundleCM(
 			Namespace: r.namespace,
 			Name:      r.inlineRulesCM,
 		},
+	)
+
+	return nil
+}
+
+// removePolicyInlineRules removes every inline bundle reference contributed by
+// the given policy and prunes bundles that become unreferenced.
+func (r *reconciler) removePolicyInlineRules(ctx context.Context, policyRef string) error {
+	var deletedHashes map[string]struct{}
+
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		cm, err := r.getConfigMap(ctx, r.inlineRulesCM)
+		if err != nil {
+			if k8serrors.IsNotFound(err) {
+				deletedHashes = map[string]struct{}{}
+				return nil
+			}
+			return err
+		}
+
+		desiredData, hashesToDelete, err := removePolicyInlineRulesFromState(cm.Data, policyRef)
+		if err != nil {
+			return err
+		}
+		deletedHashes = hashesToDelete
+		if !configMapNeedsUpdate(cm, desiredData) {
+			return nil
+		}
+
+		cm.Data = desiredData
+		cm.Labels = configMapLabels()
+		return r.client.Update(ctx, cm)
+	})
+	if err != nil {
+		return fmt.Errorf("failed to reconcile WAF inline rules ConfigMap: %w", err)
+	}
+
+	r.logger.Debug(
+		"WAF inline rules have been removed for policy",
+		logfields.PolicyKey, policyRef,
+		logfields.PolicyKeysDeleted, slices.Collect(maps.Keys(deletedHashes)),
 	)
 
 	return nil

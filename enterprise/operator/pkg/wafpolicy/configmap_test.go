@@ -129,6 +129,83 @@ func TestConfigMapReconcileInlineBundleCM(t *testing.T) {
 	}
 }
 
+func TestConfigMapRemovePolicyInlineRules(t *testing.T) {
+	firstInline, err := BuildInlineRules(`SecAction "id:1000,phase:1,pass,nolog"`)
+	require.NoError(t, err)
+
+	secondInline, err := BuildInlineRules(`SecAction "id:1001,phase:1,pass,nolog"`)
+	require.NoError(t, err)
+
+	testCases := []struct {
+		name                   string
+		objects                []client.Object
+		policyRef              string
+		expectedInlineRules    map[string]string
+		expectedInlineMetadata map[string]inlineMetadata
+	}{
+		{
+			name: "removes only the departing policy references",
+			objects: []client.Object{&corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "kube-system",
+					Name:      DefaultInlineRulesCM,
+					Labels:    configMapLabels(),
+				},
+				Data: combineInlineBundleData(
+					map[string]string{
+						firstInline.HashKey:  `{"policies":["team-a/policy-a"]}`,
+						secondInline.HashKey: `{"policies":["team-a/policy-a","team-b/policy-b"]}`,
+					},
+					map[string]string{
+						firstInline.HashKey:  firstInline.Inline,
+						secondInline.HashKey: secondInline.Inline,
+					},
+				),
+			}},
+			policyRef: "team-a/policy-a",
+			expectedInlineRules: map[string]string{
+				secondInline.HashKey: secondInline.Inline,
+			},
+			expectedInlineMetadata: map[string]inlineMetadata{
+				secondInline.HashKey: {Policies: []string{"team-b/policy-b"}},
+			},
+		},
+		{
+			name: "removing unknown policy leaves bundle unchanged",
+			objects: []client.Object{&corev1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "kube-system",
+					Name:      DefaultInlineRulesCM,
+					Labels:    configMapLabels(),
+				},
+				Data: combineInlineBundleData(
+					map[string]string{
+						firstInline.HashKey: `{"policies":["team-a/policy-a"]}`,
+					},
+					map[string]string{
+						firstInline.HashKey: firstInline.Inline,
+					},
+				),
+			}},
+			policyRef: "team-c/policy-c",
+			expectedInlineRules: map[string]string{
+				firstInline.HashKey: firstInline.Inline,
+			},
+			expectedInlineMetadata: map[string]inlineMetadata{
+				firstInline.HashKey: {Policies: []string{"team-a/policy-a"}},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			reconciler, k8sClient := newConfigMapTestReconciler(t, tc.objects...)
+			require.NoError(t, reconciler.removePolicyInlineRules(t.Context(), tc.policyRef))
+			requireInlineBundleConfigMapState(t, k8sClient, tc.expectedInlineRules, tc.expectedInlineMetadata)
+		})
+	}
+}
+
 type configMapReconcileOp struct {
 	policyRef      string
 	desiredHashKey string

@@ -71,6 +71,57 @@ func TestReconcileInlineBundleData(t *testing.T) {
 	}
 }
 
+func TestRemovePolicyInlineRulesData(t *testing.T) {
+	expectedInline, err := BuildInlineRules(`SecAction "id:1000,phase:1,pass,nolog"`)
+	require.NoError(t, err)
+
+	otherInline, err := BuildInlineRules(`SecAction "id:1001,phase:1,pass,nolog"`)
+	require.NoError(t, err)
+
+	testCases := []struct {
+		name                   string
+		existing               map[string]string
+		policyRef              string
+		expectedHashesToDelete map[string]struct{}
+		expectedInlineRules    map[string]string
+		expectedInlineMetdata  map[string]inlineMetadata
+	}{
+		{
+			name: "removes only unreferenced hashes",
+			existing: combineInlineBundleData(
+				map[string]string{
+					expectedInline.HashKey: `{"policies":["team-a/policy-a"]}`,
+					otherInline.HashKey:    `{"policies":["team-a/policy-a","team-b/policy-b"]}`,
+				},
+				map[string]string{
+					expectedInline.HashKey: expectedInline.Inline,
+					otherInline.HashKey:    otherInline.Inline,
+				},
+			),
+			policyRef: "team-a/policy-a",
+			expectedHashesToDelete: map[string]struct{}{
+				expectedInline.HashKey: {},
+			},
+			expectedInlineRules: map[string]string{
+				otherInline.HashKey: otherInline.Inline,
+			},
+			expectedInlineMetdata: map[string]inlineMetadata{
+				otherInline.HashKey: {Policies: []string{"team-b/policy-b"}},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			actual, hashesToDelete, err := removePolicyInlineRulesFromState(tc.existing, tc.policyRef)
+			require.NoError(t, err)
+			require.Equal(t, tc.expectedHashesToDelete, hashesToDelete)
+			require.Equal(t, tc.expectedInlineRules, extractInlineRules(actual))
+			requireInlineBundleMetadataData(t, actual, tc.expectedInlineMetdata)
+		})
+	}
+}
+
 func TestInlineBundleDataExtractionAndLayout(t *testing.T) {
 	testCases := []struct {
 		name              string

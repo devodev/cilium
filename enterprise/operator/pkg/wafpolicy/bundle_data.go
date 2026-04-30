@@ -44,6 +44,23 @@ func reconcileInlineBundleState(
 	return combineInlineBundleData(metadata, inlineRules), nil
 }
 
+func removePolicyInlineRulesFromState(
+	existing map[string]string,
+	policyRef string,
+) (map[string]string, map[string]struct{}, error) {
+	metadata := extractInlineMetadata(existing)
+	metadata, hashesToDelete, err := removePolicyInlineMetadata(metadata, policyRef)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	inlineRules := extractInlineRules(existing)
+	pruneInlineRules(inlineRules, hashesToDelete)
+	pruneOrphanInlineRules(inlineRules, metadata)
+
+	return combineInlineBundleData(metadata, inlineRules), hashesToDelete, nil
+}
+
 // reconcileInlineMetadata updates metadata ownership for a single policy
 // reconcile pass. It first removes the policy reference from every stale hash,
 // then upserts the reference into the desired hash. The returned delete set
@@ -74,6 +91,24 @@ func reconcileInlineMetadata(existing map[string]string, policyRef, desiredHashK
 		}
 		data = updated
 		delete(hashesToDelete, desiredHashKey)
+	}
+
+	return normalizeConfigMapData(data), hashesToDelete, nil
+}
+
+func removePolicyInlineMetadata(existing map[string]string, policyRef string) (map[string]string, map[string]struct{}, error) {
+	data := maps.Clone(existing)
+	hashesToDelete := map[string]struct{}{}
+
+	for hashKey := range maps.Clone(data) {
+		updated, deleted, err := removePolicyFromMetadata(data, hashKey, policyRef)
+		if err != nil {
+			return nil, nil, err
+		}
+		data = updated
+		if deleted {
+			hashesToDelete[hashKey] = struct{}{}
+		}
 	}
 
 	return normalizeConfigMapData(data), hashesToDelete, nil
