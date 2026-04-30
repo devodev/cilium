@@ -22,8 +22,9 @@ topology:
         - ip addr add 169.254.0.17/29 dev net2
     cilium1:
       kind: linux
-      image: alpine:3.23.4
+      image: quay.io/cilium/alpine-curl:v1.10.0
       network-mode: container:evpn-cluster-control-plane
+      entrypoint: sleep infinity
       exec:
       # VTEP IP
       - ip addr add 100.64.1.11/32 dev lo
@@ -31,8 +32,9 @@ topology:
       - ip addr add 169.254.0.2/29 dev net0
     cilium2:
       kind: linux
-      image: alpine:3.23.4
+      image: quay.io/cilium/alpine-curl:v1.10.0
       network-mode: container:evpn-cluster-worker
+      entrypoint: sleep infinity
       exec:
       # VTEP IP
       - ip addr add 100.64.1.12/32 dev lo
@@ -40,14 +42,39 @@ topology:
       - ip addr add 169.254.0.10/29 dev net0
     cilium3:
       kind: linux
-      image: alpine:3.23.4
+      image: quay.io/cilium/alpine-curl:v1.10.0
       network-mode: container:evpn-cluster-worker2
+      entrypoint: sleep infinity
       exec:
         # VTEP IP
         - ip addr add 100.64.1.13/32 dev lo
         # IP on the link to tor
         - ip addr add 169.254.0.18/29 dev net0
+    vni100-host:
+      kind: linux
+      image: quay.io/cilium/alpine-curl:v1.10.0
+      network-mode: none
+      entrypoint: sleep infinity
+      exec:
+        # link + default route to ToR
+        - ip addr add 192.168.1.100/24 dev net0
+        - ip route add default via 192.168.1.1
+        - ip addr add fd10:0:1::100/64 dev net0
+        - ip -6 route add default via fd10:0:1::1
+    vni200-host:
+      kind: linux
+      image: quay.io/cilium/alpine-curl:v1.10.0
+      network-mode: none
+      entrypoint: sleep infinity
+      exec:
+        # link + default route to ToR
+        - ip addr add 192.168.2.100/24 dev net0
+        - ip route add default via 192.168.2.1
+        - ip addr add fd10:0:2::100/64 dev net0
+        - ip -6 route add default via fd10:0:2::1
   links:
     - endpoints: ["tor:net0", "cilium1:net0"]
     - endpoints: ["tor:net1", "cilium2:net0"]
     - endpoints: ["tor:net2", "cilium3:net0"]
+    - endpoints: ["tor:net3", "vni100-host:net0" ]
+    - endpoints: ["tor:net4", "vni200-host:net0" ]

@@ -1,6 +1,9 @@
 #!/bin/sh
 set -e
 
+# enable IPv6 forwarding
+sysctl -w net.ipv6.conf.all.forwarding=1
+
 ###################
 ## vxlan vtep-ip ##
 ###################
@@ -20,11 +23,10 @@ ip link set vni100 type bridge_slave neigh_suppress on learning off
 ip link set vni100 up
 ip link set br100 up
 
-ip link add dummy1 type dummy
-ip link set dev dummy1 up
-ip link set dev dummy1 master vrf1
-ip addr add 192.168.1.1/24 dev dummy1
-ip addr add fd10:0:1::1/64 dev dummy1
+ip link set dev net3 up
+ip link set dev net3 master vrf1
+ip addr add 192.168.1.1/24 dev net3
+ip addr add fd10:0:1::1/64 dev net3
 
 #############################
 ## ip-vrf vrf2 / l3vni 200 ##
@@ -40,8 +42,7 @@ ip link set vni200 type bridge_slave neigh_suppress on learning off
 ip link set vni200 up
 ip link set br200 up
 
-ip link add dummy2 type dummy
-ip link set dev dummy2 up
-ip link set dev dummy2 master vrf2
-ip addr add 192.168.2.1/24 dev dummy2
-ip addr add fd10:0:2::1/64 dev dummy2
+ip link set dev net4 up
+ip link set dev net4 master vrf2
+ip addr add 192.168.2.1/24 dev net4
+ip addr add fd10:0:2::1/64 dev net4
