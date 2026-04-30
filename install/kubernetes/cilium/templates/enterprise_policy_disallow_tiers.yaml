@@ -27,7 +27,7 @@ spec:
       !has(object.spec) || !has(object.spec.tier)
     message: Policy tier support is not enabled. Setting tier is disallowed.
   - expression: >-
-      object.specs.all(spec, !has(spec.tier))
+      !has(object.specs) || object.specs.all(spec, !has(spec.tier))
     message: Policy tier support is not enabled. Setting tier is disallowed.
 
 ---
