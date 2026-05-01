@@ -24,6 +24,15 @@ spec:
     - jsonPath: .status.status
       name: Status
       type: string
+    - jsonPath: .spec.enabled
+      name: Enabled
+      type: boolean
+    - jsonPath: .spec.mode
+      name: Mode
+      type: string
+    - jsonPath: .spec.failureMode
+      name: FailureMode
+      type: string
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
@@ -66,6 +75,47 @@ spec:
                 - Open
                 - Close
                 type: string
+              handling:
+                description: Handling defines policy-wide WAF request and response
+                  handling options.
+                properties:
+                  request:
+                    description: Request configures how the WAF handles inspected
+                      requests.
+                    properties:
+                      bodyLimitBytes:
+                        description: |-
+                          BodyLimitBytes limits the inspected request body size in bytes.
+                          If omitted, the managed WAF default of 1048576 bytes (1 MiB) is used.
+                        format: int64
+                        minimum: 0
+                        type: integer
+                    type: object
+                  response:
+                    description: Response configures how the WAF handles responses
+                      it generates.
+                    properties:
+                      blockResponse:
+                        description: |-
+                          BlockResponse customizes the local response returned when WAF rules block
+                          a request.
+                        properties:
+                          body:
+                            description: |-
+                              Body overrides the response body returned when a request is blocked.
+                              If omitted, the managed WAF default response body "blocked by waf" is used.
+                            type: string
+                          statusCode:
+                            description: |-
+                              StatusCode overrides the HTTP status code returned when a request is blocked.
+                              If omitted, the managed WAF default of 403 is used.
+                            format: int32
+                            maximum: 599
+                            minimum: 100
+                            type: integer
+                        type: object
+                    type: object
+                type: object
               mode:
                 description: |-
                   Mode controls whether WAF only monitors traffic or actively enforces decisions.
@@ -77,7 +127,7 @@ spec:
               rules:
                 description: |-
                   Rules selects either a managed WAF profile or a fully custom ruleset.
-                  If omitted, the global WAF rules are used.
+                  If omitted, the operator default managed WAF profile is used.
                 properties:
                   custom:
                     description: Custom provides a fully custom WAF ruleset.

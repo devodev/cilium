@@ -13,6 +13,9 @@ import (
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +kubebuilder:resource:categories={cilium,isovalent,loadbalancer},singular="isovalentwafpolicy",path="isovalentwafpolicies",scope="Namespaced",shortName={wafpolicy}
 // +kubebuilder:printcolumn:JSONPath=".status.status",name="Status",type=string
+// +kubebuilder:printcolumn:JSONPath=".spec.enabled",name="Enabled",type=boolean
+// +kubebuilder:printcolumn:JSONPath=".spec.mode",name="Mode",type=string
+// +kubebuilder:printcolumn:JSONPath=".spec.failureMode",name="FailureMode",type=string
 // +kubebuilder:printcolumn:JSONPath=".metadata.creationTimestamp",name="Age",type=date
 // +kubebuilder:subresource:status
 // +kubebuilder:storageversion
@@ -59,10 +62,15 @@ type IsovalentWAFPolicySpec struct {
 	FailureMode *WAFFailureModeType `json:"failureMode,omitempty"`
 
 	// Rules selects either a managed WAF profile or a fully custom ruleset.
-	// If omitted, the global WAF rules are used.
+	// If omitted, the operator default managed WAF profile is used.
 	//
 	// +kubebuilder:validation:Optional
 	Rules *IsovalentWAFPolicyRules `json:"rules,omitempty"`
+
+	// Handling defines policy-wide WAF request and response handling options.
+	//
+	// +kubebuilder:validation:Optional
+	Handling *IsovalentWAFPolicyHandling `json:"handling,omitempty"`
 }
 
 type IsovalentWAFPolicyTargets struct {
@@ -103,6 +111,51 @@ type IsovalentWAFManagedRules struct {
 	//
 	// +kubebuilder:validation:Required
 	Profile IsovalentWAFPolicyProfileType `json:"profile"`
+}
+
+type IsovalentWAFPolicyHandling struct {
+	// Request configures how the WAF handles inspected requests.
+	//
+	// +kubebuilder:validation:Optional
+	Request *IsovalentWAFRequestHandling `json:"request,omitempty"`
+
+	// Response configures how the WAF handles responses it generates.
+	//
+	// +kubebuilder:validation:Optional
+	Response *IsovalentWAFResponseHandling `json:"response,omitempty"`
+}
+
+type IsovalentWAFRequestHandling struct {
+	// BodyLimitBytes limits the inspected request body size in bytes.
+	// If omitted, the managed WAF default of 1048576 bytes (1 MiB) is used.
+	//
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Minimum=0
+	BodyLimitBytes *int64 `json:"bodyLimitBytes,omitempty"`
+}
+
+type IsovalentWAFResponseHandling struct {
+	// BlockResponse customizes the local response returned when WAF rules block
+	// a request.
+	//
+	// +kubebuilder:validation:Optional
+	BlockResponse *IsovalentWAFBlockResponse `json:"blockResponse,omitempty"`
+}
+
+type IsovalentWAFBlockResponse struct {
+	// StatusCode overrides the HTTP status code returned when a request is blocked.
+	// If omitted, the managed WAF default of 403 is used.
+	//
+	// +kubebuilder:validation:Optional
+	// +kubebuilder:validation:Minimum=100
+	// +kubebuilder:validation:Maximum=599
+	StatusCode *int32 `json:"statusCode,omitempty"`
+
+	// Body overrides the response body returned when a request is blocked.
+	// If omitted, the managed WAF default response body "blocked by waf" is used.
+	//
+	// +kubebuilder:validation:Optional
+	Body *string `json:"body,omitempty"`
 }
 
 // +kubebuilder:validation:XValidation:message="exactly one of inline or profile must be specified",rule="has(self.inline) != has(self.profile)"
@@ -310,6 +363,11 @@ func (in *IsovalentWAFPolicySpec) DeepCopyInto(out *IsovalentWAFPolicySpec) {
 		*out = new(IsovalentWAFPolicyRules)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.Handling != nil {
+		in, out := &in.Handling, &out.Handling
+		*out = new(IsovalentWAFPolicyHandling)
+		(*in).DeepCopyInto(*out)
+	}
 }
 
 func (in *IsovalentWAFPolicySpec) DeepCopy() *IsovalentWAFPolicySpec {
@@ -362,12 +420,12 @@ func (in *IsovalentWAFPolicyRules) DeepCopyInto(out *IsovalentWAFPolicyRules) {
 	if in.Managed != nil {
 		in, out := &in.Managed, &out.Managed
 		*out = new(IsovalentWAFManagedRules)
-		**out = **in
+		(*in).DeepCopyInto(*out)
 	}
 	if in.Custom != nil {
 		in, out := &in.Custom, &out.Custom
 		*out = new(IsovalentWAFCustomRules)
-		**out = **in
+		(*in).DeepCopyInto(*out)
 	}
 }
 

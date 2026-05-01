@@ -45,11 +45,18 @@ type EffectiveRules struct {
 	Inline        InlineRules
 }
 
+type EffectiveHandlingOverrides struct {
+	BodyLimitBytes          *int64
+	BlockResponseStatusCode *int32
+	BlockResponseBody       *string
+}
+
 type EffectiveConfig struct {
-	Enabled     bool
-	Mode        isovalentv1alpha1.IsovalentWAFPolicyModeType
-	FailureMode isovalentv1alpha1.WAFFailureModeType
-	Rules       EffectiveRules
+	Enabled           bool
+	Mode              isovalentv1alpha1.IsovalentWAFPolicyModeType
+	FailureMode       isovalentv1alpha1.WAFFailureModeType
+	Rules             EffectiveRules
+	HandlingOverrides EffectiveHandlingOverrides
 }
 
 type Resolution struct {
@@ -180,6 +187,15 @@ func ResolveForLBService(
 
 	if policy.Spec.Mode != nil {
 		resolved.Mode = *policy.Spec.Mode
+	}
+	if policy.Spec.Handling != nil {
+		if policy.Spec.Handling.Request != nil {
+			resolved.HandlingOverrides.BodyLimitBytes = policy.Spec.Handling.Request.BodyLimitBytes
+		}
+		if policy.Spec.Handling.Response != nil && policy.Spec.Handling.Response.BlockResponse != nil {
+			resolved.HandlingOverrides.BlockResponseStatusCode = policy.Spec.Handling.Response.BlockResponse.StatusCode
+			resolved.HandlingOverrides.BlockResponseBody = policy.Spec.Handling.Response.BlockResponse.Body
+		}
 	}
 	if policy.Spec.Rules != nil && policy.Spec.Rules.Managed != nil {
 		resolved.Rules.Source = EffectiveRuleSourceManaged

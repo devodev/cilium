@@ -64,6 +64,30 @@ func TestResolveForLBService(t *testing.T) {
 			Profile: profile,
 		},
 	}
+	bodyLimitBytes := int64(2048)
+	blockStatusCode := int32(418)
+	blockBody := "blocked by policy"
+	managedPolicyWithOverrides := acceptedPolicy(
+		"team-a",
+		"api-waf-managed-overrides",
+		&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}},
+	)
+	managedPolicyWithOverrides.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{
+		Managed: &isovalentv1alpha1.IsovalentWAFManagedRules{
+			Profile: profile,
+		},
+	}
+	managedPolicyWithOverrides.Spec.Handling = &isovalentv1alpha1.IsovalentWAFPolicyHandling{
+		Request: &isovalentv1alpha1.IsovalentWAFRequestHandling{
+			BodyLimitBytes: &bodyLimitBytes,
+		},
+		Response: &isovalentv1alpha1.IsovalentWAFResponseHandling{
+			BlockResponse: &isovalentv1alpha1.IsovalentWAFBlockResponse{
+				StatusCode: &blockStatusCode,
+				Body:       &blockBody,
+			},
+		},
+	}
 
 	conflictFirst := acceptedPolicy(
 		"team-a",
@@ -140,6 +164,31 @@ func TestResolveForLBService(t *testing.T) {
 				PolicyRefs: []types.NamespacedName{{
 					Namespace: "team-a",
 					Name:      "api-waf-managed",
+				}},
+			},
+		},
+		{
+			desc:     "applies managed profile overrides when selected",
+			policies: []isovalentv1alpha1.IsovalentWAFPolicy{managedPolicyWithOverrides},
+			expected: Resolution{
+				State: ResolutionStateResolved,
+				Config: EffectiveConfig{
+					Enabled:     true,
+					Mode:        defaults.Mode,
+					FailureMode: defaults.FailureMode,
+					Rules: EffectiveRules{
+						Source:        EffectiveRuleSourceManaged,
+						PolicyProfile: profile,
+					},
+					HandlingOverrides: EffectiveHandlingOverrides{
+						BodyLimitBytes:          &bodyLimitBytes,
+						BlockResponseStatusCode: &blockStatusCode,
+						BlockResponseBody:       &blockBody,
+					},
+				},
+				PolicyRefs: []types.NamespacedName{{
+					Namespace: "team-a",
+					Name:      "api-waf-managed-overrides",
 				}},
 			},
 		},
