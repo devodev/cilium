@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"strings"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8s "k8s.io/client-go/kubernetes"
 )
 
@@ -62,6 +63,21 @@ func skipIfNotUseRemoteAddress(msg string) bool {
 	}
 
 	return false
+}
+
+func skipIfWAFDisabled(t T, k8sCli *k8s.Clientset, msg string) bool {
+	configmap, err := k8sCli.CoreV1().ConfigMaps(t.CiliumNamespace()).Get(t.Context(), "cilium-config", metav1.GetOptions{})
+	if err != nil {
+		t.Failedf("failed to get cilium-config: %s", err)
+		return true
+	}
+
+	if strings.EqualFold(configmap.Data["waf-enabled"], "true") {
+		return false
+	}
+
+	fmt.Printf("skipping due to WAF being disabled: %s\n", msg)
+	return true
 }
 
 func SetupSingleNodeMode(ctx context.Context, dockerCli *dockerCli, k8sCli *k8s.Clientset) error {

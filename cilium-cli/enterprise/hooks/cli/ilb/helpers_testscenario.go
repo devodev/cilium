@@ -931,6 +931,36 @@ func (r *lbTestScenario) createLBService(svc *isovalentv1alpha1.LBService) {
 	})
 }
 
+func (r *lbTestScenario) createWAFPolicy(policy *isovalentv1alpha1.IsovalentWAFPolicy) {
+	if err := r.ciliumCli.CreateWAFPolicy(r.t.Context(), r.k8sNamespace, policy, metav1.CreateOptions{}); err != nil {
+		if !errors.IsAlreadyExists(err) {
+			r.t.Failedf("cannot create WAF policy (%s) in namespace (%s): %s", policy.Name, r.k8sNamespace, err)
+		}
+	}
+	r.t.RegisterCleanup(func(ctx context.Context) error {
+		return r.ciliumCli.DeleteWAFPolicy(ctx, r.k8sNamespace, policy.Name, metav1.DeleteOptions{})
+	})
+}
+
+func (r *lbTestScenario) waitForWAFPolicyAccepted(name string) {
+	eventually(r.t, func() error {
+		policy, err := r.ciliumCli.GetWAFPolicy(r.t.Context(), r.k8sNamespace, name, metav1.GetOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to get WAF policy %q: %w", name, err)
+		}
+
+		condition := policy.GetStatusCondition(isovalentv1alpha1.ConditionTypeIsovalentWAFPolicyAccepted)
+		if condition == nil {
+			return fmt.Errorf("WAF policy %q has no Accepted condition yet", name)
+		}
+		if condition.Status != metav1.ConditionTrue {
+			return fmt.Errorf("WAF policy %q not accepted yet: status=%s reason=%s message=%s", name, condition.Status, condition.Reason, condition.Message)
+		}
+
+		return nil
+	}, longTimeout, pollInterval)
+}
+
 func (r *lbTestScenario) createLBDeployment(depl *isovalentv1alpha1.LBDeployment) {
 	if err := r.ciliumCli.CreateLBDeployment(r.t.Context(), r.k8sNamespace, depl, metav1.CreateOptions{}); err != nil {
 		if !errors.IsAlreadyExists(err) {

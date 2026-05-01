@@ -135,6 +135,19 @@ func (c *ciliumCli) CreateLBBackendPool(ctx context.Context, namespace string, o
 	return err
 }
 
+func (c *ciliumCli) CreateWAFPolicy(ctx context.Context, namespace string, obj *isovalentv1alpha1.IsovalentWAFPolicy, opts metav1.CreateOptions) error {
+	_, err := c.IsovalentV1alpha1().IsovalentWAFPolicies(namespace).Create(ctx, obj, opts)
+	return err
+}
+
+func (c *ciliumCli) DeleteWAFPolicy(ctx context.Context, namespace, name string, opts metav1.DeleteOptions) error {
+	return c.IsovalentV1alpha1().IsovalentWAFPolicies(namespace).Delete(ctx, name, opts)
+}
+
+func (c *ciliumCli) GetWAFPolicy(ctx context.Context, namespace, name string, opts metav1.GetOptions) (*isovalentv1alpha1.IsovalentWAFPolicy, error) {
+	return c.IsovalentV1alpha1().IsovalentWAFPolicies(namespace).Get(ctx, name, opts)
+}
+
 func (c *ciliumCli) DeleteLBBackendPool(ctx context.Context, namespace, name string, opts metav1.DeleteOptions) error {
 	return c.IsovalentV1alpha1().LBBackendPools(namespace).Delete(ctx, name, opts)
 }
