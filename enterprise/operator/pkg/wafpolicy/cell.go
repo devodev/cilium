@@ -30,6 +30,9 @@ var Cell = cell.Module(
 	//exhaustruct:ignore
 	cell.Config(Config{}),
 	cell.Provide(newGlobalDefaults),
+	cell.Provide(newResolver),
+	cell.Provide(NewProxyConfigBuilder),
+	cell.Provide(NewTranslator),
 	cell.Invoke(registerReconcilers),
 )
 
@@ -95,6 +98,18 @@ func newGlobalDefaults(config Config) (GlobalDefaults, error) {
 	}
 
 	return defaults, nil
+}
+
+type resolverParams struct {
+	cell.In
+
+	CtrlRuntimeManager ctrlRuntime.Manager
+	Logger             *slog.Logger
+	Defaults           GlobalDefaults
+}
+
+func newResolver(params resolverParams) *Resolver {
+	return NewResolver(params.CtrlRuntimeManager.GetClient(), params.Logger, params.Defaults)
 }
 
 type reconcilerParams struct {

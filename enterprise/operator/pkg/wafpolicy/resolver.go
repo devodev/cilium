@@ -11,22 +11,19 @@
 package wafpolicy
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
+	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	isovalentv1alpha1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
 	"github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/labels"
 	slim_metav1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
-)
 
-type ResolutionState string
-
-const (
-	ResolutionStateResolved ResolutionState = "Resolved"
-	ResolutionStatePending  ResolutionState = "Pending"
-	ResolutionStateConflict ResolutionState = "Conflict"
+	"github.com/cilium/cilium/pkg/logging/logfields"
 )
 
 type EffectiveRuleSource string
@@ -59,10 +56,16 @@ type EffectiveConfig struct {
 	HandlingOverrides EffectiveHandlingOverrides
 }
 
-type Resolution struct {
-	State      ResolutionState
-	Config     EffectiveConfig
-	PolicyRefs []types.NamespacedName
+type PolicyTarget struct {
+	Name      string
+	Namespace string
+	Labels    map[string]string
+}
+
+type Resolver struct {
+	client   client.Client
+	logger   *slog.Logger
+	defaults GlobalDefaults
 }
 
 type policyState string
@@ -135,108 +138,101 @@ func SetCondition(policy *isovalentv1alpha1.IsovalentWAFPolicy, condition metav1
 	return true
 }
 
-func ResolveForLBService(
-	service *isovalentv1alpha1.LBService,
-	policies []isovalentv1alpha1.IsovalentWAFPolicy,
-	defaults GlobalDefaults,
-) (Resolution, error) {
-	resolved := EffectiveConfig{
-		Enabled:     defaults.Enabled,
-		Mode:        defaults.Mode,
-		FailureMode: defaults.FailureMode,
-		Rules: EffectiveRules{
-			Source:        EffectiveRuleSourceDefault,
-			PolicyProfile: defaults.PolicyProfile,
-		},
+func NewResolver(client client.Client, logger *slog.Logger, defaults GlobalDefaults) *Resolver {
+	return &Resolver{
+		client:   client,
+		logger:   logger,
+		defaults: defaults,
 	}
-
-	matches, pending, err := matchLBServicePolicies(service, policies)
-	if err != nil {
-		return Resolution{}, err
-	}
-	if len(pending) > 0 {
-		return Resolution{
-			State:      ResolutionStatePending,
-			Config:     resolved,
-			PolicyRefs: pending,
-		}, nil
-	}
-	if len(matches) == 0 {
-		return Resolution{
-			State:  ResolutionStateResolved,
-			Config: resolved,
-		}, nil
-	}
-	if len(matches) > 1 {
-		conflicts := make([]types.NamespacedName, 0, len(matches))
-		for _, policy := range matches {
-			conflicts = append(conflicts, types.NamespacedName{
-				Namespace: policy.Namespace,
-				Name:      policy.Name,
-			})
-		}
-		return Resolution{
-			State:      ResolutionStateConflict,
-			Config:     resolved,
-			PolicyRefs: conflicts,
-		}, nil
-	}
-
-	policy := matches[0]
-	resolved.Enabled = policy.Spec.Enabled
-
-	if policy.Spec.Mode != nil {
-		resolved.Mode = *policy.Spec.Mode
-	}
-	if policy.Spec.Handling != nil {
-		if policy.Spec.Handling.Request != nil {
-			resolved.HandlingOverrides.BodyLimitBytes = policy.Spec.Handling.Request.BodyLimitBytes
-		}
-		if policy.Spec.Handling.Response != nil && policy.Spec.Handling.Response.BlockResponse != nil {
-			resolved.HandlingOverrides.BlockResponseStatusCode = policy.Spec.Handling.Response.BlockResponse.StatusCode
-			resolved.HandlingOverrides.BlockResponseBody = policy.Spec.Handling.Response.BlockResponse.Body
-		}
-	}
-	if policy.Spec.Rules != nil && policy.Spec.Rules.Managed != nil {
-		resolved.Rules.Source = EffectiveRuleSourceManaged
-		resolved.Rules.PolicyProfile = policy.Spec.Rules.Managed.Profile
-	}
-	if policy.Spec.FailureMode != nil {
-		resolved.FailureMode = *policy.Spec.FailureMode
-	}
-	if policy.Spec.Rules != nil && policy.Spec.Rules.Custom != nil {
-		inlineRules, err := BuildInlineRules(policy.Spec.Rules.Custom.Inline)
-		if err != nil {
-			return Resolution{}, err
-		}
-		resolved.Rules = EffectiveRules{
-			Source: EffectiveRuleSourceInline,
-			Inline: inlineRules,
-		}
-	}
-
-	return Resolution{
-		State:  ResolutionStateResolved,
-		Config: resolved,
-		PolicyRefs: []types.NamespacedName{{
-			Namespace: policy.Namespace,
-			Name:      policy.Name,
-		}},
-	}, nil
 }
 
-func matchLBServicePolicies(
-	service *isovalentv1alpha1.LBService,
+func (r *Resolver) Enabled() bool {
+	return r.defaults.Enabled
+}
+
+func (r *Resolver) ResolveConfig(ctx context.Context, target PolicyTarget) (*EffectiveConfig, error) {
+	if !r.Enabled() {
+		return nil, nil
+	}
+
+	policies, err := r.loadPolicies(ctx, target.Namespace)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load IsovalentWAFPolicies: %w", err)
+	}
+
+	if len(policies) == 0 {
+		return nil, nil
+	}
+
+	matches, pending, err := matchPolicies(target, policies)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(pending) > 0 {
+		r.logger.Debug(
+			"matching WAF policies are still pending validation, deferring WAF config resolution",
+			logfields.K8sNamespace, target.Namespace,
+			logfields.Service, target.Name,
+			logfields.PolicyLogString, policiesToString(pending),
+		)
+		return nil, nil
+	}
+
+	if len(matches) == 0 {
+		r.logger.Debug(
+			"no accepted WAF policy matches LBService, skipping WAF config resolution for this reconcile",
+			logfields.K8sNamespace, target.Namespace,
+			logfields.Service, target.Name,
+		)
+		return nil, nil
+	}
+
+	if len(matches) > 1 {
+		r.logger.Warn(
+			"multiple accepted WAF policies match LBService, skipping WAF config resolution for this reconcile",
+			logfields.K8sNamespace, target.Namespace,
+			logfields.Service, target.Name,
+			logfields.PolicyLogString, policiesToString(matches),
+		)
+		return nil, nil
+	}
+
+	config, err := r.policyToConfig(matches[0])
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve effective WAF config: %w", err)
+	}
+
+	r.logger.Debug(
+		"resolved effective WAF config for LBService",
+		logfields.K8sNamespace, target.Namespace,
+		logfields.Service, target.Name,
+		logfields.PolicyLogString, policiesToString(matches),
+	)
+	return &config, nil
+}
+
+func (r *Resolver) loadPolicies(ctx context.Context, namespace string) ([]isovalentv1alpha1.IsovalentWAFPolicy, error) {
+	policyList := &isovalentv1alpha1.IsovalentWAFPolicyList{}
+	if err := r.client.List(ctx, policyList, client.InNamespace(namespace)); err != nil {
+		return nil, err
+	}
+
+	return policyList.Items, nil
+}
+
+func matchPolicies(
+	target PolicyTarget,
 	policies []isovalentv1alpha1.IsovalentWAFPolicy,
-) ([]*isovalentv1alpha1.IsovalentWAFPolicy, []types.NamespacedName, error) {
-	serviceLabels := labels.Set(service.Labels)
+) ([]*isovalentv1alpha1.IsovalentWAFPolicy, []*isovalentv1alpha1.IsovalentWAFPolicy, error) {
+	serviceLabels := labels.Set(target.Labels)
 
 	matches := make([]*isovalentv1alpha1.IsovalentWAFPolicy, 0)
-	pending := make([]types.NamespacedName, 0)
+	pending := make([]*isovalentv1alpha1.IsovalentWAFPolicy, 0)
 
 	for i := range policies {
 		policy := &policies[i]
-		if policy.Namespace != service.Namespace {
+		if policy.Namespace != target.Namespace {
 			continue
 		}
 		if policy.Spec.Targets.LBServices == nil {
@@ -253,16 +249,53 @@ func matchLBServicePolicies(
 
 		switch stateFor(policy) {
 		case policyStatePending:
-			pending = append(pending, types.NamespacedName{
-				Namespace: policy.Namespace,
-				Name:      policy.Name,
-			})
+			pending = append(pending, policy)
 		case policyStateAccepted:
 			matches = append(matches, policy)
 		}
 	}
 
 	return matches, pending, nil
+}
+
+func (r *Resolver) policyToConfig(policy *isovalentv1alpha1.IsovalentWAFPolicy) (EffectiveConfig, error) {
+	config := EffectiveConfig{
+		Enabled:     policy.Spec.Enabled,
+		Mode:        valueOrDefault(policy.Spec.Mode, r.defaults.Mode),
+		FailureMode: valueOrDefault(policy.Spec.FailureMode, r.defaults.FailureMode),
+		Rules: EffectiveRules{
+			Source:        EffectiveRuleSourceDefault,
+			PolicyProfile: r.defaults.PolicyProfile,
+		},
+	}
+
+	if policy.Spec.Handling != nil {
+		if policy.Spec.Handling.Request != nil {
+			config.HandlingOverrides.BodyLimitBytes = policy.Spec.Handling.Request.BodyLimitBytes
+		}
+		if policy.Spec.Handling.Response != nil && policy.Spec.Handling.Response.BlockResponse != nil {
+			config.HandlingOverrides.BlockResponseStatusCode = policy.Spec.Handling.Response.BlockResponse.StatusCode
+			config.HandlingOverrides.BlockResponseBody = policy.Spec.Handling.Response.BlockResponse.Body
+		}
+	}
+
+	if policy.Spec.Rules != nil && policy.Spec.Rules.Managed != nil {
+		config.Rules.Source = EffectiveRuleSourceManaged
+		config.Rules.PolicyProfile = policy.Spec.Rules.Managed.Profile
+	}
+
+	if policy.Spec.Rules != nil && policy.Spec.Rules.Custom != nil {
+		inlineRules, err := BuildInlineRules(policy.Spec.Rules.Custom.Inline)
+		if err != nil {
+			return EffectiveConfig{}, err
+		}
+		config.Rules = EffectiveRules{
+			Source: EffectiveRuleSourceInline,
+			Inline: inlineRules,
+		}
+	}
+
+	return config, nil
 }
 
 func stateFor(policy *isovalentv1alpha1.IsovalentWAFPolicy) policyState {
@@ -274,4 +307,12 @@ func stateFor(policy *isovalentv1alpha1.IsovalentWAFPolicy) policyState {
 		return policyStateAccepted
 	}
 	return policyStateRejected
+}
+
+func policiesToString(policies []*isovalentv1alpha1.IsovalentWAFPolicy) string {
+	names := make([]string, 0, len(policies))
+	for _, p := range policies {
+		names = append(names, p.Name)
+	}
+	return strings.Join(names, ",")
 }

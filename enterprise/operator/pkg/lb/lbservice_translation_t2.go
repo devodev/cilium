@@ -66,6 +66,7 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/cilium/cilium/enterprise/operator/pkg/wafpolicy"
 	"github.com/cilium/cilium/pkg/annotation"
 	"github.com/cilium/cilium/pkg/envoy"
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
@@ -79,8 +80,9 @@ const (
 )
 
 type lbServiceT2Translator struct {
-	logger *slog.Logger
-	config reconcilerConfig
+	logger        *slog.Logger
+	config        reconcilerConfig
+	wafTranslator *wafpolicy.Translator
 }
 
 func (r *lbServiceT2Translator) DesiredCiliumEnvoyConfig(model *lbService) (*ciliumv2.CiliumEnvoyConfig, error) {
@@ -92,7 +94,10 @@ func (r *lbServiceT2Translator) DesiredCiliumEnvoyConfig(model *lbService) (*cil
 
 	// Service (with route(s)) -> Envoy Listener(s) & Route(s)
 
-	listeners := r.desiredEnvoyListeners(model)
+	listeners, err := r.desiredEnvoyListeners(model)
+	if err != nil {
+		return nil, err
+	}
 
 	for _, l := range listeners {
 		listenerXdsResource, err := r.toXdsResource(l, envoy.ListenerTypeURL)
@@ -103,7 +108,10 @@ func (r *lbServiceT2Translator) DesiredCiliumEnvoyConfig(model *lbService) (*cil
 		envoyResources = append(envoyResources, listenerXdsResource)
 	}
 
-	routeConfigs := r.desiredEnvoyRouteConfigs(model)
+	routeConfigs, err := r.desiredEnvoyRouteConfigs(model)
+	if err != nil {
+		return nil, err
+	}
 
 	for _, rc := range routeConfigs {
 		routeConfigXdsResource, err := r.toXdsResource(rc, envoy.RouteTypeURL)
@@ -238,7 +246,7 @@ func (r *lbServiceT2Translator) desiredAccessLoggerCluster(model *lbService) (*e
 	}, nil
 }
 
-func (r *lbServiceT2Translator) desiredEnvoyListeners(model *lbService) []*envoy_config_listener_v3.Listener {
+func (r *lbServiceT2Translator) desiredEnvoyListeners(model *lbService) ([]*envoy_config_listener_v3.Listener, error) {
 	listeners := []*envoy_config_listener_v3.Listener{}
 
 	addresses := []string{}
@@ -253,17 +261,21 @@ func (r *lbServiceT2Translator) desiredEnvoyListeners(model *lbService) []*envoy
 	// listener. Keeping it would emit a TCP listener without any filter chains, which Envoy
 	// rejects with a NACK.
 	if !model.isUDPProxy() || !r.config.T1T2HealthCheck.T2HCPushEnabled {
-		listeners = append(listeners, r.desiredEnvoyTCPListener(model, addresses))
+		tcpListener, err := r.desiredEnvoyTCPListener(model, addresses)
+		if err != nil {
+			return nil, err
+		}
+		listeners = append(listeners, tcpListener)
 	}
 
 	if model.isUDPProxy() {
 		listeners = append(listeners, r.desiredEnvoyUDPListener(model, addresses))
 	}
 
-	return listeners
+	return listeners, nil
 }
 
-func (r *lbServiceT2Translator) desiredEnvoyTCPListener(model *lbService, addresses []string) *envoy_config_listener_v3.Listener {
+func (r *lbServiceT2Translator) desiredEnvoyTCPListener(model *lbService, addresses []string) (*envoy_config_listener_v3.Listener, error) {
 	var accessLoggers []*envoy_config_accesslog_v3.AccessLog
 
 	if r.config.AccessLog.EnableTCP {
@@ -271,18 +283,22 @@ func (r *lbServiceT2Translator) desiredEnvoyTCPListener(model *lbService, addres
 	}
 
 	mainAddress, additionalAddresses := r.toAddresses(addresses, model.port, envoy_config_core_v3.SocketAddress_TCP)
+	filterChains, err := r.desiredEnvoyListenerFilterChains(model)
+	if err != nil {
+		return nil, err
+	}
 
 	return &envoy_config_listener_v3.Listener{
 		Name:                          "frontend_listener_tcp",
 		Address:                       mainAddress,
 		AdditionalAddresses:           additionalAddresses,
 		ListenerFilters:               r.desiredEnvoyTCPListenerFilters(model),
-		FilterChains:                  r.desiredEnvoyListenerFilterChains(model),
+		FilterChains:                  filterChains,
 		AccessLog:                     accessLoggers,
 		PerConnectionBufferLimitBytes: wrapperspb.UInt32(32768), // 32KiB
 		StatPrefix:                    fmt.Sprintf("%s_%s", model.namespace, model.name),
 		TrafficDirection:              envoy_config_core_v3.TrafficDirection_INBOUND,
-	}
+	}, nil
 }
 
 func (*lbServiceT2Translator) toAddresses(addresses []string, port int32, protocol envoy_config_core_v3.SocketAddress_Protocol) (*envoy_config_core_v3.Address, []*envoy_config_listener_v3.AdditionalAddress) {
@@ -463,7 +479,7 @@ func (r *lbServiceT2Translator) toProxyProtocolConfig(proxyProtocolConfig *lbSer
 	}
 }
 
-func (r *lbServiceT2Translator) desiredEnvoyListenerFilterChains(model *lbService) []*envoy_config_listener_v3.FilterChain {
+func (r *lbServiceT2Translator) desiredEnvoyListenerFilterChains(model *lbService) ([]*envoy_config_listener_v3.FilterChain, error) {
 	filterChains := []*envoy_config_listener_v3.FilterChain{}
 
 	if !r.config.T1T2HealthCheck.T2HCPushEnabled {
@@ -472,12 +488,18 @@ func (r *lbServiceT2Translator) desiredEnvoyListenerFilterChains(model *lbServic
 	}
 
 	if model.applications.isHTTPProxyConfigured() {
-		httpFilterChain := r.desiredEnvoyListenerHttpFilterChain(model)
+		httpFilterChain, err := r.desiredEnvoyListenerHttpFilterChain(model)
+		if err != nil {
+			return nil, err
+		}
 		filterChains = append(filterChains, httpFilterChain)
 	}
 
 	if model.applications.isHTTPSProxyConfigured() {
-		httpsFilterChain := r.desiredEnvoyListenerHttpsFilterChain(model)
+		httpsFilterChain, err := r.desiredEnvoyListenerHttpsFilterChain(model)
+		if err != nil {
+			return nil, err
+		}
 		filterChains = append(filterChains, httpsFilterChain)
 	}
 
@@ -496,7 +518,7 @@ func (r *lbServiceT2Translator) desiredEnvoyListenerFilterChains(model *lbServic
 		filterChains = append(filterChains, tcpProxyFilterChains...)
 	}
 
-	return filterChains
+	return filterChains, nil
 }
 
 func (r *lbServiceT2Translator) desiredEnvoyListenerHealthCheckHttpFilterChain(model *lbService) *envoy_config_listener_v3.FilterChain {
@@ -536,7 +558,7 @@ func (r *lbServiceT2Translator) t1NodeCIDRRanges(model *lbService) []*envoy_conf
 	return t1NodeCIDRs
 }
 
-func (r *lbServiceT2Translator) desiredEnvoyListenerHttpFilterChain(model *lbService) *envoy_config_listener_v3.FilterChain {
+func (r *lbServiceT2Translator) desiredEnvoyListenerHttpFilterChain(model *lbService) (*envoy_config_listener_v3.FilterChain, error) {
 	networkFilters := []*envoy_config_listener_v3.Filter{}
 
 	if model.applications.getHTTPConnectionFiltering() != nil {
@@ -557,10 +579,15 @@ func (r *lbServiceT2Translator) desiredEnvoyListenerHttpFilterChain(model *lbSer
 		})
 	}
 
+	httpHCM, err := r.desiredEnvoyListenerHTTPHCM(model)
+	if err != nil {
+		return nil, err
+	}
+
 	networkFilters = append(networkFilters, &envoy_config_listener_v3.Filter{
 		Name: "envoy.filters.network.http_connection_manager",
 		ConfigType: &envoy_config_listener_v3.Filter_TypedConfig{
-			TypedConfig: toAny(r.desiredEnvoyListenerHTTPHCM(model)),
+			TypedConfig: toAny(httpHCM),
 		},
 	})
 
@@ -569,7 +596,7 @@ func (r *lbServiceT2Translator) desiredEnvoyListenerHttpFilterChain(model *lbSer
 			TransportProtocol: "raw_buffer",
 		},
 		Filters: networkFilters,
-	}
+	}, nil
 }
 
 func (r *lbServiceT2Translator) desiredEnvoyListenerHealthCheckHTTPHCM(model *lbService) *envoy_extensions_filters_network_hcm_v3.HttpConnectionManager {
@@ -606,7 +633,12 @@ func (r *lbServiceT2Translator) desiredEnvoyListenerHealthCheckHTTPHCM(model *lb
 	}
 }
 
-func (r *lbServiceT2Translator) desiredEnvoyListenerHTTPHCM(model *lbService) *envoy_extensions_filters_network_hcm_v3.HttpConnectionManager {
+func (r *lbServiceT2Translator) desiredEnvoyListenerHTTPHCM(model *lbService) (*envoy_extensions_filters_network_hcm_v3.HttpConnectionManager, error) {
+	httpFilters, err := r.desiredEnvoyListenerHttpHTTPFilters(model)
+	if err != nil {
+		return nil, err
+	}
+
 	return &envoy_extensions_filters_network_hcm_v3.HttpConnectionManager{
 		ServerName:                   r.config.ServerName,
 		AccessLog:                    r.desiredEnvoyAccessLoggers(model, r.config.AccessLog.FormatHTTP, r.config.AccessLog.JSONFormatHTTP),
@@ -620,7 +652,7 @@ func (r *lbServiceT2Translator) desiredEnvoyListenerHTTPHCM(model *lbService) *e
 		UseRemoteAddress:             wrapperspb.Bool(r.config.OriginalIPDetection.UseRemoteAddress),
 		XffNumTrustedHops:            uint32(r.config.OriginalIPDetection.XffNumTrustedHops),
 		StripMatchingHostPort:        true,
-		HttpFilters:                  r.desiredEnvoyListenerHttpHTTPFilters(model),
+		HttpFilters:                  httpFilters,
 		RouteSpecifier: &envoy_extensions_filters_network_hcm_v3.HttpConnectionManager_Rds{
 			Rds: &envoy_extensions_filters_network_hcm_v3.Rds{
 				RouteConfigName: "frontend_routeconfig_http",
@@ -635,7 +667,7 @@ func (r *lbServiceT2Translator) desiredEnvoyListenerHTTPHCM(model *lbService) *e
 			InitialStreamWindowSize:     wrapperspb.UInt32(65535),
 			InitialConnectionWindowSize: wrapperspb.UInt32(1048576),
 		},
-	}
+	}, nil
 }
 
 func (r *lbServiceT2Translator) desiredEnvoyListenerHealthCheckHttpHTTPFilters(model *lbService) []*envoy_extensions_filters_network_hcm_v3.HttpFilter {
@@ -659,8 +691,17 @@ func (r *lbServiceT2Translator) desiredEnvoyListenerHealthCheckHttpHTTPFilters(m
 	return httpFilters
 }
 
-func (r *lbServiceT2Translator) desiredEnvoyListenerHttpHTTPFilters(model *lbService) []*envoy_extensions_filters_network_hcm_v3.HttpFilter {
+func (r *lbServiceT2Translator) desiredEnvoyListenerHttpHTTPFilters(model *lbService) ([]*envoy_extensions_filters_network_hcm_v3.HttpFilter, error) {
 	httpFilters := []*envoy_extensions_filters_network_hcm_v3.HttpFilter{}
+
+	wafFilter, err := r.wafTranslator.HTTPFilter(model.name, model.namespace, model.effectiveWAFConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build managed WAF HTTP filter: %w", err)
+	}
+
+	if wafFilter != nil {
+		httpFilters = append(httpFilters, wafFilter)
+	}
 
 	if model.usesHTTPBasicAuth() {
 		httpFilters = append(httpFilters, &envoy_extensions_filters_network_hcm_v3.HttpFilter{
@@ -717,7 +758,7 @@ func (r *lbServiceT2Translator) desiredEnvoyListenerHttpHTTPFilters(model *lbSer
 		},
 	})
 
-	return httpFilters
+	return httpFilters, nil
 }
 
 func (r *lbServiceT2Translator) toJWTAuthentication(namespace, name, httpType string, auth *lbServiceHTTPJWTAuth) *envoy_extensions_filters_http_jwt_authn_v3.JwtAuthentication {
@@ -979,7 +1020,7 @@ func (r *lbServiceT2Translator) requiresClientCertificate(validationContext *env
 	return wrapperspb.Bool(true)
 }
 
-func (r *lbServiceT2Translator) desiredEnvoyListenerHttpsFilterChain(model *lbService) *envoy_config_listener_v3.FilterChain {
+func (r *lbServiceT2Translator) desiredEnvoyListenerHttpsFilterChain(model *lbService) (*envoy_config_listener_v3.FilterChain, error) {
 	validationContext := r.toTLSValidationContext(model.namespace, model.applications.httpsProxy.tlsConfig)
 
 	networkFilters := []*envoy_config_listener_v3.Filter{}
@@ -1002,10 +1043,15 @@ func (r *lbServiceT2Translator) desiredEnvoyListenerHttpsFilterChain(model *lbSe
 		})
 	}
 
+	httpsHCM, err := r.desiredEnvoyListenerHTTPSHCM(model)
+	if err != nil {
+		return nil, err
+	}
+
 	networkFilters = append(networkFilters, &envoy_config_listener_v3.Filter{
 		Name: "envoy.filters.network.http_connection_manager",
 		ConfigType: &envoy_config_listener_v3.Filter_TypedConfig{
-			TypedConfig: toAny(r.desiredEnvoyListenerHTTPSHCM(model)),
+			TypedConfig: toAny(httpsHCM),
 		},
 	})
 
@@ -1034,10 +1080,15 @@ func (r *lbServiceT2Translator) desiredEnvoyListenerHttpsFilterChain(model *lbSe
 			},
 		},
 		Filters: networkFilters,
-	}
+	}, nil
 }
 
-func (r *lbServiceT2Translator) desiredEnvoyListenerHTTPSHCM(model *lbService) *envoy_extensions_filters_network_hcm_v3.HttpConnectionManager {
+func (r *lbServiceT2Translator) desiredEnvoyListenerHTTPSHCM(model *lbService) (*envoy_extensions_filters_network_hcm_v3.HttpConnectionManager, error) {
+	httpFilters, err := r.desiredEnvoyListenerHttpsHTTPFilters(model)
+	if err != nil {
+		return nil, err
+	}
+
 	return &envoy_extensions_filters_network_hcm_v3.HttpConnectionManager{
 		ServerName:                   r.config.ServerName,
 		AccessLog:                    r.desiredEnvoyAccessLoggers(model, r.config.AccessLog.FormatHTTPS, r.config.AccessLog.JSONFormatHTTPS),
@@ -1051,7 +1102,7 @@ func (r *lbServiceT2Translator) desiredEnvoyListenerHTTPSHCM(model *lbService) *
 		UseRemoteAddress:             wrapperspb.Bool(r.config.OriginalIPDetection.UseRemoteAddress),
 		XffNumTrustedHops:            uint32(r.config.OriginalIPDetection.XffNumTrustedHops),
 		StripMatchingHostPort:        true,
-		HttpFilters:                  r.desiredEnvoyListenerHttpsHTTPFilters(model),
+		HttpFilters:                  httpFilters,
 		RouteSpecifier: &envoy_extensions_filters_network_hcm_v3.HttpConnectionManager_Rds{
 			Rds: &envoy_extensions_filters_network_hcm_v3.Rds{
 				RouteConfigName: "frontend_routeconfig_https",
@@ -1066,11 +1117,20 @@ func (r *lbServiceT2Translator) desiredEnvoyListenerHTTPSHCM(model *lbService) *
 			InitialStreamWindowSize:     wrapperspb.UInt32(65535),
 			InitialConnectionWindowSize: wrapperspb.UInt32(1048576),
 		},
-	}
+	}, nil
 }
 
-func (r *lbServiceT2Translator) desiredEnvoyListenerHttpsHTTPFilters(model *lbService) []*envoy_extensions_filters_network_hcm_v3.HttpFilter {
+func (r *lbServiceT2Translator) desiredEnvoyListenerHttpsHTTPFilters(model *lbService) ([]*envoy_extensions_filters_network_hcm_v3.HttpFilter, error) {
 	httpFilters := []*envoy_extensions_filters_network_hcm_v3.HttpFilter{}
+
+	wafFilter, err := r.wafTranslator.HTTPFilter(model.name, model.namespace, model.effectiveWAFConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build managed WAF HTTPs filter: %w", err)
+	}
+
+	if wafFilter != nil {
+		httpFilters = append(httpFilters, wafFilter)
+	}
 
 	if model.usesHTTPSBasicAuth() {
 		httpFilters = append(httpFilters, &envoy_extensions_filters_network_hcm_v3.HttpFilter{
@@ -1127,7 +1187,7 @@ func (r *lbServiceT2Translator) desiredEnvoyListenerHttpsHTTPFilters(model *lbSe
 		},
 	})
 
-	return httpFilters
+	return httpFilters, nil
 }
 
 func (r *lbServiceT2Translator) desiredEnvoyListenerTLSPassthroughFilterChains(model *lbService) []*envoy_config_listener_v3.FilterChain {
@@ -1399,27 +1459,39 @@ func (r *lbServiceT2Translator) desiredEnvoyAccessLoggers(model *lbService, text
 	return accessLoggers
 }
 
-func (r *lbServiceT2Translator) desiredEnvoyRouteConfigs(model *lbService) []*envoy_config_route_v3.RouteConfiguration {
+func (r *lbServiceT2Translator) desiredEnvoyRouteConfigs(model *lbService) ([]*envoy_config_route_v3.RouteConfiguration, error) {
 	routeConfigs := []*envoy_config_route_v3.RouteConfiguration{}
 
 	if model.applications.isHTTPProxyConfigured() {
-		httpRouteConfig := r.desiredEnvoyHttpRouteConfig(model)
+		httpRouteConfig, err := r.desiredEnvoyHttpRouteConfig(model)
+		if err != nil {
+			return nil, err
+		}
 		routeConfigs = append(routeConfigs, httpRouteConfig)
 	}
 
 	if model.applications.isHTTPSProxyConfigured() {
-		httpsRouteConfig := r.desiredEnvoyHttpsRouteConfig(model)
+		httpsRouteConfig, err := r.desiredEnvoyHttpsRouteConfig(model)
+		if err != nil {
+			return nil, err
+		}
 		routeConfigs = append(routeConfigs, httpsRouteConfig)
 
 	}
 
-	return routeConfigs
+	return routeConfigs, nil
 }
 
-func (r *lbServiceT2Translator) desiredEnvoyHttpRouteConfig(model *lbService) *envoy_config_route_v3.RouteConfiguration {
+func (r *lbServiceT2Translator) desiredEnvoyHttpRouteConfig(model *lbService) (*envoy_config_route_v3.RouteConfiguration, error) {
 	virtualHosts := []*envoy_config_route_v3.VirtualHost{}
 	if model.applications.httpProxy != nil {
+		blockRoute, err := r.wafTranslator.BlockRoute(model.name, model.namespace, model.effectiveWAFConfig)
+		if err != nil {
+			return nil, err
+		}
+
 		virtualHosts = r.desiredEnvoyHttpRouteVirtualHosts(
+			blockRoute,
 			model.usesHTTPRequestFiltering(),
 			model.usesHTTPRequestRateLimiting(),
 			model.usesHTTPBasicAuth(),
@@ -1434,13 +1506,19 @@ func (r *lbServiceT2Translator) desiredEnvoyHttpRouteConfig(model *lbService) *e
 	return &envoy_config_route_v3.RouteConfiguration{
 		Name:         "frontend_routeconfig_http",
 		VirtualHosts: virtualHosts,
-	}
+	}, nil
 }
 
-func (r *lbServiceT2Translator) desiredEnvoyHttpsRouteConfig(model *lbService) *envoy_config_route_v3.RouteConfiguration {
+func (r *lbServiceT2Translator) desiredEnvoyHttpsRouteConfig(model *lbService) (*envoy_config_route_v3.RouteConfiguration, error) {
 	virtualHosts := []*envoy_config_route_v3.VirtualHost{}
 	if model.applications.httpsProxy != nil {
+		blockRoute, err := r.wafTranslator.BlockRoute(model.name, model.namespace, model.effectiveWAFConfig)
+		if err != nil {
+			return nil, err
+		}
+
 		virtualHosts = r.desiredEnvoyHttpRouteVirtualHosts(
+			blockRoute,
 			model.usesHTTPSRequestFiltering(),
 			model.usesHTTPSRequestRateLimiting(),
 			model.usesHTTPSBasicAuth(),
@@ -1455,16 +1533,19 @@ func (r *lbServiceT2Translator) desiredEnvoyHttpsRouteConfig(model *lbService) *
 	return &envoy_config_route_v3.RouteConfiguration{
 		Name:         "frontend_routeconfig_https",
 		VirtualHosts: virtualHosts,
-	}
+	}, nil
 }
 
-func (r *lbServiceT2Translator) desiredEnvoyHttpRouteVirtualHosts(usesRequestFiltering bool, usesRateLimiting bool, usesBasicAuth bool, usesJWTAuth bool, modelRoutes map[string][]lbRouteHTTP, httpType string, namespace string, name string) []*envoy_config_route_v3.VirtualHost {
+func (r *lbServiceT2Translator) desiredEnvoyHttpRouteVirtualHosts(blockRoute *envoy_config_route_v3.Route, usesRequestFiltering bool, usesRateLimiting bool, usesBasicAuth bool, usesJWTAuth bool, modelRoutes map[string][]lbRouteHTTP, httpType string, namespace string, name string) []*envoy_config_route_v3.VirtualHost {
 	virtualHosts := []*envoy_config_route_v3.VirtualHost{}
 
 	routeHostNamesOrdered := slices.Sorted(maps.Keys(modelRoutes))
 
 	for _, routeHostname := range routeHostNamesOrdered {
 		envoyRoutes := []*envoy_config_route_v3.Route{}
+		if blockRoute != nil {
+			envoyRoutes = append(envoyRoutes, blockRoute)
+		}
 
 		for _, route := range modelRoutes[routeHostname] {
 			tpfc := map[string]*anypb.Any{}

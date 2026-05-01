@@ -155,15 +155,16 @@ type reconcilerParams struct {
 
 	NodeSource *ciliumNodeSource
 
-	WAFDefaults wafpolicy.GlobalDefaults
+	WAFResolver *wafpolicy.Resolver
 }
 
 type translatorParams struct {
 	cell.In
 
-	Logger      *slog.Logger
-	Config      Config
-	AgentConfig *option.DaemonConfig
+	Logger        *slog.Logger
+	Config        Config
+	AgentConfig   *option.DaemonConfig
+	WAFTranslator *wafpolicy.Translator
 }
 
 func newT1Translator(params translatorParams) *lbServiceT1Translator {
@@ -183,7 +184,11 @@ func newT2Translator(params translatorParams) *lbServiceT2Translator {
 
 	reconcilerConfig := mapReconcilerConfig(params.Config, params.AgentConfig)
 
-	return &lbServiceT2Translator{logger: params.Logger, config: reconcilerConfig}
+	return &lbServiceT2Translator{
+		logger:        params.Logger,
+		config:        reconcilerConfig,
+		wafTranslator: params.WAFTranslator,
+	}
 }
 
 func registerLBReconcilers(params reconcilerParams) error {
@@ -216,7 +221,7 @@ func registerLBReconcilers(params reconcilerParams) error {
 		newIngestor(params.Logger, *t1ls, *t2ls),
 		params.T1Translator,
 		params.T2Translator,
-		params.WAFDefaults,
+		params.WAFResolver,
 	)
 
 	lbVIPReconciler := newLBVIPReconciler(

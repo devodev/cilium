@@ -11,31 +11,33 @@
 package wafpolicy
 
 import (
+	"context"
 	"testing"
 
+	"github.com/cilium/hive/hivetest"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/runtime"
+	ctrlClient "sigs.k8s.io/controller-runtime/pkg/client"
+	ctrlFakeClient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	isovalentv1alpha1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
 	slim_metav1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
 )
 
-func TestResolveForLBService(t *testing.T) {
+func TestResolverResolveConfig(t *testing.T) {
 	defaults := GlobalDefaults{
-		Enabled:       false,
+		Enabled:       true,
 		Mode:          isovalentv1alpha1.IsovalentWAFPolicyModeEnforce,
 		PolicyProfile: isovalentv1alpha1.IsovalentWAFPolicyProfileBalanced,
 		FailureMode:   isovalentv1alpha1.WAFFailureModeOpen,
 	}
 
-	service := &isovalentv1alpha1.LBService{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "api",
-			Namespace: "team-a",
-			Labels: map[string]string{
-				"app": "api",
-			},
+	target := PolicyTarget{
+		Name:      "api",
+		Namespace: "team-a",
+		Labels: map[string]string{
+			"app": "api",
 		},
 	}
 
@@ -106,137 +108,95 @@ func TestResolveForLBService(t *testing.T) {
 		&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}},
 	)
 	pendingPolicy.Generation = 2
+	nonMatchingPolicy := acceptedPolicy(
+		"team-a",
+		"other-waf",
+		&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "other"}},
+	)
 
 	testCases := []struct {
 		desc     string
-		policies []isovalentv1alpha1.IsovalentWAFPolicy
-		expected Resolution
+		objects  []ctrlClient.Object
+		expected *EffectiveConfig
 	}{
 		{
-			desc: "uses global defaults when no accepted match exists",
-			expected: Resolution{
-				State: ResolutionStateResolved,
-				Config: EffectiveConfig{
-					Enabled:     defaults.Enabled,
-					Mode:        defaults.Mode,
-					FailureMode: defaults.FailureMode,
-					Rules: EffectiveRules{
-						Source:        EffectiveRuleSourceDefault,
-						PolicyProfile: defaults.PolicyProfile,
-					},
+			desc:     "no accepted match returns nil",
+			objects:  []ctrlClient.Object{&nonMatchingPolicy},
+			expected: nil,
+		},
+		{
+			desc:     "no policies returns nil",
+			expected: nil,
+		},
+		{
+			desc:    "applies matching accepted policy overrides",
+			objects: []ctrlClient.Object{&overridePolicy},
+			expected: &EffectiveConfig{
+				Enabled:     true,
+				Mode:        mode,
+				FailureMode: defaults.FailureMode,
+				Rules: EffectiveRules{
+					Source: EffectiveRuleSourceInline,
+					Inline: mustInlineRulesForTest(t, inline),
 				},
 			},
 		},
 		{
-			desc:     "applies matching accepted policy overrides",
-			policies: []isovalentv1alpha1.IsovalentWAFPolicy{overridePolicy},
-			expected: Resolution{
-				State: ResolutionStateResolved,
-				Config: EffectiveConfig{
-					Enabled:     true,
-					Mode:        mode,
-					FailureMode: defaults.FailureMode,
-					Rules: EffectiveRules{
-						Source: EffectiveRuleSourceInline,
-						Inline: mustInlineRulesForTest(t, inline),
-					},
-				},
-				PolicyRefs: []types.NamespacedName{{
-					Namespace: "team-a",
-					Name:      "api-waf",
-				}},
-			},
-		},
-		{
-			desc:     "applies managed profile when selected",
-			policies: []isovalentv1alpha1.IsovalentWAFPolicy{managedPolicy},
-			expected: Resolution{
-				State: ResolutionStateResolved,
-				Config: EffectiveConfig{
-					Enabled:     true,
-					Mode:        defaults.Mode,
-					FailureMode: defaults.FailureMode,
-					Rules: EffectiveRules{
-						Source:        EffectiveRuleSourceManaged,
-						PolicyProfile: profile,
-					},
-				},
-				PolicyRefs: []types.NamespacedName{{
-					Namespace: "team-a",
-					Name:      "api-waf-managed",
-				}},
-			},
-		},
-		{
-			desc:     "applies managed profile overrides when selected",
-			policies: []isovalentv1alpha1.IsovalentWAFPolicy{managedPolicyWithOverrides},
-			expected: Resolution{
-				State: ResolutionStateResolved,
-				Config: EffectiveConfig{
-					Enabled:     true,
-					Mode:        defaults.Mode,
-					FailureMode: defaults.FailureMode,
-					Rules: EffectiveRules{
-						Source:        EffectiveRuleSourceManaged,
-						PolicyProfile: profile,
-					},
-					HandlingOverrides: EffectiveHandlingOverrides{
-						BodyLimitBytes:          &bodyLimitBytes,
-						BlockResponseStatusCode: &blockStatusCode,
-						BlockResponseBody:       &blockBody,
-					},
-				},
-				PolicyRefs: []types.NamespacedName{{
-					Namespace: "team-a",
-					Name:      "api-waf-managed-overrides",
-				}},
-			},
-		},
-		{
-			desc:     "rejects multiple accepted matches",
-			policies: []isovalentv1alpha1.IsovalentWAFPolicy{conflictFirst, conflictSecond},
-			expected: Resolution{
-				State: ResolutionStateConflict,
-				Config: EffectiveConfig{
-					Enabled:     defaults.Enabled,
-					Mode:        defaults.Mode,
-					FailureMode: defaults.FailureMode,
-					Rules: EffectiveRules{
-						Source:        EffectiveRuleSourceDefault,
-						PolicyProfile: defaults.PolicyProfile,
-					},
-				},
-				PolicyRefs: []types.NamespacedName{
-					{Namespace: "team-a", Name: "first"},
-					{Namespace: "team-a", Name: "second"},
+			desc:    "applies managed profile when selected",
+			objects: []ctrlClient.Object{&managedPolicy},
+			expected: &EffectiveConfig{
+				Enabled:     true,
+				Mode:        defaults.Mode,
+				FailureMode: defaults.FailureMode,
+				Rules: EffectiveRules{
+					Source:        EffectiveRuleSourceManaged,
+					PolicyProfile: profile,
 				},
 			},
 		},
 		{
-			desc:     "waits for matching policy validation from current generation",
-			policies: []isovalentv1alpha1.IsovalentWAFPolicy{pendingPolicy},
-			expected: Resolution{
-				State: ResolutionStatePending,
-				Config: EffectiveConfig{
-					Enabled:     defaults.Enabled,
-					Mode:        defaults.Mode,
-					FailureMode: defaults.FailureMode,
-					Rules: EffectiveRules{
-						Source:        EffectiveRuleSourceDefault,
-						PolicyProfile: defaults.PolicyProfile,
-					},
+			desc:    "applies managed profile overrides when selected",
+			objects: []ctrlClient.Object{&managedPolicyWithOverrides},
+			expected: &EffectiveConfig{
+				Enabled:     true,
+				Mode:        defaults.Mode,
+				FailureMode: defaults.FailureMode,
+				Rules: EffectiveRules{
+					Source:        EffectiveRuleSourceManaged,
+					PolicyProfile: profile,
 				},
-				PolicyRefs: []types.NamespacedName{{
-					Namespace: "team-a",
-					Name:      "pending",
-				}},
+				HandlingOverrides: EffectiveHandlingOverrides{
+					BodyLimitBytes:          &bodyLimitBytes,
+					BlockResponseStatusCode: &blockStatusCode,
+					BlockResponseBody:       &blockBody,
+				},
 			},
+		},
+		{
+			desc:     "multiple accepted matches return nil",
+			objects:  []ctrlClient.Object{&conflictFirst, &conflictSecond},
+			expected: nil,
+		},
+		{
+			desc:     "pending matching policy returns nil",
+			objects:  []ctrlClient.Object{&pendingPolicy},
+			expected: nil,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			actual, err := ResolveForLBService(service, tc.policies, defaults)
+			scheme := runtime.NewScheme()
+			require.NoError(t, isovalentv1alpha1.AddToScheme(scheme))
+
+			builder := ctrlFakeClient.NewClientBuilder().WithScheme(scheme)
+			if len(tc.objects) > 0 {
+				builder = builder.WithObjects(tc.objects...)
+			}
+
+			resolver := NewResolver(builder.Build(), hivetest.Logger(t), defaults)
+
+			actual, err := resolver.ResolveConfig(context.Background(), target)
 
 			require.NoError(t, err)
 			require.Equal(t, tc.expected, actual)

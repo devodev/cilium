@@ -1130,59 +1130,6 @@ func TestLBServiceLBDeployments(t *testing.T) {
 	}
 }
 
-func TestLBServiceSupportsWAF(t *testing.T) {
-	testCases := []struct {
-		desc     string
-		lbsvc    *isovalentv1alpha1.LBService
-		expected bool
-	}{
-		{
-			desc:     "nil service",
-			lbsvc:    nil,
-			expected: false,
-		},
-		{
-			desc: "tcp proxy only",
-			lbsvc: &isovalentv1alpha1.LBService{
-				Spec: isovalentv1alpha1.LBServiceSpec{
-					Applications: isovalentv1alpha1.LBServiceApplications{
-						TCPProxy: &isovalentv1alpha1.LBServiceApplicationTCPProxy{},
-					},
-				},
-			},
-			expected: false,
-		},
-		{
-			desc: "http proxy",
-			lbsvc: &isovalentv1alpha1.LBService{
-				Spec: isovalentv1alpha1.LBServiceSpec{
-					Applications: isovalentv1alpha1.LBServiceApplications{
-						HTTPProxy: &isovalentv1alpha1.LBServiceApplicationHTTPProxy{},
-					},
-				},
-			},
-			expected: true,
-		},
-		{
-			desc: "https proxy",
-			lbsvc: &isovalentv1alpha1.LBService{
-				Spec: isovalentv1alpha1.LBServiceSpec{
-					Applications: isovalentv1alpha1.LBServiceApplications{
-						HTTPSProxy: &isovalentv1alpha1.LBServiceApplicationHTTPSProxy{},
-					},
-				},
-			},
-			expected: true,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.desc, func(t *testing.T) {
-			require.Equal(t, tc.expected, lbsvcSupportsWAF(tc.lbsvc))
-		})
-	}
-}
-
 func acceptedCondition() metav1.Condition {
 	return metav1.Condition{
 		Type:    isovalentv1alpha1.ConditionTypeBackendAccepted,

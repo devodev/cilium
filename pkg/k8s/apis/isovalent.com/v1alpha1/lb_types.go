@@ -1915,6 +1915,10 @@ func (r *LBService) AllStatusConditionsMet() bool {
 	return true
 }
 
+func (r *LBService) IsL7Proxy() bool {
+	return r.Spec.Applications.HTTPProxy != nil || r.Spec.Applications.HTTPSProxy != nil
+}
+
 type LBTrafficPolicy struct {
 	// The zone-aware routing configuration for this service.
 	//

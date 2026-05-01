@@ -352,6 +352,10 @@ Allow packagers to add extra env vars to the cilium-envoy container.
       name: restart-epoch-cm
       key: restart-epoch
 {{- end }}
+{{- if .Values.enterprise.waf.enabled }}
+- name: ENVOY_DYNAMIC_MODULES_SEARCH_PATH
+  value: /usr/lib
+{{- end }}
 {{- end }}
 
 {{/*
