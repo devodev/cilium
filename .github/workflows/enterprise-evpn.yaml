@@ -149,6 +149,13 @@ jobs:
           image-tag: ${{ steps.default_vars.outputs.sha }}
           repository: ${{ env.CILIUM_CLI_RELEASE_REPO }}
           release-version: ${{ env.CILIUM_CLI_VERSION }}
+          # Install to the local directory as we need to use it from within LVH VM.
+          # We will also install it to the common location in the next step, so that common actions work properly.
+          binary-dir: ./
+
+      - name: Install Cilium CLI to common location
+        run: |
+          sudo install -m 0755 ./cilium /usr/local/bin/cilium
 
       - name: Provision K8s on LVH VM
         uses: ./.github/actions/lvh-kind
@@ -199,10 +206,14 @@ jobs:
           cd contrib/containerlab/enterprise/evpn && make config
 
       - name: Run EVPN connectivity tests
-        shell: bash
-        run: |
-          cilium evpn test --skip-cleanup-on-failure
-          # TODO: generate junits from these tests as well
+        uses: cilium/little-vm-helper@ad43ff511dd5365a0011ae9f864ec959c36daebf # v0.0.28
+        with:
+          provision: 'false'
+          cmd: |
+            cd /host/
+            ./cilium evpn test --skip-cleanup-on-failure \
+              --vnis=100,200 --vni-containers=clab-evpn-cluster-vni100-host,clab-evpn-cluster-vni200-host
+            # TODO: generate junits from these tests as well
 
       - name: Run Cilium connectivity tests
         run: |
