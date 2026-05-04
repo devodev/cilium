@@ -5,6 +5,14 @@
 
 set -ex
 
+REGISTRY="quay.io"
+REGISTRY_DEV="quay.io"
+BACKUP_REGISTRY="docker.io"
+echo "REGISTRY=$REGISTRY" >> $GITHUB_ENV
+echo "REGISTRY_DEV=$REGISTRY_DEV" >> $GITHUB_ENV
+echo "BACKUP_REGISTRY=$BACKUP_REGISTRY" >> $GITHUB_ENV
+echo "ORGANIZATION=isovalent-staging" >> $GITHUB_ENV
+echo "ORGANIZATION_DEV=isovalent-dev" >> $GITHUB_ENV
 echo "QUAY_ORGANIZATION=isovalent-staging" >> "$GITHUB_ENV"
 echo "QUAY_ORGANIZATION_DEV=isovalent-dev" >> "$GITHUB_ENV"
 echo "CILIUM_HELM_REPO_NAME=isovalent" >> "$GITHUB_ENV"
@@ -14,6 +22,7 @@ echo "CILIUM_OSS_HELM_REPO_NAME=cilium" >> $GITHUB_ENV
 echo "CILIUM_OSS_HELM_REPO_URL=https://helm.cilium.io" >> $GITHUB_ENV
 echo "CILIUM_OSS_CLI_REPO=cilium/cilium-cli" >> $GITHUB_ENV
 
+echo "CHARTS_ORGANIZATION_DEV=isovalent-charts-dev" >> "$GITHUB_ENV"
 echo "QUAY_CHARTS_ORGANIZATION_DEV=isovalent-charts-dev" >> "$GITHUB_ENV"
 echo "QUAY_OSS_CHARTS_ORGANIZATION_DEV=cilium-charts-dev" >> $GITHUB_ENV
 echo "BRANCH_SUFFIX=-ce" >> "$GITHUB_ENV"
@@ -28,7 +37,7 @@ echo "CONN_DISRUPT_EXTRA_TEST=no-interrupted-connections-for-enterprise" >> "$GI
 echo "CILIUM_CLI_RELEASE_REPO=isovalent/cilium-cli-releases" >> "$GITHUB_ENV"
 CILIUM_CLI_VERSION=""
 echo "CILIUM_CLI_VERSION=$CILIUM_CLI_VERSION" >> "$GITHUB_ENV"
-echo "CILIUM_CLI_IMAGE_REPO=quay.io/isovalent-dev/cilium-cli-ci" >> $GITHUB_ENV
+echo "CILIUM_CLI_IMAGE_REPO=${REGISTRY_DEV}/isovalent-dev/cilium-cli-ci" >> $GITHUB_ENV
 echo "CILIUM_CLI_SKIP_BUILD=false" >> $GITHUB_ENV
 echo "CILIUM_CLI_CODE_OWNERS_PATHS=CODEOWNERS,TESTOWNERS.enterprise" >> $GITHUB_ENV
 echo "CILIUM_CLI_EXCLUDE_OWNERS=@isovalent/core-structure" >> $GITHUB_ENV
