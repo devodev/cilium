@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -22,14 +21,6 @@ import (
 
 func InitGlobalFlags(logger *slog.Logger, cmd *cobra.Command, vp *viper.Viper) {
 	flags := cmd.Flags()
-
-	flags.Var(option.NewMapOptions(&operatorOption.Config.IPAMSubnetsTags),
-		operatorOption.IPAMSubnetsTags, "Subnets tags in the form of k1=v1,k2=v2 (multiple k/v pairs can also be passed by repeating the CLI flag")
-	option.BindEnv(vp, operatorOption.IPAMSubnetsTags)
-
-	flags.StringSliceVar(&operatorOption.Config.IPAMSubnetsIDs, operatorOption.IPAMSubnetsIDs, operatorOption.Config.IPAMSubnetsIDs,
-		"Subnets IDs (separated by commas)")
-	option.BindEnv(vp, operatorOption.IPAMSubnetsIDs)
 
 	flags.Var(option.NewMapOptions(&operatorOption.Config.IPAMInstanceTags), operatorOption.IPAMInstanceTags,
 		"EC2 Instance tags in the form of k1=v1,k2=v2 (multiple k/v pairs can also be passed by repeating the CLI flag")
@@ -169,30 +160,8 @@ func InitGlobalFlags(logger *slog.Logger, cmd *cobra.Command, vp *viper.Viper) {
 	flags.MarkHidden(option.CMDRef)
 	option.BindEnv(vp, option.CMDRef)
 
-	flags.Duration(operatorOption.LeaderElectionLeaseDuration, 15*time.Second,
-		"Duration that non-leader operator candidates will wait before forcing to acquire leadership")
-	option.BindEnv(vp, operatorOption.LeaderElectionLeaseDuration)
-
-	flags.Duration(operatorOption.LeaderElectionRenewDeadline, 10*time.Second,
-		"Duration that current acting master will retry refreshing leadership in before giving up the lock")
-	option.BindEnv(vp, operatorOption.LeaderElectionRenewDeadline)
-
-	flags.Duration(operatorOption.LeaderElectionRetryPeriod, 2*time.Second,
-		"Duration that LeaderElector clients should wait between retries of the actions")
-	option.BindEnv(vp, operatorOption.LeaderElectionRetryPeriod)
-
-	flags.Duration(operatorOption.LeaderElectionResourceLockTimeout, 0,
-		"Timeout for the HTTP requests to acquire/renew the leader election resource lock. When set to 0, defaults to max(1s, RenewDeadline/2)")
-	option.BindEnv(vp, operatorOption.LeaderElectionResourceLockTimeout)
-
 	flags.Bool(option.EnableCiliumEndpointSlice, false, "If set to true, the CiliumEndpointSlice feature is enabled. If any CiliumEndpoints resources are created, updated, or deleted in the cluster, all those changes are broadcast as CiliumEndpointSlice updates to all of the Cilium agents.")
 	option.BindEnv(vp, option.EnableCiliumEndpointSlice)
-
-	flags.String(operatorOption.CiliumK8sNamespace, "", fmt.Sprintf("Name of the Kubernetes namespace in which Cilium is deployed in. Defaults to the same namespace defined in %s", option.K8sNamespaceName))
-	option.BindEnv(vp, operatorOption.CiliumK8sNamespace)
-
-	flags.String(operatorOption.CiliumPodLabels, "k8s-app=cilium", "Cilium Pod's labels. Used to detect if a Cilium pod is running to remove the node taints where its running and set NetworkUnavailable to false")
-	option.BindEnv(vp, operatorOption.CiliumPodLabels)
 
 	flags.String(option.KubeProxyReplacement, "false", "Enable only selected features (will panic if any selected feature cannot be enabled) (\"false\"), or enable all features (will panic if any feature cannot be enabled) (\"true\") (default \"false\")")
 	flags.MarkHidden(option.KubeProxyReplacement)

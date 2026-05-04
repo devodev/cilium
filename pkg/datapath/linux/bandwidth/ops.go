@@ -21,10 +21,11 @@ import (
 type ops struct {
 	log       *slog.Logger
 	isEnabled func() bool
+	devices   statedb.Table[*tables.Device]
 }
 
-func newOps(log *slog.Logger, mgr Manager) reconciler.Operations[*tables.BandwidthQDisc] {
-	return &ops{log, mgr.Enabled}
+func newOps(log *slog.Logger, mgr Manager, devices statedb.Table[*tables.Device]) reconciler.Operations[*tables.BandwidthQDisc] {
+	return &ops{log, mgr.Enabled, devices}
 }
 
 // Delete implements reconciler.Operations.
@@ -51,6 +52,73 @@ func (ops *ops) Update(ctx context.Context, txn statedb.ReadTxn, _ statedb.Revis
 	if err != nil {
 		return fmt.Errorf("LinkByIndex: %w", err)
 	}
+
+	if link.Type() == "bond" {
+		return ops.updateBondDevice(link, txn, q)
+	}
+
+	return ops.setupFQOnLink(link, q)
+}
+
+func (ops *ops) updateBondDevice(bond netlink.Link, txn statedb.ReadTxn, q *tables.BandwidthQDisc) error {
+	slaves := ops.bondSlaves(bond, txn)
+
+	if len(slaves) == 0 {
+		return nil
+	}
+
+	if err := ops.ensureNoqueue(bond); err != nil {
+		return err
+	}
+
+	for _, slave := range slaves {
+		slaveLink, err := netlink.LinkByIndex(slave.Index)
+		if err != nil {
+			return fmt.Errorf("bond slave %s: LinkByIndex: %w", slave.Name, err)
+		}
+		if err := ops.setupFQOnLink(slaveLink, q); err != nil {
+			return fmt.Errorf("bond slave %s: %w", slave.Name, err)
+		}
+	}
+	return nil
+}
+
+func (ops *ops) bondSlaves(bond netlink.Link, txn statedb.ReadTxn) []*tables.Device {
+	var slaves []*tables.Device
+	for dev := range ops.devices.All(txn) {
+		if dev.MasterIndex == bond.Attrs().Index {
+			slaves = append(slaves, dev)
+		}
+	}
+	return slaves
+}
+
+func (ops *ops) ensureNoqueue(link netlink.Link) error {
+	qdiscs, err := safenetlink.QdiscList(link)
+	if err != nil {
+		return fmt.Errorf("QdiscList for %s: %w", link.Attrs().Name, err)
+	}
+	for _, qdisc := range qdiscs {
+		if qdisc.Attrs().Parent == netlink.HANDLE_ROOT && qdisc.Type() == "noqueue" {
+			return nil
+		}
+	}
+	noqueue := &netlink.GenericQdisc{
+		QdiscAttrs: netlink.QdiscAttrs{
+			LinkIndex: link.Attrs().Index,
+			Parent:    netlink.HANDLE_ROOT,
+		},
+		QdiscType: "noqueue",
+	}
+	if err := netlink.QdiscReplace(noqueue); err != nil {
+		return fmt.Errorf("cannot set noqueue on bond master %s: %w", link.Attrs().Name, err)
+	}
+	ops.log.Info("Setting noqueue on bond master device",
+		logfields.Device, link.Attrs().Name)
+	return nil
+}
+
+func (ops *ops) setupFQOnLink(link netlink.Link, q *tables.BandwidthQDisc) error {
 	device := link.Attrs().Name
 
 	// Check if the qdiscs are already set up as expected.
@@ -83,7 +151,6 @@ func (ops *ops) Update(ctx context.Context, txn statedb.ReadTxn, _ statedb.Revis
 					updatedQdiscs++
 				}
 			}
-
 		}
 	}
 	if updatedQdiscs == numEgressQdiscs {

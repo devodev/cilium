@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net"
 	"regexp"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -91,7 +92,7 @@ func initializeMetrics(p metricRegistryParams) {
 
 	// TODO: Add TLS support to dnsproxy prometheus server endpoint.
 	// Register metric HTTP listener to cell lifecycle.
-	p.Registry.AddServerRuntimeHooks("dnsproxy-prometheus-server", nil)
+	p.Registry.AddServerRuntimeHooks("dnsproxy-prometheus-server", nil, net.ListenConfig{})
 }
 
 type proxyMetrics struct {

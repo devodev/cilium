@@ -43,9 +43,9 @@ message about duplicate IPs across the tests.
 To observe / assert the state Cilium BGP Control Plane, use the `bgp/*` commands:
 
 ```
-bgp/peers [-o] [--out=string]
+bgp/peers [-fo] [--format=string] [--no-uptime] [--out=string] 
 	List BGP peers on Cilium
-bgp/route-policies [-or] [--out=string] [--router-asn=uint32]
+bgp/route-policies [-io] [--instance=string] [--out=string] 
 	List BGP route policies on Cilium
 bgp/routes [--no-age] <table type> <afi> <safi>
 	List BGP routes on Cilium

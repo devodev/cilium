@@ -1339,6 +1339,9 @@ eni:
 gke:
   # -- Enable Google Kubernetes Engine integration
   enabled: false
+# -- Prefer IPv6 addresses over IPv4 when both are available for health probes
+# and Hubble peer communication.
+preferIpv6: false
 # -- Enable connectivity health checking.
 healthChecking: true
 # -- TCP port for the agent health API. This is not the port for cilium-health.
@@ -1633,6 +1636,7 @@ hubble:
   # Hubble is listening on port 4244.
   listenAddress: ":4244"
   # -- Whether Hubble should prefer to announce IPv6 or IPv4 addresses if both are available.
+  # Deprecated: use top-level preferIpv6 instead.
   preferIpv6: false
   # @schema
   # type: [null, boolean]
@@ -2357,9 +2361,12 @@ k8s:
   # -- requireIPv6PodCIDR enables waiting for Kubernetes to provide the PodCIDR
   # range via the Kubernetes node resource
   requireIPv6PodCIDR: false
+  # @schema
+  # type: [null, string]
+  # @schema
   # -- A space separated list of Kubernetes API server URLs to use with the client.
   # For example "https://192.168.0.1:6443 https://192.168.0.2:6443"
-  # apiServerURLs: ""
+  apiServerURLs: ~
 
 # -- Keep the deprecated selector labels when deploying Cilium DaemonSet.
 keepDeprecatedLabels: false

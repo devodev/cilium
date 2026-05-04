@@ -16,6 +16,8 @@ cilium-operator-generic hive [flags]
       --ces-max-ciliumendpoints-per-ces int                               Maximum number of CiliumEndpoints allowed in a CES (default 100)
       --ces-rate-limits string                                            Configure rate limits for the CES controller. Accepts a list of rate limit configurations, must be a JSON formatted string. (default "[{\"nodes\":0,\"limit\":10,\"burst\":20}]")
       --cilium-endpoint-gc-interval duration                              GC interval for cilium endpoints (default 5m0s)
+      --cilium-pod-labels string                                          Cilium Pod's labels selector. Used to detect if a Cilium pod is running to remove the node taints where its running and set NetworkUnavailable to false (default "k8s-app=cilium")
+      --cilium-pod-namespace string                                       Name of the Kubernetes namespace in which Cilium is deployed in. Defaults to the same namespace defined in k8s-namespace
       --cluster-id uint32                                                 Unique identifier of the cluster
       --cluster-name string                                               Name of the cluster. It must consist of at most 32 lower case alphanumeric characters and '-', start and end with an alphanumeric character. (default "default")
       --cluster-pool-ipv4-cidr strings                                    IPv4 CIDR Range for Pods in cluster. Requires 'ipam=cluster-pool' and 'enable-ipv4=true'
@@ -110,6 +112,10 @@ cilium-operator-generic hive [flags]
       --kvstore-lease-ttl duration                                        Time-to-live for the KVstore lease. (default 15m0s)
       --kvstore-max-consecutive-quorum-errors uint                        Max acceptable kvstore consecutive quorum errors before recreating the etcd connection (default 2)
       --kvstore-opt stringToString                                        Key-value store options e.g. etcd.address=127.0.0.1:4001 (default [])
+      --leader-election-lease-duration duration                           Duration that non-leader candidates will wait to force acquire leadership (default 15s)
+      --leader-election-renew-deadline duration                           Duration that current acting master will retry refreshing leadership before giving up the lock (default 10s)
+      --leader-election-resource-lock-timeout duration                    Timeout for HTTP requests to acquire/renew the leader election resource lock. When 0, defaults to max(1s, renew-deadline/2)
+      --leader-election-retry-period duration                             Duration the LeaderElector clients should wait between tries of actions (default 2s)
       --limit-ipam-api-burst int                                          Upper burst limit when accessing external APIs (default 20)
       --limit-ipam-api-qps float                                          Queries per second limit when accessing external IPAM APIs (default 4)
       --loadbalancer-cp-accesslog-enable-grpc                             Whether Envoy Access Log should be sent to a GRPC logger.
@@ -198,6 +204,8 @@ cilium-operator-generic hive [flags]
       --private-networks-webhook-network-binding string                   The name of the KubeVirt network binding plugin enforced on mutated VMs
       --private-networks-webhook-tls-cert-file string                     The path to the webhook TLS certificate for the private networks webhook (default "/var/lib/cilium/privnet/webhook/tls/server.crt")
       --private-networks-webhook-tls-key-file string                      The path to the webhook TLS key for the private networks webhook (default "/var/lib/cilium/privnet/webhook/tls/server.key")
+      --proxy-idle-timeout-seconds int                                    Set Envoy upstream HTTP idle connection timeout in seconds. Does not apply to connections with pending requests. (default 60)
+      --proxy-stream-idle-timeout-seconds int                             Set Envoy HTTP stream idle timeout in seconds. A stream is considered idle when there is no upstream or downstream activity. (default 300)
       --remove-cilium-node-taints                                         Remove node taint "node.cilium.io/agent-not-ready" from Kubernetes nodes once Cilium is up and running (default true)
       --set-cilium-is-up-condition                                        Set CiliumIsUp Node condition to mark a Kubernetes Node that a Cilium pod is up and running in that node (default true)
       --set-cilium-node-taints                                            Set node taint "node.cilium.io/agent-not-ready" on Kubernetes nodes if Cilium is scheduled but not up and running
