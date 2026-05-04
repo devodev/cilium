@@ -33,6 +33,10 @@ func (t *basicConnectivityTest) Name() string {
 	return "basic-connectivity"
 }
 
+func (t *basicConnectivityTest) CanRun(ctx context.Context, run *TestRun, env *testEnv) (bool, string) {
+	return true, ""
+}
+
 func (t *basicConnectivityTest) Run(ctx context.Context, run *TestRun, env *testEnv) error {
 	testPods, err := t.getPodsForPrivnets(env.evpnPrivnets)
 	if err != nil {

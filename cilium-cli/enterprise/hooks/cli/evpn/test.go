@@ -40,6 +40,7 @@ var allTests = []evpnTest{
 
 type evpnTest interface {
 	Name() string
+	CanRun(ctx context.Context, run *TestRun, env *testEnv) (bool, string)
 	Run(ctx context.Context, run *TestRun, env *testEnv) error
 	Cleanup(ctx context.Context, run *TestRun, env *testEnv) error
 }
@@ -115,6 +116,7 @@ func (r *TestRun) Execute(ctx context.Context) error {
 	}
 
 	executedTests := 0
+	skippedTests := 0
 	failedTests := 0
 testLoop:
 	for i, test := range selectedTests {
@@ -129,11 +131,16 @@ testLoop:
 				return nil
 			}
 		default:
-			executedTests++
 			fmt.Fprintf(r.out, "\n=== [%d/%d] %s ===\n", i+1, len(selectedTests), test.Name())
+			if canRun, reason := test.CanRun(testCtx, r, r.env); !canRun {
+				fmt.Fprintf(r.out, "⚠️ %s test skipped: %s\n", test.Name(), reason)
+				skippedTests++
+				continue
+			}
+			executedTests++
 			// Perform test cleanup before running
 			if err := test.Cleanup(testCtx, r, r.env); err != nil {
-				fmt.Fprintf(r.out, "Warning: %s test cleanup failed: %v\n", test.Name(), err)
+				fmt.Fprintf(r.out, "⚠️ %s test cleanup failed: %v\n", test.Name(), err)
 			}
 			// Run the test
 			err := test.Run(testCtx, r, r.env)
@@ -147,7 +154,7 @@ testLoop:
 				// Run test cleanup, use a separate context as we want cleanup to run even if terminating
 				cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), testCleanupTimeout)
 				if err := test.Cleanup(cleanupCtx, r, r.env); err != nil {
-					fmt.Fprintf(r.out, "Warning: %s test cleanup failed: %v\n", test.Name(), err)
+					fmt.Fprintf(r.out, "⚠️ %s test cleanup failed: %v\n", test.Name(), err)
 				}
 				cleanupCancel()
 			} else {
@@ -159,9 +166,13 @@ testLoop:
 
 	fmt.Fprintf(r.out, "\n=== Results ===\n")
 	if failedTests > 0 {
-		return fmt.Errorf("❌ %d/%d tests failed", failedTests, executedTests)
+		return fmt.Errorf("❌ %d/%d tests failed", failedTests, len(selectedTests))
 	}
-	fmt.Fprintf(r.out, "✅ %d/%d tests passed.\n", executedTests, executedTests)
+	if skippedTests > 0 {
+		fmt.Fprintf(r.out, "✅ %d/%d tests passed, %d/%d skipped.\n", executedTests, len(selectedTests), skippedTests, len(selectedTests))
+	} else {
+		fmt.Fprintf(r.out, "✅ %d/%d tests passed.\n", executedTests, len(selectedTests))
+	}
 	return nil
 }
 
@@ -246,7 +257,7 @@ func (r *TestRun) runPreflight(ctx context.Context) error {
 				evpnConfig:    config,
 				vniContainers: vniContainers,
 			}
-			fmt.Fprintf(r.out, "Pre-flight checks passed\n")
+			fmt.Fprintf(r.out, "✅ Pre-flight checks passed\n")
 			return nil
 		}
 

@@ -66,6 +66,10 @@ func (t *policyEgressTest) Name() string {
 	return "network-policy-egress"
 }
 
+func (t *policyEgressTest) CanRun(ctx context.Context, run *TestRun, env *testEnv) (bool, string) {
+	return true, ""
+}
+
 func (t *policyEgressTest) Run(ctx context.Context, run *TestRun, env *testEnv) error {
 	// select one test privnet
 	privnet, err := t.selectPrivnet(env.evpnPrivnets)

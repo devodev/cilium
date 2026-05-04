@@ -74,10 +74,14 @@ func (t *fabricSecurityGroupsTest) Name() string {
 	return "fabric-security-groups"
 }
 
-func (t *fabricSecurityGroupsTest) Run(ctx context.Context, run *TestRun, env *testEnv) error {
+func (t *fabricSecurityGroupsTest) CanRun(ctx context.Context, run *TestRun, env *testEnv) (bool, string) {
 	if !env.evpnConfig.securityGroupTagsEnabled {
-		return fmt.Errorf("EVPN security group tags are disabled in the cilium configuration")
+		return false, "EVPN security group tags are disabled in the cilium configuration"
 	}
+	return true, ""
+}
+
+func (t *fabricSecurityGroupsTest) Run(ctx context.Context, run *TestRun, env *testEnv) error {
 	fmt.Fprintf(run.out, "Default EVPN security group ID: %d\n", env.evpnConfig.defaultSecurityGroupID)
 
 	// deploy 2 pods with different app labels in each privnet
