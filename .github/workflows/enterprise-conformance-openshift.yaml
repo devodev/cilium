@@ -484,11 +484,8 @@ jobs:
           export CILIUM_TEST_RESULTS_DIR=${PWD}/test-results
           # Disable history expansion because of the exclamation mark in the flags
           set +H
-          # TODO: client-egress-tls-sni-random-wildcard is deactivated until the
-          # version of the cilium-envoy image can be updated, issue #2860
           export CILIUM_TEST_FLAGS="${{ steps.e2e_config.outputs.test_flags }}
             --test=\"!check-log-errors\"
-            --test=\"!client-egress-tls-sni-random-wildcard\"
             --junit-file ${PWD}/cilium-junits/openshift-1.xml
             --junit-property github_job_step=\"Cilium connectivity tests\""
           ./scripts/cilium-cli-tests.sh

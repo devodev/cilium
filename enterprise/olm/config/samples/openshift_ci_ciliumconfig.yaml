@@ -50,15 +50,6 @@ spec:
     clustermesh:
       phantomServices:
         enabled: true
-  # Pin Envoy image to resolve binary compatibility issues. This override is necessary because the default in values.yaml gets overwritten during CLife image rebuilds.
-  # The issue is that Envoy binaries are copied from Ubuntu 24.04 to UBI, and they are incompatible with RHEL 9.6 libraries
-  # This is a temporary workaround.
-  envoy:
-    image:
-      repository: quay.io/cilium/cilium-envoy
-      tag: v1.35.3-1760614940-cb5737105ff9a4ca5d080c0c8f3ea1bfdc08de83
-      digest: sha256:808c986a99e2a1ea9785b49604a1ccd1e1cdc21d4b7a2ff1236cc31788ea9b45
-      useDigest: true
   extraEnv:
   # Disabling due to the cache being altered -> panic
   # https://github.com/cilium/cilium/pull/41005/commits/645be2636bd6c67a0d1fcbb8a5524da71919e124
