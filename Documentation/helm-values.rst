@@ -3087,7 +3087,7 @@
    * - :spelling:ignore:`hubble.timescape`
      - Enables support for integrated Hubble Timescape.
      - object
-     - ``{"affinity":{},"analyzer":{"enabled":true,"scheduleInterval":"24h"},"clickhouse":{"image":{"digest":"sha256:f6ad48a62601fc94b15ffb48323772c446a35d4fabb0cfeeea30a6a95c6ec830","override":null,"pullPolicy":"Always","repository":"quay.io/isovalent/clickhouse-server","tag":"26.3.4.11-alpine-202604081305","useDigest":true},"resources":{},"rollOutPods":true,"securityContext":{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"privileged":false,"runAsGroup":101,"runAsNonRoot":true,"runAsUser":101}},"clustermesh":{"primary":{"createNamespace":false,"id":0,"namespace":""}},"enabled":false,"extraEnv":[],"image":{"digest":"sha256:fbe5761d6cbdaa8ebc2e6c7dac37fbef3b7b561fd8eefd79b1b822dba71402e1","override":null,"pullPolicy":"Always","repository":"quay.io/isovalent/hubble-timescape-lite","tag":"v1.19.0-rc.1","useDigest":true},"ingester":{"k8sImporter":{"flushInterval":"5s"},"streamAPI":{"flushInterval":"5s"}},"logLevel":"info","metrics":{"clickhouse":{"enabled":true},"enabled":true,"serviceMonitor":{"annotations":{},"clickhouse":{"interval":"10s","metricRelabelings":null,"relabelings":null,"scrapeTimeout":null},"enabled":false,"interval":"10s","labels":{},"metricRelabelings":null,"relabelings":null,"scrapeTimeout":null}},"nodeSelector":{"kubernetes.io/os":"linux"},"persistence":{"enabled":false,"storageClassName":null,"volumeSize":"10Gi"},"podAnnotations":{},"podLabels":{},"podSecurityContext":{"fsGroup":65532},"priorityClassName":"","resources":{},"rollOutPods":false,"securityContext":{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"privileged":false,"runAsGroup":65532,"runAsNonRoot":true,"runAsUser":65532},"service":{"annotations":{},"labels":{},"type":"ClusterIP"},"tls":{"client":{"existingSecret":""},"enabled":null,"server":{"existingSecret":"","extraDnsNames":[],"extraIpAddresses":[]}},"tolerations":[],"trimmer":{"flowCount":0,"intervalMinutes":20,"timout":null},"ttl":null,"ui":{"auth":{"enabled":null,"oidc":{"clientAssertionFile":null,"clientAssertionType":null,"clientID":null,"clientSecret":{"secretKey":"client-secret","secretName":"hubble-timescape-ui"},"extraFields":[],"idTokenUserClaim":"email","issuerCA":{"configMap":{"key":"ca.crt","name":null}},"issuerURL":null,"redirectURL":null,"scopes":["openid","email","offline_access"]},"sessionKey":{"secretKey":"session-key","secretName":"hubble-timescape-ui"}},"enabled":true,"ingress":{"annotations":{},"className":"","enabled":false,"hosts":["chart-example.local"],"labels":{},"tls":[]},"route":{"additionalRules":[],"annotations":{},"enabled":false,"filters":[],"hostnames":[],"labels":{},"matches":[{"path":{"type":"PathPrefix","value":"/"}}],"parentRefs":[]}}}``
+     - ``{"affinity":{},"analyzer":{"enabled":true,"scheduleInterval":"24h"},"annotations":{},"clickhouse":{"configMap":{"annotations":{},"labels":{}},"image":{"digest":"sha256:f6ad48a62601fc94b15ffb48323772c446a35d4fabb0cfeeea30a6a95c6ec830","override":null,"pullPolicy":"Always","repository":"quay.io/isovalent/clickhouse-server","tag":"26.3.4.11-alpine-202604081305","useDigest":true},"resources":{},"rollOutPods":true,"securityContext":{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"privileged":false,"runAsGroup":101,"runAsNonRoot":true,"runAsUser":101}},"clustermesh":{"primary":{"annotations":{},"createNamespace":false,"id":0,"labels":{},"namespace":""}},"configMap":{"annotations":{},"labels":{}},"enabled":false,"extraEnv":[],"headlessService":{"annotations":{},"labels":{}},"image":{"digest":"sha256:fbe5761d6cbdaa8ebc2e6c7dac37fbef3b7b561fd8eefd79b1b822dba71402e1","override":null,"pullPolicy":"Always","repository":"quay.io/isovalent/hubble-timescape-lite","tag":"v1.19.0-rc.1","useDigest":true},"ingester":{"k8sImporter":{"clusterRole":{"annotations":{},"labels":{}},"clusterRoleBinding":{"annotations":{},"labels":{}},"flushInterval":"5s"},"streamAPI":{"flushInterval":"5s"}},"labels":{},"logLevel":"info","metrics":{"clickhouse":{"enabled":true},"enabled":true,"serviceMonitor":{"annotations":{},"clickhouse":{"interval":"10s","metricRelabelings":null,"relabelings":null,"scrapeTimeout":null},"enabled":false,"interval":"10s","labels":{},"metricRelabelings":null,"relabelings":null,"scrapeTimeout":null}},"nodeSelector":{"kubernetes.io/os":"linux"},"persistence":{"annotations":{},"enabled":false,"labels":{},"storageClassName":null,"volumeSize":"10Gi"},"podAnnotations":{},"podLabels":{},"podSecurityContext":{"fsGroup":65532},"priorityClassName":"","resources":{},"rollOutPods":false,"securityContext":{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"privileged":false,"runAsGroup":65532,"runAsNonRoot":true,"runAsUser":65532},"service":{"annotations":{},"labels":{},"type":"ClusterIP"},"serviceAccount":{"annotations":{},"labels":{}},"statefulSet":{"annotations":{},"labels":{}},"tls":{"auto":{"role":{"annotations":{},"labels":{}},"roleBinding":{"annotations":{},"labels":{}}},"client":{"certificate":{"annotations":{},"labels":{}},"existingSecret":""},"enabled":null,"server":{"certificate":{"annotations":{},"labels":{}},"existingSecret":"","extraDnsNames":[],"extraIpAddresses":[]}},"tolerations":[],"trimmer":{"flowCount":0,"intervalMinutes":20,"timout":null},"ttl":null,"ui":{"auth":{"enabled":null,"oidc":{"clientAssertionFile":null,"clientAssertionType":null,"clientID":null,"clientSecret":{"secretKey":"client-secret","secretName":"hubble-timescape-ui"},"extraFields":[],"idTokenUserClaim":"email","issuerCA":{"configMap":{"key":"ca.crt","name":null}},"issuerURL":null,"redirectURL":null,"scopes":["openid","email","offline_access"]},"sessionKey":{"secretKey":"session-key","secretName":"hubble-timescape-ui"}},"enabled":true,"ingress":{"annotations":{},"className":"","enabled":false,"hosts":["chart-example.local"],"labels":{},"tls":[]},"route":{"additionalRules":[],"annotations":{},"enabled":false,"filters":[],"hostnames":[],"labels":{},"matches":[{"path":{"type":"PathPrefix","value":"/"}}],"parentRefs":[]}}}``
    * - :spelling:ignore:`hubble.timescape.affinity`
      - Affinity for hubble-timescape
      - object
@@ -3100,6 +3100,18 @@
      - The interval at which the analyzer will run and generate a new assessment report. When a run goes beyond this interval, the next one will start as soon as the running one is completed.
      - string
      - ``"24h"``
+   * - :spelling:ignore:`hubble.timescape.annotations`
+     - Annotations to add to all Hubble Timescape resources.
+     - object
+     - ``{}``
+   * - :spelling:ignore:`hubble.timescape.clickhouse.configMap.annotations`
+     - Annotations to add to the Hubble Timescape ClickHouse ConfigMap.
+     - object
+     - ``{}``
+   * - :spelling:ignore:`hubble.timescape.clickhouse.configMap.labels`
+     - Labels to add to the Hubble Timescape ClickHouse ConfigMap.
+     - object
+     - ``{}``
    * - :spelling:ignore:`hubble.timescape.clickhouse.rollOutPods`
      - Roll out hubble-timescape pod when the clickhouse configmap is updated (hubble.timescape.rollOutPods must also be true).
      - bool
@@ -3107,11 +3119,51 @@
    * - :spelling:ignore:`hubble.timescape.clustermesh`
      - Experimental support for using Hubble Timescape with clustermesh. If enabled, all flow log will be sent to the ``primary`` Timescape instance.
      - object
-     - ``{"primary":{"createNamespace":false,"id":0,"namespace":""}}``
+     - ``{"primary":{"annotations":{},"createNamespace":false,"id":0,"labels":{},"namespace":""}}``
+   * - :spelling:ignore:`hubble.timescape.clustermesh.primary.annotations`
+     - Annotations to add to the Hubble Timescape primary namespace.
+     - object
+     - ``{}``
+   * - :spelling:ignore:`hubble.timescape.clustermesh.primary.labels`
+     - Labels to add to the Hubble Timescape primary namespace.
+     - object
+     - ``{}``
+   * - :spelling:ignore:`hubble.timescape.configMap.annotations`
+     - Annotations to add to the Hubble Timescape ConfigMap.
+     - object
+     - ``{}``
+   * - :spelling:ignore:`hubble.timescape.configMap.labels`
+     - Labels to add to the Hubble Timescape ConfigMap.
+     - object
+     - ``{}``
    * - :spelling:ignore:`hubble.timescape.extraEnv`
      - Extra environment variables for hubble-timescape.
      - list
      - ``[]``
+   * - :spelling:ignore:`hubble.timescape.headlessService.annotations`
+     - Annotations to add to the Hubble Timescape headless service.
+     - object
+     - ``{}``
+   * - :spelling:ignore:`hubble.timescape.headlessService.labels`
+     - Labels to add to the Hubble Timescape headless service.
+     - object
+     - ``{}``
+   * - :spelling:ignore:`hubble.timescape.ingester.k8sImporter.clusterRole.annotations`
+     - Annotations to add to the Hubble Timescape K8s importer ClusterRole.
+     - object
+     - ``{}``
+   * - :spelling:ignore:`hubble.timescape.ingester.k8sImporter.clusterRole.labels`
+     - Labels to add to the Hubble Timescape K8s importer ClusterRole.
+     - object
+     - ``{}``
+   * - :spelling:ignore:`hubble.timescape.ingester.k8sImporter.clusterRoleBinding.annotations`
+     - Annotations to add to the Hubble Timescape K8s importer ClusterRoleBinding.
+     - object
+     - ``{}``
+   * - :spelling:ignore:`hubble.timescape.ingester.k8sImporter.clusterRoleBinding.labels`
+     - Labels to add to the Hubble Timescape K8s importer ClusterRoleBinding.
+     - object
+     - ``{}``
    * - :spelling:ignore:`hubble.timescape.ingester.k8sImporter.flushInterval`
      - The interval at which the K8s Importer should flush k8s events to the database.
      - string
@@ -3120,6 +3172,10 @@
      - The interval at which the Stream API should flush flows to the database.
      - string
      - ``"5s"``
+   * - :spelling:ignore:`hubble.timescape.labels`
+     - Labels to add to all Hubble Timescape resources.
+     - object
+     - ``{}``
    * - :spelling:ignore:`hubble.timescape.logLevel`
      - Configure the log level. Valid values are: trace, debug, info, warn and error.
      - string
@@ -3180,10 +3236,18 @@
      - Node labels for pod assignment ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector
      - object
      - ``{"kubernetes.io/os":"linux"}``
+   * - :spelling:ignore:`hubble.timescape.persistence.annotations`
+     - Annotations to add to the Hubble Timescape persistent volume claim.
+     - object
+     - ``{}``
    * - :spelling:ignore:`hubble.timescape.persistence.enabled`
      - Enables persistent storage for Hubble Timescape using a PVC. If disabled, timescape will run on an ephemeral disk and all flows will be lost on restart.
      - bool
      - ``false``
+   * - :spelling:ignore:`hubble.timescape.persistence.labels`
+     - Labels to add to the Hubble Timescape persistent volume claim.
+     - object
+     - ``{}``
    * - :spelling:ignore:`hubble.timescape.rollOutPods`
      - Roll out Timescape pods automatically when configmap is updated.
      - bool
@@ -3200,10 +3264,58 @@
      - Service type for the hubble-timescape service
      - string
      - ``"ClusterIP"``
+   * - :spelling:ignore:`hubble.timescape.serviceAccount.annotations`
+     - Annotations to add to the Hubble Timescape service account.
+     - object
+     - ``{}``
+   * - :spelling:ignore:`hubble.timescape.serviceAccount.labels`
+     - Labels to add to the Hubble Timescape service account.
+     - object
+     - ``{}``
+   * - :spelling:ignore:`hubble.timescape.statefulSet.annotations`
+     - Annotations to add to the Hubble Timescape StatefulSet.
+     - object
+     - ``{}``
+   * - :spelling:ignore:`hubble.timescape.statefulSet.labels`
+     - Labels to add to the Hubble Timescape StatefulSet.
+     - object
+     - ``{}``
+   * - :spelling:ignore:`hubble.timescape.tls.auto.role.annotations`
+     - Annotations to add to the Hubble Timescape certificate generation Role.
+     - object
+     - ``{}``
+   * - :spelling:ignore:`hubble.timescape.tls.auto.role.labels`
+     - Labels to add to the Hubble Timescape certificate generation Role.
+     - object
+     - ``{}``
+   * - :spelling:ignore:`hubble.timescape.tls.auto.roleBinding.annotations`
+     - Annotations to add to the Hubble Timescape certificate generation RoleBinding.
+     - object
+     - ``{}``
+   * - :spelling:ignore:`hubble.timescape.tls.auto.roleBinding.labels`
+     - Labels to add to the Hubble Timescape certificate generation RoleBinding.
+     - object
+     - ``{}``
+   * - :spelling:ignore:`hubble.timescape.tls.client.certificate.annotations`
+     - Annotations to add to the generated Hubble Timescape client certificate resource.
+     - object
+     - ``{}``
+   * - :spelling:ignore:`hubble.timescape.tls.client.certificate.labels`
+     - Labels to add to the generated Hubble Timescape client certificate resource.
+     - object
+     - ``{}``
    * - :spelling:ignore:`hubble.timescape.tls.client.existingSecret`
      - Name of the Secret containing the certificate and key for the Timescape PushAPI client. If specified, the certificate and key need to be managed separately and no certificate or key will be generated by the chart.
      - string
      - ``""``
+   * - :spelling:ignore:`hubble.timescape.tls.server.certificate.annotations`
+     - Annotations to add to the generated Hubble Timescape server certificate resource.
+     - object
+     - ``{}``
+   * - :spelling:ignore:`hubble.timescape.tls.server.certificate.labels`
+     - Labels to add to the generated Hubble Timescape server certificate resource.
+     - object
+     - ``{}``
    * - :spelling:ignore:`hubble.timescape.tls.server.existingSecret`
      - Name of the Secret containing the certificate and key for the Hubble Timescape server. If specified, the certificate and key need to be managed separately and no certificate or key will be generated by the chart.
      - string

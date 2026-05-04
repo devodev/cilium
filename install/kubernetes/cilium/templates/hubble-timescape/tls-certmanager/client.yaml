@@ -5,7 +5,17 @@ kind: Certificate
 metadata:
   name: hubble-timescape-client-certs
   namespace: {{ include "cilium.namespace" . }}
-  {{- with .Values.hubble.annotations }}
+  labels:
+    {{- include "hubble.timescape.labels" . | nindent 4 }}
+    {{- with .Values.hubble.timescape.tls.client.certificate.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- $annotations := mergeOverwrite (dict)
+    .Values.hubble.annotations
+    .Values.hubble.timescape.annotations
+    .Values.hubble.timescape.tls.client.certificate.annotations
+  }}
+  {{- with $annotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}

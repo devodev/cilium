@@ -12,7 +12,19 @@ metadata:
   name: hubble-timescape-clickhouse-settings
   namespace: {{ include "cilium.namespace" . }}
   {{/* The timescape labels already contain the .Values.commonLabels */}}
-  labels: {{ include "hubble.timescape.labels" . | nindent 4 }}
+  labels:
+    {{- include "hubble.timescape.labels" . | nindent 4 }}
+    {{- with .Values.hubble.timescape.clickhouse.configMap.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- $annotations := mergeOverwrite (dict)
+    .Values.hubble.timescape.annotations
+    .Values.hubble.timescape.clickhouse.configMap.annotations
+  }}
+  {{- with $annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 data:
   clickhouse-users.xml: |-
     <?xml version="1.0"?>

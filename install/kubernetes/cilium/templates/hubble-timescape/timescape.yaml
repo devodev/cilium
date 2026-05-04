@@ -6,6 +6,9 @@ app.kubernetes.io/component: hubble-timescape
 {{ with .Values.commonLabels }}
 {{- toYaml . }}
 {{- end }}
+{{ with .Values.hubble.timescape.labels }}
+{{- toYaml . }}
+{{- end }}
 {{- end }}
 
 {{/*
@@ -51,6 +54,19 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: {{ .Values.hubble.timescape.clustermesh.primary.namespace }}
+  labels:
+    {{- include "hubble.timescape.labels" . | nindent 4 }}
+    {{- with .Values.hubble.timescape.clustermesh.primary.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- $annotations := mergeOverwrite (dict)
+    .Values.hubble.timescape.annotations
+    .Values.hubble.timescape.clustermesh.primary.annotations
+  }}
+  {{- with $annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 {{- end }}
 ---
 # Service exposing the Timescape server and ingester push/stream API
@@ -118,7 +134,19 @@ kind: ServiceAccount
 metadata:
   name: "hubble-timescape"
   namespace: {{ include "cilium.namespace" . }}
-  labels: {{ include "hubble.timescape.labels" . | nindent 4 }}
+  labels:
+    {{- include "hubble.timescape.labels" . | nindent 4 }}
+    {{- with .Values.hubble.timescape.serviceAccount.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- $annotations := mergeOverwrite (dict)
+    .Values.hubble.timescape.annotations
+    .Values.hubble.timescape.serviceAccount.annotations
+  }}
+  {{- with $annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 ---
 # Required for the StatefulSet
 apiVersion: v1
@@ -126,7 +154,19 @@ kind: Service
 metadata:
   name: hubble-timescape-headless
   namespace: {{ include "cilium.namespace" . }}
-  labels: {{ include "hubble.timescape.labels" . | nindent 4 }}
+  labels:
+    {{- include "hubble.timescape.labels" . | nindent 4 }}
+    {{- with .Values.hubble.timescape.headlessService.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- $annotations := mergeOverwrite (dict)
+    .Values.hubble.timescape.annotations
+    .Values.hubble.timescape.headlessService.annotations
+  }}
+  {{- with $annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   type: ClusterIP
   clusterIP: None
@@ -137,7 +177,19 @@ kind: StatefulSet
 metadata:
   name: hubble-timescape
   namespace: {{ include "cilium.namespace" . }}
-  labels: {{ include "hubble.timescape.labels" . | nindent 4 }}
+  labels:
+    {{- include "hubble.timescape.labels" . | nindent 4 }}
+    {{- with .Values.hubble.timescape.statefulSet.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- $annotations := mergeOverwrite (dict)
+    .Values.hubble.timescape.annotations
+    .Values.hubble.timescape.statefulSet.annotations
+  }}
+  {{- with $annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   replicas: 1
   selector:
@@ -393,7 +445,19 @@ kind: PersistentVolumeClaim
 metadata:
   name: hubble-timescape-clickhouse-data
   namespace: {{ include "cilium.namespace" . }}
-  labels: {{ include "hubble.timescape.labels" . | nindent 4 }}
+  labels:
+    {{- include "hubble.timescape.labels" . | nindent 4 }}
+    {{- with .Values.hubble.timescape.persistence.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- $annotations := mergeOverwrite (dict)
+    .Values.hubble.timescape.annotations
+    .Values.hubble.timescape.persistence.annotations
+  }}
+  {{- with $annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   accessModes:
     - ReadWriteOnce
@@ -409,14 +473,38 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: hubble-timescape-k8s-importer
-  labels: {{ include "hubble.timescape.labels" . | nindent 4 }}
+  labels:
+    {{- include "hubble.timescape.labels" . | nindent 4 }}
+    {{- with .Values.hubble.timescape.ingester.k8sImporter.clusterRole.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- $annotations := mergeOverwrite (dict)
+    .Values.hubble.timescape.annotations
+    .Values.hubble.timescape.ingester.k8sImporter.clusterRole.annotations
+  }}
+  {{- with $annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 rules: {{- include "hubble.timescape.ingester.k8sImporter.clusterRole.rules" . | nindent 2 }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: hubble-timescape-k8s-importer
-  labels: {{ include "hubble.timescape.labels" . | nindent 4 }}
+  labels:
+    {{- include "hubble.timescape.labels" . | nindent 4 }}
+    {{- with .Values.hubble.timescape.ingester.k8sImporter.clusterRoleBinding.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- $annotations := mergeOverwrite (dict)
+    .Values.hubble.timescape.annotations
+    .Values.hubble.timescape.ingester.k8sImporter.clusterRoleBinding.annotations
+  }}
+  {{- with $annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
@@ -433,9 +521,18 @@ kind: Ingress
 metadata:
   name: hubble-timescape-ui
   namespace: {{ include "cilium.namespace" . }}
-  labels: {{ include "hubble.timescape.labels" . | nindent 4 }}
-  {{- with .Values.hubble.timescape.ui.ingress.annotations }}
-  annotations: {{- toYaml . | nindent 4 }}
+  labels:
+    {{- include "hubble.timescape.labels" . | nindent 4 }}
+    {{- with .Values.hubble.timescape.ui.ingress.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- $annotations := mergeOverwrite (dict)
+    .Values.hubble.timescape.annotations
+    .Values.hubble.timescape.ui.ingress.annotations
+  }}
+  {{- with $annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
   {{- if .Values.hubble.timescape.ui.ingress.className }}
@@ -465,9 +562,18 @@ kind: HTTPRoute
 metadata:
   name: hubble-timescape-ui
   namespace: {{ include "cilium.namespace" . }}
-  labels: {{ include "hubble.timescape.labels" . | nindent 4 }}
-  {{- with .Values.hubble.timescape.ui.route.annotations }}
-  annotations: {{- toYaml . | nindent 4 }}
+  labels:
+    {{- include "hubble.timescape.labels" . | nindent 4 }}
+    {{- with .Values.hubble.timescape.ui.route.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- $annotations := mergeOverwrite (dict)
+    .Values.hubble.timescape.annotations
+    .Values.hubble.timescape.ui.route.annotations
+  }}
+  {{- with $annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
   {{- with .Values.hubble.timescape.ui.route.parentRefs }}

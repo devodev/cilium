@@ -27,12 +27,21 @@ metadata:
   name: hubble-timescape-server-certs
   namespace: {{ include "cilium.namespace" . }}
   labels:
-    cilium.io/helm-template-non-idempotent: "true"
-  annotations:
-  {{- with .Values.hubble.annotations }}
+    {{- include "hubble.timescape.labels" . | nindent 4 }}
+    {{- with .Values.hubble.timescape.tls.server.certificate.labels }}
     {{- toYaml . | nindent 4 }}
-  {{- end }}
+    {{- end }}
+    cilium.io/helm-template-non-idempotent: "true"
+  {{- $annotations := mergeOverwrite (dict)
+    .Values.hubble.annotations
+    .Values.hubble.timescape.annotations
+    .Values.hubble.timescape.tls.server.certificate.annotations
+  }}
   {{- with .Values.nonIdempotentAnnotations }}
+  {{- $annotations = mergeOverwrite $annotations . }}
+  {{- end }}
+  {{- with $annotations }}
+  annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 type: kubernetes.io/tls

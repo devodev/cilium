@@ -4862,8 +4862,22 @@
               },
               "type": "object"
             },
+            "annotations": {
+              "type": "object"
+            },
             "clickhouse": {
               "properties": {
+                "configMap": {
+                  "properties": {
+                    "annotations": {
+                      "type": "object"
+                    },
+                    "labels": {
+                      "type": "object"
+                    }
+                  },
+                  "type": "object"
+                },
                 "image": {
                   "properties": {
                     "digest": {
@@ -4938,16 +4952,33 @@
               "properties": {
                 "primary": {
                   "properties": {
+                    "annotations": {
+                      "type": "object"
+                    },
                     "createNamespace": {
                       "type": "boolean"
                     },
                     "id": {
                       "type": "integer"
                     },
+                    "labels": {
+                      "type": "object"
+                    },
                     "namespace": {
                       "type": "string"
                     }
                   },
+                  "type": "object"
+                }
+              },
+              "type": "object"
+            },
+            "configMap": {
+              "properties": {
+                "annotations": {
+                  "type": "object"
+                },
+                "labels": {
                   "type": "object"
                 }
               },
@@ -4959,6 +4990,17 @@
             "extraEnv": {
               "items": {},
               "type": "array"
+            },
+            "headlessService": {
+              "properties": {
+                "annotations": {
+                  "type": "object"
+                },
+                "labels": {
+                  "type": "object"
+                }
+              },
+              "type": "object"
             },
             "image": {
               "properties": {
@@ -4990,6 +5032,28 @@
               "properties": {
                 "k8sImporter": {
                   "properties": {
+                    "clusterRole": {
+                      "properties": {
+                        "annotations": {
+                          "type": "object"
+                        },
+                        "labels": {
+                          "type": "object"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "clusterRoleBinding": {
+                      "properties": {
+                        "annotations": {
+                          "type": "object"
+                        },
+                        "labels": {
+                          "type": "object"
+                        }
+                      },
+                      "type": "object"
+                    },
                     "flushInterval": {
                       "type": "string"
                     }
@@ -5005,6 +5069,9 @@
                   "type": "object"
                 }
               },
+              "type": "object"
+            },
+            "labels": {
               "type": "object"
             },
             "logLevel": {
@@ -5097,8 +5164,14 @@
             },
             "persistence": {
               "properties": {
+                "annotations": {
+                  "type": "object"
+                },
                 "enabled": {
                   "type": "boolean"
+                },
+                "labels": {
+                  "type": "object"
                 },
                 "storageClassName": {
                   "type": [
@@ -5184,10 +5257,70 @@
               },
               "type": "object"
             },
+            "serviceAccount": {
+              "properties": {
+                "annotations": {
+                  "type": "object"
+                },
+                "labels": {
+                  "type": "object"
+                }
+              },
+              "type": "object"
+            },
+            "statefulSet": {
+              "properties": {
+                "annotations": {
+                  "type": "object"
+                },
+                "labels": {
+                  "type": "object"
+                }
+              },
+              "type": "object"
+            },
             "tls": {
               "properties": {
+                "auto": {
+                  "properties": {
+                    "role": {
+                      "properties": {
+                        "annotations": {
+                          "type": "object"
+                        },
+                        "labels": {
+                          "type": "object"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "roleBinding": {
+                      "properties": {
+                        "annotations": {
+                          "type": "object"
+                        },
+                        "labels": {
+                          "type": "object"
+                        }
+                      },
+                      "type": "object"
+                    }
+                  },
+                  "type": "object"
+                },
                 "client": {
                   "properties": {
+                    "certificate": {
+                      "properties": {
+                        "annotations": {
+                          "type": "object"
+                        },
+                        "labels": {
+                          "type": "object"
+                        }
+                      },
+                      "type": "object"
+                    },
                     "existingSecret": {
                       "type": "string"
                     }
@@ -5202,6 +5335,17 @@
                 },
                 "server": {
                   "properties": {
+                    "certificate": {
+                      "properties": {
+                        "annotations": {
+                          "type": "object"
+                        },
+                        "labels": {
+                          "type": "object"
+                        }
+                      },
+                      "type": "object"
+                    },
                     "existingSecret": {
                       "type": "string"
                     },

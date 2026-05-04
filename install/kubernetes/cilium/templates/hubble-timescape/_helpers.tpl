@@ -11,6 +11,9 @@ hubble-timescape-clickhouse-volume-size: {{ . }}
 {{- end }}
 {{- end }}
 {{- end }}
+{{- with .Values.hubble.timescape.annotations }}
+{{ toYaml . }}
+{{- end }}
 {{- with .Values.hubble.timescape.podAnnotations }}
 {{ toYaml . }}
 {{- end }}
@@ -24,6 +27,9 @@ app.kubernetes.io/part-of: cilium
 
 {{- define "hubble.timescape.podLabels" -}}
 {{ include "hubble.timescape.selectorLabels" . }}
+{{- with .Values.hubble.timescape.labels }}
+{{ toYaml . }}
+{{- end }}
 {{- with .Values.hubble.timescape.podLabels }}
 {{ toYaml . }}
 {{- end }}
@@ -35,6 +41,9 @@ service.cilium.io/global: "true"
 {{- if not (eq (int64 .Values.hubble.timescape.clustermesh.primary.id) (int64 .Values.cluster.id)) }}
 service.cilium.io/shared: "false"
 {{- end }}
+{{- end }}
+{{ with .Values.hubble.timescape.annotations }}
+{{- toYaml . }}
 {{- end }}
 {{ with .Values.hubble.timescape.service.annotations }}
 {{- toYaml . }}
