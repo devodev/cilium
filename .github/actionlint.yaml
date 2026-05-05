@@ -8,6 +8,7 @@ self-hosted-runner:
     - "splendid-metal-arm64"
     - "ubuntu-2404"
     - "ubuntu-2404-metal"
+    - "ubuntu-2404-nv-8cores-32gb"
     - "ubuntu-2404-4cores-16gb"
     - "ubuntu-2404-64-cores-256gb"
     - "extra-small"
