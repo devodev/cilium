@@ -36,6 +36,7 @@ var allTests = []evpnTest{
 	newBasicConnectivityTest(),
 	newFabricSecurityGroupsTest(),
 	newPolicyEgressTest(),
+	newPolicyIngressTest(),
 }
 
 type evpnTest interface {
@@ -55,6 +56,7 @@ type TestParams struct {
 
 	TestNamespace string
 	CurlImage     string
+	JSONMockImage string
 
 	PreflightTimeout     time.Duration
 	TestTimeout          time.Duration

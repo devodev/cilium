@@ -13,22 +13,15 @@ package evpn
 import (
 	"context"
 	"fmt"
-	"maps"
 	"net/netip"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/wait"
 
 	isovalentv1alpha1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
 	slimv1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
 	policyapi "github.com/cilium/cilium/pkg/policy/api"
-)
-
-const (
-	networkPolicyEgressPollInterval = 2 * time.Second
-	networkPolicyEgressPollTimeout  = 2 * time.Minute
 )
 
 // policyEgressTest tests egress policy enforcement for remote EVPN destinations.
@@ -250,32 +243,22 @@ func (t *policyEgressTest) buildEgressCIDRPolicy(run *TestRun, nameSuffix string
 func (t *policyEgressTest) waitForExpectation(ctx context.Context, run *TestRun, description string, expected policyEgressPodConnectivity) error {
 	fmt.Fprintf(run.out, "Verifying %s...\n", description)
 
-	pending := maps.Clone(expected)
-	var lastErr error
-
-	err := wait.PollUntilContextTimeout(ctx, networkPolicyEgressPollInterval, networkPolicyEgressPollTimeout, true, func(ctx context.Context) (bool, error) {
-		for _, testPod := range []*policyEgressTestPod{t.controlPod, t.subjectPod} {
-			expectReachable, ok := pending[testPod]
-			if !ok {
-				continue
-			}
-			for _, target := range testPod.targets {
-				err := pingWithExpectedResult(ctx, run, testPod.k8sPod, target, expectReachable)
-				if err != nil {
-					lastErr = err
-					return false, nil
+	for _, testPod := range []*policyEgressTestPod{t.controlPod, t.subjectPod} {
+		expectReachable, ok := expected[testPod]
+		if !ok {
+			continue
+		}
+		for _, target := range testPod.targets {
+			err := waitForExpectedPolicyResult(ctx, description, func(ctx context.Context) error {
+				if err := pingWithExpectedResult(ctx, run, testPod.k8sPod, target, expectReachable); err != nil {
+					return err
 				}
+				return nil
+			})
+			if err != nil {
+				return err
 			}
-			delete(pending, testPod)
 		}
-		lastErr = nil
-		return len(pending) == 0, nil
-	})
-	if err != nil {
-		if lastErr != nil {
-			return fmt.Errorf("failed waiting for %s: %w", description, lastErr)
-		}
-		return fmt.Errorf("failed waiting for %s: %w", description, err)
 	}
 
 	fmt.Fprintf(run.out, "Passed %s expectation\n", description)

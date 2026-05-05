@@ -13,6 +13,7 @@ package evpn
 import (
 	"context"
 	"fmt"
+	"time"
 
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -22,6 +23,11 @@ import (
 	slimlabels "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/labels"
 )
 
+const (
+	networkPolicyPollInterval      = 2 * time.Second
+	networkPolicyEgressPollTimeout = 3 * time.Minute
+)
+
 func createNetworkPolicy(ctx context.Context, run *TestRun, policy *isovalentv1alpha1.IsovalentNetworkPolicy) error {
 	fmt.Fprintf(run.out, "Creating IsovalentNetworkPolicy %s/%s...\n", policy.Namespace, policy.Name)
 
@@ -29,7 +35,7 @@ func createNetworkPolicy(ctx context.Context, run *TestRun, policy *isovalentv1a
 		return fmt.Errorf("failed creating IsovalentNetworkPolicy %s/%s: %w", policy.Namespace, policy.Name, err)
 	}
 
-	err := wait.PollUntilContextTimeout(ctx, networkPolicyEgressPollInterval, networkPolicyEgressPollTimeout, true, func(ctx context.Context) (bool, error) {
+	err := wait.PollUntilContextTimeout(ctx, networkPolicyPollInterval, networkPolicyEgressPollTimeout, true, func(ctx context.Context) (bool, error) {
 		_, err := run.client.EnterpriseCiliumClientset.IsovalentV1alpha1().IsovalentNetworkPolicies(policy.Namespace).Get(ctx, policy.Name, metav1.GetOptions{})
 		if k8serrors.IsNotFound(err) {
 			return false, nil
@@ -53,7 +59,7 @@ func deleteNetworkPolicy(ctx context.Context, run *TestRun, name string) error {
 		return fmt.Errorf("failed deleting IsovalentNetworkPolicy %s/%s: %w", run.params.TestNamespace, name, err)
 	}
 
-	err = wait.PollUntilContextTimeout(ctx, networkPolicyEgressPollInterval, networkPolicyEgressPollTimeout, true, func(ctx context.Context) (bool, error) {
+	err = wait.PollUntilContextTimeout(ctx, networkPolicyPollInterval, networkPolicyEgressPollTimeout, true, func(ctx context.Context) (bool, error) {
 		_, err := run.client.EnterpriseCiliumClientset.IsovalentV1alpha1().IsovalentNetworkPolicies(run.params.TestNamespace).Get(ctx, name, metav1.GetOptions{})
 		if k8serrors.IsNotFound(err) {
 			return true, nil
@@ -84,7 +90,7 @@ func cleanupTestPolicies(ctx context.Context, run *TestRun, testName string) err
 		}
 	}
 
-	return wait.PollUntilContextTimeout(ctx, networkPolicyEgressPollInterval, networkPolicyEgressPollTimeout, true, func(ctx context.Context) (bool, error) {
+	return wait.PollUntilContextTimeout(ctx, networkPolicyPollInterval, networkPolicyEgressPollTimeout, true, func(ctx context.Context) (bool, error) {
 		list, err := run.client.EnterpriseCiliumClientset.IsovalentV1alpha1().IsovalentNetworkPolicies(run.params.TestNamespace).List(ctx, metav1.ListOptions{
 			LabelSelector: slimlabels.FormatLabels(labels),
 		})
@@ -93,4 +99,25 @@ func cleanupTestPolicies(ctx context.Context, run *TestRun, testName string) err
 		}
 		return len(list.Items) == 0, nil
 	})
+}
+
+func waitForExpectedPolicyResult(ctx context.Context, description string, check func(context.Context) error) error {
+	var lastErr error
+
+	err := wait.PollUntilContextTimeout(ctx, networkPolicyPollInterval, networkPolicyEgressPollTimeout, true, func(ctx context.Context) (bool, error) {
+		if err := check(ctx); err != nil {
+			lastErr = err
+			return false, nil
+		}
+
+		lastErr = nil
+		return true, nil
+	})
+	if err == nil {
+		return nil
+	}
+	if lastErr != nil {
+		return fmt.Errorf("failed waiting for %s: %w", description, lastErr)
+	}
+	return fmt.Errorf("failed waiting for %s: %w", description, err)
 }
