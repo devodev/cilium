@@ -20,6 +20,7 @@ import (
 	"github.com/cilium/cilium/enterprise/pkg/privnet/endpoints"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/grpc"
 	health "github.com/cilium/cilium/enterprise/pkg/privnet/health/grpc"
+	"github.com/cilium/cilium/enterprise/pkg/privnet/migration"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/policy"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/reconcilers"
 	statuscollector "github.com/cilium/cilium/enterprise/pkg/privnet/status/collector"
@@ -41,4 +42,5 @@ var Cell = cell.Module(
 	policy.Cell,
 	dhcp.Cell,
 	diagnostics.Cell,
+	migration.Cell,
 )
