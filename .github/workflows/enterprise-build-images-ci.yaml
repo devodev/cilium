@@ -597,6 +597,8 @@ jobs:
     runs-on: ubuntu-24.04
     needs: get-author
     environment: "Trigger CI from renovate PRs"
+    env:
+      GH_TOKEN: ${{ github.token }}
     if: ${{
       github.event_name == 'workflow_dispatch' &&
       needs.get-author.outputs.author == vars.RENOVATE_BOT_USERNAME
