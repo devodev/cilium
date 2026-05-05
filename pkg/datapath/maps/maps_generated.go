@@ -1443,7 +1443,7 @@ func newCiliumPrivnetDevicesSpec(btf *btf.Spec) *ebpf.MapSpec {
 		ValueSize:  24,
 		Value:      anyTypeByName(btf, "privnet_device_val"),
 		MaxEntries: 16384,
-		Flags:      unix.BPF_F_NO_PREALLOC,
+		Flags:      unix.BPF_F_NO_PREALLOC | unix.BPF_F_RDONLY_PROG,
 		Pinning:    ebpf.PinByName,
 	}
 }
@@ -1457,7 +1457,7 @@ func newCiliumPrivnetFIBSpec(btf *btf.Spec) *ebpf.MapSpec {
 		ValueSize:  40,
 		Value:      anyTypeByName(btf, "privnet_fib_val"),
 		MaxEntries: 65536,
-		Flags:      unix.BPF_F_NO_PREALLOC,
+		Flags:      unix.BPF_F_NO_PREALLOC | unix.BPF_F_RDONLY_PROG,
 		Pinning:    ebpf.PinByName,
 	}
 }
@@ -1471,7 +1471,7 @@ func newCiliumPrivnetPIPSpec(btf *btf.Spec) *ebpf.MapSpec {
 		ValueSize:  20,
 		Value:      anyTypeByName(btf, "privnet_pip_val"),
 		MaxEntries: 65536,
-		Flags:      unix.BPF_F_NO_PREALLOC,
+		Flags:      unix.BPF_F_NO_PREALLOC | unix.BPF_F_RDONLY_PROG,
 		Pinning:    ebpf.PinByName,
 	}
 }
@@ -1485,7 +1485,7 @@ func newCiliumPrivnetSubnetsSpec(btf *btf.Spec) *ebpf.MapSpec {
 		ValueSize:  2,
 		Value:      anyTypeByName(btf, "privnet_subnet_val"),
 		MaxEntries: 16384,
-		Flags:      unix.BPF_F_NO_PREALLOC,
+		Flags:      unix.BPF_F_NO_PREALLOC | unix.BPF_F_RDONLY_PROG,
 		Pinning:    ebpf.PinByName,
 	}
 }

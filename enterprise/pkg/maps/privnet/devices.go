@@ -76,7 +76,7 @@ func newDevices(
 		&DeviceKey{},
 		&DeviceVal{},
 		int(mapCfg.DevicesMapSize),
-		unix.BPF_F_NO_PREALLOC,
+		unix.BPF_F_NO_PREALLOC|unix.BPF_F_RDONLY_PROG,
 	)
 
 	lc.Append(cell.Hook{

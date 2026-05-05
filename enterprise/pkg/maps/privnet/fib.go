@@ -95,7 +95,7 @@ func newFIB(
 		&FIBKey{},
 		&FIBVal{},
 		int(mapCfg.MapSize),
-		unix.BPF_F_NO_PREALLOC,
+		unix.BPF_F_NO_PREALLOC|unix.BPF_F_RDONLY_PROG,
 	)
 
 	lc.Append(cell.Hook{

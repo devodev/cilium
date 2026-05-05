@@ -378,7 +378,7 @@ struct {
 	__type(value, struct privnet_fib_val);
 	__uint(pinning, LIBBPF_PIN_BY_NAME);
 	__uint(max_entries, PRIVNET_PIP_FIB_MAP_SIZE);
-	__uint(map_flags, BPF_F_NO_PREALLOC);
+	__uint(map_flags, BPF_F_NO_PREALLOC | BPF_F_RDONLY_PROG_COND);
 } cilium_privnet_fib __section_maps_btf;
 
 struct {
@@ -387,7 +387,7 @@ struct {
 	__type(value, struct privnet_pip_val);
 	__uint(pinning, LIBBPF_PIN_BY_NAME);
 	__uint(max_entries, PRIVNET_PIP_FIB_MAP_SIZE);
-	__uint(map_flags, BPF_F_NO_PREALLOC);
+	__uint(map_flags, BPF_F_NO_PREALLOC | BPF_F_RDONLY_PROG_COND);
 } cilium_privnet_pip __section_maps_btf;
 
 static __always_inline const struct privnet_fib_val *
@@ -465,7 +465,7 @@ struct {
 	__type(value, struct privnet_device_val);
 	__uint(pinning, LIBBPF_PIN_BY_NAME);
 	__uint(max_entries, PRIVNET_DEVICES_MAP_SIZE);
-	__uint(map_flags, BPF_F_NO_PREALLOC);
+	__uint(map_flags, BPF_F_NO_PREALLOC | BPF_F_RDONLY_PROG_COND);
 } cilium_privnet_devices __section_maps_btf;
 
 static __always_inline const __u16 *privnet_get_net_id(__u32 ifindex)
@@ -495,7 +495,7 @@ struct {
 	__type(value, struct privnet_subnet_val);
 	__uint(pinning, LIBBPF_PIN_BY_NAME);
 	__uint(max_entries, PRIVNET_SUBNETS_MAP_SIZE);
-	__uint(map_flags, BPF_F_NO_PREALLOC);
+	__uint(map_flags, BPF_F_NO_PREALLOC | BPF_F_RDONLY_PROG_COND);
 } cilium_privnet_subnets __section_maps_btf;
 
 static __always_inline __u16 privnet_subnet_id_lookup4(__u16 net_id, __be32 addr)
