@@ -10,7 +10,7 @@ set -o errexit
 set -o pipefail
 set -o nounset
 
-# renovate: datasource=github-releases depName=mikefarah/yq
+# renovate: datasource=docker depName=mikefarah/yq
 yq_version=4.45.1
 # renovate: datasource=github-releases depName=operator-framework/operator-registry
 opm_version=v1.52.0

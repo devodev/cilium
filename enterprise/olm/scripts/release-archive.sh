@@ -20,7 +20,7 @@ echo "version: ${version}"
 channel=$(echo "$version" | cut -d \. -f -2)
 channel=${channel#v}
 
-# renovate: datasource=github-releases depName=mikefarah/yq
+# renovate: datasource=docker depName=mikefarah/yq
 yq_version=4.46.1
 
 mkdir -p ${olm_dir}/.docs

@@ -25,7 +25,7 @@ submit_res="${CL_SUBMIT:-false}"
 org="${CL_ORG:-quay.io/isovalent}"
 suffix="${CL_SUFFIX:-}"
 
-# renovate: datasource=github-releases depName=mikefarah/yq
+# renovate: datasource=docker depName=mikefarah/yq
 yq_version=4.53.2
 # yq_get retrieves values of fields in values.yaml
 yq_get_result=""

@@ -48,7 +48,7 @@ jobs:
       - name: Get and check version
         id: version
         env:
-          # renovate: datasource=github-releases depName=mikefarah/yq
+          # renovate: datasource=docker depName=mikefarah/yq
           yq_version: 4.52.4
         run: |
           tag=${GITHUB_REF##*/}
@@ -217,7 +217,6 @@ jobs:
           tags: |
             quay.io/${{ env.QUAY_ORGANIZATION }}/${{ matrix.image-name }}:${{ steps.version.outputs.version }}
           build-args: |
-            # renovate: datasource=docker
             BASE_IMAGE=${{ matrix.base-image }}
             UPSTREAM_VERSION=${{ steps.version.outputs.upstream_version }}
             UPSTREAM_IMAGE=${{ steps.version.outputs.upstream_repo }}:${{ steps.version.outputs.upstream_version }}@${{ steps.version.outputs.upstream_digest }}
@@ -498,7 +497,7 @@ jobs:
       - name: Add bundle image to catalog and publish
         working-directory: ./enterprise/olm
         env:
-          # renovate: datasource=github-releases depName=mikefarah/yq
+          # renovate: datasource=docker depName=mikefarah/yq
           yq_version: 4.53.2
           # renovate: datasource=github-releases depName=operator-framework/operator-registry
           opm_version: 1.65.0
