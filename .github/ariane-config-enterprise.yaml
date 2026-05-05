@@ -103,6 +103,8 @@ triggers:
   /ci-openshift(?:\s*)({.*})?:
     workflows:
     - enterprise-conformance-openshift.yaml
+    depends-on:
+    - /build-images
   # `(?:\s*)({.*})?` is regex capture group that is used as `extra-args` inputs parameter in the enterprise conformance OpenShift workflow
   # For example: `/ci-ilb-openshift {"ocp_version":"4.17.14"}`
   /ci-ilb-openshift(?:\s*)({.*})?:
