@@ -142,32 +142,6 @@ func getRT5Routes(allRoutes bgpRoutesPayload) (map[uint32][]rt5Route, error) {
 	return routesByVNI, nil
 }
 
-// getPingTargetsForVNI returns test ping targets from the learned RT-5 routes per node and VNI.
-// Prefers /32 or /128 prefixes if available for the VNI, otherwise uses first non-network IP of larger prefixes.
-func getPingTargetsForVNI(bgpNodeInfo map[string]bgpNodeInfo, nodeName string, vni uint32) ([]netip.Addr, error) {
-	var (
-		hostTargets    []netip.Addr
-		networkTargets []netip.Addr
-	)
-	nodeInfo, ok := bgpNodeInfo[nodeName]
-	if !ok {
-		return hostTargets, fmt.Errorf("BGP info for node %s not found", nodeName)
-	}
-	for _, rt5 := range nodeInfo.LearnedRT5[vni] {
-		if rt5.Prefix.IsSingleIP() {
-			hostTargets = append(hostTargets, rt5.Prefix.Addr())
-			continue
-		}
-		networkTargets = append(networkTargets, rt5.Prefix.Addr().Next())
-	}
-	if len(hostTargets) > 0 {
-		return hostTargets, nil
-	} else if len(networkTargets) > 0 {
-		return networkTargets, nil
-	}
-	return nil, fmt.Errorf("no ping targets found for VNI %d", vni)
-}
-
 func (r *TestRun) retrieveAdvertisedRT5Routes(ctx context.Context, nodeInfo bgpNodeInfo) (map[netip.Prefix]rt5Route, error) {
 	if nodeInfo.AgentPodName == "" {
 		return nil, fmt.Errorf("agent pod for node %s not known", nodeInfo.NodeName)

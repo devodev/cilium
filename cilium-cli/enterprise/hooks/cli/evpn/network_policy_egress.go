@@ -85,10 +85,10 @@ func (t *policyEgressTest) Run(ctx context.Context, run *TestRun, env *testEnv) 
 	if err := t.deployPods(ctx, run); err != nil {
 		return err
 	}
-	if t.subjectPod.targets, err = t.getPingTargetsForPod(env, t.subjectPod); err != nil {
+	if t.subjectPod.targets, err = getRemoteTargetsForPod(ctx, run, env, t.subjectPod.config, t.subjectPod.k8sPod.Spec.NodeName); err != nil {
 		return err
 	}
-	if t.controlPod.targets, err = t.getPingTargetsForPod(env, t.controlPod); err != nil {
+	if t.controlPod.targets, err = getRemoteTargetsForPod(ctx, run, env, t.controlPod.config, t.controlPod.k8sPod.Spec.NodeName); err != nil {
 		return err
 	}
 
@@ -102,6 +102,7 @@ func (t *policyEgressTest) Run(ctx context.Context, run *TestRun, env *testEnv) 
 
 	// deploy policy allowing CIDRs that are NOT matching ping targets - traffic from the subject pod should be denied
 	denyCIDRs, err := nonMatchingHostCIDRsForAddrs(t.subjectPod.targets)
+	fmt.Fprintf(run.out, "Using deny CIDRs for policy: %v\n", denyCIDRs)
 	if err != nil {
 		return err
 	}
@@ -128,7 +129,9 @@ func (t *policyEgressTest) Run(ctx context.Context, run *TestRun, env *testEnv) 
 	}
 
 	// deploy policy allowing CIDRs that are matching ping targets - traffic from the subject pod should be allowed
-	allowPolicy := t.buildEgressCIDRPolicy(run, "allow", t.subjectPod, hostCIDRsForAddrs(t.subjectPod.targets))
+	allowCIDRs := hostCIDRsForAddrs(t.subjectPod.targets)
+	fmt.Fprintf(run.out, "Using allow CIDRs for policy: %v\n", allowCIDRs)
+	allowPolicy := t.buildEgressCIDRPolicy(run, "allow", t.subjectPod, allowCIDRs)
 	if err := createNetworkPolicy(ctx, run, allowPolicy); err != nil {
 		return err
 	}
@@ -139,7 +142,7 @@ func (t *policyEgressTest) Run(ctx context.Context, run *TestRun, env *testEnv) 
 		return err
 	}
 
-	// allow allow policy - all traffic should be allowed
+	// delete allow policy - all traffic should be allowed
 	if err := deleteNetworkPolicy(ctx, run, allowPolicy.Name); err != nil {
 		return err
 	}
@@ -209,32 +212,6 @@ func (t *policyEgressTest) deployPods(ctx context.Context, run *TestRun) error {
 		fmt.Fprintf(run.out, "Pod %s/%s is running on node %s\n", k8sPod.Namespace, k8sPod.Name, k8sPod.Spec.NodeName)
 	}
 	return nil
-}
-
-func (t *policyEgressTest) getPingTargetsForPod(env *testEnv, pod *policyEgressTestPod) ([]netip.Addr, error) {
-	targets, err := getPingTargetsForVNI(env.bgpNodeInfo, pod.k8sPod.Spec.NodeName, pod.config.privnet.VNI)
-	if err != nil {
-		return nil, err
-	}
-	var (
-		res     []netip.Addr
-		hasIPv4 bool
-		hasIPv6 bool
-	)
-	for _, target := range targets {
-		switch {
-		case target.Is4() && pod.config.ipv4.IsValid() && !hasIPv4:
-			res = append(res, target)
-			hasIPv4 = true
-		case target.Is6() && pod.config.ipv6.IsValid() && !hasIPv6:
-			res = append(res, target)
-			hasIPv6 = true
-		}
-	}
-	if len(res) == 0 {
-		return nil, fmt.Errorf("no RT-5 based ping target found for pod %s on node %s", pod.config.name, pod.k8sPod.Spec.NodeName)
-	}
-	return res, nil
 }
 
 func (t *policyEgressTest) buildEgressCIDRPolicy(run *TestRun, nameSuffix string, pod *policyEgressTestPod, cidrs policyapi.CIDRSlice) *isovalentv1alpha1.IsovalentNetworkPolicy {

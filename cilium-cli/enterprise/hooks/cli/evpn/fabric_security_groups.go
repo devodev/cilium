@@ -367,7 +367,7 @@ func validatePodAdvertisedSecurityGroup(testPod *fsgTestPod, routes map[netip.Pr
 func (t *fabricSecurityGroupsTest) pingFromTestPods(ctx context.Context, run *TestRun, description string) error {
 	fmt.Fprintf(run.out, "Pinging from test pods with %s...\n", description)
 	for _, testPod := range t.testPods {
-		targets, err := getPingTargetsForVNI(run.env.bgpNodeInfo, testPod.k8sPod.Spec.NodeName, testPod.config.privnet.VNI)
+		targets, err := getRemoteTargetsForPod(ctx, run, run.env, testPod.config, testPod.k8sPod.Spec.NodeName)
 		if err != nil {
 			return err
 		}

@@ -19,8 +19,9 @@ import (
 
 // basicConnectivityTest tests basic EVPN connectivity:
 //   - deploys a pod in each discovered EVPN-enabled privnet (in an EVPN-enabled subnet),
-//   - determines a ping target for each learned RT-5 route of the privnet
-//     (preferring /32 or /128 prefixes if available, otherwise using first non-network IP of larger prefixes),
+//   - determines remote ping IPs for the privnet, preferring mapped Docker
+//     container IPs when --vni-containers is configured and otherwise using
+//     learned RT-5 routes,
 //   - pings the remote target.
 type basicConnectivityTest struct{}
 
@@ -60,7 +61,7 @@ func (t *basicConnectivityTest) Run(ctx context.Context, run *TestRun, env *test
 
 		fmt.Fprintf(run.out, "Pod %s/%s is running on node %s\n", pod.Namespace, pod.Name, pod.Spec.NodeName)
 
-		targets, err := getPingTargetsForVNI(env.bgpNodeInfo, pod.Spec.NodeName, testPod.privnet.VNI)
+		targets, err := getRemoteTargetsForPod(ctx, run, env, testPod, pod.Spec.NodeName)
 		if err != nil {
 			return err
 		}

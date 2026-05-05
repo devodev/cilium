@@ -15,11 +15,11 @@ import (
 	"fmt"
 	"io"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/cilium/cilium/cilium-cli/enterprise/hooks/k8s"
+	"github.com/cilium/cilium/enterprise/pkg/vni"
 )
 
 const (
@@ -46,7 +46,7 @@ type evpnTest interface {
 
 type TestParams struct {
 	TestFilter    string
-	VNIs          []string
+	VNIs          []uint
 	VNIContainers []string
 
 	CiliumNamespace  string
@@ -258,17 +258,17 @@ func (r *TestRun) runPreflight(ctx context.Context) error {
 	}
 }
 
-func parseRequestedVNIs(rawVNIs []string) ([]uint32, error) {
-	if len(rawVNIs) == 0 {
+func parseRequestedVNIs(inputVNIs []uint) ([]uint32, error) {
+	if len(inputVNIs) == 0 {
 		return nil, nil
 	}
-	res := make([]uint32, 0, len(rawVNIs))
-	for _, field := range rawVNIs {
-		vni, err := strconv.ParseUint(field, 10, 32)
+	res := make([]uint32, 0, len(inputVNIs))
+	for _, inputVNI := range inputVNIs {
+		vniVal, err := vni.FromUint32(uint32(inputVNI))
 		if err != nil {
-			return nil, fmt.Errorf("invalid --vnis value %q: %w", field, err)
+			return nil, fmt.Errorf("invalid --vnis value %d: %w", inputVNI, err)
 		}
-		res = append(res, uint32(vni))
+		res = append(res, vniVal.AsUint32())
 	}
 	if len(res) == 0 {
 		return nil, nil
