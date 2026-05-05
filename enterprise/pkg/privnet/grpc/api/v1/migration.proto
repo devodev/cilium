@@ -1,0 +1,149 @@
+//  Copyright (C) Isovalent, Inc. - All Rights Reserved.
+//
+//  NOTICE: All information contained herein is, and remains the property of
+//  Isovalent Inc and its suppliers, if any. The intellectual and technical
+//  concepts contained herein are proprietary to Isovalent Inc and its suppliers
+//  and may be covered by U.S. and Foreign Patents, patents in process, and are
+//  protected by trade secret or copyright law.  Dissemination of this information
+//  or reproduction of this material is strictly forbidden unless prior written
+//  permission is obtained from Isovalent Inc.
+
+syntax = "proto3";
+
+package api;
+
+option go_package = "github.com/cilium/cilium/enterprise/pkg/privnet/grpc/api/v1;v1";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+
+// The migration service provides transfer of connection tracking state and DHCP leases
+// from one Cilium node to another for seamless live migration of VMs without disrupting
+// existing connections.
+//
+// The target node detects that a VM is being migrated to it (e.g. from kubevirt annotations
+// on a pod) and calls Migrate() on the source node to request transfer of the state.
+//
+// MigrationStart message initiates the transfer and the source node streams one or more
+// batches of state. When the target node has detected that the VM migration has finished
+// it requests a final delta with a MigrationFinalize message. The source node will then
+// send one or more batches and close the stream.
+service Migration {
+  // Migrate opens a workload migration stream.
+  rpc Migrate(stream MigrationRequest) returns (stream MigrationBatch) {}
+}
+
+message MigrationRequest {
+  oneof event {
+    // Start migration of the workload state. The server will start
+    // streaming batches or fails with NOT_FOUND if the workload is not
+    // known.
+    MigrationStart start = 1;
+
+    // Finalize migration of the workload state. This requests for the final batch
+    // to be sent after which the stream is closed by the server.
+    MigrationFinalize finalize = 2;
+  }
+}
+
+message MigrationStart {
+  // Private network of the workload to migrate.
+  string network = 1;
+
+  // MAC address of the workload to migrate.
+  string mac = 2;
+}
+
+message MigrationFinalize {
+}
+
+message MigrationBatch {
+  // Connection tracking records.
+  repeated CTRecord records = 1;
+
+  // DHCP leases.
+  repeated DHCPLease dhcp_lease = 2;
+}
+
+enum CTMapKind {
+  CT_MAP_KIND_UNSPECIFIED = 0;
+  CT_MAP_KIND_GLOBAL_TCP4 = 1;
+  CT_MAP_KIND_GLOBAL_ANY4 = 2;
+  CT_MAP_KIND_GLOBAL_TCP6 = 3;
+  CT_MAP_KIND_GLOBAL_ANY6 = 4;
+  CT_MAP_KIND_PRIVNET_TCP4 = 5;
+  CT_MAP_KIND_PRIVNET_ANY4 = 6;
+  CT_MAP_KIND_PRIVNET_TCP6 = 7;
+  CT_MAP_KIND_PRIVNET_ANY6 = 8;
+}
+
+message CTRecord {
+  // Map kind
+  CTMapKind kind = 1;
+
+  // Private network name or empty if kind is a global map
+  string network = 2;
+
+  // Connection tracking key
+  CTKey key = 3;
+
+  // Connection tracking value
+  CTValue value = 4;
+}
+
+// Connection tracking key. Counterpart of [ctmap.CtKey*].
+message CTKey {
+  // Source IP address. In the private network CT maps this is the network IP
+  // and in the global CT maps this is a pod IP.
+  bytes source_ip = 1;
+
+  // Destination IP address. In the private network CT maps this is the network IP
+  // and in the global CT maps this is a pod IP.
+  bytes dest_ip = 2;
+
+  // Source port number
+  uint32 source_port = 3;
+
+  // Destination port number
+  uint32 dest_port = 4;
+
+  // Type of the next protocol after IP, e.g. IPPROTO_TCP (6), IPPROTO_UDP (17) etc.
+  uint32 next_header = 5;
+
+  // Tuple flags as specified in pkg/tuple, e.g. TUPLE_F_{OUT,IN,RELATED,SERVICE}
+  uint32 flags = 6;
+}
+
+// Connection tracking state to be migrated.
+// Counterpart to [ctmap.CtValue]. Only fields that can be migrated
+// are present (e.g. proxy and LB fields not included).
+message CTValue {
+  // Remaining lifetime for the entry.
+  google.protobuf.Duration lifetime = 1;
+
+  // Flags. See 'struct ct_entry' in bpf/lib/conntrack.h for definition.
+  uint32 flags = 2;
+
+  // "OR" of TCP flags seen in transmit direction.
+  uint32 tx_flags_seen = 3;
+
+  // "OR" of TCP flags seen in receive direction.
+  uint32 rx_flags_seen = 4;
+}
+
+message DHCPLease {
+  // IPv4 address.
+  bytes ipv4 = 1;
+
+  // The DHCP server identity (e.g. IP address).
+  string server_id = 2;
+
+  // The time at which the lease was obtained.
+  google.protobuf.Timestamp obtained_at = 3;
+
+  // The time at which the lease should be renewed.
+  google.protobuf.Timestamp renew_at = 4;
+
+  // The time at which the lease expires.
+  google.protobuf.Timestamp expire_at = 5;
+}
