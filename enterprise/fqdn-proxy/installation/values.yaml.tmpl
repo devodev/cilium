@@ -2,35 +2,14 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-image:
-  override: ~
-  repository: "${CILIUM_DNSPROXY_REPO}"
-  tag: "${CILIUM_DNSPROXY_VERSION}"
-  imagePullPolicy: "${PULL_POLICY}"
-runPath: "/var/run/cilium"
-gke: false
+# -- Enable debug mode
 debug: false
-pprof:
-  enabled: false
+
 offlineMode:
+  # -- Enable support for offline writes to BPF
+  # This must also be enabled in the Cilium agent.
   enabled: false
-extraArgs: []
-extraVolumes: []
-extraVolumeMounts: []
-podSecurityContext: {}
-# -- Labels to be added to cilium-dnsproxy pods
-podLabels: {}
-# -- Explicitly enable or disable priority class.
-# .Capabilities.KubeVersion is unsettable in `helm template` calls,
-# it depends on k8s libraries version that Helm was compiled against.
-# This option allows to explicitly disable setting the priority class, which
-# is useful for rendering charts for
-enableCriticalPriorityClass: false
-# -- The priority class to use for cilium-dnsproxy pods
-priorityClassName: ""
-resources: {}
-# -- The pod security context, by default adds NET_ADMIN, NET_RAW and BPF (if needed).
-securityContext: {}
+
 metrics:
   # -- Enable Prometheus metrics.
   enabled: true
@@ -46,11 +25,58 @@ metrics:
     annotations: {}
     # -- Scrape interval.
     scrapeInterval: 10s
-serviceAccount:
-  create: true
-  automount: true
-  name: cilium-dnsproxy
-  annotations: {}
+
+
+image:
+  override: ~
+  repository: "${CILIUM_DNSPROXY_REPO}"
+  tag: "${CILIUM_DNSPROXY_VERSION}"
+  imagePullPolicy: "${PULL_POLICY}"
+# -- Image pull secrets for pulling container images
+imagePullSecrets: []
+
+# -- Configure where Cilium runtime state should be stored.
+# This must match the cilium agent.
+runPath: "/var/run/cilium"
+
+pprof:
+  # -- Enable pprof for cilium-dnsproxy
+  enabled: false
+  # -- Configure pprof listen address for cilium-dnsproxy
+  address: localhost
+  # -- Configure pprof listen port for cilium-dnsproxy
+  port: 8920
+  # -- Enable mutex contention profiling for cilium-dnsproxy and set the fraction of sampled events (set to 1 to sample all events)
+  mutexProfileFraction: 0
+  # -- Enable goroutine blocking profiling for cilium-dnsproxy and set the rate of sampled events in nanoseconds (set to 1 to sample all events [warning: performance overhead])
+  blockProfileRate: 0
+
+
+# Cilium-dnsproxy daemonset & pod options.
+
+# -- Additional cilium-dnsproxy container arguments.
+extraArgs: []
+# -- Additional cilium-dnsproxy volumes.
+extraVolumes: []
+# -- Additional cilium-dnsproxy volumeMounts.
+extraVolumeMounts: []
+# -- Additional cilium-dnsproxy container environment variables.
+extraEnv: []
+# -- Security Context for cilium-dnsproxy pods.
+podSecurityContext: {}
+# -- Labels to be added to cilium-dnsproxy pods
+podLabels: {}
+# -- Annotations to be added to cilium-dnsproxy daemonset
+annotations: {}
+# -- Annotations to be added to cilium-dnsproxy pods
+podAnnotations: {}
+# -- The priority class to use for cilium-dnsproxy.
+priorityClassName: "system-node-critical"
+# -- Cilium-dnsproxy resource limits & requests
+# ref: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+resources: {}
+# -- The pod security context, by default adds NET_ADMIN, NET_RAW and BPF (if needed).
+securityContext: {}
 # -- Node tolerations for proxy scheduling to nodes with taints
 # ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
 tolerations:
@@ -59,7 +85,6 @@ tolerations:
   #   operator: "Equal|Exists"
   #   value: "value"
   #   effect: "NoSchedule|PreferNoSchedule|NoExecute(1.6 only)"
-
 # -- Affinity for cilium-dnsproxy.
 affinity:
   podAntiAffinity:
@@ -68,13 +93,24 @@ affinity:
       labelSelector:
         matchLabels:
           k8s-app: cilium-dnsproxy
-
+# - Cilium-dnsproxy pod dns policy
 # Ref: https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/#pod-s-dns-policy
 dnsPolicy: ""
-
 # -- Node selector for cilium-dnsproxy.
+# Should match the Cilium agent.
 nodeSelector:
   kubernetes.io/os: linux
+# -- cilium-dnsproxy update strategy
+updateStrategy: ~
 
-# -- Annotations to add to cilium-dnsproxy DaemonSet
-annotations: {}
+# cilium-dnsproxy service account
+# It does not have any RBAC privileges.
+serviceAccount:
+  # -- Whether or not to create the cilium-dnsproxy service account
+  create: true
+  # -- Whether or not to mount the service account's token
+  automount: true
+  # -- The name of the service account
+  name: cilium-dnsproxy
+  # -- Annotations for the service account
+  annotations: {}

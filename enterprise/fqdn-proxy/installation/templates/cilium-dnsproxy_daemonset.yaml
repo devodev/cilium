@@ -1,33 +1,11 @@
-{{- /* Workaround so that we can set the minimal k8s version that we support */ -}}
-{{- $k8sVersion := .Capabilities.KubeVersion.Version -}}
-{{- $k8sMajor := .Capabilities.KubeVersion.Major -}}
-{{- $k8sMinor := .Capabilities.KubeVersion.Minor -}}
-
-{{- if .Values.Capabilities -}}
-{{- if .Values.Capabilities.KubeVersion -}}
-{{- if .Values.Capabilities.KubeVersion.Version -}}
-{{- $k8sVersion = .Values.Capabilities.KubeVersion.Version -}}
-{{- if .Values.Capabilities.KubeVersion.Major -}}
-{{- $k8sMajor = toString (.Values.Capabilities.KubeVersion.Major) -}}
-{{- if .Values.Capabilities.KubeVersion.Minor -}}
-{{- $k8sMinor = toString (.Values.Capabilities.KubeVersion.Minor) -}}
-{{- end -}}
-{{- end -}}
-{{- end -}}
-{{- end -}}
-{{- end -}}
-
+---
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   labels:
     k8s-app: cilium-dnsproxy
-{{- if .Values.keepDeprecatedLabels }}
-    kubernetes.io/cluster-service: "true"
-{{- if and (eq .Release.Namespace "kube-system" ) .Values.gke.enabled }}
-{{- fail "Invalid configuration: Installing Cilium on GKE with 'kubernetes.io/cluster-service' labels on 'kube-system' namespace causes Cilium DaemonSet to be removed by GKE. Either install Cilium on a different Namespace or install with '--set keepDeprecatedLabels=false'"}}
-{{- end }}
-{{- end }}
+    app.kubernetes.io/part-of: cilium
+    app.kubernetes.io/name: cilium-dnsproxy
   name: cilium-dnsproxy
   namespace: {{ .Release.Namespace }}
   {{- with .Values.annotations }}
@@ -38,9 +16,6 @@ spec:
   selector:
     matchLabels:
       k8s-app: cilium-dnsproxy
-{{- if .Values.keepDeprecatedLabels }}
-      kubernetes.io/cluster-service: "true"
-{{- end }}
 {{- with .Values.updateStrategy }}
   updateStrategy:
     {{- toYaml . | trim | nindent 4 }}
@@ -53,9 +28,8 @@ spec:
 {{- end }}
       labels:
         k8s-app: cilium-dnsproxy
-{{- if .Values.keepDeprecatedLabels }}
-        kubernetes.io/cluster-service: "true"
-{{- end }}
+        app.kubernetes.io/name: cilium-dnsproxy
+        app.kubernetes.io/part-of: cilium
 {{- with .Values.podLabels }}
         {{- toYaml . | nindent 8 }}
 {{- end }}
@@ -73,6 +47,18 @@ spec:
 {{- end }}
 {{- if .Values.pprof.enabled }}
         - --pprof=true
+  {{- if .Values.pprof.address }}
+        - --pprof-address={{.Values.pprof.address }}
+  {{- end }}
+  {{- if .Values.pprof.port }}
+        - --pprof-port={{.Values.pprof.port }}
+  {{- end }}
+  {{- if .Values.pprof.mutexProfileFraction }}
+        - --pprof-mutex-profile-fraction={{ .Values.pprof.mutexProfileFraction }}
+  {{- end }}
+  {{- if .Values.pprof.blockProfileRate }}
+        - --pprof-block-profile-rate={{ .Values.pprof.blockProfileRate }}
+  {{- end }}
 {{- end }}
 {{- if .Values.metrics.enabled }}
         - --expose-metrics
@@ -145,19 +131,12 @@ spec:
               key: dnsproxy-socket-linger-timeout
               name: cilium-config
               optional: true
-{{- if .Values.k8sServiceHost }}
-        - name: KUBERNETES_SERVICE_HOST
-          value: {{ .Values.k8sServiceHost | quote }}
-{{- end }}
-{{- if .Values.k8sServicePort }}
-        - name: KUBERNETES_SERVICE_PORT
-          value: {{ .Values.k8sServicePort | quote }}
-{{- end }}
 {{- with .Values.extraEnv }}
 {{ toYaml . | trim | indent 8 }}
 {{- end }}
         image: "{{ if .Values.image.override }}{{ .Values.image.override }}{{ else }}{{ .Values.image.repository }}:{{ .Values.image.tag }}{{ end }}"
         imagePullPolicy: {{ .Values.image.imagePullPolicy }}
+        terminationMessagePolicy: FallbackToLogsOnError
 {{- if .Values.metrics.enabled }}
         ports:
         - containerPort: {{ .Values.metrics.port }}
@@ -187,7 +166,9 @@ spec:
 {{- end }}
       hostNetwork: true
       restartPolicy: Always
-      priorityClassName: {{ include "priorityClass" (list $ .Values.priorityClassName "system-node-critical") }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
       serviceAccountName: {{ .Values.serviceAccount.name }}
       automountServiceAccountToken: {{ .Values.serviceAccount.automount }}
       terminationGracePeriodSeconds: 1
@@ -230,12 +211,6 @@ spec:
           path: /sys/fs/bpf
           type: DirectoryOrCreate
         name: bpf-maps
-{{- end }}
-{{- if .Values.kubeConfigPath }}
-      - hostPath:
-          path: {{ .Values.kubeConfigPath }}
-          type: FileOrCreate
-        name: kube-config
 {{- end }}
       - configMap:
           name: cilium-config
