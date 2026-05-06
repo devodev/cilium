@@ -207,6 +207,9 @@ func InitGlobalFlags(logger *slog.Logger, cmd *cobra.Command, vp *viper.Viper) {
 	flags.Bool(option.EnableIPv6Name, defaults.EnableIPv6, "Enable IPv6 support")
 	option.BindEnv(vp, option.EnableIPv6Name)
 
+	flags.Bool(option.PreferIpv6Name, defaults.PreferIpv6, "Prefer IPv6 addresses over IPv4 when both are available")
+	option.BindEnv(vp, option.PreferIpv6Name)
+
 	flags.Bool(option.EnableNat46X64Gateway, false, "Enable NAT46 and NAT64 gateway")
 	option.BindEnv(vp, option.EnableNat46X64Gateway)
 
@@ -1050,8 +1053,8 @@ func initEnv(logger *slog.Logger, vp *viper.Viper) {
 		logging.Fatal(logger, "Unable to parse Label prefix configuration", logfields.Error, err)
 	}
 
-	if option.Config.EnableL7Proxy && !option.Config.InstallIptRules {
-		logging.Fatal(logger, "L7 proxy requires iptables rules (--install-iptables-rules=\"true\")")
+	if option.Config.EnableL7Proxy && !option.Config.InstallIptRules && !option.Config.EnableBPFTProxy {
+		logging.Fatal(logger, "L7 proxy requires iptables rules (--install-iptables-rules=\"true\") or BPF TProxy (--enable-bpf-tproxy=\"true\")")
 	}
 
 	if option.Config.EnableRemoteNodeMasquerade && !option.Config.EnableBPFMasquerade {

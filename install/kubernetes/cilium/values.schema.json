@@ -6189,6 +6189,12 @@
     },
     "k8s": {
       "properties": {
+        "apiServerURLs": {
+          "type": [
+            "null",
+            "string"
+          ]
+        },
         "requireIPv4PodCIDR": {
           "type": "boolean"
         },
@@ -7210,6 +7216,9 @@
         }
       },
       "type": "object"
+    },
+    "preferIpv6": {
+      "type": "boolean"
     },
     "preflight": {
       "properties": {

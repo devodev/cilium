@@ -16,6 +16,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	operatorOption "github.com/cilium/cilium/operator/option"
+	"github.com/cilium/cilium/operator/pkg/ciliumenvoyconfig"
+	"github.com/cilium/cilium/operator/pkg/ciliumpod"
 	"github.com/cilium/cilium/operator/pkg/model/translation"
 	ingressTranslation "github.com/cilium/cilium/operator/pkg/model/translation/ingress"
 	"github.com/cilium/cilium/operator/pkg/secretsync"
@@ -104,6 +106,8 @@ type ingressParams struct {
 	AgentConfig        *option.DaemonConfig
 	OperatorConfig     *operatorOption.OperatorConfig
 	IngressConfig      IngressConfig
+	ProxyTimeouts      ciliumenvoyconfig.EnvoyProxyTimeouts
+	PodCfg             ciliumpod.Config
 }
 
 func registerReconciler(params ingressParams) error {
@@ -128,10 +132,10 @@ func registerReconciler(params ingressParams) error {
 		},
 		ListenerConfig: translation.ListenerConfig{
 			UseProxyProtocol:         params.IngressConfig.EnableIngressProxyProtocol,
-			StreamIdleTimeoutSeconds: params.OperatorConfig.ProxyStreamIdleTimeoutSeconds,
+			StreamIdleTimeoutSeconds: params.ProxyTimeouts.ProxyStreamIdleTimeoutSeconds,
 		},
 		ClusterConfig: translation.ClusterConfig{
-			IdleTimeoutSeconds: params.OperatorConfig.ProxyIdleTimeoutSeconds,
+			IdleTimeoutSeconds: params.ProxyTimeouts.ProxyIdleTimeoutSeconds,
 			UseAppProtocol:     false,
 		},
 		RouteConfig: translation.RouteConfig{
@@ -151,7 +155,7 @@ func registerReconciler(params ingressParams) error {
 		cecTranslator,
 		dedicatedIngressTranslator,
 
-		operatorOption.Config.CiliumK8sNamespace,
+		params.PodCfg.ResolveNamespace(params.AgentConfig.K8sNamespace),
 		params.IngressConfig.IngressLBAnnotationPrefixes,
 		params.IngressConfig.IngressSharedLBServiceName,
 		params.IngressConfig.IngressDefaultLBMode,

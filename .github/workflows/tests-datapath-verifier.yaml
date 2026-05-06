@@ -74,7 +74,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Set initial commit status
-        uses: cilium/cilium/.github/actions/set-commit-status@354584b6acb8b1d0203ab1001815fc50916979be # main
+        uses: cilium/cilium/.github/actions/set-commit-status@98995b41cfa4549131dadab2498f598c2a0c8d16 # main
         with:
           sha: ${{ inputs.SHA || github.sha }}
 
@@ -106,7 +106,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Set commit status to pending
-        uses: cilium/cilium/.github/actions/set-commit-status@354584b6acb8b1d0203ab1001815fc50916979be # main
+        uses: cilium/cilium/.github/actions/set-commit-status@98995b41cfa4549131dadab2498f598c2a0c8d16 # main
         with:
           sha: ${{ inputs.SHA || github.sha }}
 
@@ -278,11 +278,11 @@ jobs:
   commit-status-final:
     if: ${{ always() }}
     name: Commit Status Final
-    needs: setup-and-test
+    needs: merge-and-diff
     runs-on: ubuntu-24.04
     steps:
       - name: Set final commit status
-        uses: cilium/cilium/.github/actions/set-commit-status@354584b6acb8b1d0203ab1001815fc50916979be # main
+        uses: cilium/cilium/.github/actions/set-commit-status@98995b41cfa4549131dadab2498f598c2a0c8d16 # main
         with:
           sha: ${{ inputs.SHA || github.sha }}
-          status: ${{ needs.setup-and-test.result }}
+          status: ${{ needs.merge-and-diff.result }}

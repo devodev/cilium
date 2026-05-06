@@ -2769,7 +2769,7 @@
      - int
      - ``4244``
    * - :spelling:ignore:`hubble.preferIpv6`
-     - Whether Hubble should prefer to announce IPv6 or IPv4 addresses if both are available.
+     - Whether Hubble should prefer to announce IPv6 or IPv4 addresses if both are available. Deprecated: use top-level preferIpv6 instead.
      - bool
      - ``false``
    * - :spelling:ignore:`hubble.rbac`
@@ -3783,7 +3783,11 @@
    * - :spelling:ignore:`k8s`
      - Configure Kubernetes specific configuration
      - object
-     - ``{"requireIPv4PodCIDR":false,"requireIPv6PodCIDR":false}``
+     - ``{"apiServerURLs":null,"requireIPv4PodCIDR":false,"requireIPv6PodCIDR":false}``
+   * - :spelling:ignore:`k8s.apiServerURLs`
+     - A space separated list of Kubernetes API server URLs to use with the client. For example "https://192.168.0.1:6443 https://192.168.0.2:6443"
+     - string
+     - ``nil``
    * - :spelling:ignore:`k8s.requireIPv4PodCIDR`
      - requireIPv4PodCIDR enables waiting for Kubernetes to provide the PodCIDR range via the Kubernetes node resource
      - bool
@@ -4412,6 +4416,10 @@
      - Configure pprof listen port for cilium-agent
      - int
      - ``6060``
+   * - :spelling:ignore:`preferIpv6`
+     - Prefer IPv6 addresses over IPv4 when both are available for health probes and Hubble peer communication.
+     - bool
+     - ``false``
    * - :spelling:ignore:`preflight.affinity`
      - Affinity for cilium-preflight
      - object
