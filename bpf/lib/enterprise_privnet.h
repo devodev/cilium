@@ -1438,9 +1438,8 @@ enforce_privnet_ingress_segmentation_at_lxc(bool unknown_flow, bool host_traffic
 	return DROP_UNROUTABLE;
 }
 
-static __always_inline int
+__noinline __weak int
 privnet_unknown_policy_ingress4(struct __ctx_buff *ctx,
-				struct iphdr *ip4,
 				__u16 net_id,
 				__u32 sec_label,
 				struct trace_ctx *trace)
@@ -1451,8 +1450,10 @@ privnet_unknown_policy_ingress4(struct __ctx_buff *ctx,
 	fraginfo_t fraginfo __maybe_unused;
 	bool is_untracked_fragment = false;
 	int verdict = CTX_ACT_OK;
+	void *data, *data_end;
 	__u16 proxy_port = 0;
 	__s8 *ext_err = NULL;
+	struct iphdr *ip4;
 	__u32 monitor = 0;
 	__u8 audited = 0;
 	__u32 cookie = 0;
@@ -1463,6 +1464,9 @@ privnet_unknown_policy_ingress4(struct __ctx_buff *ctx,
 	void *ct_map, *ct_map_any;
 	struct ipv4_ct_tuple tuple = {};
 	struct ct_state ct_state = {};
+
+	if (!revalidate_data(ctx, &data, &data_end, &ip4))
+		return DROP_INVALID;
 
 	fraginfo = ipfrag_encode_ipv4(ip4);
 	l4_off = ETH_HLEN + ipv4_hdrlen(ip4);
@@ -1547,9 +1551,6 @@ privnet_lxc_ingress_ipv4(struct __ctx_buff *ctx,
 	int ret = CTX_ACT_OK;
 	bool host_traffic = false; /* pkt originating from a (remote) host identity */
 
-	if (!revalidate_data(ctx, &data, &data_end, &ip4))
-		return DROP_INVALID;
-
 	/* unxlated_flow means both src and dst are in private-network space. As such
 	 * there will be no entry for such src/dst in pip map.
 	 * Set net_ids based on passed net_id and check ingress unknown policy.
@@ -1557,8 +1558,11 @@ privnet_lxc_ingress_ipv4(struct __ctx_buff *ctx,
 	 */
 	if (unxlated_flow) {
 		set_privnet_net_ids(net_id, net_id);
-		return privnet_unknown_policy_ingress4(ctx, ip4, net_id, sec_label, trace);
+		return privnet_unknown_policy_ingress4(ctx, net_id, sec_label, trace);
 	}
+
+	if (!revalidate_data(ctx, &data, &data_end, &ip4))
+		return DROP_INVALID;
 
 	sip_val = privnet_pip_lookup4(ip4->saddr);
 
@@ -1625,13 +1629,9 @@ privnet_lxc_ingress_ipv4(struct __ctx_buff *ctx,
 			set_privnet_net_src_id(dip_val->net_id);
 	}
 
-	/* revalidate data before accessing ip4, otherwise verifier will not be happy. */
-	if (!revalidate_data(ctx, &data, &data_end, &ip4))
-		return DROP_INVALID;
-
 	/* enforce ingress policy for unknown flow */
 	if (unknown_flow) {
-		ret = privnet_unknown_policy_ingress4(ctx, ip4, net_id, sec_label, trace);
+		ret = privnet_unknown_policy_ingress4(ctx, net_id, sec_label, trace);
 		if (ret != CTX_ACT_OK)
 			return ret;
 	}
@@ -1728,9 +1728,8 @@ out:
 	return enforce_privnet_ingress_segmentation_at_inb(unknown_flow, sip_val, dip_val);
 }
 
-static __always_inline int
+__noinline __weak int
 privnet_unknown_policy_ingress6(struct __ctx_buff *ctx,
-				struct ipv6hdr *ip6,
 				__u16 net_id,
 				__u32 sec_label,
 				struct trace_ctx *trace)
@@ -1744,15 +1743,20 @@ privnet_unknown_policy_ingress6(struct __ctx_buff *ctx,
 	struct ct_state ct_state = {};
 	void *ct_map, *ct_map_any;
 	int verdict = CTX_ACT_OK;
+	void *data, *data_end;
 	__u16 proxy_port = 0;
 	__s8 *ext_err = NULL;
+	struct ipv6hdr *ip6;
+	__u32 monitor = 0;
 	__u8 audited = 0;
 	__u32 cookie = 0;
-	__u32 monitor = 0;
 	int hdrlen;
 	int l4_off;
 	int ct_ret;
 	int ret;
+
+	if (!revalidate_data(ctx, &data, &data_end, &ip6))
+		return DROP_INVALID;
 
 	tuple.nexthdr = ip6->nexthdr;
 	hdrlen = ipv6_hdrlen_with_fraginfo(ctx, &tuple.nexthdr, &fraginfo);
@@ -1822,14 +1826,14 @@ privnet_lxc_ingress_ipv6(struct __ctx_buff *ctx, __u32 sec_label, __u16 net_id,
 	int ret = CTX_ACT_OK;
 	bool host_traffic = false;
 
-	if (!revalidate_data(ctx, &data, &data_end, &ip6))
-		return DROP_INVALID;
-
 	/* check comment in privnet_lxc_ingress_ipv4 */
 	if (unxlated_flow) {
 		set_privnet_net_ids(net_id, net_id);
-		return privnet_unknown_policy_ingress6(ctx, ip6, net_id, sec_label, trace);
+		return privnet_unknown_policy_ingress6(ctx, net_id, sec_label, trace);
 	}
+
+	if (!revalidate_data(ctx, &data, &data_end, &ip6))
+		return DROP_INVALID;
 
 	ipv6_addr_copy(&orig_sip, (union v6addr *)&ip6->saddr);
 	ipv6_addr_copy(&orig_dip, (union v6addr *)&ip6->daddr);
@@ -1877,14 +1881,9 @@ privnet_lxc_ingress_ipv6(struct __ctx_buff *ctx, __u32 sec_label, __u16 net_id,
 			set_privnet_net_src_id(dip_val->net_id);
 	}
 
-	/* revalidate data before accessing ip6, otherwise verifier will not be happy. */
-	if (!revalidate_data(ctx, &data, &data_end, &ip6))
-		return DROP_INVALID;
-
 	/* enforce ingress policy for unknown flow */
 	if (unknown_flow) {
-		ret = privnet_unknown_policy_ingress6(ctx, ip6, net_id,
-						      sec_label, trace);
+		ret = privnet_unknown_policy_ingress6(ctx, net_id, sec_label, trace);
 		if (ret != CTX_ACT_OK)
 			return ret;
 	}
