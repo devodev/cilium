@@ -1,0 +1,61 @@
+#! --private-networks-enabled
+
+hive/start
+
+# Add a kubevirt VM pod and a plain pod
+cp pod.yaml pod2.yaml
+sed 'kubevirt.io' 'not-kubevirt' pod2.yaml
+sed 'live-migrate-vm' 'normal-pod' pod2.yaml
+k8s/add pod.yaml pod2.yaml
+
+# Wait for the migrations to reflect. We should not see the plain
+# pod as migration.
+db/cmp privnet-migrations migration-new.table
+
+# Set the node name to the local name to mark the migration completed.
+sed 'kubevirt.io/nodeName: source-worker' 'kubevirt.io/nodeName: foobar-worker-1' pod.yaml
+k8s/update pod.yaml
+db/cmp privnet-migrations migration-resumed.table
+
+# Removing the kubevirt pod removes the migration
+k8s/delete pod.yaml
+
+# Migration table should now be empty
+* db/empty privnet-migrations
+
+# ---
+
+-- migration-new.table --
+Cluster Namespace   PodName         SourceNode    TargetNode      Resumed State Error
+default cilium-test live-migrate-vm source-worker foobar-worker-1 false   New
+
+-- migration-resumed.table --
+Cluster Namespace   PodName         SourceNode    TargetNode      Resumed State Error
+default cilium-test live-migrate-vm source-worker foobar-worker-1 true    New
+
+-- pod.yaml --
+apiVersion: v1
+kind: Pod
+metadata:
+  name: live-migrate-vm
+  namespace: cilium-test
+  uid: 0c404405-f0df-463f-a0c9-60fa8c0f28d0
+  labels:
+    kubevirt.io/nodeName: source-worker
+    vm.kubevirt.io/name: live-migrate-vm
+  ownerReferences:
+    - apiVersion: kubevirt.io/v1
+      kind: VirtualMachineInstance
+      name: live-migrate-vm
+      uid: 6baf0a4a-f785-4e82-bc7e-c2b6bc8db8ba
+  annotations:
+    kubevirt.io/domain: live-migrate-vm
+    kubevirt.io/migrationJobName: live-migrate-vm-migration-1
+    privnet.isovalent.com/network-attachment: '{"network":"blue-network","ipv4":"10.10.0.20","mac":"02:00:01:e6:bb:ff"}'
+spec:
+  nodeName: foobar-worker-1
+status:
+  phase: Running
+  podIPs:
+    - ip: 10.244.5.120
+
