@@ -414,5 +414,15 @@
         '# renovate: datasource=(?<datasource>.*?) depName=(?<depName>.*?)\\s+.+_VERSION\\s?\\?=\\s?(?<currentValue>.*)',
       ],
     },
+    {
+      customType: "regex",
+      description: "Match dependencies in shell scripts",
+      managerFilePatterns: [
+        "/\\.sh$/",
+      ],
+      matchStrings: [
+        "# renovate: datasource=(?<datasource>.+?) depName=(?<depName>.+?)(?: packageName=(?<packageName>.+?))?(?: registryUrl=(?<registryUrl>.+?))?(?: depType=(?<depType>.+?))?(?: extractVersion=(?<extractVersion>.+?))?(?: versioning=(?<versioning>.+?))?\\s+\\w+=[\"']?(?<currentValue>.+?)[\"']?\\s",
+      ],
+    },
   ],
 }
