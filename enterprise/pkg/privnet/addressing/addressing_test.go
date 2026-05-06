@@ -910,6 +910,115 @@ func TestPrivNetAPI_GetPrivateNetworkAddressing(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:     "secondary network attachment, MAC omitted",
+			override: override{ifname: "net1"},
+			pod: newPod("default", "client", "uid",
+				map[string]string{
+					types.PrivateNetworkSecondaryAttachmentsAnnotation: `[
+						{ "network": "green-network", "ipv4": "192.168.10.11", "ipv6": "fd10:0:140::11" }
+					]`,
+					multusv1.NetworkAttachmentAnnot: "foo",
+				},
+			),
+			wantAddressing: &models.PrivateNetworkAddressing{
+				ActivatedAt: strfmt.DateTime(activatedAtActive),
+				Network:     "green-network",
+				Subnet:      "subnet3",
+				Address: &models.AddressPair{
+					IPv4: "192.168.10.11",
+					IPv6: "fd10:0:140::11",
+				},
+				Routes: []*models.NetworkAttachmentRoute{
+					{Destination: "169.254.0.2/32"},
+					{Destination: "192.168.10.0/24", Gateway: "169.254.0.2"},
+					{Destination: "fe80::2/128"},
+					{Destination: "fd10:0:140::/64", Gateway: "fe80::2"},
+				},
+			},
+		},
+		{
+			name:     "secondary network attachment, MAC from Multus annotation",
+			override: override{ifname: "net1"},
+			pod: newPod("default", "client", "uid",
+				map[string]string{
+					types.PrivateNetworkSecondaryAttachmentsAnnotation: `[
+						{ "network": "green-network", "ipv4": "192.168.10.11", "ipv6": "fd10:0:140::11" }
+					]`,
+					multusv1.NetworkAttachmentAnnot: `[{ "name": "foo", "mac": "00:50:56:ad:11:05" }]`,
+				},
+			),
+			wantAddressing: &models.PrivateNetworkAddressing{
+				ActivatedAt: strfmt.DateTime(activatedAtActive),
+				Network:     "green-network",
+				Subnet:      "subnet3",
+				Address: &models.AddressPair{
+					IPv4: "192.168.10.11",
+					IPv6: "fd10:0:140::11",
+				},
+				Mac: "00:50:56:ad:11:05",
+				Routes: []*models.NetworkAttachmentRoute{
+					{Destination: "169.254.0.2/32"},
+					{Destination: "192.168.10.0/24", Gateway: "169.254.0.2"},
+					{Destination: "fe80::2/128"},
+					{Destination: "fd10:0:140::/64", Gateway: "fe80::2"},
+				},
+			},
+		},
+		{
+			name:     "secondary network attachment, MAC matching",
+			override: override{ifname: "net1"},
+			pod: newPod("default", "client", "uid",
+				map[string]string{
+					types.PrivateNetworkSecondaryAttachmentsAnnotation: `[
+						{ "network": "green-network", "ipv4": "192.168.10.11", "ipv6": "fd10:0:140::11", "mac": "00:50:56:ad:11:05" }
+					]`,
+					multusv1.NetworkAttachmentAnnot: `[{ "name": "foo", "mac": "00:50:56:ad:11:05" }]`,
+				},
+			),
+			wantAddressing: &models.PrivateNetworkAddressing{
+				ActivatedAt: strfmt.DateTime(activatedAtActive),
+				Network:     "green-network",
+				Subnet:      "subnet3",
+				Address: &models.AddressPair{
+					IPv4: "192.168.10.11",
+					IPv6: "fd10:0:140::11",
+				},
+				Mac: "00:50:56:ad:11:05",
+				Routes: []*models.NetworkAttachmentRoute{
+					{Destination: "169.254.0.2/32"},
+					{Destination: "192.168.10.0/24", Gateway: "169.254.0.2"},
+					{Destination: "fe80::2/128"},
+					{Destination: "fd10:0:140::/64", Gateway: "fe80::2"},
+				},
+			},
+		},
+		{
+			name:     "secondary network attachment, MAC mismatching",
+			override: override{ifname: "net1"},
+			pod: newPod("default", "client", "uid",
+				map[string]string{
+					types.PrivateNetworkSecondaryAttachmentsAnnotation: `[
+						{ "network": "green-network", "ipv4": "192.168.10.11", "ipv6": "fd10:0:140::11", "mac": "00:50:56:ad:11:05" }
+					]`,
+					multusv1.NetworkAttachmentAnnot: `[{ "name": "foo", "mac": "00:50:56:ad:11:06" }]`,
+				},
+			),
+			wantErr: `mismatching MAC request for interface "net1" in`,
+		},
+		{
+			name:     "secondary network attachment, invalid MAC from Multus annotation",
+			override: override{ifname: "net1"},
+			pod: newPod("default", "client", "uid",
+				map[string]string{
+					types.PrivateNetworkSecondaryAttachmentsAnnotation: `[
+						{ "network": "green-network", "ipv4": "192.168.10.11", "ipv6": "fd10:0:140::11" }
+					]`,
+					multusv1.NetworkAttachmentAnnot: `[{ "name": "foo", "mac": "invalid" }]`,
+				},
+			),
+			wantErr: `invalid MAC address request in "k8s.v1.cni.cncf.io/networks" annotation`,
+		},
 	}
 
 	for _, tt := range tests {

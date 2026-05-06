@@ -11,6 +11,7 @@
 package addressing
 
 import (
+	"bytes"
 	"cmp"
 	"crypto/sha256"
 	"fmt"
@@ -36,6 +37,7 @@ import (
 	"github.com/cilium/cilium/enterprise/pkg/privnet/tables"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/types"
 	iso_v1alpha1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
+	"github.com/cilium/cilium/pkg/mac"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/time"
 )
@@ -231,6 +233,16 @@ func (n *PrivNetAPI) GetPrivateNetworkAddressing(p network.GetNetworkPrivateAddr
 // getAttachmentFor returns the network attachment associated with the given interface of a pod, and
 // the corresponding vNIC index, computed based on the position of the entry in the Multus network
 // attachment annotation.
+//
+// For secondary interfaces, it additionally validates that the MAC address requested via the network
+// attachment matches the one in the corresponding Multus annotation entry, if both are specified,
+// and defaults to the latter if the former is not specified. This ensures that the MAC requested
+// through the Interface stanza of a VirtualMachineInstance is always respected, even if not explicitly
+// specified as part of the network attachment annotation. Yet, no validation check, nor defaulting, is
+// possible for the primary interface (without actually retrieving the VirtualMachineInstance object),
+// as the MAC address is not propagated as part of the pod object itself, and users are responsible for
+// always specifying the desired MAC address also through the network attachment annotation, if they set
+// a custom MAC address through the Interface stanza.
 func (n *PrivNetAPI) getAttachmentFor(pod metav1.Object, ifname string) (*types.NetworkAttachment, vNICIndex, error) {
 	// The attachment for the primary interface is always the first one.
 	const primary = "eth0"
@@ -254,11 +266,18 @@ func (n *PrivNetAPI) getAttachmentFor(pod metav1.Object, ifname string) (*types.
 		return nil, 0, fmt.Errorf("unable to parse %q annotation: %w", multusv1.NetworkAttachmentAnnot, err)
 	}
 
-	nicidx, duplicate := -1, false
+	nicidx, duplicate, macreq := -1, false, mac.MAC(nil)
 	for i, elem := range elems {
 		// If no interface name is specified, Multus constructs it based on the position of the delegate.
 		// https://github.com/k8snetworkplumbingwg/multus-cni/blob/39d6a8ffd2fb/pkg/multus/multus.go#L92-L105
 		if ifname == cmp.Or(elem.InterfaceRequest, fmt.Sprintf("net%d", i+1)) {
+			if elem.MacRequest != "" {
+				macreq, err = mac.ParseMAC(elem.MacRequest)
+				if err != nil {
+					return nil, 0, fmt.Errorf("invalid MAC address request in %q annotation: %w", multusv1.NetworkAttachmentAnnot, err)
+				}
+			}
+
 			duplicate, nicidx = nicidx != -1, i
 		}
 	}
@@ -300,9 +319,20 @@ func (n *PrivNetAPI) getAttachmentFor(pod metav1.Object, ifname string) (*types.
 	case naidx >= 64:
 		return nil, 0, fmt.Errorf("at most 64 secondary interfaces are supported")
 	default:
+		var attachment = attachments[naidx]
+		if len(attachment.MAC) == 0 {
+			attachment.MAC = macreq
+		}
+
+		if len(macreq) != 0 && !bytes.Equal(attachment.MAC, macreq) {
+			return nil, 0, fmt.Errorf("mismatching MAC request for interface %q in %q and %q annotations",
+				ifname, types.PrivateNetworkSecondaryAttachmentsAnnotation, multusv1.NetworkAttachmentAnnot,
+			)
+		}
+
 		// We return the index in the Multus annotation, rather than the one of the
 		// attachment entry, so that it is future proof once we make attachments optional.
-		return &attachments[naidx], vNICIndex(nicidx + 1), nil
+		return &attachment, vNICIndex(nicidx + 1), nil
 	}
 }
 
