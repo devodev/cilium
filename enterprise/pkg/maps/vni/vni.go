@@ -85,7 +85,7 @@ func newVNI(
 		&VNIKey{},
 		&VNIVal{},
 		int(mapCfg.MapSize),
-		unix.BPF_F_NO_PREALLOC,
+		unix.BPF_F_NO_PREALLOC|unix.BPF_F_RDONLY_PROG,
 	)
 
 	// So far, VNI map is only used for Private Networks + EVPN.

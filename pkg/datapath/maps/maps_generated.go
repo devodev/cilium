@@ -567,7 +567,7 @@ func newCiliumEVPNFIBSpec(btf *btf.Spec) *ebpf.MapSpec {
 		ValueSize:  32,
 		Value:      anyTypeByName(btf, "evpn_fib_val"),
 		MaxEntries: 65536,
-		Flags:      unix.BPF_F_NO_PREALLOC,
+		Flags:      unix.BPF_F_NO_PREALLOC | unix.BPF_F_RDONLY_PROG,
 		Pinning:    ebpf.PinByName,
 	}
 }
@@ -1735,7 +1735,7 @@ func newCiliumVNISpec(btf *btf.Spec) *ebpf.MapSpec {
 		ValueSize:  4,
 		Value:      anyTypeByName(btf, "vni_val"),
 		MaxEntries: 65536,
-		Flags:      unix.BPF_F_NO_PREALLOC,
+		Flags:      unix.BPF_F_NO_PREALLOC | unix.BPF_F_RDONLY_PROG,
 		Pinning:    ebpf.PinByName,
 	}
 }

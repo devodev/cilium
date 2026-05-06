@@ -192,7 +192,7 @@ func newFIB(
 		&FIBKey{},
 		&FIBVal{},
 		int(mapCfg.FIBMapSize),
-		unix.BPF_F_NO_PREALLOC,
+		unix.BPF_F_NO_PREALLOC|unix.BPF_F_RDONLY_PROG,
 	)
 
 	enabled := evpnCfg.Enabled

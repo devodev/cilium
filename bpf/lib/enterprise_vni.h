@@ -18,7 +18,7 @@ struct {
 	__type(value, struct vni_val);
 	__uint(pinning, LIBBPF_PIN_BY_NAME);
 	__uint(max_entries, VNI_MAP_SIZE);
-	__uint(map_flags, BPF_F_NO_PREALLOC);
+	__uint(map_flags, BPF_F_NO_PREALLOC | BPF_F_RDONLY_PROG_COND);
 } cilium_vni __section_maps_btf;
 
 static __always_inline const struct vni_val *
