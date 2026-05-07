@@ -303,7 +303,15 @@ Allow packagers to add extra arguments to the clustermesh-apiserver kvstoremesh 
 {{/*
 Allow packagers to add lifecycle hooks to the cilium-envoy container.
 */}}
-{{- define "envoy.lifecycle" -}}
+{{- define "envoy.lifecycle"}}
+{{- if and .Values.envoy.gracefulRestart .Values.envoy.gracefulRestart.enabled }}
+postStart:
+  exec:
+    command:
+    - sh
+    - -c
+    - cp /var/run/cilium-envoy/restart/next_epoch /var/run/cilium-envoy/restart/epoch
+{{- end }}
 {{- end }}
 
 {{/*
@@ -314,25 +322,60 @@ Allow packagers to add init containers to the cilium-envoy pods.
 initContainers:
 - name: get-hot-restart-epoch
   image: {{ include "cilium.image" .Values.envoy.kubectl.image }}
-  env:
-  - name: POD_TEMPLATE_GENERATION
-    valueFrom:
-      fieldRef:
-        fieldPath: metadata.labels['pod-template-generation']
+  volumeMounts:
+  - name: envoy-hot-restart-sockets
+    mountPath: /var/run/cilium-envoy/hot-restart-sockets
+  - name: envoy-restart-epoch-state
+    mountPath: /var/run/cilium-envoy/restart
+  securityContext:
+    runAsUser: 0
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - ALL
   command:
     - sh
     - -c
     - |
-      restart_epoch=$(kubectl get cm restart-epoch-cm -o jsonpath="{['data']['restart-epoch']}")
-      pod_template_gen=$((POD_TEMPLATE_GENERATION - 1))
-      echo "initial restart_epoch is $POD_TEMPLATE_GENERATION"
-      if [ -z "$restart_epoch"]
-      then
-        echo "restart_epoch is empty, assigning zero"
-        kubectl create configmap restart-epoch-cm --from-literal=restart-epoch=$pod_template_gen --dry-run -o yaml | kubectl apply -f -
+      # This init-container is used to facilitate a graceful restart of cilium-envoy. A
+      # state file is used to cooridinate the restart-epoch passed to the envoy process.
+      #
+      # epoch >  0: graceful restart
+      # epoch == 0: fresh start
+      #
+      # See: https://www.envoyproxy.io/docs/envoy/latest/operations/cli#cmdoption-restart-epoch
+      #
+
+      STATE_FILE=/var/run/cilium-envoy/restart/epoch
+      NEXT_STATE_FILE=/var/run/cilium-envoy/restart/next_epoch
+      SOCKET_PATH=/var/run/cilium-envoy/hot-restart-sockets/hot-restart.sock
+
+      # get last epoch that was started on this node
+      last_epoch=0
+      if [ -f "${STATE_FILE}" ]; then
+        epoch_raw=$(cat "${STATE_FILE}")
+        case "${epoch_raw}" in
+          ''|*[!0-9]*) echo "State file is invalid: '${epoch_raw}'; will start fresh" ;;
+          *) last_epoch="${epoch_raw}"
+             echo "Read last_epoch=${last_epoch} from state file" ;;
+        esac
       else
-        kubectl patch cm restart-epoch-cm --type merge -p '{"data":{"restart-epoch":"'"$pod_template_gen"'"}}'
+        echo "No state file found; will start fresh"
       fi
+
+      # check if the parent process is listening on hot-restart socket
+      parent_sock="${SOCKET_PATH}_parent_${last_epoch}"
+      if grep -qF "${parent_sock}" /proc/net/unix; then
+        next_epoch=$((last_epoch + 1))
+        echo "Parent is listening on socket (${parent_sock}); will hot restart with epoch=${next_epoch}"
+      else
+        next_epoch=0
+        echo "Parent is not listening on socket (${parent_sock}); will start fresh"
+      fi
+
+      echo "${next_epoch}" > "${NEXT_STATE_FILE}"
+      echo "Committed next_epoch=${next_epoch}"
+
 {{- end }}
 {{- end }}
 
@@ -341,7 +384,8 @@ Allow packagers to add extra args to the cilium-envoy container.
 */}}
 {{- define "envoy.args.extra" -}}
 {{- if and .Values.envoy.gracefulRestart .Values.envoy.gracefulRestart.enabled }}
-- '--restart-epoch $(RESTART_EPOCH)'
+- '--restart-epoch'
+- '@/var/run/cilium-envoy/restart/next_epoch'
 - '--socket-path /var/run/cilium-envoy/hot-restart-sockets/hot-restart.sock'
 - '--skip-hot-restart-on-no-parent'
 - '--parent-shutdown-time-s {{ .Values.envoy.gracefulRestart.parentShutdownSeconds }}'
@@ -354,13 +398,6 @@ Allow packagers to add extra args to the cilium-envoy container.
 Allow packagers to add extra env vars to the cilium-envoy container.
 */}}
 {{- define "envoy.env.extra" -}}
-{{- if and .Values.envoy.gracefulRestart .Values.envoy.gracefulRestart.enabled }}
-- name: RESTART_EPOCH
-  valueFrom:
-    configMapKeyRef:
-      name: restart-epoch-cm
-      key: restart-epoch
-{{- end }}
 {{- if .Values.enterprise.waf.enabled }}
 - name: ENVOY_DYNAMIC_MODULES_SEARCH_PATH
   value: /usr/lib
@@ -377,6 +414,8 @@ Allow packagers to add extra volume mounts to the cilium-envoy container.
 - mountPath: /var/run/cilium-envoy/hot-restart-sockets
   name: envoy-hot-restart-sockets
   readOnly: false
+- mountPath: /var/run/cilium-envoy/restart
+  name: envoy-restart-epoch-state
 {{- end }}
 {{- end }}
 
@@ -393,6 +432,10 @@ Allow packagers to add extra host path mounts to the cilium-envoy container.
       path: "{{ .Values.daemon.runPath }}/cilium-envoy/hot-restart-sockets"
       type: DirectoryOrCreate
     name: envoy-hot-restart-sockets
+  - hostPath:
+      path: "{{ .Values.daemon.runPath }}/cilium-envoy/restart"
+      type: DirectoryOrCreate
+    name: envoy-restart-epoch-state
 {{- end }}
 {{- end }}
 
