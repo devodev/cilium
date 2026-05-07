@@ -71,8 +71,10 @@ spec:
   - cluster: elephantidae
   subnets:
   - name: subnet1
-    cidrv4: 192.168.250.0/24
-    cidrv6: fd10:0:250::0/64
+    # The CIDRs are not in the canonical form (i.e., with the host bits not set
+    # to 0) on purpose, to assert that they get masked during the ingestion phase.
+    cidrv4: 192.168.250.10/24
+    cidrv6: fd10:0:250::10/64
     routes:
     - destination: 192.168.252.0/24
       gateway: 192.168.250.254

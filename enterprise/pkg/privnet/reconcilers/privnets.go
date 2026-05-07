@@ -246,7 +246,7 @@ func (pn *PrivateNetworks) extractSubnets(privnet *iso_v1alpha1.ClusterwidePriva
 					logfields.PrivateNetworkSubnet, subnetPrefix.Name,
 				)
 			} else {
-				subnet.CIDRv4 = cidr
+				subnet.CIDRv4 = cidr.Masked()
 			}
 		}
 
@@ -260,7 +260,7 @@ func (pn *PrivateNetworks) extractSubnets(privnet *iso_v1alpha1.ClusterwidePriva
 					logfields.PrivateNetworkSubnet, subnetPrefix.Name,
 				)
 			} else {
-				subnet.CIDRv6 = cidrv6
+				subnet.CIDRv6 = cidrv6.Masked()
 			}
 		}
 
