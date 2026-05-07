@@ -19,6 +19,7 @@ import (
 	"github.com/cilium/statedb/reconciler"
 
 	"github.com/cilium/cilium/enterprise/pkg/privnet/endpoints"
+	"github.com/cilium/cilium/enterprise/pkg/privnet/tables"
 	"github.com/cilium/cilium/pkg/hive"
 	"github.com/cilium/cilium/pkg/time"
 )
@@ -134,6 +135,15 @@ func (tracker *PropertyTracker[T, K, V]) Track(change statedb.Change[T]) (prev V
 	}
 
 	return prev, ok && prev != val
+}
+
+// NewNodeAttachmentsNetworkTracker constructs a [PropertyTracker] to track the
+// network associated with a given [tables.NodeAttachment] instance.
+func NewNodeAttachmentsNetworkTracker() *PropertyTracker[*tables.NodeAttachment, tables.NodeAttachmentPrimaryKey, tables.NetworkName] {
+	return NewPropertyTracker(
+		(*tables.NodeAttachment).Key,
+		func(na *tables.NodeAttachment) tables.NetworkName { return na.Network },
+	)
 }
 
 func NewWaitUntilReconciledFn[T any](db *statedb.DB, tbl statedb.Table[T], getStatus func(T) reconciler.Status) hive.WaitFunc {

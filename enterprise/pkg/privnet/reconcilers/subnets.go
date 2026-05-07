@@ -116,6 +116,7 @@ func (r *Subnets) registerReconciler() {
 	r.jg.Add(job.OneShot("populate-subnets-table", func(ctx context.Context, _ cell.Health) error {
 		var initDone bool
 		var watchset = statedb.NewWatchSet()
+		var naTracker = NewNodeAttachmentsNetworkTracker()
 
 		txn := r.db.WriteTxn(r.networks, r.nodeAttachments)
 		networkChangeIter, _ := r.networks.Changes(txn)
@@ -151,6 +152,13 @@ func (r *Subnets) registerReconciler() {
 				// might not be valid anymore. In which case, we want to set
 				// egress ifindex to 0.
 				toProcess.Insert(change.Object.Network)
+
+				// The network referenced by the network attachment might have
+				// changed, in which case we also need to trigger a reconciliation
+				// for the previously referenced network.
+				if prev, changed := naTracker.Track(change); changed {
+					toProcess.Insert(prev)
+				}
 			}
 
 			for networkName := range toProcess {

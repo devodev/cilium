@@ -1,0 +1,249 @@
+#! --private-networks-enabled --private-networks-mode=bridge
+
+hive start
+db/initialized private-networks privnet-subnets privnet-node-attachments
+
+# Populate the initial state.
+db/insert devices device.eth1.yaml
+db/insert devices device.eth2.yaml
+db/insert devices device.eth3.yaml
+k8s/add icpn-1.yaml pnna-2.yaml
+
+# Ensure that the initial state is propagated into the tables
+db/cmp privnet-subnets subnets.v0.table
+db/cmp privnet-node-attachments node-attachments.v0.table
+
+# Add one network, and one node attachment
+k8s/add icpn-2.yaml pnna-1.yaml
+db/cmp privnet-subnets subnets.v1.table
+db/cmp privnet-node-attachments node-attachments.v1.table
+
+# Update the target interface of one of the network attachments
+cp pnna-2.yaml pnna-2.v2.yaml
+replace eth3 eth4 pnna-2.v2.yaml
+k8s/update pnna-2.v2.yaml
+
+db/cmp privnet-subnets subnets.v2.table
+db/cmp privnet-node-attachments node-attachments.v2.table
+
+# Create the missing device
+db/insert devices device.eth4.yaml
+db/cmp privnet-subnets subnets.v3.table
+db/cmp privnet-node-attachments node-attachments.v3.table
+
+# Update the target subnets of one of the network attachments
+k8s/update pnna-1.v2.yaml
+db/cmp privnet-subnets subnets.v4.table
+db/cmp privnet-node-attachments node-attachments.v4.table
+
+# Delete one of the network attachments
+k8s/delete pnna-1.yaml
+db/cmp privnet-subnets subnets.v5.table
+db/cmp privnet-node-attachments node-attachments.v5.table
+
+# Change the target network of the remaining network attachment
+cp pnna-2.v2.yaml pnna-2.v3.yaml
+sed 'name: united-firefly$' 'name: direct-maggot' pnna-2.v3.yaml
+k8s/update pnna-2.v3.yaml
+
+db/cmp privnet-subnets subnets.v6.table
+db/cmp privnet-node-attachments node-attachments.v6.table
+
+# And switch it back
+k8s/update pnna-2.v2.yaml
+db/cmp privnet-subnets subnets.v5.table
+db/cmp privnet-node-attachments node-attachments.v5.table
+
+# ---
+
+-- device.eth1.yaml --
+index: 11
+name: eth1
+type: veth
+operstatus: up
+selected: true
+
+-- device.eth2.yaml --
+index: 12
+name: eth2
+type: veth
+operstatus: up
+selected: true
+
+-- device.eth3.yaml --
+index: 13
+name: eth3
+type: veth
+operstatus: up
+selected: true
+
+-- device.eth4.yaml --
+index: 14
+name: eth4
+type: veth
+operstatus: up
+selected: true
+
+-- icpn-1.yaml --
+apiVersion: isovalent.com/v1alpha1
+kind: ClusterwidePrivateNetwork
+metadata:
+  name: direct-maggot
+spec:
+  subnets:
+  - name: subnet-1
+    cidrv4: 192.168.1.0/24
+    cidrv6: fd10:0:1::0/64
+  - name: subnet-2
+    cidrv4: 192.168.2.0/24
+    cidrv6: fd10:0:2::0/64
+  - name: subnet-3
+    cidrv4: 192.168.3.0/24
+    cidrv6: fd10:0:3::0/64
+
+-- icpn-2.yaml --
+apiVersion: isovalent.com/v1alpha1
+kind: ClusterwidePrivateNetwork
+metadata:
+  name: united-firefly
+spec:
+  subnets:
+  - name: subnet-1
+    cidrv4: 192.168.1.0/24
+    cidrv6: fd10:0:1::0/64
+  - name: subnet-2
+    cidrv4: 192.168.2.0/24
+    cidrv6: fd10:0:2::0/64
+
+-- pnna-1.yaml --
+apiVersion: isovalent.com/v1alpha1
+kind: PrivateNetworkNodeAttachment
+metadata:
+  name: pnna-direct-maggot
+spec:
+  privateNetworkRef:
+    name: direct-maggot
+  attachments:
+    - interface: eth1
+      subnetRefs:
+        - name: subnet-1
+    - interface: eth2
+      subnetRefs:
+        - name: subnet-2
+
+-- pnna-1.v2.yaml --
+apiVersion: isovalent.com/v1alpha1
+kind: PrivateNetworkNodeAttachment
+metadata:
+  name: pnna-direct-maggot
+spec:
+  privateNetworkRef:
+    name: direct-maggot
+  attachments:
+    - interface: eth1
+      subnetRefs:
+        - name: subnet-1
+    - interface: eth2
+      subnetRefs:
+        - name: subnet-3
+
+-- pnna-2.yaml --
+apiVersion: isovalent.com/v1alpha1
+kind: PrivateNetworkNodeAttachment
+metadata:
+  name: pnna-united-firefly
+spec:
+  privateNetworkRef:
+    name: united-firefly
+  attachments:
+    - interface: eth3
+
+-- subnets.v0.table --
+Network          Name       ID    CIDRv4           CIDRv6          Interface
+direct-maggot    subnet-1   0x1   192.168.1.0/24   fd10:0:1::/64   N/A
+direct-maggot    subnet-2   0x2   192.168.2.0/24   fd10:0:2::/64   N/A
+direct-maggot    subnet-3   0x3   192.168.3.0/24   fd10:0:3::/64   N/A
+
+-- subnets.v1.table --
+Network          Name       ID    CIDRv4           CIDRv6          Interface
+direct-maggot    subnet-1   0x1   192.168.1.0/24   fd10:0:1::/64   eth1 (11)
+direct-maggot    subnet-2   0x2   192.168.2.0/24   fd10:0:2::/64   eth2 (12)
+direct-maggot    subnet-3   0x3   192.168.3.0/24   fd10:0:3::/64   N/A
+united-firefly   subnet-1   0x1   192.168.1.0/24   fd10:0:1::/64   eth3 (13)
+united-firefly   subnet-2   0x2   192.168.2.0/24   fd10:0:2::/64   eth3 (13)
+
+-- subnets.v2.table --
+Network          Name       ID    CIDRv4           CIDRv6          Interface
+direct-maggot    subnet-1   0x1   192.168.1.0/24   fd10:0:1::/64   eth1 (11)
+direct-maggot    subnet-2   0x2   192.168.2.0/24   fd10:0:2::/64   eth2 (12)
+direct-maggot    subnet-3   0x3   192.168.3.0/24   fd10:0:3::/64   N/A
+united-firefly   subnet-1   0x1   192.168.1.0/24   fd10:0:1::/64   N/A
+united-firefly   subnet-2   0x2   192.168.2.0/24   fd10:0:2::/64   N/A
+
+-- subnets.v3.table --
+Network          Name       ID    CIDRv4           CIDRv6          Interface
+direct-maggot    subnet-1   0x1   192.168.1.0/24   fd10:0:1::/64   eth1 (11)
+direct-maggot    subnet-2   0x2   192.168.2.0/24   fd10:0:2::/64   eth2 (12)
+direct-maggot    subnet-3   0x3   192.168.3.0/24   fd10:0:3::/64   N/A
+united-firefly   subnet-1   0x1   192.168.1.0/24   fd10:0:1::/64   eth4 (14)
+united-firefly   subnet-2   0x2   192.168.2.0/24   fd10:0:2::/64   eth4 (14)
+
+-- subnets.v4.table --
+Network          Name       ID    CIDRv4           CIDRv6          Interface
+direct-maggot    subnet-1   0x1   192.168.1.0/24   fd10:0:1::/64   eth1 (11)
+direct-maggot    subnet-2   0x2   192.168.2.0/24   fd10:0:2::/64   N/A
+direct-maggot    subnet-3   0x3   192.168.3.0/24   fd10:0:3::/64   eth2 (12)
+united-firefly   subnet-1   0x1   192.168.1.0/24   fd10:0:1::/64   eth4 (14)
+united-firefly   subnet-2   0x2   192.168.2.0/24   fd10:0:2::/64   eth4 (14)
+
+-- subnets.v5.table --
+Network          Name       ID    CIDRv4           CIDRv6          Interface
+direct-maggot    subnet-1   0x1   192.168.1.0/24   fd10:0:1::/64   N/A
+direct-maggot    subnet-2   0x2   192.168.2.0/24   fd10:0:2::/64   N/A
+direct-maggot    subnet-3   0x3   192.168.3.0/24   fd10:0:3::/64   N/A
+united-firefly   subnet-1   0x1   192.168.1.0/24   fd10:0:1::/64   eth4 (14)
+united-firefly   subnet-2   0x2   192.168.2.0/24   fd10:0:2::/64   eth4 (14)
+
+-- subnets.v6.table --
+Network          Name       ID    CIDRv4           CIDRv6          Interface
+direct-maggot    subnet-1   0x1   192.168.1.0/24   fd10:0:1::/64   eth4 (14)
+direct-maggot    subnet-2   0x2   192.168.2.0/24   fd10:0:2::/64   eth4 (14)
+direct-maggot    subnet-3   0x3   192.168.3.0/24   fd10:0:3::/64   eth4 (14)
+united-firefly   subnet-1   0x1   192.168.1.0/24   fd10:0:1::/64   N/A
+united-firefly   subnet-2   0x2   192.168.2.0/24   fd10:0:2::/64   N/A
+
+-- node-attachments.v0.table --
+Interface   Type           NodeSelected   Network          Subnets
+eth3 (13)   user-managed   true           united-firefly   <all-subnets>
+
+-- node-attachments.v1.table --
+Interface   Type           NodeSelected   Network          Subnets
+eth1 (11)   user-managed   true           direct-maggot    subnet-1
+eth2 (12)   user-managed   true           direct-maggot    subnet-2
+eth3 (13)   user-managed   true           united-firefly   <all-subnets>
+
+-- node-attachments.v2.table --
+Interface   Type           NodeSelected   Network          Subnets
+eth1 (11)   user-managed   true           direct-maggot    subnet-1
+eth2 (12)   user-managed   true           direct-maggot    subnet-2
+eth4 (!)    user-managed   true           united-firefly   <all-subnets>
+
+-- node-attachments.v3.table --
+Interface   Type           NodeSelected   Network          Subnets
+eth1 (11)   user-managed   true           direct-maggot    subnet-1
+eth2 (12)   user-managed   true           direct-maggot    subnet-2
+eth4 (14)   user-managed   true           united-firefly   <all-subnets>
+
+-- node-attachments.v4.table --
+Interface   Type           NodeSelected   Network          Subnets
+eth1 (11)   user-managed   true           direct-maggot    subnet-1
+eth2 (12)   user-managed   true           direct-maggot    subnet-3
+eth4 (14)   user-managed   true           united-firefly   <all-subnets>
+
+-- node-attachments.v5.table --
+Interface   Type           NodeSelected   Network          Subnets
+eth4 (14)   user-managed   true           united-firefly   <all-subnets>
+
+-- node-attachments.v6.table --
+Interface   Type           NodeSelected   Network          Subnets
+eth4 (14)   user-managed   true           direct-maggot    <all-subnets>
