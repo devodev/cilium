@@ -48,6 +48,7 @@ import (
 	"github.com/cilium/cilium/pkg/identity/cache"
 	"github.com/cilium/cilium/pkg/ipcache"
 	k8sfake "github.com/cilium/cilium/pkg/k8s/client/testutils"
+	k8sTables "github.com/cilium/cilium/pkg/k8s/tables"
 	k8stestutils "github.com/cilium/cilium/pkg/k8s/testutils"
 	"github.com/cilium/cilium/pkg/k8s/version"
 	"github.com/cilium/cilium/pkg/kpr"
@@ -100,7 +101,7 @@ func TestScript(t *testing.T) {
 		h := hive.New(
 			k8sfake.FakeClientCell(),
 			daemonk8s.ResourcesCell,
-			daemonk8s.TablesCell,
+			k8sTables.TablesCell,
 			cell.Config(envoyCfg.SecretSyncConfig{}),
 			lbcell.Cell,
 

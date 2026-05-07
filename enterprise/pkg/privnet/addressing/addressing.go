@@ -29,7 +29,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
 
-	daemonK8s "github.com/cilium/cilium/daemon/k8s"
 	"github.com/cilium/cilium/enterprise/api/v1/models"
 	"github.com/cilium/cilium/enterprise/api/v1/server/restapi/network"
 	"github.com/cilium/cilium/enterprise/pkg/api"
@@ -37,6 +36,7 @@ import (
 	"github.com/cilium/cilium/enterprise/pkg/privnet/tables"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/types"
 	iso_v1alpha1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
+	k8sTables "github.com/cilium/cilium/pkg/k8s/tables"
 	"github.com/cilium/cilium/pkg/mac"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/time"
@@ -64,7 +64,7 @@ type apiParams struct {
 	DB                   *statedb.DB
 	PrivateNetworkConfig config.Config
 	DaemonConfig         *option.DaemonConfig
-	Pods                 statedb.Table[daemonK8s.LocalPod]
+	Pods                 statedb.Table[k8sTables.LocalPod]
 	PrivateNetworks      statedb.Table[tables.PrivateNetwork]
 	Subnets              statedb.Table[tables.Subnet]
 }
@@ -81,7 +81,7 @@ type PrivNetAPI struct {
 	cfg cfg
 	log *slog.Logger
 
-	pods            statedb.Table[daemonK8s.LocalPod]
+	pods            statedb.Table[k8sTables.LocalPod]
 	privateNetworks statedb.Table[tables.PrivateNetwork]
 	subnets         statedb.Table[tables.Subnet]
 }
@@ -120,7 +120,7 @@ func (n *PrivNetAPI) GetPrivateNetworkAddressing(p network.GetNetworkPrivateAddr
 	podNamespaceName := fmt.Sprintf("%s/%s", p.PodNamespace, p.PodName)
 
 	txn := n.db.ReadTxn()
-	pod, _, found := n.pods.Get(txn, daemonK8s.PodByName(p.PodNamespace, p.PodName))
+	pod, _, found := n.pods.Get(txn, k8sTables.PodByName(p.PodNamespace, p.PodName))
 	if !found {
 		return nil, fmt.Errorf("pod %s not found", podNamespaceName)
 	} else if string(pod.UID) != p.PodUID {

@@ -31,13 +31,13 @@ import (
 	virt_v1 "kubevirt.io/api/core/v1"
 	ctrlruntime "sigs.k8s.io/controller-runtime"
 
-	daemonk8s "github.com/cilium/cilium/daemon/k8s"
 	"github.com/cilium/cilium/enterprise/operator/pkg/evpn"
 	"github.com/cilium/cilium/enterprise/operator/pkg/privnet"
 	"github.com/cilium/cilium/enterprise/operator/pkg/privnet/reconcilers"
 	"github.com/cilium/cilium/operator/cmd"
 	"github.com/cilium/cilium/pkg/hive"
 	k8sClient "github.com/cilium/cilium/pkg/k8s/client/testutils"
+	k8sTables "github.com/cilium/cilium/pkg/k8s/tables"
 	k8sTestutils "github.com/cilium/cilium/pkg/k8s/testutils"
 	"github.com/cilium/cilium/pkg/k8s/version"
 	"github.com/cilium/cilium/pkg/logging"
@@ -90,7 +90,7 @@ func TestScript(t *testing.T) {
 				k8sClient.FakeClientCell(),
 				cell.DecorateAll(k8sClient.NewFakeNADsClientset),
 				cell.DecorateAll(k8sClient.NewFakeDynamicClient),
-				daemonk8s.NamespaceTableCell,
+				k8sTables.NamespaceTableCell,
 
 				cell.Provide(func() *option.DaemonConfig {
 					return &option.DaemonConfig{EnableIPv4: true, EnableIPv6: true}

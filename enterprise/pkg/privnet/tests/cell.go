@@ -31,6 +31,7 @@ import (
 	"github.com/cilium/cilium/pkg/hive"
 	k8sClient "github.com/cilium/cilium/pkg/k8s/client/testutils"
 	"github.com/cilium/cilium/pkg/k8s/synced"
+	k8sTables "github.com/cilium/cilium/pkg/k8s/tables"
 	"github.com/cilium/cilium/pkg/metrics"
 	"github.com/cilium/cilium/pkg/node"
 	"github.com/cilium/cilium/pkg/option"
@@ -47,7 +48,7 @@ func NewTestHive(t testing.TB) *hive.Hive {
 		cell.Config(cmtypes.DefaultClusterInfo),
 
 		daemonk8s.ResourcesCell,
-		daemonk8s.TablesCell,
+		k8sTables.TablesCell,
 		node.LocalNodeStoreTestCell,
 
 		mockEndpointCell(t),

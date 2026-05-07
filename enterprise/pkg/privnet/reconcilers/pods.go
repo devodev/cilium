@@ -18,10 +18,10 @@ import (
 	"github.com/cilium/hive/job"
 	"github.com/cilium/statedb"
 
-	daemonK8s "github.com/cilium/cilium/daemon/k8s"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/config"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/endpoints"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/types"
+	k8sTables "github.com/cilium/cilium/pkg/k8s/tables"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/time"
 )
@@ -49,7 +49,7 @@ type Pods struct {
 	endpointActivationManager *EndpointActivationManager
 
 	db   *statedb.DB
-	pods statedb.Table[daemonK8s.LocalPod]
+	pods statedb.Table[k8sTables.LocalPod]
 }
 
 func newPods(in struct {
@@ -64,7 +64,7 @@ func newPods(in struct {
 	EndpointActivationManager *EndpointActivationManager
 
 	DB   *statedb.DB
-	Pods statedb.Table[daemonK8s.LocalPod]
+	Pods statedb.Table[k8sTables.LocalPod]
 }) *Pods {
 	return &Pods{
 		log: in.Log,

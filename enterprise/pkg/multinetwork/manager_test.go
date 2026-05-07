@@ -14,12 +14,12 @@ import (
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/cilium/cilium/daemon/k8s"
 	"github.com/cilium/cilium/enterprise/api/v1/models"
 	iso_v1alpha1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
 	"github.com/cilium/cilium/pkg/k8s/resource"
 	slim_core_v1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	slim_meta_v1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
+	k8sTables "github.com/cilium/cilium/pkg/k8s/tables"
 )
 
 type mockStore[T comparable] map[resource.Key]T
@@ -61,13 +61,13 @@ func networkKey(name string) resource.Key {
 
 func TestManager_GetNetworksForPod(t *testing.T) {
 	db := statedb.New()
-	pods, err := k8s.NewPodTable(db)
+	pods, err := k8sTables.NewPodTable(db)
 	if err != nil {
 		t.Fatalf("NewPodTable: %s", err)
 	}
 	wtxn := db.WriteTxn(pods)
-	newPod := func(namespace, name string, annotations map[string]string) k8s.LocalPod {
-		return k8s.LocalPod{Pod: &slim_core_v1.Pod{
+	newPod := func(namespace, name string, annotations map[string]string) k8sTables.LocalPod {
+		return k8sTables.LocalPod{Pod: &slim_core_v1.Pod{
 			ObjectMeta: slim_meta_v1.ObjectMeta{
 				Namespace:   namespace,
 				Name:        name,

@@ -13,13 +13,13 @@ import (
 	"github.com/cilium/statedb"
 	"github.com/go-openapi/swag"
 
-	"github.com/cilium/cilium/daemon/k8s"
 	"github.com/cilium/cilium/enterprise/api/v1/models"
 	"github.com/cilium/cilium/pkg/controller"
 	"github.com/cilium/cilium/pkg/datapath/linux/sysctl"
 	cilium_api_v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	iso_v1alpha1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
 	"github.com/cilium/cilium/pkg/k8s/resource"
+	"github.com/cilium/cilium/pkg/k8s/tables"
 	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/node"
@@ -91,7 +91,7 @@ type Manager struct {
 	cancelController  context.CancelFunc
 
 	db   *statedb.DB
-	pods statedb.Table[k8s.LocalPod]
+	pods statedb.Table[tables.LocalPod]
 
 	ciliumNodeResource resource.Resource[*cilium_api_v2.CiliumNode]
 	localNodeStore     *node.LocalNodeStore
@@ -154,7 +154,7 @@ func (m *Manager) GetNetworksForPod(podNamespace, podName string) (*models.Netwo
 		return nil, &ManagerStoppedError{}
 	}
 
-	pod, _, ok := m.pods.Get(m.db.ReadTxn(), k8s.PodByName(podNamespace, podName))
+	pod, _, ok := m.pods.Get(m.db.ReadTxn(), tables.PodByName(podNamespace, podName))
 	if !ok {
 		return nil, &ResourceNotFound{Resource: "Pod", Namespace: podNamespace, Name: podName}
 	}

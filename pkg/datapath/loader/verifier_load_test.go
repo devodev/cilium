@@ -4,138 +4,124 @@
 package loader
 
 import (
-	"iter"
-
 	"github.com/cilium/cilium/pkg/datapath/config"
 )
 
-func lxcLoadPermutations() iter.Seq[*config.BPFLXC] {
-	return func(yield func(*config.BPFLXC) bool) {
-		for permutation := range permute(3) {
-			cfg := config.NewBPFLXC(*config.NewNode())
-			cfg.Node.TracingIPOptionType = 1
-			cfg.Node.DebugLB = true
-			cfg.AllowICMPFragNeeded = true
-			cfg.EnableICMPRule = true
-			cfg.EnableConntrackAccounting = true
-			cfg.EnableIPv4Fragments = true
-			cfg.EnableIPv6Fragments = true
-			cfg.EnableNetkit = false
-			cfg.EnableARPResponder = true
+var (
+	lxcLoadPermutations       = baseLXCPermutations()
+	hostLoadPermutations      = baseHostPermutations()
+	overlayLoadPermutations   = baseOverlayPermutations()
+	sockLoadPermutations      = baseSockPermutations()
+	wireguardLoadPermutations = baseWireguardPermutations()
+	xdpLoadPermutations       = baseXDPPermutations()
+)
 
-			cfg.Node.PolicyDenyResponseEnabled = permutation[0]
-			cfg.EnableLRP = permutation[1]
-			cfg.HybridRoutingEnabled = permutation[2]
+func baseLXCPermutations() *loadPermutationBuilder {
+	b := new(loadPermutationBuilder)
+	b.addConstructor(func() any { return config.NewBPFLXC(*config.NewNode()) })
+	b.addOptions(
+		Always(func(t *config.BPFLXC, _ bool) {
+			t.Node.TracingIPOptionType = 1
+			t.Node.DebugLB = true
+			t.AllowICMPFragNeeded = true
+			t.EnableICMPRule = true
+			t.EnableConntrackAccounting = true
+			t.EnableIPv4Fragments = true
+			t.EnableIPv6Fragments = true
+			t.EnableARPResponder = true
+			t.EnableNetkit = false
+		}),
 
-			if !yield(cfg) {
-				return
-			}
-		}
-	}
+		Increment(func(t *config.BPFLXC, v bool) { t.Node.PolicyDenyResponseEnabled = v }),
+		Increment(func(t *config.BPFLXC, v bool) { t.HybridRoutingEnabled = v }),
+		IncrementOrPermute(func(t *config.BPFLXC, v bool) { t.EnableLRP = v }),
+	)
+	return b
 }
 
-func hostLoadPermutations() iter.Seq[*config.BPFHost] {
-	return func(yield func(*config.BPFHost) bool) {
-		for permutation := range permute(3) {
-			cfg := config.NewBPFHost(*config.NewNode())
-			cfg.Node.TracingIPOptionType = 1
-			cfg.Node.DebugLB = true
-			cfg.AllowICMPFragNeeded = true
-			cfg.EnableICMPRule = true
-			cfg.EnableConntrackAccounting = true
-			cfg.EnableIPv4Fragments = true
-			cfg.EnableIPv6Fragments = true
-			cfg.EnableL2Announcements = true
+func baseHostPermutations() *loadPermutationBuilder {
+	b := new(loadPermutationBuilder)
+	b.addConstructor(func() any { return config.NewBPFHost(*config.NewNode()) })
+	b.addOptions(
+		Always(func(t *config.BPFHost, _ bool) {
+			t.Node.TracingIPOptionType = 1
+			t.Node.DebugLB = true
+			t.AllowICMPFragNeeded = true
+			t.EnableICMPRule = true
+			t.EnableConntrackAccounting = true
+			t.EnableIPv4Fragments = true
+			t.EnableIPv6Fragments = true
+			t.EnableL2Announcements = true
+		}),
 
-			cfg.EnableRemoteNodeMasquerade = permutation[0]
-			if permutation[1] {
-				cfg.EthHeaderLength = 0
+		Increment(func(t *config.BPFHost, v bool) { t.Node.PolicyDenyResponseEnabled = v }),
+		Increment(func(t *config.BPFHost, v bool) { t.EnableRemoteNodeMasquerade = v }),
+		Increment(func(t *config.BPFHost, v bool) {
+			if v {
+				t.EthHeaderLength = 0
 			} else {
-				cfg.EthHeaderLength = 14
+				t.EthHeaderLength = 14
 			}
-			cfg.HybridRoutingEnabled = permutation[2]
-
-			if !yield(cfg) {
-				return
-			}
-		}
-	}
+		}),
+		Increment(func(t *config.BPFHost, v bool) { t.HybridRoutingEnabled = v }),
+	)
+	return b
 }
 
-func overlayLoadPermutations() iter.Seq[*config.BPFOverlay] {
-	return func(yield func(*config.BPFOverlay) bool) {
-		cfg := config.NewBPFOverlay(*config.NewNode())
-		cfg.Node.TracingIPOptionType = 1
-		cfg.Node.DebugLB = true
-		cfg.EnableConntrackAccounting = true
-
-		if !yield(cfg) {
-			return
-		}
-	}
+func baseOverlayPermutations() *loadPermutationBuilder {
+	b := new(loadPermutationBuilder)
+	b.addConstructor(func() any { return config.NewBPFOverlay(*config.NewNode()) })
+	b.addOptions(
+		Always(func(t *config.BPFOverlay, _ bool) {
+			t.Node.TracingIPOptionType = 1
+			t.Node.DebugLB = true
+			t.EnableConntrackAccounting = true
+		}),
+	)
+	return b
 }
 
-func sockLoadPermutations() iter.Seq[*config.BPFSock] {
-	return func(yield func(*config.BPFSock) bool) {
-		for permutation := range permute(1) {
-			cfg := config.NewBPFSock(*config.NewNode())
-			cfg.Node.DebugLB = true
-			cfg.EnableIPv4Fragments = true
-			cfg.EnableIPv6Fragments = true
-
-			cfg.EnableLRP = permutation[0]
-
-			if !yield(cfg) {
-				return
-			}
-		}
-	}
+func baseSockPermutations() *loadPermutationBuilder {
+	b := new(loadPermutationBuilder)
+	b.addConstructor(func() any { return config.NewBPFSock(*config.NewNode()) })
+	b.addOptions(
+		Always(func(t *config.BPFSock, _ bool) {
+			t.Node.DebugLB = true
+			t.EnableIPv4Fragments = true
+			t.EnableIPv6Fragments = true
+		}),
+		IncrementOrPermute(func(t *config.BPFSock, v bool) { t.EnableLRP = v }),
+	)
+	return b
 }
 
-func wireguardLoadPermutations() iter.Seq[*config.BPFWireguard] {
-	return func(yield func(*config.BPFWireguard) bool) {
-		cfg := config.NewBPFWireguard(*config.NewNode())
-		cfg.Node.TracingIPOptionType = 1
-		cfg.Node.DebugLB = true
-		cfg.EnableConntrackAccounting = true
-		cfg.EnableIPv4Fragments = true
-		cfg.EnableIPv6Fragments = true
-
-		if !yield(cfg) {
-			return
-		}
-	}
+func baseWireguardPermutations() *loadPermutationBuilder {
+	b := new(loadPermutationBuilder)
+	b.addConstructor(func() any { return config.NewBPFWireguard(*config.NewNode()) })
+	b.addOptions(
+		Always(func(t *config.BPFWireguard, _ bool) {
+			t.Node.TracingIPOptionType = 1
+			t.Node.DebugLB = true
+			t.EnableConntrackAccounting = true
+			t.EnableIPv4Fragments = true
+			t.EnableIPv6Fragments = true
+		}),
+	)
+	return b
 }
 
-func xdpLoadPermutations() iter.Seq[*config.BPFXDP] {
-	return func(yield func(*config.BPFXDP) bool) {
-		for permutation := range permute(1) {
-			cfg := config.NewBPFXDP(*config.NewNode())
-			cfg.Node.TracingIPOptionType = 1
-			cfg.Node.DebugLB = true
-			cfg.EnableConntrackAccounting = true
-			cfg.EnableIPv4Fragments = true
-			cfg.EnableIPv6Fragments = true
-
-			cfg.EnableXDPPrefilter = permutation[0]
-
-			if !yield(cfg) {
-				return
-			}
-		}
-	}
-}
-
-func permute(n int) iter.Seq[[]bool] {
-	permutation := make([]bool, n)
-	return func(yield func([]bool) bool) {
-		for i := range uint64(1 << n) {
-			for j := range n {
-				permutation[j] = (i & (1 << j)) != 0
-			}
-			if !yield(permutation) {
-				return
-			}
-		}
-	}
+func baseXDPPermutations() *loadPermutationBuilder {
+	b := new(loadPermutationBuilder)
+	b.addConstructor(func() any { return config.NewBPFXDP(*config.NewNode()) })
+	b.addOptions(
+		Always(func(t *config.BPFXDP, _ bool) {
+			t.Node.TracingIPOptionType = 1
+			t.Node.DebugLB = true
+			t.EnableConntrackAccounting = true
+			t.EnableIPv4Fragments = true
+			t.EnableIPv6Fragments = true
+		}),
+		Increment(func(t *config.BPFXDP, v bool) { t.EnableXDPPrefilter = v }),
+	)
+	return b
 }

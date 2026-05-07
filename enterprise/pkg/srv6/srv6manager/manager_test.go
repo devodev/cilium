@@ -23,6 +23,7 @@ import (
 	"github.com/cilium/hive/hivetest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go4.org/netipx"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
 	k8sTesting "k8s.io/client-go/testing"
@@ -144,7 +145,7 @@ func (fa *fakeIPAMAllocator) Release(ip net.IP) error {
 
 func (fa *fakeIPAMAllocator) AllocateNext() (*ipam.AllocationResult, error) {
 	return &ipam.AllocationResult{
-		IP: fa.sid,
+		IP: netipx.MustFromStdIP(fa.sid),
 	}, nil
 }
 

@@ -24,9 +24,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrlRuntime "sigs.k8s.io/controller-runtime"
 
+	"github.com/cilium/cilium/enterprise/operator/pkg/networkpolicy/helpers"
 	operatorOption "github.com/cilium/cilium/operator/option"
-	"github.com/cilium/cilium/operator/pkg/networkpolicy"
-	"github.com/cilium/cilium/operator/pkg/networkpolicy/helpers"
+	netPolSecretSync "github.com/cilium/cilium/operator/pkg/networkpolicy/secretsync"
 	"github.com/cilium/cilium/operator/pkg/secretsync"
 	isovalent_api_v1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
 	k8sClient "github.com/cilium/cilium/pkg/k8s/client"
@@ -60,7 +60,7 @@ type networkPolicyParams struct {
 
 	AgentConfig         *option.DaemonConfig
 	OperatorConfig      *operatorOption.OperatorConfig
-	NetworkPolicyConfig networkpolicy.SecretSyncConfig
+	NetworkPolicyConfig netPolSecretSync.SecretSyncConfig
 }
 
 // registerINPSecretSync registers the Network Policy controllers for secret synchronization based on TLS secrets referenced

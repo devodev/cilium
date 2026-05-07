@@ -72,7 +72,7 @@ func (f *fakeIPAMAllocator) AllocateNext(family, owner string, pool ipam.Pool) (
 			return nil, nil, fmt.Errorf("IPv4 already allocated for owner: %q", other)
 		}
 		ipv4Result = &ipam.AllocationResult{
-			IP: ipv4.AsSlice(),
+			IP: ipv4,
 		}
 		f.allocatedIPs[ipv4] = owner
 	}
@@ -81,7 +81,7 @@ func (f *fakeIPAMAllocator) AllocateNext(family, owner string, pool ipam.Pool) (
 			return nil, nil, fmt.Errorf("IPv6 already allocated for owner: %q", other)
 		}
 		ipv6Result = &ipam.AllocationResult{
-			IP: ipv6.AsSlice(),
+			IP: ipv6,
 		}
 		f.allocatedIPs[ipv6] = owner
 	}
@@ -118,7 +118,7 @@ func (f *fakeIPAMAllocator) AllocateIPWithoutSyncUpstream(ip net.IP, owner strin
 
 	f.allocatedIPs[addr] = owner
 	return &ipam.AllocationResult{
-		IP: addr.AsSlice(),
+		IP: addr,
 	}, nil
 }
 

@@ -20,6 +20,7 @@ import (
 	"github.com/cilium/hive/job"
 	"github.com/cilium/statedb"
 	"github.com/vishvananda/netlink"
+	"go4.org/netipx"
 	"golang.org/x/sys/unix"
 	"k8s.io/apimachinery/pkg/util/wait"
 
@@ -37,6 +38,7 @@ import (
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/rate"
 	"github.com/cilium/cilium/pkg/resiliency"
+	cslices "github.com/cilium/cilium/pkg/slices"
 	"github.com/cilium/cilium/pkg/time"
 )
 
@@ -142,22 +144,20 @@ func (r *infraIPAllocator) allocateRouterIPv6(ctx context.Context, family node.A
 }
 
 // Coalesce CIDRS when allocating the DatapathIPs and healthIPs. GH #18868
-func (r *infraIPAllocator) coalesceCIDRs(rCIDRs []string) (result []string, err error) {
+func (r *infraIPAllocator) coalesceCIDRs(rCIDRs []netip.Prefix) []netip.Prefix {
 	cidrs := make([]*net.IPNet, 0, len(rCIDRs))
-	for _, k := range rCIDRs {
-		ip, mask, err := net.ParseCIDR(k)
-		if err != nil {
-			return nil, err
-		}
-		cidrs = append(cidrs, &net.IPNet{IP: ip, Mask: mask.Mask})
+	for _, p := range rCIDRs {
+		cidrs = append(cidrs, netipx.PrefixIPNet(p))
 	}
 	ipv4cidr, ipv6cidr := iputil.CoalesceCIDRs(cidrs)
 	combinedcidrs := append(ipv4cidr, ipv6cidr...)
-	result = make([]string, len(combinedcidrs))
-	for i, k := range combinedcidrs {
-		result[i] = k.String()
+	result := make([]netip.Prefix, 0, len(combinedcidrs))
+	for _, k := range combinedcidrs {
+		if p, ok := netipx.FromStdIPNet(k); ok {
+			result = append(result, p)
+		}
 	}
-	return result, err
+	return result
 }
 
 // reallocateOldRouterIPs attempts to reallocate the old router IP from IPAM.
@@ -260,14 +260,16 @@ func (r *infraIPAllocator) reallocateRouterIPs(ctx context.Context, family node.
 	// have been regenerated.
 	result := r.reallocateOldRouterIPs(fromK8s, fromFS)
 	if result == nil {
-		family := ipam.DeriveFamily(family.PrimaryExternal())
+		primaryAddr, _ := netip.AddrFromSlice(family.PrimaryExternal())
+		family := ipam.DeriveFamily(primaryAddr.Unmap())
 		result, err = r.ipAllocator.AllocateNextFamilyWithoutSyncUpstream(family, "router", ipam.PoolDefault())
 		if err != nil {
 			return nil, fmt.Errorf("unable to allocate router IP for family %s: %w", family, err)
 		}
 	}
 
-	ipfamily := ipam.DeriveFamily(family.PrimaryExternal())
+	primaryAddr, _ := netip.AddrFromSlice(family.PrimaryExternal())
+	ipfamily := ipam.DeriveFamily(primaryAddr.Unmap())
 	masq := (ipfamily == ipam.IPv4 && r.daemonConfig.EnableIPv4Masquerade) ||
 		(ipfamily == ipam.IPv6 && r.daemonConfig.EnableIPv6Masquerade)
 
@@ -276,17 +278,14 @@ func (r *infraIPAllocator) reallocateRouterIPs(ctx context.Context, family node.
 		(r.daemonConfig.IPAM == ipamOption.IPAMENI || r.daemonConfig.IPAM == ipamOption.IPAMAzure) &&
 		result != nil &&
 		len(result.CIDRs) > 0 {
-		result.CIDRs, err = r.coalesceCIDRs(result.CIDRs)
-		if err != nil {
-			return nil, fmt.Errorf("failed to coalesce CIDRs: %w", err)
-		}
+		result.CIDRs = r.coalesceCIDRs(result.CIDRs)
 	}
 
 	if (r.daemonConfig.IPAM == ipamOption.IPAMENI ||
 		r.daemonConfig.IPAM == ipamOption.IPAMAlibabaCloud ||
 		r.daemonConfig.IPAM == ipamOption.IPAMAzure) && result != nil {
 		var routingInfo *linuxrouting.RoutingInfo
-		routingInfo, err = linuxrouting.NewRoutingInfo(r.logger, result.GatewayIP, result.CIDRs,
+		routingInfo, err = linuxrouting.NewRoutingInfo(r.logger, result.GatewayIP.String(), prefixesToStrings(result.CIDRs),
 			result.PrimaryMAC, result.InterfaceNumber, r.daemonConfig.IPAM,
 			masq)
 		if err != nil {
@@ -305,7 +304,7 @@ func (r *infraIPAllocator) reallocateRouterIPs(ctx context.Context, family node.
 		}
 
 		if err = routingInfo.Configure(
-			result.IP,
+			net.IP(result.IP.AsSlice()).To16(),
 			r.mtuManager.GetDeviceMTU(),
 			true,
 		); err != nil {
@@ -344,7 +343,7 @@ func (r *infraIPAllocator) reallocateRouterIPs(ctx context.Context, family node.
 		}))
 	}
 
-	return result.IP, nil
+	return net.IP(result.IP.AsSlice()).To16(), nil
 }
 
 func (r *infraIPAllocator) allocateHealthIPs(oldV4HealthIP net.IP, oldV6HealthIP net.IP) error {
@@ -372,7 +371,7 @@ func (r *infraIPAllocator) allocateHealthIPs(oldV4HealthIP net.IP, oldV6HealthIP
 			if err != nil {
 				return fmt.Errorf("unable to allocate health IPv4: %w, see https://cilium.link/ipam-range-full", err)
 			}
-			r.localNodeStore.Update(func(n *node.LocalNode) { n.IPv4HealthIP = result.IP })
+			r.localNodeStore.Update(func(n *node.LocalNode) { n.IPv4HealthIP = net.IP(result.IP.AsSlice()).To16() })
 		}
 
 		// Coalescing multiple CIDRs. GH #18868
@@ -380,10 +379,7 @@ func (r *infraIPAllocator) allocateHealthIPs(oldV4HealthIP net.IP, oldV6HealthIP
 			(r.daemonConfig.IPAM == ipamOption.IPAMENI || r.daemonConfig.IPAM == ipamOption.IPAMAzure) &&
 			result != nil &&
 			len(result.CIDRs) > 0 {
-			result.CIDRs, err = r.coalesceCIDRs(result.CIDRs)
-			if err != nil {
-				return fmt.Errorf("failed to coalesce CIDRs: %w", err)
-			}
+			result.CIDRs = r.coalesceCIDRs(result.CIDRs)
 		}
 
 		r.logger.Debug("Allocated IPv4 health endpoint address", logfields.IPAddr, result.IP)
@@ -422,7 +418,7 @@ func (r *infraIPAllocator) allocateHealthIPs(oldV4HealthIP net.IP, oldV6HealthIP
 				}
 				return fmt.Errorf("unable to allocate health IPv6: %w, see https://cilium.link/ipam-range-full", err)
 			}
-			r.localNodeStore.Update(func(n *node.LocalNode) { n.IPv6HealthIP = result.IP })
+			r.localNodeStore.Update(func(n *node.LocalNode) { n.IPv6HealthIP = net.IP(result.IP.AsSlice()).To16() })
 		}
 		r.logger.Debug("Allocated IPv6 health endpoint address", logfields.IPAddr, result.IP)
 	}
@@ -465,14 +461,11 @@ func (r *infraIPAllocator) allocateIngressIPs(oldV4IngressIP net.IP, oldV6Ingres
 			(r.daemonConfig.IPAM == ipamOption.IPAMENI || r.daemonConfig.IPAM == ipamOption.IPAMAzure) &&
 			result != nil &&
 			len(result.CIDRs) > 0 {
-			result.CIDRs, err = r.coalesceCIDRs(result.CIDRs)
-			if err != nil {
-				return fmt.Errorf("failed to coalesce CIDRs: %w", err)
-			}
+			result.CIDRs = r.coalesceCIDRs(result.CIDRs)
 		}
 
-		ingressIPv4 = result.IP
-		r.localNodeStore.Update(func(n *node.LocalNode) { n.IPv4IngressIP = result.IP })
+		ingressIPv4 = net.IP(result.IP.AsSlice()).To16()
+		r.localNodeStore.Update(func(n *node.LocalNode) { n.IPv4IngressIP = net.IP(result.IP.AsSlice()).To16() })
 		r.logger.Debug("Allocated IPv4 Ingress address", logfields.IPAddr, result.IP)
 
 		// In ENI and AlibabaCloud ENI mode, we require the gateway, CIDRs, and the
@@ -483,7 +476,7 @@ func (r *infraIPAllocator) allocateIngressIPs(oldV4IngressIP net.IP, oldV6Ingres
 				r.logger.Warn("Unable to allocate ingress information for ENI", logfields.Error, err)
 			} else {
 				if err := ingressRouting.Configure(
-					result.IP,
+					net.IP(result.IP.AsSlice()).To16(),
 					r.mtuManager.GetDeviceMTU(),
 					false,
 				); err != nil {
@@ -529,13 +522,10 @@ func (r *infraIPAllocator) allocateIngressIPs(oldV4IngressIP net.IP, oldV6Ingres
 			r.daemonConfig.IPAM == ipamOption.IPAMENI &&
 			result != nil &&
 			len(result.CIDRs) > 0 {
-			result.CIDRs, err = r.coalesceCIDRs(result.CIDRs)
-			if err != nil {
-				return fmt.Errorf("failed to coalesce CIDRs: %w", err)
-			}
+			result.CIDRs = r.coalesceCIDRs(result.CIDRs)
 		}
 
-		r.localNodeStore.Update(func(n *node.LocalNode) { n.IPv6IngressIP = result.IP })
+		r.localNodeStore.Update(func(n *node.LocalNode) { n.IPv6IngressIP = net.IP(result.IP.AsSlice()).To16() })
 		r.logger.Debug("Allocated IPv6 Ingress address", logfields.IPAddr, result.IP)
 	}
 
@@ -669,11 +659,11 @@ func (r *infraIPAllocator) allocateRouterIPs(ctx context.Context, restoredRouter
 }
 
 func (r *infraIPAllocator) parseRoutingInfo(result *ipam.AllocationResult) (*linuxrouting.RoutingInfo, error) {
-	if result.IP.To4() != nil {
+	if result.IP.Is4() {
 		return linuxrouting.NewRoutingInfo(
 			r.logger,
-			result.GatewayIP,
-			result.CIDRs,
+			result.GatewayIP.String(),
+			prefixesToStrings(result.CIDRs),
 			result.PrimaryMAC,
 			result.InterfaceNumber,
 			r.daemonConfig.IPAM,
@@ -682,14 +672,18 @@ func (r *infraIPAllocator) parseRoutingInfo(result *ipam.AllocationResult) (*lin
 	} else {
 		return linuxrouting.NewRoutingInfo(
 			r.logger,
-			result.GatewayIP,
-			result.CIDRs,
+			result.GatewayIP.String(),
+			prefixesToStrings(result.CIDRs),
 			result.PrimaryMAC,
 			result.InterfaceNumber,
 			r.daemonConfig.IPAM,
 			r.daemonConfig.EnableIPv6Masquerade,
 		)
 	}
+}
+
+func prefixesToStrings(prefixes []netip.Prefix) []string {
+	return cslices.Map(prefixes, func(p netip.Prefix) string { return p.String() })
 }
 
 // removeOldCiliumHostIPs calls removeOldRouterState() for both IPv4 and IPv6

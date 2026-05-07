@@ -69,7 +69,7 @@ func toMapping(ips []string, mode routingModeType) fakeEPMapper {
 	return mapping
 }
 
-func newNode(name string, id uint32, modes routingModesType, internalIPs []string) *nodeTypes.Node {
+func newNode(name string, modes routingModesType, internalIPs []string) *nodeTypes.Node {
 	annotations := make(map[string]string)
 	if len(modes) > 0 {
 		annotations[SupportedRoutingModesKey] = modes.String()
@@ -84,7 +84,7 @@ func newNode(name string, id uint32, modes routingModesType, internalIPs []strin
 		addresses = append(addresses, nodeTypes.Address{Type: addressing.NodeInternalIP, IP: net.ParseIP(ip)})
 	}
 
-	return &nodeTypes.Node{Name: name, NodeIdentity: id, Annotations: annotations, IPAddresses: addresses}
+	return &nodeTypes.Node{Name: name, Annotations: annotations, IPAddresses: addresses}
 }
 
 func TestNodeManager(t *testing.T) {
@@ -99,10 +99,10 @@ func TestNodeManager(t *testing.T) {
 	ips1 := []string{"10.1.2.3", "fd00::1234"}
 	ips2 := []string{"10.1.2.3", "fd00::6789"}
 
-	no1 := *newNode("foo", 1, []routingModeType{routingModeVXLAN}, ips1)
-	no2 := *newNode("foo", 2, []routingModeType{routingModeVXLAN}, ips2)
-	no3 := *newNode("foo", 3, []routingModeType{routingModeNative}, ips2)
-	no4 := *newNode("foo", 4, []routingModeType{routingModeNative}, ips1)
+	no1 := *newNode("foo", []routingModeType{routingModeVXLAN}, ips1)
+	no2 := *newNode("foo", []routingModeType{routingModeVXLAN}, ips2)
+	no3 := *newNode("foo", []routingModeType{routingModeNative}, ips2)
+	no4 := *newNode("foo", []routingModeType{routingModeNative}, ips1)
 
 	mgr.NodeUpdated(no1)
 	require.Len(t, fd.ops, 1, "Insertion should propagate to downstream")
@@ -187,7 +187,7 @@ func TestNodeManagerNeedsEncapsulation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(fmt.Sprintf("%s|%s", tt.local, tt.remote), func(t *testing.T) {
 			mgr := nodeManager{logger: hivetest.Logger(t), modes: tt.local}
-			node := newNode("foo", 0, tt.remote, nil)
+			node := newNode("foo", tt.remote, nil)
 			require.Equal(t, tt.expected, mgr.needsEncapsulation(node))
 			require.Equal(t, tt.expected, mgr.ipsetFilter(node))
 		})
