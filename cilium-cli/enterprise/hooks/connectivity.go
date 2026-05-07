@@ -234,8 +234,8 @@ func (ec *EnterpriseConnectivity) addEgressGatewayHATests(ct *check.Connectivity
 				EgressGroup:     enterpriseCheck.SingleGateway,
 			}).
 			WithCiliumPolicy(clientEgressICMPYAML).
-			WithCiliumPolicy(templates["clientEgressOnlyDNSPolicyYAML"]). // DNS resolution only
-			WithCiliumPolicy(clientEgressL7HTTPAnywhereYAML).             // L7 allow policy with HTTP introspection
+			WithCiliumPolicy(templates["clientEgressOnlyDNSPolicyYAML"]).  // DNS resolution only
+			WithCiliumPolicy(templates["clientEgressL7HTTPAnywhereYAML"]). // L7 allow policy with HTTP introspection
 			WithIPRoutesFromOutsideToPodCIDRs().
 			WithFeatureRequirements(features.RequireEnabled(features.L7Proxy)).
 			WithScenarios(enterpriseTests.EgressGatewayHA())
@@ -270,8 +270,8 @@ func (ec *EnterpriseConnectivity) addEgressGatewayHATests(ct *check.Connectivity
 				EgressGroup:     enterpriseCheck.AllCiliumNodes,
 			}).
 			WithCiliumPolicy(clientEgressICMPYAML).
-			WithCiliumPolicy(templates["clientEgressOnlyDNSPolicyYAML"]). // DNS resolution only
-			WithCiliumPolicy(clientEgressL7HTTPAnywhereYAML).             // L7 allow policy with HTTP introspection
+			WithCiliumPolicy(templates["clientEgressOnlyDNSPolicyYAML"]).  // DNS resolution only
+			WithCiliumPolicy(templates["clientEgressL7HTTPAnywhereYAML"]). // L7 allow policy with HTTP introspection
 			WithFeatureRequirements(features.RequireEnabled(features.L7Proxy)).
 			WithScenarios(enterpriseTests.EgressGatewayMultipleGateways())
 	}
@@ -366,8 +366,8 @@ func (ec *EnterpriseConnectivity) addEgressGatewayHATests(ct *check.Connectivity
 				EgressGroup:     enterpriseCheck.AllCiliumNodes,
 			}).
 			WithCiliumPolicy(clientEgressICMPYAML).
-			WithCiliumPolicy(templates["clientEgressOnlyDNSPolicyYAML"]). // DNS resolution only
-			WithCiliumPolicy(clientEgressL7HTTPAnywhereYAML).             // L7 allow policy with HTTP introspection
+			WithCiliumPolicy(templates["clientEgressOnlyDNSPolicyYAML"]).  // DNS resolution only
+			WithCiliumPolicy(templates["clientEgressL7HTTPAnywhereYAML"]). // L7 allow policy with HTTP introspection
 			WithScenarios(enterpriseTests.EgressGatewayHABGPAdvertisement(bfdEnabled))
 	}
 
@@ -716,6 +716,7 @@ func mustGetTest(testName string, cts ...*check.ConnectivityTest) *check.Test {
 
 func renderTemplates(ct *check.ConnectivityTest) (map[string]string, error) {
 	templates := map[string]string{
+		"clientEgressL7HTTPAnywhereYAML":        clientEgressL7HTTPAnywhereYAML,
 		"clientEgressOnlyDNSPolicyYAML":         clientEgressOnlyDNSPolicyYAML,
 		"clientIngressToEchoOrderedNS":          clientIngressToEchoOrderedNS,
 		"clientIngressToEchoOrderedWildcard":    clientIngressToEchoOrderedWildcard,
