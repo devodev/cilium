@@ -2182,7 +2182,7 @@ type Backend struct {
 	//
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Minimum=1
-	// +kubebuilder:validation:Maximum=4294967295
+	// +kubebuilder:validation:Maximum=2147483647
 	Weight *uint32 `json:"weight,omitempty"`
 
 	// The zone of the backend used for zone-aware routing decisions.
