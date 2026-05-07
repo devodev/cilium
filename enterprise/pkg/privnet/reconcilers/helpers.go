@@ -97,6 +97,45 @@ func (tracker watchesTracker[T]) Iter(closed []<-chan struct{}) iter.Seq[T] {
 	}
 }
 
+// PropertyTracker simplifies the tracking of objects observed via statedb.Table[T].Changes,
+// to detect if a property of interest changed, and retrieve its previous value.
+// Specifically, this is useful to allow triggering a downstream reconciliation
+// based both on the previous and the current value, even if the property is not
+// part of the primary key, and a change therefore happens in place.
+type PropertyTracker[T any, K, V comparable] struct {
+	m      map[K]V
+	keyer  func(T) K
+	valuer func(T) V
+}
+
+func NewPropertyTracker[T any, K, V comparable](keyer func(T) K, valuer func(T) V) *PropertyTracker[T, K, V] {
+	return &PropertyTracker[T, K, V]{
+		m:      make(map[K]V),
+		keyer:  keyer,
+		valuer: valuer,
+	}
+}
+
+// Track updates the internal state according to the provided change, and returns
+// the previous value associated with the given object, and whether the new value
+// is different; changed is always false if no previous value existed.
+func (tracker *PropertyTracker[T, K, V]) Track(change statedb.Change[T]) (prev V, changed bool) {
+	var (
+		key = tracker.keyer(change.Object)
+		val = tracker.valuer(change.Object)
+	)
+
+	prev, ok := tracker.m[key]
+
+	if change.Deleted {
+		delete(tracker.m, key)
+	} else {
+		tracker.m[key] = val
+	}
+
+	return prev, ok && prev != val
+}
+
 func NewWaitUntilReconciledFn[T any](db *statedb.DB, tbl statedb.Table[T], getStatus func(T) reconciler.Status) hive.WaitFunc {
 	return func(ctx context.Context) error {
 		// Wait until the table has been initialized.
