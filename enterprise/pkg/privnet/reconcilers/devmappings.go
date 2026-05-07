@@ -165,12 +165,12 @@ func (dm *DeviceMappings) registerReconciler() {
 
 					for change := range naChanges {
 						network, _, found := dm.networks.Get(wtx, tables.PrivateNetworkByName(change.Object.Network))
-						if !found {
-							continue // attachment is created before the network
-						}
 						mapping := dm.forNetworkAttachment(network, change.Object)
-						if change.Deleted {
-							// Causes [dm.reconcile] to delete the entry.
+						if change.Deleted || !found {
+							// Causes [dm.reconcile] to delete the entry. We do trigger
+							// a reconciliation also if the target network is not found,
+							// to remove a possible stale entry left behind in case the
+							// network targeted by the node attachment changed.
 							mapping.DeviceIndex = 0
 						}
 						dm.reconcile(wtx, mapping, true)

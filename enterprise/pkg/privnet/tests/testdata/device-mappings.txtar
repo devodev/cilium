@@ -93,6 +93,28 @@ db/cmp privnet-device-mappings device-mappings.v8.table
 privnet/maps-dump privnet_devices devices-actual.map
 * cmp devices.v8.map devices-actual.map
 
+# Change the network targeted by a node attachment, and assert that the
+# entries are updated as expected.
+cp pnna-1.yaml pnna-1.v2.yaml
+sed 'name: direct-maggot$' 'name: united-firefly' pnna-1.v2.yaml
+k8s/update pnna-1.v2.yaml
+db/cmp privnet-device-mappings device-mappings.v9.table
+
+# Change the network targeted by a node attachment to a non-existing one, and
+# assert that the entries are updated as expected.
+cp pnna-1.yaml pnna-1.v3.yaml
+sed 'name: direct-maggot$' 'name: foo' pnna-1.v3.yaml
+k8s/update pnna-1.v3.yaml
+db/cmp privnet-device-mappings device-mappings.v10.table
+
+# Restore it back, and assert that the entries are updated as expected.
+k8s/update pnna-1.yaml
+db/cmp privnet-device-mappings device-mappings.v8.table
+
+# Ensure that the entries are propagated into the corresponding BPF map.
+privnet/maps-dump privnet_devices devices-actual.map
+* cmp devices.v8.map devices-actual.map
+
 # ---
 
 -- device.eth1.yaml --
@@ -246,6 +268,18 @@ lxc18 (98)  united-firefly  0x2          lw-18
 Interface   Network         NetworkID    Owner
 eth1 (10)   direct-maggot   0x4          pnna-direct-maggot-na
 eth2 (20)   direct-maggot   0x4          pnna-direct-maggot-na
+lxc16 (96)  direct-maggot   0x4          lw-16
+lxc18 (98)  united-firefly  0x2          lw-18
+
+-- device-mappings.v9.table --
+Interface   Network         NetworkID    Owner
+eth1 (10)   united-firefly  0x2          pnna-direct-maggot-na
+eth2 (20)   united-firefly  0x2          pnna-direct-maggot-na
+lxc16 (96)  direct-maggot   0x4          lw-16
+lxc18 (98)  united-firefly  0x2          lw-18
+
+-- device-mappings.v10.table --
+Interface   Network         NetworkID    Owner
 lxc16 (96)  direct-maggot   0x4          lw-16
 lxc18 (98)  united-firefly  0x2          lw-18
 
