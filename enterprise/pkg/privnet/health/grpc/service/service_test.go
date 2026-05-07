@@ -422,7 +422,7 @@ func TestServiceWatch(t *testing.T) {
 	wtx = db.WriteTxn(networks, actnets, attachs)
 	attachs.Insert(wtx, &NA{Interface: NAI{Name: "eth.red", Index: 13}, Network: "red", NodeSelector: TestValidNASelector, Conflict: tables.AttachmentConflictNone})
 	attachs.Insert(wtx, &NA{Interface: NAI{Name: "eth.brown", Index: 0}, Network: "brown", NodeSelector: TestValidNASelector, Conflict: tables.AttachmentConflictNone})
-	attachs.Insert(wtx, &NA{Interface: NAI{Name: "eth.yellow", Index: 0}, Network: "yellow", NodeSelector: TestValidNASelector, Conflict: tables.AttachmentConflictNone})
+	attachs.Insert(wtx, &NA{Interface: NAI{Name: "eth.yellow", Index: 0}, Network: "magenta", NodeSelector: TestValidNASelector, Conflict: tables.AttachmentConflictNone})
 	wtx.Commit()
 
 	require.ElementsMatch(t, stream.getSent(t).GetEvents(),
@@ -430,6 +430,7 @@ func TestServiceWatch(t *testing.T) {
 			{Network: &api.Network{Name: "red"}, Status: api.NetworkEvents_Event_STANDBY},
 			{Network: &api.Network{Name: "brown"}, Status: api.NetworkEvents_Event_NOT_SERVING},
 			{Network: &api.Network{Name: "yellow"}, Status: api.NetworkEvents_Event_NOT_SERVING},
+			{Network: &api.Network{Name: "magenta"}, Status: api.NetworkEvents_Event_NOT_SERVING},
 		},
 	)
 
@@ -597,6 +598,11 @@ func TestServiceGCer(t *testing.T) {
 	actnets.Insert(wtx, AN{Node: snail, Network: "yellow"})
 	actnets.Insert(wtx, AN{Node: snail, Network: "purple"})
 	actnets.Insert(wtx, AN{Node: sloth, Network: "purple"})
+
+	// Simulate the case in which the corresponding network (or node attachment)
+	// got deleted before that the GC logic started; the stale entry should be
+	// eventually removed.
+	actnets.Insert(wtx, AN{Node: snail, Network: "brown"})
 	wtx.Commit()
 
 	wg.Go(func() { srv.gcLoop(ctx, health) })
@@ -631,5 +637,15 @@ func TestServiceGCer(t *testing.T) {
 		assert.ElementsMatch(c, statedb.Collect(actnets.All(db.ReadTxn())), []AN{
 			{Node: snail, Network: "yellow"},
 		})
+	}, timeout, interval)
+
+	// One of the networks is no longer served, as its attachment targets a different network,
+	// the corresponding entries should be removed.
+	wtx = db.WriteTxn(attachs)
+	attachs.Insert(wtx, &NA{Interface: NAI{Name: "eth.yellow", Index: 12}, Network: "other", NodeSelector: TestValidNASelector, Conflict: tables.AttachmentConflictNone})
+	wtx.Commit()
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.Empty(c, statedb.Collect(actnets.All(db.ReadTxn())))
 	}, timeout, interval)
 }

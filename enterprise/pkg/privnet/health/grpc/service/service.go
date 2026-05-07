@@ -28,6 +28,7 @@ import (
 	pncfg "github.com/cilium/cilium/enterprise/pkg/privnet/config"
 	api "github.com/cilium/cilium/enterprise/pkg/privnet/grpc/api/v1"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/health/watchdog"
+	"github.com/cilium/cilium/enterprise/pkg/privnet/reconcilers"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/tables"
 	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/cilium/pkg/logging/logfields"
@@ -121,74 +122,42 @@ func (s *health) registerGCer(jg job.Group, cfg pncfg.Config) {
 }
 
 func (s *health) gcLoop(ctx context.Context, health cell.Health) error {
-	wtx := s.db.WriteTxn(s.networks, s.attachments)
-	netIter, _ := s.networks.Changes(wtx)
-	attachIter, _ := s.attachments.Changes(wtx)
-	wtx.Commit()
-
 	health.OK("Primed")
 	for {
-		var toGC = sets.New[tables.NetworkName]()
+		var (
+			served   = sets.New[tables.NetworkName]()
+			watchset = statedb.NewWatchSet()
 
-		wtx := s.db.WriteTxn(s.tbl)
-		netChanges, netWatch := netIter.Next(wtx)
-		attachChanges, attachWatch := attachIter.Next(wtx)
+			wtx      = s.db.WriteTxn(s.tbl)
+			nets, nw = s.networks.AllWatch(wtx)
+			_, aw    = s.attachments.AllWatch(wtx)
 
-		for change := range netChanges {
-			network := change.Object.Name
-			if change.Deleted {
-				// The network cannot be served, hence trigger GC.
-				toGC.Insert(network)
+			cnt uint
+		)
+
+		watchset.Add(nw, aw)
+		for network := range nets {
+			if s.validNetworkAttachment(wtx, network.Name) {
+				served.Insert(network.Name)
 			}
 		}
 
-		// check there is valid attachment associated with private-network.
-		var nwProcessed = sets.New[tables.NetworkName]()
-		for attach := range attachChanges {
-			network := attach.Object.Network
-			if nwProcessed.Has(network) {
-				continue
-			}
-
-			if !s.validNetworkAttachment(wtx, network) {
-				// no attachment associated with a network.
-				toGC.Insert(network)
-			}
-			nwProcessed.Insert(network)
-		}
-
-		if len(toGC) > 0 {
-			var cnt uint
-
-			// We assume that this operation is rare enough that it is better to
-			// simply iterate over all entries rather than adding a dedicated index.
-			for entry := range s.tbl.All(wtx) {
-				if toGC.Has(entry.Network) {
-					s.tbl.Delete(wtx, entry)
-					cnt++
-				}
-			}
-
-			if cnt > 0 {
-				wtx.Commit()
-				health.OK(fmt.Sprintf("Reconciliation completed, GCed %d entries", cnt))
+		for entry := range s.tbl.All(wtx) {
+			if !served.Has(entry.Network) {
+				s.tbl.Delete(wtx, entry)
+				cnt++
 			}
 		}
 
-		wtx.Abort()
-
-		select {
-		case <-netWatch:
-		case <-attachWatch:
-		case <-ctx.Done():
-			return nil
+		if cnt > 0 {
+			wtx.Commit()
+			health.OK(fmt.Sprintf("Reconciliation completed, GCed %d entries", cnt))
+		} else {
+			wtx.Abort()
 		}
 
-		// Wait for a bit of time, to allow for possible other
-		// changes to accumulate in the meanwhile.
-		select {
-		case <-time.After(settleTime):
-		case <-ctx.Done():
+		_, err := watchset.Wait(ctx, settleTime)
+		if err != nil {
 			return nil
 		}
 	}
@@ -320,7 +289,10 @@ func (s *health) onProbeTimeout(node tables.WorkloadNode) {
 }
 
 func (s *health) Watch(in *api.WatchRequest, stream grpc.ServerStreamingServer[api.NetworkEvents]) error {
-	var incremental bool
+	var (
+		incremental   bool
+		attachTracker = reconcilers.NewNodeAttachmentsNetworkTracker()
+	)
 
 	node, err := s.toWorkloadNode(in.GetSelf())
 	if err != nil {
@@ -364,6 +336,11 @@ func (s *health) Watch(in *api.WatchRequest, stream grpc.ServerStreamingServer[a
 		attachmentChanges, attachWatch := attachIter.Next(txn)
 		for change := range attachmentChanges {
 			changes.Insert(change.Object.Network)
+
+			prev, changed := attachTracker.Track(change)
+			if changed {
+				changes.Insert(prev)
+			}
 		}
 
 		for network := range changes {
