@@ -3535,12 +3535,18 @@ envoy:
       keepCapNetBindService: false
   # -- Affinity for cilium-envoy.
   affinity:
+    # Override pod antiAffinity to preferred for enterprise to support graceful restart.
+    # Upstream default uses requiredDuringSchedulingIgnoredDuringExecution which causes a
+    # scheduling deadlock when transitioning to envoy HA.
     podAntiAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-        - topologyKey: kubernetes.io/hostname
-          labelSelector:
-            matchLabels:
-              k8s-app: cilium-envoy
+      requiredDuringSchedulingIgnoredDuringExecution: []
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchLabels:
+                k8s-app: cilium-envoy
+            topologyKey: kubernetes.io/hostname
     podAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
         - topologyKey: kubernetes.io/hostname
