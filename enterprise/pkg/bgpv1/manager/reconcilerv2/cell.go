@@ -15,8 +15,10 @@ import (
 
 	"github.com/cilium/cilium/pkg/bgp/manager/store"
 	"github.com/cilium/cilium/pkg/k8s"
+	"github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2alpha1"
 	v1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
 	"github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
+	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 )
 
 // ConfigReconcilers contains cells of enterprise-only reconcilers
@@ -42,6 +44,18 @@ var ConfigReconcilers = cell.Group(
 
 	cell.Provide(
 		k8s.IsovalentSRv6LocatorPoolResource,
+	),
+
+	// Provide Secret and CiliumPodIPPool stores privately for the
+	// enterprise reconcilers. The OSS BGP cell may also provide stores with
+	// these public, so we need to provide these types private within the
+	// Cell. When both enterprise and OSS are enabled at the same time, this
+	// private resource will be provided to the enterprise.
+	cell.ProvidePrivate(
+		newEnterpriseCiliumPodIPPoolResource,
+		store.NewBGPCPResourceStore[*v2alpha1.CiliumPodIPPool],
+		newEnterpriseSecretResource,
+		store.NewBGPCPResourceStore[*slim_corev1.Secret],
 	),
 
 	cell.Provide(
