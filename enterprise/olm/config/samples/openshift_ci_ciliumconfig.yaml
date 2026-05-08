@@ -35,6 +35,15 @@ spec:
       enabled: true
       retryTimeout: "5s"
   sessionAffinity: true
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: cilium.io/no-schedule
+            operator: NotIn
+            values:
+            - "true"
   kubeProxyReplacement: false
   # TODO: not sure this is needed, was historically used in the CuTE configuration
   endpointRoutes: {enabled: true}
