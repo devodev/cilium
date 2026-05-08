@@ -51,11 +51,15 @@ const (
 	egwExternalBGPPeerConfigName   = "test-egw-external-bgp-peer-config"
 	egwRRsBGPClusterConfigName     = "test-egw-route-reflectors-bgp-cluster-config"
 	egwClientsBGPClusterConfigName = "test-egw-clients-bgp-cluster-config"
-	egwBFDProfileName              = "test-egw-bfd-profile"
+	EGWBFDProfileName              = "test-egw-bfd-profile"
 
 	egwBGPCiliumASN   = 65001
 	egwBGPRRLocalPort = 11179
 	egwBGPRRClusterID = "255.0.0.1"
+
+	egwBGPRRRoleLabelKey            = "rr-role"
+	egwBGPRRRoleLabelRouteReflector = "route-reflector"
+	egwBGPRRRoleLabelClient         = "client"
 )
 
 // bpfEgressGatewayPolicyEntry represents an entry in the BPF egress gateway policy map
@@ -105,9 +109,16 @@ func waitForBpfPolicyEntries(ctx context.Context, t *check.Test,
 	targetEntriesCallback func(ciliumPod check.Pod) []bpfEgressGatewayPolicyEntry,
 ) error {
 	ct := t.Context()
+	// Resolve allocated egress IPs for conn-disrupt IEGPs once upfront. If
+	// conn-disrupt isn't set up (or isn't using IPAM), the maps are nil and
+	// the exclude callback falls back to the gateway internal IP.
+	gwIEGPEgressIPs, nonGWIEGPEgressIPs, err := resolveConnDisruptAllocatedEgressIPs(ctx, ct)
+	if err != nil {
+		return fmt.Errorf("failed to resolve conn-disrupt allocated egress IPs: %w", err)
+	}
 	return waitForBpfPolicyEntriesWithEntryMatcher(ctx, ct.CiliumPods(), targetEntriesCallback, nil,
 		func(ciliumPod check.Pod) ([]bpfEgressGatewayPolicyEntry, error) {
-			return getConnDisruptEgressHAPolicyEntries(ctx, ct, ciliumPod)
+			return getConnDisruptEgressHAPolicyEntries(ctx, ct, ciliumPod, gwIEGPEgressIPs, nonGWIEGPEgressIPs)
 		})
 }
 
@@ -195,7 +206,16 @@ func waitForBpfPolicyEntriesWithEntryMatcher(ctx context.Context,
 // waitForAllocatedEgressIP waits for the operator to allocate an egress IP to the gateway node identified by its IP.
 // The allocated egress IP is looked for in the policy and egress group specified as input.
 func waitForAllocatedEgressIP(ctx context.Context, t *check.Test, policyName string, egressGroup int, gatewayIP string) net.IP {
-	ct := t.Context()
+	masqueradeIP, err := waitForAllocatedEgressIPErr(ctx, t.Context(), policyName, egressGroup, gatewayIP)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return masqueradeIP
+}
+
+// waitForAllocatedEgressIPErr is the error-returning variant of waitForAllocatedEgressIP,
+// usable from contexts where a *check.ConnectivityTest is available instead of a *check.Test.
+func waitForAllocatedEgressIPErr(ctx context.Context, ct *check.ConnectivityTest, policyName string, egressGroup int, gatewayIP string) (net.IP, error) {
 	iegpClient := ct.K8sClient().CiliumClientset.IsovalentV1().IsovalentEgressGatewayPolicies()
 
 	w := wait.NewObserver(ctx, wait.Parameters{Timeout: 30 * time.Second})
@@ -221,14 +241,14 @@ func waitForAllocatedEgressIP(ctx context.Context, t *check.Test, policyName str
 	for {
 		masqueradeIP, err := ensureGroupEgressIP()
 		if err != nil {
-			if err := w.Retry(err); err != nil {
-				t.Fatal("Failed to ensure egress IP allocation for active gateway:", err)
+			if retryErr := w.Retry(err); retryErr != nil {
+				return nil, fmt.Errorf("failed to ensure egress IP allocation for active gateway: %w", retryErr)
 			}
 
 			continue
 		}
 
-		return masqueradeIP
+		return masqueradeIP, nil
 	}
 }
 
@@ -894,6 +914,13 @@ func (s *egressGatewayAZAffinity) Run(ctx context.Context, t *check.Test) {
 		t.Fatalf("cannot enable azAffinity %s: %s", iegpName, err)
 	}
 
+	// Resolve allocated egress IPs for conn-disrupt IEGPs once, so the exclude
+	// callback below can match BPF entries that use IPAM-allocated egress IPs.
+	gwIEGPEgressIPs, nonGWIEGPEgressIPs, err := resolveConnDisruptAllocatedEgressIPs(ctx, ct)
+	if err != nil {
+		t.Fatalf("failed to resolve conn-disrupt allocated egress IPs: %v", err)
+	}
+
 	// wait for the policy map to be populated
 	if err := waitForBpfPolicyEntriesWithEntryMatcher(ctx, ct.CiliumPods(), func(ciliumPod check.Pod) []bpfEgressGatewayPolicyEntry {
 		targetEntries := []bpfEgressGatewayPolicyEntry{}
@@ -927,7 +954,7 @@ func (s *egressGatewayAZAffinity) Run(ctx context.Context, t *check.Test) {
 			(targetEntry.EgressIP == entry.EgressIP || entry.EgressIP == "0.0.0.0") &&
 			cmp.Equal(targetEntry.GatewayIPs, entry.GatewayIPs, cmpopts.EquateEmpty())
 	}, func(ciliumPod check.Pod) ([]bpfEgressGatewayPolicyEntry, error) {
-		return getConnDisruptEgressHAPolicyEntries(ctx, ct, ciliumPod)
+		return getConnDisruptEgressHAPolicyEntries(ctx, ct, ciliumPod, gwIEGPEgressIPs, nonGWIEGPEgressIPs)
 	}); err != nil {
 		t.Fatalf("%v", err)
 	}
@@ -1419,10 +1446,19 @@ func (s *egressGatewayHABGPAdvertisement) Name() string {
 }
 
 func (s *egressGatewayHABGPAdvertisement) Run(ctx context.Context, t *check.Test) {
-	defer deleteEGWBGPK8sResources(ctx, t)
+	defer func() {
+		// Skip BGP/BFD cleanup if conn-disrupt IEGPs are still on the
+		// cluster, they share the same BGP/BFD resources, and tearing
+		// them down would disrupt in-flight conn-disrupt connections.
+		if connDisruptEGWIEGPsExist(ctx, t.Context()) {
+			t.Logf("Skipping EGW BGP/BFD cleanup: conn-disrupt IEGPs are still present")
+			return
+		}
+		deleteEGWBGPK8sResources(ctx, t)
+	}()
 	bfdProfileName := ""
 	if s.bfdEnabled {
-		bfdProfileName = egwBFDProfileName
+		bfdProfileName = EGWBFDProfileName
 
 		bfdProfile := generateBFDProfileForEGW()
 		configureBFDProfileForEGW(ctx, t, bfdProfile)
@@ -1552,7 +1588,14 @@ func configureBGPPeeringForEGW(ctx context.Context, t *check.Test, ipFamily feat
 }
 
 func configureBGPPeeringV1ForEGW(ctx context.Context, t *check.Test, ipFamily features.IPFamily, bfdProfile string) {
-	ct := t.Context()
+	if err := CreateEGWBGPPeeringV1(ctx, t.Context(), ipFamily, bfdProfile); err != nil {
+		t.Fatalf("%v", err)
+	}
+}
+
+// CreateEGWBGPPeeringV1 creates BGP peering resources for the EGW HA test
+// (advertisement, peer configs, cluster configs).
+func CreateEGWBGPPeeringV1(ctx context.Context, ct *check.ConnectivityTest, ipFamily features.IPFamily, bfdProfile string) error {
 	client := ct.K8sClient().CiliumClientset.IsovalentV1()
 
 	// configure advertisement
@@ -1574,8 +1617,8 @@ func configureBGPPeeringV1ForEGW(ctx context.Context, t *check.Test, ipFamily fe
 	}
 
 	_, err := client.IsovalentBGPAdvertisements().Create(ctx, advertisement, metav1.CreateOptions{})
-	if err != nil {
-		t.Fatalf("failed to create IsovalentBGPAdvertisement: %v", err)
+	if err != nil && !k8sErrors.IsAlreadyExists(err) {
+		return fmt.Errorf("failed to create IsovalentBGPAdvertisement: %w", err)
 	}
 
 	// configure peer config
@@ -1586,6 +1629,12 @@ func configureBGPPeeringV1ForEGW(ctx context.Context, t *check.Test, ipFamily fe
 		Spec: v1.IsovalentBGPPeerConfigSpec{
 			Transport: &ciliumv2.CiliumBGPTransport{
 				PeerPort: ptr.To(int32(egwBGPRRLocalPort)),
+			},
+			Timers: &ciliumv2.CiliumBGPTimers{
+				ConnectRetryTimeSeconds: ptr.To(int32(1)),
+			},
+			GracefulRestart: &ciliumv2.CiliumBGPNeighborGracefulRestart{
+				Enabled: true,
 			},
 			Families: []v1.IsovalentBGPFamilyWithAdverts{
 				{
@@ -1601,8 +1650,8 @@ func configureBGPPeeringV1ForEGW(ctx context.Context, t *check.Test, ipFamily fe
 		},
 	}
 	_, err = client.IsovalentBGPPeerConfigs().Create(ctx, rrCommonPeerConfig, metav1.CreateOptions{})
-	if err != nil {
-		t.Fatalf("failed to create IsovalentBGPPeerConfig: %v", err)
+	if err != nil && !k8sErrors.IsAlreadyExists(err) {
+		return fmt.Errorf("failed to create IsovalentBGPPeerConfig: %w", err)
 	}
 
 	externalPeerConfig := &v1.IsovalentBGPPeerConfig{
@@ -1610,6 +1659,9 @@ func configureBGPPeeringV1ForEGW(ctx context.Context, t *check.Test, ipFamily fe
 			Name: egwExternalBGPPeerConfigName,
 		},
 		Spec: v1.IsovalentBGPPeerConfigSpec{
+			Timers: &ciliumv2.CiliumBGPTimers{
+				ConnectRetryTimeSeconds: ptr.To(int32(1)),
+			},
 			Families: []v1.IsovalentBGPFamilyWithAdverts{
 				{
 					CiliumBGPFamily: ciliumv2.CiliumBGPFamily{
@@ -1627,8 +1679,8 @@ func configureBGPPeeringV1ForEGW(ctx context.Context, t *check.Test, ipFamily fe
 		externalPeerConfig.Spec.BFDProfileRef = &bfdProfile
 	}
 	_, err = client.IsovalentBGPPeerConfigs().Create(ctx, externalPeerConfig, metav1.CreateOptions{})
-	if err != nil {
-		t.Fatalf("failed to create IsovalentBGPPeerConfig: %v", err)
+	if err != nil && !k8sErrors.IsAlreadyExists(err) {
+		return fmt.Errorf("failed to create IsovalentBGPPeerConfig: %w", err)
 	}
 
 	// configure cluster config
@@ -1638,7 +1690,7 @@ func configureBGPPeeringV1ForEGW(ctx context.Context, t *check.Test, ipFamily fe
 		},
 		Spec: v1.IsovalentBGPClusterConfigSpec{
 			NodeSelector: &slimv1.LabelSelector{
-				MatchLabels: map[string]string{"rr-role": "route-reflector"},
+				MatchLabels: map[string]string{egwBGPRRRoleLabelKey: egwBGPRRRoleLabelRouteReflector},
 			},
 			BGPInstances: []v1.IsovalentBGPInstance{
 				{
@@ -1675,8 +1727,8 @@ func configureBGPPeeringV1ForEGW(ctx context.Context, t *check.Test, ipFamily fe
 			})
 	}
 	_, err = client.IsovalentBGPClusterConfigs().Create(ctx, rrClusterConfig, metav1.CreateOptions{})
-	if err != nil {
-		t.Fatalf("failed to create IsovalentBGPClusterConfig: %v", err)
+	if err != nil && !k8sErrors.IsAlreadyExists(err) {
+		return fmt.Errorf("failed to create IsovalentBGPClusterConfig: %w", err)
 	}
 
 	clientClusterConfig := &v1.IsovalentBGPClusterConfig{
@@ -1685,7 +1737,7 @@ func configureBGPPeeringV1ForEGW(ctx context.Context, t *check.Test, ipFamily fe
 		},
 		Spec: v1.IsovalentBGPClusterConfigSpec{
 			NodeSelector: &slimv1.LabelSelector{
-				MatchLabels: map[string]string{"rr-role": "client"},
+				MatchLabels: map[string]string{egwBGPRRRoleLabelKey: egwBGPRRRoleLabelClient},
 			},
 			BGPInstances: []v1.IsovalentBGPInstance{
 				{
@@ -1710,9 +1762,21 @@ func configureBGPPeeringV1ForEGW(ctx context.Context, t *check.Test, ipFamily fe
 		}
 	}
 	_, err = client.IsovalentBGPClusterConfigs().Create(ctx, clientClusterConfig, metav1.CreateOptions{})
-	if err != nil {
-		t.Fatalf("failed to create IsovalentBGPClusterConfig: %v", err)
+	if err != nil && !k8sErrors.IsAlreadyExists(err) {
+		return fmt.Errorf("failed to create IsovalentBGPClusterConfig: %w", err)
 	}
+
+	return nil
+}
+
+// DeleteEGWBGPPeeringV1 deletes BGP peering resources created by CreateEGWBGPPeeringV1.
+func DeleteEGWBGPPeeringV1(ctx context.Context, ct *check.ConnectivityTest) {
+	client := ct.K8sClient().CiliumClientset.IsovalentV1()
+	_ = client.IsovalentBGPClusterConfigs().Delete(ctx, egwRRsBGPClusterConfigName, metav1.DeleteOptions{})
+	_ = client.IsovalentBGPClusterConfigs().Delete(ctx, egwClientsBGPClusterConfigName, metav1.DeleteOptions{})
+	_ = client.IsovalentBGPPeerConfigs().Delete(ctx, egwRRCommonBGPPeerConfigName, metav1.DeleteOptions{})
+	_ = client.IsovalentBGPPeerConfigs().Delete(ctx, egwExternalBGPPeerConfigName, metav1.DeleteOptions{})
+	_ = client.IsovalentBGPAdvertisements().Delete(ctx, egwBGPAdvertisementName, metav1.DeleteOptions{})
 }
 
 func deleteEGWBGPK8sResources(ctx context.Context, t *check.Test) {
@@ -1720,7 +1784,7 @@ func deleteEGWBGPK8sResources(ctx context.Context, t *check.Test) {
 
 	deleteEGWBGPPeeringResources(ctx, t)
 
-	check.DeleteK8sResourceWithWait(ctx, t, client.IsovalentBFDProfiles(), egwBFDProfileName)
+	check.DeleteK8sResourceWithWait(ctx, t, client.IsovalentBFDProfiles(), EGWBFDProfileName)
 }
 
 func deleteEGWBGPPeeringResources(ctx context.Context, t *check.Test) {
@@ -1735,7 +1799,7 @@ func deleteEGWBGPPeeringResources(ctx context.Context, t *check.Test) {
 func generateBFDProfileForEGW() *v1alpha1.IsovalentBFDProfile {
 	profile := &v1alpha1.IsovalentBFDProfile{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: egwBFDProfileName,
+			Name: EGWBFDProfileName,
 		},
 		Spec: v1alpha1.BFDProfileSpec{
 			ReceiveIntervalMilliseconds:  ptr.To[int32](300),
@@ -1747,11 +1811,25 @@ func generateBFDProfileForEGW() *v1alpha1.IsovalentBFDProfile {
 }
 
 func configureBFDProfileForEGW(ctx context.Context, t *check.Test, profile *v1alpha1.IsovalentBFDProfile) {
-	ct := t.Context()
-	client := ct.K8sClient().CiliumClientset.IsovalentV1alpha1()
-
-	_, err := client.IsovalentBFDProfiles().Create(ctx, profile, metav1.CreateOptions{})
-	if err != nil {
-		t.Fatalf("failed to create IsovalentBFDProfile: %v", err)
+	if err := CreateEGWBFDProfile(ctx, t.Context(), profile); err != nil {
+		t.Fatalf("%v", err)
 	}
+}
+
+// CreateEGWBFDProfile creates the BFD profile used by the EGW HA test.
+func CreateEGWBFDProfile(ctx context.Context, ct *check.ConnectivityTest, profile *v1alpha1.IsovalentBFDProfile) error {
+	if profile == nil {
+		profile = generateBFDProfileForEGW()
+	}
+	client := ct.K8sClient().CiliumClientset.IsovalentV1alpha1()
+	if _, err := client.IsovalentBFDProfiles().Create(ctx, profile, metav1.CreateOptions{}); err != nil && !k8sErrors.IsAlreadyExists(err) {
+		return fmt.Errorf("failed to create IsovalentBFDProfile: %w", err)
+	}
+	return nil
+}
+
+// DeleteEGWBFDProfile deletes the BFD profile created by CreateEGWBFDProfile.
+func DeleteEGWBFDProfile(ctx context.Context, ct *check.ConnectivityTest) {
+	client := ct.K8sClient().CiliumClientset.IsovalentV1alpha1()
+	_ = client.IsovalentBFDProfiles().Delete(ctx, EGWBFDProfileName, metav1.DeleteOptions{})
 }
