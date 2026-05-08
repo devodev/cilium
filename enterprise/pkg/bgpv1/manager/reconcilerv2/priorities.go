@@ -14,6 +14,7 @@ import ossreconcilerv2 "github.com/cilium/cilium/pkg/bgp/manager/reconciler"
 
 const (
 	LinkLocalReconcilerName        = "LinkLocal"
+	DefaultGatewayReconcilerName   = ossreconcilerv2.DefaultGatewayReconcilerName
 	BFDStateReconcilerName         = "BFDState"
 	NeighborReconcilerName         = ossreconcilerv2.NeighborReconcilerName  // needs to match the name of the OSS reconciler we are overriding
 	ServiceReconcilerName          = ossreconcilerv2.ServiceReconcilerName   // needs to match the name of the OSS reconciler we are overriding
@@ -47,6 +48,7 @@ const (
 	PrivateNetworkReconcilerPriority   = 44
 	ServiceVRFReconcilerPriority       = 41
 	PodCIDRVRFReconcilerPriority       = 31
+	DefaultGatewayReconcilerPriority   = ossreconcilerv2.DefaultGatewayReconcilerPriority
 )
 
 // State reconciler names

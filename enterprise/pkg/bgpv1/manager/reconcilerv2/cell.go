@@ -60,6 +60,7 @@ var ConfigReconcilers = cell.Group(
 
 	cell.Provide(
 		NewLinkLocalReconciler,
+		NewDefaultGatewayReconciler,
 		NewServiceReconciler,
 		NewEgressGatewayIPsReconciler,
 		NewBFDStateReconciler,
