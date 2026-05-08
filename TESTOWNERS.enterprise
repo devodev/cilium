@@ -14,6 +14,7 @@
 /.github/workflows/*ipsec*.yaml @isovalent/encryption
 /.github/workflows/*ingress*.yaml @isovalent/service-mesh
 /.github/workflows/*kpr*.yaml @isovalent/cni
+/.github/workflows/*ztunnel*.yaml @isovalent/encryption
 /.github/actions/cl2-modules/ @isovalent/scalability-performance
 /.github/actions/cl2-modules/l7 @isovalent/service-mesh @isovalent/scalability-performance
 /.github/workflows/*scale*.yaml @isovalent/scalability-performance
@@ -201,6 +202,10 @@
 /operator/pkg/ipam/alibabacloud.go @isovalent/networking-framework @isovalent/infrastructure
 /operator/pkg/ipam/aws.go @isovalent/networking-framework @isovalent/infrastructure
 /operator/pkg/ipam/azure.go @isovalent/networking-framework @isovalent/infrastructure
+/operator/pkg/ipam/allocator/alibabacloud/ @isovalent/networking-framework @isovalent/infrastructure
+/operator/pkg/ipam/allocator/aws/ @isovalent/networking-framework @isovalent/infrastructure
+/operator/pkg/ipam/allocator/azure/ @isovalent/networking-framework @isovalent/infrastructure
+/operator/pkg/ipam/allocator/clusterpool/ @isovalent/networking-framework
 /operator/pkg/lbipam @isovalent/isovalent-loadbalancer
 /operator/pkg/model @isovalent/service-mesh
 /operator/pkg/multipool @isovalent/networking-framework
@@ -208,7 +213,6 @@
 /operator/pkg/nodeipam @isovalent/isovalent-loadbalancer
 /operator/pkg/secretsync @isovalent/service-mesh @isovalent/service-mesh
 /operator/pkg/ztunnel @isovalent/encryption
-/operator/policyderivative @isovalent/policy-identity-networking
 /operator/watchers @isovalent/sig-k8s
 /pkg/act/ @isovalent/cni
 /pkg/annotation @isovalent/sig-k8s
@@ -283,10 +287,6 @@
 /pkg/ip/ @isovalent/cni
 /pkg/ipalloc/ @isovalent/networking-framework
 /pkg/ipam/ @isovalent/networking-framework
-/pkg/ipam/allocator/alibabacloud/ @isovalent/networking-framework @isovalent/infrastructure
-/pkg/ipam/allocator/aws/ @isovalent/networking-framework @isovalent/infrastructure
-/pkg/ipam/allocator/azure/ @isovalent/networking-framework @isovalent/infrastructure
-/pkg/ipam/allocator/clusterpool/ @isovalent/networking-framework
 /pkg/ipcache/ @isovalent/policy-identity-networking
 /pkg/ipcache/restore @isovalent/policy-identity-networking @isovalent/policy-identity-networking
 /pkg/ipmasq @isovalent/cni
@@ -383,7 +383,6 @@
 /tools/complexity-diff @isovalent/networking-framework
 /tools/dpgen @isovalent/networking-framework
 /tools/envoy-bootstrap-locality @isovalent/service-mesh
-/tools/stackwhere @isovalent/networking-framework
 /.github/**/*enterprise* @isovalent/infrastructure
 /.github/ISSUE_TEMPLATE/enterprise_hubble_cli_release_template.md @isovalent/hubble
 /.github/enterprise/.grype.yaml @isovalent/security

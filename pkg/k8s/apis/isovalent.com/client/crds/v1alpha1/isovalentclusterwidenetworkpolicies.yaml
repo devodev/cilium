@@ -454,9 +454,10 @@ spec:
                         type: array
                       toGroups:
                         description: |-
-                          ToGroups is a directive that allows the integration with multiple outside
-                          providers. Currently, only AWS is supported, and the rule can select by
-                          multiple sub directives:
+                          ToGroups allows policies to reference CIDRs provided by external integrations.
+                          Currently, only AWS is supported, and the rule can select by multiple sub directives.
+                          ToGroups entries are functionally equivalent to toCIDR, and have the same
+                          limitiations. They cannot select traffic originating from within the cluster.
 
                           Example:
                           toGroups:
@@ -464,9 +465,7 @@ spec:
                               securityGroupsIds:
                               - 'sg-XXXXXXXXXXXXX'
                         items:
-                          description: |-
-                            Groups structure to store all kinds of new integrations that needs a new
-                            derivative policy.
+                          description: Groups allows referencing CIDRs that are resolved from an external integration.
                           properties:
                             aws:
                               description: AWSGroup is an structure that can be used to whitelisting information from AWS integration
@@ -474,14 +473,30 @@ spec:
                                 labels:
                                   additionalProperties:
                                     type: string
+                                  description: |-
+                                    Labels selects AWS ENIs by labels.
+                                    Multiple labels are AND-ed together.
                                   type: object
                                 region:
+                                  description: 'Deprecated: Region is unused.'
                                   type: string
                                 securityGroupsIds:
+                                  description: |-
+                                    SecurityGroupsIds selects VPC SecurityGroups by IDs.
+                                    If multiple IDs are specified, they are OR-ed together.
+
+                                    Note that this may be AND-ed with any Names specified. Specifying both
+                                    IDs and Names is not recommended.
                                   items:
                                     type: string
                                   type: array
                                 securityGroupsNames:
+                                  description: |-
+                                    SecurityGroupsNames selects VPC SecurityGroups by name.
+                                    If multiple names are specified, they are OR-ed together.
+
+                                    Note that this may be AND-ed with any IDs specified. Specifying both
+                                    IDs and Names is not recommended.
                                   items:
                                     type: string
                                   type: array
@@ -1338,9 +1353,10 @@ spec:
                         type: array
                       toGroups:
                         description: |-
-                          ToGroups is a directive that allows the integration with multiple outside
-                          providers. Currently, only AWS is supported, and the rule can select by
-                          multiple sub directives:
+                          ToGroups allows policies to reference CIDRs provided by external integrations.
+                          Currently, only AWS is supported, and the rule can select by multiple sub directives.
+                          ToGroups entries are functionally equivalent to toCIDR, and have the same
+                          limitiations. They cannot select traffic originating from within the cluster.
 
                           Example:
                           toGroups:
@@ -1348,9 +1364,7 @@ spec:
                               securityGroupsIds:
                               - 'sg-XXXXXXXXXXXXX'
                         items:
-                          description: |-
-                            Groups structure to store all kinds of new integrations that needs a new
-                            derivative policy.
+                          description: Groups allows referencing CIDRs that are resolved from an external integration.
                           properties:
                             aws:
                               description: AWSGroup is an structure that can be used to whitelisting information from AWS integration
@@ -1358,14 +1372,30 @@ spec:
                                 labels:
                                   additionalProperties:
                                     type: string
+                                  description: |-
+                                    Labels selects AWS ENIs by labels.
+                                    Multiple labels are AND-ed together.
                                   type: object
                                 region:
+                                  description: 'Deprecated: Region is unused.'
                                   type: string
                                 securityGroupsIds:
+                                  description: |-
+                                    SecurityGroupsIds selects VPC SecurityGroups by IDs.
+                                    If multiple IDs are specified, they are OR-ed together.
+
+                                    Note that this may be AND-ed with any Names specified. Specifying both
+                                    IDs and Names is not recommended.
                                   items:
                                     type: string
                                   type: array
                                 securityGroupsNames:
+                                  description: |-
+                                    SecurityGroupsNames selects VPC SecurityGroups by name.
+                                    If multiple names are specified, they are OR-ed together.
+
+                                    Note that this may be AND-ed with any IDs specified. Specifying both
+                                    IDs and Names is not recommended.
                                   items:
                                     type: string
                                   type: array
@@ -1949,9 +1979,10 @@ spec:
                         type: array
                       toGroups:
                         description: |-
-                          ToGroups is a directive that allows the integration with multiple outside
-                          providers. Currently, only AWS is supported, and the rule can select by
-                          multiple sub directives:
+                          ToGroups allows policies to reference CIDRs provided by external integrations.
+                          Currently, only AWS is supported, and the rule can select by multiple sub directives.
+                          ToGroups entries are functionally equivalent to toCIDR, and have the same
+                          limitiations. They cannot select traffic originating from within the cluster.
 
                           Example:
                           toGroups:
@@ -1959,9 +1990,7 @@ spec:
                               securityGroupsIds:
                               - 'sg-XXXXXXXXXXXXX'
                         items:
-                          description: |-
-                            Groups structure to store all kinds of new integrations that needs a new
-                            derivative policy.
+                          description: Groups allows referencing CIDRs that are resolved from an external integration.
                           properties:
                             aws:
                               description: AWSGroup is an structure that can be used to whitelisting information from AWS integration
@@ -1969,14 +1998,30 @@ spec:
                                 labels:
                                   additionalProperties:
                                     type: string
+                                  description: |-
+                                    Labels selects AWS ENIs by labels.
+                                    Multiple labels are AND-ed together.
                                   type: object
                                 region:
+                                  description: 'Deprecated: Region is unused.'
                                   type: string
                                 securityGroupsIds:
+                                  description: |-
+                                    SecurityGroupsIds selects VPC SecurityGroups by IDs.
+                                    If multiple IDs are specified, they are OR-ed together.
+
+                                    Note that this may be AND-ed with any Names specified. Specifying both
+                                    IDs and Names is not recommended.
                                   items:
                                     type: string
                                   type: array
                                 securityGroupsNames:
+                                  description: |-
+                                    SecurityGroupsNames selects VPC SecurityGroups by name.
+                                    If multiple names are specified, they are OR-ed together.
+
+                                    Note that this may be AND-ed with any IDs specified. Specifying both
+                                    IDs and Names is not recommended.
                                   items:
                                     type: string
                                   type: array
@@ -2889,19 +2934,18 @@ spec:
                         type: array
                       fromGroups:
                         description: |-
-                          FromGroups is a directive that allows the integration with multiple outside
-                          providers. Currently, only AWS is supported, and the rule can select by
-                          multiple sub directives:
+                          FromGroups allows policies to reference CIDRs provided by external integrations.
+                          Currently, only AWS is supported, and the rule can select by multiple sub directives.
+                          FromGroups entries are functionally equivalent to FromCIDR, and have the same
+                          limitiations. They cannot select traffic originating from within the cluster.
 
                           Example:
-                          FromGroups:
+                          fromGroups:
                           - aws:
                               securityGroupsIds:
                               - 'sg-XXXXXXXXXXXXX'
                         items:
-                          description: |-
-                            Groups structure to store all kinds of new integrations that needs a new
-                            derivative policy.
+                          description: Groups allows referencing CIDRs that are resolved from an external integration.
                           properties:
                             aws:
                               description: AWSGroup is an structure that can be used to whitelisting information from AWS integration
@@ -2909,14 +2953,30 @@ spec:
                                 labels:
                                   additionalProperties:
                                     type: string
+                                  description: |-
+                                    Labels selects AWS ENIs by labels.
+                                    Multiple labels are AND-ed together.
                                   type: object
                                 region:
+                                  description: 'Deprecated: Region is unused.'
                                   type: string
                                 securityGroupsIds:
+                                  description: |-
+                                    SecurityGroupsIds selects VPC SecurityGroups by IDs.
+                                    If multiple IDs are specified, they are OR-ed together.
+
+                                    Note that this may be AND-ed with any Names specified. Specifying both
+                                    IDs and Names is not recommended.
                                   items:
                                     type: string
                                   type: array
                                 securityGroupsNames:
+                                  description: |-
+                                    SecurityGroupsNames selects VPC SecurityGroups by name.
+                                    If multiple names are specified, they are OR-ed together.
+
+                                    Note that this may be AND-ed with any IDs specified. Specifying both
+                                    IDs and Names is not recommended.
                                   items:
                                     type: string
                                   type: array
@@ -3694,19 +3754,18 @@ spec:
                         type: array
                       fromGroups:
                         description: |-
-                          FromGroups is a directive that allows the integration with multiple outside
-                          providers. Currently, only AWS is supported, and the rule can select by
-                          multiple sub directives:
+                          FromGroups allows policies to reference CIDRs provided by external integrations.
+                          Currently, only AWS is supported, and the rule can select by multiple sub directives.
+                          FromGroups entries are functionally equivalent to FromCIDR, and have the same
+                          limitiations. They cannot select traffic originating from within the cluster.
 
                           Example:
-                          FromGroups:
+                          fromGroups:
                           - aws:
                               securityGroupsIds:
                               - 'sg-XXXXXXXXXXXXX'
                         items:
-                          description: |-
-                            Groups structure to store all kinds of new integrations that needs a new
-                            derivative policy.
+                          description: Groups allows referencing CIDRs that are resolved from an external integration.
                           properties:
                             aws:
                               description: AWSGroup is an structure that can be used to whitelisting information from AWS integration
@@ -3714,14 +3773,30 @@ spec:
                                 labels:
                                   additionalProperties:
                                     type: string
+                                  description: |-
+                                    Labels selects AWS ENIs by labels.
+                                    Multiple labels are AND-ed together.
                                   type: object
                                 region:
+                                  description: 'Deprecated: Region is unused.'
                                   type: string
                                 securityGroupsIds:
+                                  description: |-
+                                    SecurityGroupsIds selects VPC SecurityGroups by IDs.
+                                    If multiple IDs are specified, they are OR-ed together.
+
+                                    Note that this may be AND-ed with any Names specified. Specifying both
+                                    IDs and Names is not recommended.
                                   items:
                                     type: string
                                   type: array
                                 securityGroupsNames:
+                                  description: |-
+                                    SecurityGroupsNames selects VPC SecurityGroups by name.
+                                    If multiple names are specified, they are OR-ed together.
+
+                                    Note that this may be AND-ed with any IDs specified. Specifying both
+                                    IDs and Names is not recommended.
                                   items:
                                     type: string
                                   type: array
@@ -4167,19 +4242,18 @@ spec:
                         type: array
                       fromGroups:
                         description: |-
-                          FromGroups is a directive that allows the integration with multiple outside
-                          providers. Currently, only AWS is supported, and the rule can select by
-                          multiple sub directives:
+                          FromGroups allows policies to reference CIDRs provided by external integrations.
+                          Currently, only AWS is supported, and the rule can select by multiple sub directives.
+                          FromGroups entries are functionally equivalent to FromCIDR, and have the same
+                          limitiations. They cannot select traffic originating from within the cluster.
 
                           Example:
-                          FromGroups:
+                          fromGroups:
                           - aws:
                               securityGroupsIds:
                               - 'sg-XXXXXXXXXXXXX'
                         items:
-                          description: |-
-                            Groups structure to store all kinds of new integrations that needs a new
-                            derivative policy.
+                          description: Groups allows referencing CIDRs that are resolved from an external integration.
                           properties:
                             aws:
                               description: AWSGroup is an structure that can be used to whitelisting information from AWS integration
@@ -4187,14 +4261,30 @@ spec:
                                 labels:
                                   additionalProperties:
                                     type: string
+                                  description: |-
+                                    Labels selects AWS ENIs by labels.
+                                    Multiple labels are AND-ed together.
                                   type: object
                                 region:
+                                  description: 'Deprecated: Region is unused.'
                                   type: string
                                 securityGroupsIds:
+                                  description: |-
+                                    SecurityGroupsIds selects VPC SecurityGroups by IDs.
+                                    If multiple IDs are specified, they are OR-ed together.
+
+                                    Note that this may be AND-ed with any Names specified. Specifying both
+                                    IDs and Names is not recommended.
                                   items:
                                     type: string
                                   type: array
                                 securityGroupsNames:
+                                  description: |-
+                                    SecurityGroupsNames selects VPC SecurityGroups by name.
+                                    If multiple names are specified, they are OR-ed together.
+
+                                    Note that this may be AND-ed with any IDs specified. Specifying both
+                                    IDs and Names is not recommended.
                                   items:
                                     type: string
                                   type: array
@@ -5245,9 +5335,10 @@ spec:
                           type: array
                         toGroups:
                           description: |-
-                            ToGroups is a directive that allows the integration with multiple outside
-                            providers. Currently, only AWS is supported, and the rule can select by
-                            multiple sub directives:
+                            ToGroups allows policies to reference CIDRs provided by external integrations.
+                            Currently, only AWS is supported, and the rule can select by multiple sub directives.
+                            ToGroups entries are functionally equivalent to toCIDR, and have the same
+                            limitiations. They cannot select traffic originating from within the cluster.
 
                             Example:
                             toGroups:
@@ -5255,9 +5346,7 @@ spec:
                                 securityGroupsIds:
                                 - 'sg-XXXXXXXXXXXXX'
                           items:
-                            description: |-
-                              Groups structure to store all kinds of new integrations that needs a new
-                              derivative policy.
+                            description: Groups allows referencing CIDRs that are resolved from an external integration.
                             properties:
                               aws:
                                 description: AWSGroup is an structure that can be used to whitelisting information from AWS integration
@@ -5265,14 +5354,30 @@ spec:
                                   labels:
                                     additionalProperties:
                                       type: string
+                                    description: |-
+                                      Labels selects AWS ENIs by labels.
+                                      Multiple labels are AND-ed together.
                                     type: object
                                   region:
+                                    description: 'Deprecated: Region is unused.'
                                     type: string
                                   securityGroupsIds:
+                                    description: |-
+                                      SecurityGroupsIds selects VPC SecurityGroups by IDs.
+                                      If multiple IDs are specified, they are OR-ed together.
+
+                                      Note that this may be AND-ed with any Names specified. Specifying both
+                                      IDs and Names is not recommended.
                                     items:
                                       type: string
                                     type: array
                                   securityGroupsNames:
+                                    description: |-
+                                      SecurityGroupsNames selects VPC SecurityGroups by name.
+                                      If multiple names are specified, they are OR-ed together.
+
+                                      Note that this may be AND-ed with any IDs specified. Specifying both
+                                      IDs and Names is not recommended.
                                     items:
                                       type: string
                                     type: array
@@ -6129,9 +6234,10 @@ spec:
                           type: array
                         toGroups:
                           description: |-
-                            ToGroups is a directive that allows the integration with multiple outside
-                            providers. Currently, only AWS is supported, and the rule can select by
-                            multiple sub directives:
+                            ToGroups allows policies to reference CIDRs provided by external integrations.
+                            Currently, only AWS is supported, and the rule can select by multiple sub directives.
+                            ToGroups entries are functionally equivalent to toCIDR, and have the same
+                            limitiations. They cannot select traffic originating from within the cluster.
 
                             Example:
                             toGroups:
@@ -6139,9 +6245,7 @@ spec:
                                 securityGroupsIds:
                                 - 'sg-XXXXXXXXXXXXX'
                           items:
-                            description: |-
-                              Groups structure to store all kinds of new integrations that needs a new
-                              derivative policy.
+                            description: Groups allows referencing CIDRs that are resolved from an external integration.
                             properties:
                               aws:
                                 description: AWSGroup is an structure that can be used to whitelisting information from AWS integration
@@ -6149,14 +6253,30 @@ spec:
                                   labels:
                                     additionalProperties:
                                       type: string
+                                    description: |-
+                                      Labels selects AWS ENIs by labels.
+                                      Multiple labels are AND-ed together.
                                     type: object
                                   region:
+                                    description: 'Deprecated: Region is unused.'
                                     type: string
                                   securityGroupsIds:
+                                    description: |-
+                                      SecurityGroupsIds selects VPC SecurityGroups by IDs.
+                                      If multiple IDs are specified, they are OR-ed together.
+
+                                      Note that this may be AND-ed with any Names specified. Specifying both
+                                      IDs and Names is not recommended.
                                     items:
                                       type: string
                                     type: array
                                   securityGroupsNames:
+                                    description: |-
+                                      SecurityGroupsNames selects VPC SecurityGroups by name.
+                                      If multiple names are specified, they are OR-ed together.
+
+                                      Note that this may be AND-ed with any IDs specified. Specifying both
+                                      IDs and Names is not recommended.
                                     items:
                                       type: string
                                     type: array
@@ -6740,9 +6860,10 @@ spec:
                           type: array
                         toGroups:
                           description: |-
-                            ToGroups is a directive that allows the integration with multiple outside
-                            providers. Currently, only AWS is supported, and the rule can select by
-                            multiple sub directives:
+                            ToGroups allows policies to reference CIDRs provided by external integrations.
+                            Currently, only AWS is supported, and the rule can select by multiple sub directives.
+                            ToGroups entries are functionally equivalent to toCIDR, and have the same
+                            limitiations. They cannot select traffic originating from within the cluster.
 
                             Example:
                             toGroups:
@@ -6750,9 +6871,7 @@ spec:
                                 securityGroupsIds:
                                 - 'sg-XXXXXXXXXXXXX'
                           items:
-                            description: |-
-                              Groups structure to store all kinds of new integrations that needs a new
-                              derivative policy.
+                            description: Groups allows referencing CIDRs that are resolved from an external integration.
                             properties:
                               aws:
                                 description: AWSGroup is an structure that can be used to whitelisting information from AWS integration
@@ -6760,14 +6879,30 @@ spec:
                                   labels:
                                     additionalProperties:
                                       type: string
+                                    description: |-
+                                      Labels selects AWS ENIs by labels.
+                                      Multiple labels are AND-ed together.
                                     type: object
                                   region:
+                                    description: 'Deprecated: Region is unused.'
                                     type: string
                                   securityGroupsIds:
+                                    description: |-
+                                      SecurityGroupsIds selects VPC SecurityGroups by IDs.
+                                      If multiple IDs are specified, they are OR-ed together.
+
+                                      Note that this may be AND-ed with any Names specified. Specifying both
+                                      IDs and Names is not recommended.
                                     items:
                                       type: string
                                     type: array
                                   securityGroupsNames:
+                                    description: |-
+                                      SecurityGroupsNames selects VPC SecurityGroups by name.
+                                      If multiple names are specified, they are OR-ed together.
+
+                                      Note that this may be AND-ed with any IDs specified. Specifying both
+                                      IDs and Names is not recommended.
                                     items:
                                       type: string
                                     type: array
@@ -7680,19 +7815,18 @@ spec:
                           type: array
                         fromGroups:
                           description: |-
-                            FromGroups is a directive that allows the integration with multiple outside
-                            providers. Currently, only AWS is supported, and the rule can select by
-                            multiple sub directives:
+                            FromGroups allows policies to reference CIDRs provided by external integrations.
+                            Currently, only AWS is supported, and the rule can select by multiple sub directives.
+                            FromGroups entries are functionally equivalent to FromCIDR, and have the same
+                            limitiations. They cannot select traffic originating from within the cluster.
 
                             Example:
-                            FromGroups:
+                            fromGroups:
                             - aws:
                                 securityGroupsIds:
                                 - 'sg-XXXXXXXXXXXXX'
                           items:
-                            description: |-
-                              Groups structure to store all kinds of new integrations that needs a new
-                              derivative policy.
+                            description: Groups allows referencing CIDRs that are resolved from an external integration.
                             properties:
                               aws:
                                 description: AWSGroup is an structure that can be used to whitelisting information from AWS integration
@@ -7700,14 +7834,30 @@ spec:
                                   labels:
                                     additionalProperties:
                                       type: string
+                                    description: |-
+                                      Labels selects AWS ENIs by labels.
+                                      Multiple labels are AND-ed together.
                                     type: object
                                   region:
+                                    description: 'Deprecated: Region is unused.'
                                     type: string
                                   securityGroupsIds:
+                                    description: |-
+                                      SecurityGroupsIds selects VPC SecurityGroups by IDs.
+                                      If multiple IDs are specified, they are OR-ed together.
+
+                                      Note that this may be AND-ed with any Names specified. Specifying both
+                                      IDs and Names is not recommended.
                                     items:
                                       type: string
                                     type: array
                                   securityGroupsNames:
+                                    description: |-
+                                      SecurityGroupsNames selects VPC SecurityGroups by name.
+                                      If multiple names are specified, they are OR-ed together.
+
+                                      Note that this may be AND-ed with any IDs specified. Specifying both
+                                      IDs and Names is not recommended.
                                     items:
                                       type: string
                                     type: array
@@ -8485,19 +8635,18 @@ spec:
                           type: array
                         fromGroups:
                           description: |-
-                            FromGroups is a directive that allows the integration with multiple outside
-                            providers. Currently, only AWS is supported, and the rule can select by
-                            multiple sub directives:
+                            FromGroups allows policies to reference CIDRs provided by external integrations.
+                            Currently, only AWS is supported, and the rule can select by multiple sub directives.
+                            FromGroups entries are functionally equivalent to FromCIDR, and have the same
+                            limitiations. They cannot select traffic originating from within the cluster.
 
                             Example:
-                            FromGroups:
+                            fromGroups:
                             - aws:
                                 securityGroupsIds:
                                 - 'sg-XXXXXXXXXXXXX'
                           items:
-                            description: |-
-                              Groups structure to store all kinds of new integrations that needs a new
-                              derivative policy.
+                            description: Groups allows referencing CIDRs that are resolved from an external integration.
                             properties:
                               aws:
                                 description: AWSGroup is an structure that can be used to whitelisting information from AWS integration
@@ -8505,14 +8654,30 @@ spec:
                                   labels:
                                     additionalProperties:
                                       type: string
+                                    description: |-
+                                      Labels selects AWS ENIs by labels.
+                                      Multiple labels are AND-ed together.
                                     type: object
                                   region:
+                                    description: 'Deprecated: Region is unused.'
                                     type: string
                                   securityGroupsIds:
+                                    description: |-
+                                      SecurityGroupsIds selects VPC SecurityGroups by IDs.
+                                      If multiple IDs are specified, they are OR-ed together.
+
+                                      Note that this may be AND-ed with any Names specified. Specifying both
+                                      IDs and Names is not recommended.
                                     items:
                                       type: string
                                     type: array
                                   securityGroupsNames:
+                                    description: |-
+                                      SecurityGroupsNames selects VPC SecurityGroups by name.
+                                      If multiple names are specified, they are OR-ed together.
+
+                                      Note that this may be AND-ed with any IDs specified. Specifying both
+                                      IDs and Names is not recommended.
                                     items:
                                       type: string
                                     type: array
@@ -8958,19 +9123,18 @@ spec:
                           type: array
                         fromGroups:
                           description: |-
-                            FromGroups is a directive that allows the integration with multiple outside
-                            providers. Currently, only AWS is supported, and the rule can select by
-                            multiple sub directives:
+                            FromGroups allows policies to reference CIDRs provided by external integrations.
+                            Currently, only AWS is supported, and the rule can select by multiple sub directives.
+                            FromGroups entries are functionally equivalent to FromCIDR, and have the same
+                            limitiations. They cannot select traffic originating from within the cluster.
 
                             Example:
-                            FromGroups:
+                            fromGroups:
                             - aws:
                                 securityGroupsIds:
                                 - 'sg-XXXXXXXXXXXXX'
                           items:
-                            description: |-
-                              Groups structure to store all kinds of new integrations that needs a new
-                              derivative policy.
+                            description: Groups allows referencing CIDRs that are resolved from an external integration.
                             properties:
                               aws:
                                 description: AWSGroup is an structure that can be used to whitelisting information from AWS integration
@@ -8978,14 +9142,30 @@ spec:
                                   labels:
                                     additionalProperties:
                                       type: string
+                                    description: |-
+                                      Labels selects AWS ENIs by labels.
+                                      Multiple labels are AND-ed together.
                                     type: object
                                   region:
+                                    description: 'Deprecated: Region is unused.'
                                     type: string
                                   securityGroupsIds:
+                                    description: |-
+                                      SecurityGroupsIds selects VPC SecurityGroups by IDs.
+                                      If multiple IDs are specified, they are OR-ed together.
+
+                                      Note that this may be AND-ed with any Names specified. Specifying both
+                                      IDs and Names is not recommended.
                                     items:
                                       type: string
                                     type: array
                                   securityGroupsNames:
+                                    description: |-
+                                      SecurityGroupsNames selects VPC SecurityGroups by name.
+                                      If multiple names are specified, they are OR-ed together.
+
+                                      Note that this may be AND-ed with any IDs specified. Specifying both
+                                      IDs and Names is not recommended.
                                     items:
                                       type: string
                                     type: array
@@ -10136,9 +10316,10 @@ spec:
                         type: array
                       toGroups:
                         description: |-
-                          ToGroups is a directive that allows the integration with multiple outside
-                          providers. Currently, only AWS is supported, and the rule can select by
-                          multiple sub directives:
+                          ToGroups allows policies to reference CIDRs provided by external integrations.
+                          Currently, only AWS is supported, and the rule can select by multiple sub directives.
+                          ToGroups entries are functionally equivalent to toCIDR, and have the same
+                          limitiations. They cannot select traffic originating from within the cluster.
 
                           Example:
                           toGroups:
@@ -10146,9 +10327,7 @@ spec:
                               securityGroupsIds:
                               - 'sg-XXXXXXXXXXXXX'
                         items:
-                          description: |-
-                            Groups structure to store all kinds of new integrations that needs a new
-                            derivative policy.
+                          description: Groups allows referencing CIDRs that are resolved from an external integration.
                           properties:
                             aws:
                               description: AWSGroup is an structure that can be used to whitelisting information from AWS integration
@@ -10156,14 +10335,30 @@ spec:
                                 labels:
                                   additionalProperties:
                                     type: string
+                                  description: |-
+                                    Labels selects AWS ENIs by labels.
+                                    Multiple labels are AND-ed together.
                                   type: object
                                 region:
+                                  description: 'Deprecated: Region is unused.'
                                   type: string
                                 securityGroupsIds:
+                                  description: |-
+                                    SecurityGroupsIds selects VPC SecurityGroups by IDs.
+                                    If multiple IDs are specified, they are OR-ed together.
+
+                                    Note that this may be AND-ed with any Names specified. Specifying both
+                                    IDs and Names is not recommended.
                                   items:
                                     type: string
                                   type: array
                                 securityGroupsNames:
+                                  description: |-
+                                    SecurityGroupsNames selects VPC SecurityGroups by name.
+                                    If multiple names are specified, they are OR-ed together.
+
+                                    Note that this may be AND-ed with any IDs specified. Specifying both
+                                    IDs and Names is not recommended.
                                   items:
                                     type: string
                                   type: array
@@ -11020,9 +11215,10 @@ spec:
                         type: array
                       toGroups:
                         description: |-
-                          ToGroups is a directive that allows the integration with multiple outside
-                          providers. Currently, only AWS is supported, and the rule can select by
-                          multiple sub directives:
+                          ToGroups allows policies to reference CIDRs provided by external integrations.
+                          Currently, only AWS is supported, and the rule can select by multiple sub directives.
+                          ToGroups entries are functionally equivalent to toCIDR, and have the same
+                          limitiations. They cannot select traffic originating from within the cluster.
 
                           Example:
                           toGroups:
@@ -11030,9 +11226,7 @@ spec:
                               securityGroupsIds:
                               - 'sg-XXXXXXXXXXXXX'
                         items:
-                          description: |-
-                            Groups structure to store all kinds of new integrations that needs a new
-                            derivative policy.
+                          description: Groups allows referencing CIDRs that are resolved from an external integration.
                           properties:
                             aws:
                               description: AWSGroup is an structure that can be used to whitelisting information from AWS integration
@@ -11040,14 +11234,30 @@ spec:
                                 labels:
                                   additionalProperties:
                                     type: string
+                                  description: |-
+                                    Labels selects AWS ENIs by labels.
+                                    Multiple labels are AND-ed together.
                                   type: object
                                 region:
+                                  description: 'Deprecated: Region is unused.'
                                   type: string
                                 securityGroupsIds:
+                                  description: |-
+                                    SecurityGroupsIds selects VPC SecurityGroups by IDs.
+                                    If multiple IDs are specified, they are OR-ed together.
+
+                                    Note that this may be AND-ed with any Names specified. Specifying both
+                                    IDs and Names is not recommended.
                                   items:
                                     type: string
                                   type: array
                                 securityGroupsNames:
+                                  description: |-
+                                    SecurityGroupsNames selects VPC SecurityGroups by name.
+                                    If multiple names are specified, they are OR-ed together.
+
+                                    Note that this may be AND-ed with any IDs specified. Specifying both
+                                    IDs and Names is not recommended.
                                   items:
                                     type: string
                                   type: array
@@ -11614,19 +11824,18 @@ spec:
                         type: array
                       fromGroups:
                         description: |-
-                          FromGroups is a directive that allows the integration with multiple outside
-                          providers. Currently, only AWS is supported, and the rule can select by
-                          multiple sub directives:
+                          FromGroups allows policies to reference CIDRs provided by external integrations.
+                          Currently, only AWS is supported, and the rule can select by multiple sub directives.
+                          FromGroups entries are functionally equivalent to FromCIDR, and have the same
+                          limitiations. They cannot select traffic originating from within the cluster.
 
                           Example:
-                          FromGroups:
+                          fromGroups:
                           - aws:
                               securityGroupsIds:
                               - 'sg-XXXXXXXXXXXXX'
                         items:
-                          description: |-
-                            Groups structure to store all kinds of new integrations that needs a new
-                            derivative policy.
+                          description: Groups allows referencing CIDRs that are resolved from an external integration.
                           properties:
                             aws:
                               description: AWSGroup is an structure that can be used to whitelisting information from AWS integration
@@ -11634,14 +11843,30 @@ spec:
                                 labels:
                                   additionalProperties:
                                     type: string
+                                  description: |-
+                                    Labels selects AWS ENIs by labels.
+                                    Multiple labels are AND-ed together.
                                   type: object
                                 region:
+                                  description: 'Deprecated: Region is unused.'
                                   type: string
                                 securityGroupsIds:
+                                  description: |-
+                                    SecurityGroupsIds selects VPC SecurityGroups by IDs.
+                                    If multiple IDs are specified, they are OR-ed together.
+
+                                    Note that this may be AND-ed with any Names specified. Specifying both
+                                    IDs and Names is not recommended.
                                   items:
                                     type: string
                                   type: array
                                 securityGroupsNames:
+                                  description: |-
+                                    SecurityGroupsNames selects VPC SecurityGroups by name.
+                                    If multiple names are specified, they are OR-ed together.
+
+                                    Note that this may be AND-ed with any IDs specified. Specifying both
+                                    IDs and Names is not recommended.
                                   items:
                                     type: string
                                   type: array
@@ -12419,19 +12644,18 @@ spec:
                         type: array
                       fromGroups:
                         description: |-
-                          FromGroups is a directive that allows the integration with multiple outside
-                          providers. Currently, only AWS is supported, and the rule can select by
-                          multiple sub directives:
+                          FromGroups allows policies to reference CIDRs provided by external integrations.
+                          Currently, only AWS is supported, and the rule can select by multiple sub directives.
+                          FromGroups entries are functionally equivalent to FromCIDR, and have the same
+                          limitiations. They cannot select traffic originating from within the cluster.
 
                           Example:
-                          FromGroups:
+                          fromGroups:
                           - aws:
                               securityGroupsIds:
                               - 'sg-XXXXXXXXXXXXX'
                         items:
-                          description: |-
-                            Groups structure to store all kinds of new integrations that needs a new
-                            derivative policy.
+                          description: Groups allows referencing CIDRs that are resolved from an external integration.
                           properties:
                             aws:
                               description: AWSGroup is an structure that can be used to whitelisting information from AWS integration
@@ -12439,14 +12663,30 @@ spec:
                                 labels:
                                   additionalProperties:
                                     type: string
+                                  description: |-
+                                    Labels selects AWS ENIs by labels.
+                                    Multiple labels are AND-ed together.
                                   type: object
                                 region:
+                                  description: 'Deprecated: Region is unused.'
                                   type: string
                                 securityGroupsIds:
+                                  description: |-
+                                    SecurityGroupsIds selects VPC SecurityGroups by IDs.
+                                    If multiple IDs are specified, they are OR-ed together.
+
+                                    Note that this may be AND-ed with any Names specified. Specifying both
+                                    IDs and Names is not recommended.
                                   items:
                                     type: string
                                   type: array
                                 securityGroupsNames:
+                                  description: |-
+                                    SecurityGroupsNames selects VPC SecurityGroups by name.
+                                    If multiple names are specified, they are OR-ed together.
+
+                                    Note that this may be AND-ed with any IDs specified. Specifying both
+                                    IDs and Names is not recommended.
                                   items:
                                     type: string
                                   type: array
@@ -13125,9 +13365,10 @@ spec:
                           type: array
                         toGroups:
                           description: |-
-                            ToGroups is a directive that allows the integration with multiple outside
-                            providers. Currently, only AWS is supported, and the rule can select by
-                            multiple sub directives:
+                            ToGroups allows policies to reference CIDRs provided by external integrations.
+                            Currently, only AWS is supported, and the rule can select by multiple sub directives.
+                            ToGroups entries are functionally equivalent to toCIDR, and have the same
+                            limitiations. They cannot select traffic originating from within the cluster.
 
                             Example:
                             toGroups:
@@ -13135,9 +13376,7 @@ spec:
                                 securityGroupsIds:
                                 - 'sg-XXXXXXXXXXXXX'
                           items:
-                            description: |-
-                              Groups structure to store all kinds of new integrations that needs a new
-                              derivative policy.
+                            description: Groups allows referencing CIDRs that are resolved from an external integration.
                             properties:
                               aws:
                                 description: AWSGroup is an structure that can be used to whitelisting information from AWS integration
@@ -13145,14 +13384,30 @@ spec:
                                   labels:
                                     additionalProperties:
                                       type: string
+                                    description: |-
+                                      Labels selects AWS ENIs by labels.
+                                      Multiple labels are AND-ed together.
                                     type: object
                                   region:
+                                    description: 'Deprecated: Region is unused.'
                                     type: string
                                   securityGroupsIds:
+                                    description: |-
+                                      SecurityGroupsIds selects VPC SecurityGroups by IDs.
+                                      If multiple IDs are specified, they are OR-ed together.
+
+                                      Note that this may be AND-ed with any Names specified. Specifying both
+                                      IDs and Names is not recommended.
                                     items:
                                       type: string
                                     type: array
                                   securityGroupsNames:
+                                    description: |-
+                                      SecurityGroupsNames selects VPC SecurityGroups by name.
+                                      If multiple names are specified, they are OR-ed together.
+
+                                      Note that this may be AND-ed with any IDs specified. Specifying both
+                                      IDs and Names is not recommended.
                                     items:
                                       type: string
                                     type: array
@@ -14009,9 +14264,10 @@ spec:
                           type: array
                         toGroups:
                           description: |-
-                            ToGroups is a directive that allows the integration with multiple outside
-                            providers. Currently, only AWS is supported, and the rule can select by
-                            multiple sub directives:
+                            ToGroups allows policies to reference CIDRs provided by external integrations.
+                            Currently, only AWS is supported, and the rule can select by multiple sub directives.
+                            ToGroups entries are functionally equivalent to toCIDR, and have the same
+                            limitiations. They cannot select traffic originating from within the cluster.
 
                             Example:
                             toGroups:
@@ -14019,9 +14275,7 @@ spec:
                                 securityGroupsIds:
                                 - 'sg-XXXXXXXXXXXXX'
                           items:
-                            description: |-
-                              Groups structure to store all kinds of new integrations that needs a new
-                              derivative policy.
+                            description: Groups allows referencing CIDRs that are resolved from an external integration.
                             properties:
                               aws:
                                 description: AWSGroup is an structure that can be used to whitelisting information from AWS integration
@@ -14029,14 +14283,30 @@ spec:
                                   labels:
                                     additionalProperties:
                                       type: string
+                                    description: |-
+                                      Labels selects AWS ENIs by labels.
+                                      Multiple labels are AND-ed together.
                                     type: object
                                   region:
+                                    description: 'Deprecated: Region is unused.'
                                     type: string
                                   securityGroupsIds:
+                                    description: |-
+                                      SecurityGroupsIds selects VPC SecurityGroups by IDs.
+                                      If multiple IDs are specified, they are OR-ed together.
+
+                                      Note that this may be AND-ed with any Names specified. Specifying both
+                                      IDs and Names is not recommended.
                                     items:
                                       type: string
                                     type: array
                                   securityGroupsNames:
+                                    description: |-
+                                      SecurityGroupsNames selects VPC SecurityGroups by name.
+                                      If multiple names are specified, they are OR-ed together.
+
+                                      Note that this may be AND-ed with any IDs specified. Specifying both
+                                      IDs and Names is not recommended.
                                     items:
                                       type: string
                                     type: array
@@ -14603,19 +14873,18 @@ spec:
                           type: array
                         fromGroups:
                           description: |-
-                            FromGroups is a directive that allows the integration with multiple outside
-                            providers. Currently, only AWS is supported, and the rule can select by
-                            multiple sub directives:
+                            FromGroups allows policies to reference CIDRs provided by external integrations.
+                            Currently, only AWS is supported, and the rule can select by multiple sub directives.
+                            FromGroups entries are functionally equivalent to FromCIDR, and have the same
+                            limitiations. They cannot select traffic originating from within the cluster.
 
                             Example:
-                            FromGroups:
+                            fromGroups:
                             - aws:
                                 securityGroupsIds:
                                 - 'sg-XXXXXXXXXXXXX'
                           items:
-                            description: |-
-                              Groups structure to store all kinds of new integrations that needs a new
-                              derivative policy.
+                            description: Groups allows referencing CIDRs that are resolved from an external integration.
                             properties:
                               aws:
                                 description: AWSGroup is an structure that can be used to whitelisting information from AWS integration
@@ -14623,14 +14892,30 @@ spec:
                                   labels:
                                     additionalProperties:
                                       type: string
+                                    description: |-
+                                      Labels selects AWS ENIs by labels.
+                                      Multiple labels are AND-ed together.
                                     type: object
                                   region:
+                                    description: 'Deprecated: Region is unused.'
                                     type: string
                                   securityGroupsIds:
+                                    description: |-
+                                      SecurityGroupsIds selects VPC SecurityGroups by IDs.
+                                      If multiple IDs are specified, they are OR-ed together.
+
+                                      Note that this may be AND-ed with any Names specified. Specifying both
+                                      IDs and Names is not recommended.
                                     items:
                                       type: string
                                     type: array
                                   securityGroupsNames:
+                                    description: |-
+                                      SecurityGroupsNames selects VPC SecurityGroups by name.
+                                      If multiple names are specified, they are OR-ed together.
+
+                                      Note that this may be AND-ed with any IDs specified. Specifying both
+                                      IDs and Names is not recommended.
                                     items:
                                       type: string
                                     type: array
@@ -15408,19 +15693,18 @@ spec:
                           type: array
                         fromGroups:
                           description: |-
-                            FromGroups is a directive that allows the integration with multiple outside
-                            providers. Currently, only AWS is supported, and the rule can select by
-                            multiple sub directives:
+                            FromGroups allows policies to reference CIDRs provided by external integrations.
+                            Currently, only AWS is supported, and the rule can select by multiple sub directives.
+                            FromGroups entries are functionally equivalent to FromCIDR, and have the same
+                            limitiations. They cannot select traffic originating from within the cluster.
 
                             Example:
-                            FromGroups:
+                            fromGroups:
                             - aws:
                                 securityGroupsIds:
                                 - 'sg-XXXXXXXXXXXXX'
                           items:
-                            description: |-
-                              Groups structure to store all kinds of new integrations that needs a new
-                              derivative policy.
+                            description: Groups allows referencing CIDRs that are resolved from an external integration.
                             properties:
                               aws:
                                 description: AWSGroup is an structure that can be used to whitelisting information from AWS integration
@@ -15428,14 +15712,30 @@ spec:
                                   labels:
                                     additionalProperties:
                                       type: string
+                                    description: |-
+                                      Labels selects AWS ENIs by labels.
+                                      Multiple labels are AND-ed together.
                                     type: object
                                   region:
+                                    description: 'Deprecated: Region is unused.'
                                     type: string
                                   securityGroupsIds:
+                                    description: |-
+                                      SecurityGroupsIds selects VPC SecurityGroups by IDs.
+                                      If multiple IDs are specified, they are OR-ed together.
+
+                                      Note that this may be AND-ed with any Names specified. Specifying both
+                                      IDs and Names is not recommended.
                                     items:
                                       type: string
                                     type: array
                                   securityGroupsNames:
+                                    description: |-
+                                      SecurityGroupsNames selects VPC SecurityGroups by name.
+                                      If multiple names are specified, they are OR-ed together.
+
+                                      Note that this may be AND-ed with any IDs specified. Specifying both
+                                      IDs and Names is not recommended.
                                     items:
                                       type: string
                                     type: array

@@ -13,8 +13,8 @@ import (
 	"github.com/cilium/hive/job"
 	"github.com/spf13/pflag"
 
-	"github.com/cilium/cilium/pkg/ipam/allocator/clusterpool"
-	ipamMetrics "github.com/cilium/cilium/pkg/ipam/metrics"
+	"github.com/cilium/cilium/operator/pkg/ipam/allocator/clusterpool"
+	ipamMetrics "github.com/cilium/cilium/operator/pkg/ipam/metrics"
 	ipamOption "github.com/cilium/cilium/pkg/ipam/option"
 	k8sClient "github.com/cilium/cilium/pkg/k8s/client"
 	"github.com/cilium/cilium/pkg/option"
