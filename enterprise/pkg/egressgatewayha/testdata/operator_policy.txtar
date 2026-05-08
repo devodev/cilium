@@ -25,7 +25,7 @@ k8s/update ciliumnode2.yaml
 db/cmp policy-config policyconfig.state.expected.2
 
 # Check k8s yaml output
-k8s/get isovalent.com.v1.isovalentegressgatewaypolicies 'namespace-1-netshoot'
+k8s/get isovalent.com.v1.isovalentegressgatewaypolicies --show-redacted=uid 'namespace-1-netshoot'
 * cmp stdout iegp-status.expected.yaml
 
 -- policyconfig.state.expected.1 --
@@ -82,7 +82,6 @@ apiVersion: isovalent.com/v1
 kind: IsovalentEgressGatewayPolicy
 metadata:
   name: namespace-1-netshoot
-  resourceVersion: "9"
   uid: 00000000-0000-0000-0000-000000000002
 spec:
   azAffinity: ""

@@ -24,12 +24,10 @@ db/initialized
 
 # Ensure slice in bar is updated
 * k8s/get isovalent.com.v1alpha1.privatenetworkendpointslices bar/foobar-worker-1 -o privnet-eps-bar.actual.v2.yaml
-sed 'resourceVersion: ".*"' 'resourceVersion: "<nr>"' privnet-eps-bar.actual.v2.yaml
 * cmp privnet-eps-bar.expected.v2.yaml privnet-eps-bar.actual.v2.yaml
 
 # Ensure slice in qux is created
 * k8s/get isovalent.com.v1alpha1.privatenetworkendpointslices qux/foobar-worker-1 -o privnet-eps-qux.actual.v2.yaml
-sed 'resourceVersion: ".*"' 'resourceVersion: "<nr>"' privnet-eps-qux.actual.v2.yaml
 * cmp privnet-eps-qux.expected.v2.yaml privnet-eps-qux.actual.v2.yaml
 
 # Wait for reconciler to reach steady state
@@ -42,7 +40,6 @@ privnet/epm-create ep-reverent-chicken.json # in qux
 
 # Wait for updated qux slice
 k8s/get isovalent.com.v1alpha1.privatenetworkendpointslices qux/foobar-worker-1 -o privnet-eps-qux.actual.v3.yaml
-sed 'resourceVersion: ".*"' 'resourceVersion: "<nr>"' privnet-eps-qux.actual.v3.yaml
 * cmp privnet-eps-qux.expected.v3.yaml privnet-eps-qux.actual.v3.yaml
 
 # Delete endpoint in bar,
@@ -50,7 +47,6 @@ privnet/epm-delete bar/hopeful-wombat
 
 # Wait for updated bar slice
 k8s/get isovalent.com.v1alpha1.privatenetworkendpointslices bar/foobar-worker-1 -o privnet-eps-bar.actual.v3.yaml
-sed 'resourceVersion: ".*"' 'resourceVersion: "<nr>"' privnet-eps-bar.actual.v3.yaml
 * cmp privnet-eps-bar.expected.v3.yaml privnet-eps-bar.actual.v3.yaml
 
 # Modify bar slice (malicious update to stale version)
@@ -58,7 +54,6 @@ k8s/add privnet-eps-bar.v1.yaml
 
 # Wait for the reconciler to restore correct version
 k8s/get isovalent.com.v1alpha1.privatenetworkendpointslices bar/foobar-worker-1 -o privnet-eps-bar.actual.v3.yaml
-sed 'resourceVersion: ".*"' 'resourceVersion: "<nr>"' privnet-eps-bar.actual.v3.yaml
 * cmp privnet-eps-bar.expected.v3.yaml privnet-eps-bar.actual.v3.yaml
 
 # Delete last endpoint in bar
@@ -72,7 +67,6 @@ k8s/delete privnet-eps-qux.actual.v3.yaml
 
 # Wait for the reconciler to restore correct version
 * k8s/get isovalent.com.v1alpha1.privatenetworkendpointslices qux/foobar-worker-1 -o privnet-eps-qux.actual.v3.yaml
-sed 'resourceVersion: ".*"' 'resourceVersion: "<nr>"' privnet-eps-qux.actual.v3.yaml
 * cmp privnet-eps-qux.expected.v3.yaml privnet-eps-qux.actual.v3.yaml
 
 -- icpn-red.v1.yaml --
@@ -193,7 +187,6 @@ metadata:
     kind: CiliumNode
     name: foobar-worker-1
     uid: a354cce5-e6dc-4cb1-8125-a3a1bf93fd8a
-  resourceVersion: "<nr>"
 nodeName: foobar-worker-1
 -- privnet-eps-bar.expected.v3.yaml --
 apiVersion: isovalent.com/v1alpha1
@@ -221,7 +214,6 @@ metadata:
     kind: CiliumNode
     name: foobar-worker-1
     uid: a354cce5-e6dc-4cb1-8125-a3a1bf93fd8a
-  resourceVersion: "<nr>"
 nodeName: foobar-worker-1
 -- privnet-eps-qux.expected.v2.yaml --
 apiVersion: isovalent.com/v1alpha1
@@ -248,7 +240,6 @@ metadata:
     kind: CiliumNode
     name: foobar-worker-1
     uid: a354cce5-e6dc-4cb1-8125-a3a1bf93fd8a
-  resourceVersion: "<nr>"
 nodeName: foobar-worker-1
 -- privnet-eps-qux.expected.v3.yaml --
 apiVersion: isovalent.com/v1alpha1
@@ -288,7 +279,6 @@ metadata:
     kind: CiliumNode
     name: foobar-worker-1
     uid: a354cce5-e6dc-4cb1-8125-a3a1bf93fd8a
-  resourceVersion: "<nr>"
 nodeName: foobar-worker-1
 -- ep-hopeful-wombat.json --
 {

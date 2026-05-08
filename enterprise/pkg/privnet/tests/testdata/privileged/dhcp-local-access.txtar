@@ -40,7 +40,6 @@ db/cmp privnet-endpoints endpoints.after.table
 
 # Check that endpoint slices was updated.
 * k8s/get isovalent.com.v1alpha1.privatenetworkendpointslices default/foobar-worker-1 -o endpointslices.actual.yaml
-sed 'resourceVersion: ".*"' 'resourceVersion: "<nr>"' endpointslices.actual.yaml
 * cmp endpointslices.expected.yaml endpointslices.actual.yaml
 
 # Check that the workload devmapping was updated with DHCP IPv4.
@@ -110,7 +109,6 @@ metadata:
     kind: CiliumNode
     name: foobar-worker-1
     uid: a354cce5-e6dc-4cb1-8125-a3a1bf93fd8a
-  resourceVersion: "<nr>"
 nodeName: foobar-worker-1
 -- dhcp-lease-expired.yaml --
 network: blue-network

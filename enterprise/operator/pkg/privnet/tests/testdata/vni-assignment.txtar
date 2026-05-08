@@ -11,7 +11,6 @@ k8s/add test0-100.yaml
 
 # Check status update
 k8s/get isovalent.com.v1alpha1.clusterwideprivatenetworks test0 -o test0-100.actual.yaml
-sed 'resourceVersion: ".*"' 'resourceVersion: "<nr>"' test0-100.actual.yaml
 sed 'lastTransitionTime: ".*"' 'lastTransitionTime: "<time>"' test0-100.actual.yaml
 * cmp test0-100.expected.yaml test0-100.actual.yaml
 
@@ -20,7 +19,6 @@ k8s/update test0-200.yaml
 
 # Check status update
 k8s/get isovalent.com.v1alpha1.clusterwideprivatenetworks test0 -o test0-200.actual.yaml
-sed 'resourceVersion: ".*"' 'resourceVersion: "<nr>"' test0-200.actual.yaml
 sed 'lastTransitionTime: ".*"' 'lastTransitionTime: "<time>"' test0-200.actual.yaml
 * cmp test0-200.expected.yaml test0-200.actual.yaml
 
@@ -29,11 +27,9 @@ k8s/add test1-100.yaml
 
 # Now both should have VNIs
 k8s/get isovalent.com.v1alpha1.clusterwideprivatenetworks test0 -o test0-200.actual.yaml
-sed 'resourceVersion: ".*"' 'resourceVersion: "<nr>"' test0-200.actual.yaml
 sed 'lastTransitionTime: ".*"' 'lastTransitionTime: "<time>"' test0-200.actual.yaml
 * cmp test0-200.expected.yaml test0-200.actual.yaml
 k8s/get isovalent.com.v1alpha1.clusterwideprivatenetworks test1 -o test1-100.actual.yaml
-sed 'resourceVersion: ".*"' 'resourceVersion: "<nr>"' test1-100.actual.yaml
 sed 'lastTransitionTime: ".*"' 'lastTransitionTime: "<time>"' test1-100.actual.yaml
 * cmp test1-100.expected.yaml test1-100.actual.yaml
 
@@ -42,11 +38,9 @@ k8s/update test1-200.yaml
 
 # Now both should have empty VNI allocation and have conflict flag set.
 k8s/get isovalent.com.v1alpha1.clusterwideprivatenetworks test0 -o test0-conflict.actual.yaml
-sed 'resourceVersion: ".*"' 'resourceVersion: "<nr>"' test0-conflict.actual.yaml
 sed 'lastTransitionTime: ".*"' 'lastTransitionTime: "<time>"' test0-conflict.actual.yaml
 * cmp test0-conflict.expected.yaml test0-conflict.actual.yaml
 k8s/get isovalent.com.v1alpha1.clusterwideprivatenetworks test1 -o test1-conflict.actual.yaml
-sed 'resourceVersion: ".*"' 'resourceVersion: "<nr>"' test1-conflict.actual.yaml
 sed 'lastTransitionTime: ".*"' 'lastTransitionTime: "<time>"' test1-conflict.actual.yaml
 * cmp test1-conflict.expected.yaml test1-conflict.actual.yaml
 
@@ -55,7 +49,6 @@ k8s/delete test0-200.yaml
 
 # Now test1 should get VNI 200
 k8s/get isovalent.com.v1alpha1.clusterwideprivatenetworks test1 -o test1-200.actual.yaml
-sed 'resourceVersion: ".*"' 'resourceVersion: "<nr>"' test1-200.actual.yaml
 sed 'lastTransitionTime: ".*"' 'lastTransitionTime: "<time>"' test1-200.actual.yaml
 * cmp test1-200.expected.yaml test1-200.actual.yaml
 
@@ -64,11 +57,9 @@ k8s/add test0-200.yaml
 
 # Now both should have empty VNI allocation and have conflict flag set.
 k8s/get isovalent.com.v1alpha1.clusterwideprivatenetworks test0 -o test0-conflict.actual.yaml
-sed 'resourceVersion: ".*"' 'resourceVersion: "<nr>"' test0-conflict.actual.yaml
 sed 'lastTransitionTime: ".*"' 'lastTransitionTime: "<time>"' test0-conflict.actual.yaml
 * cmp test0-conflict.expected.yaml test0-conflict.actual.yaml
 k8s/get isovalent.com.v1alpha1.clusterwideprivatenetworks test1 -o test1-conflict.actual.yaml
-sed 'resourceVersion: ".*"' 'resourceVersion: "<nr>"' test1-conflict.actual.yaml
 sed 'lastTransitionTime: ".*"' 'lastTransitionTime: "<time>"' test1-conflict.actual.yaml
 * cmp test1-conflict.expected.yaml test1-conflict.actual.yaml
 
@@ -77,11 +68,9 @@ k8s/update test1-100.yaml
 
 # Now both should get VNIs
 k8s/get isovalent.com.v1alpha1.clusterwideprivatenetworks test0 -o test0-200.actual.yaml
-sed 'resourceVersion: ".*"' 'resourceVersion: "<nr>"' test0-200.actual.yaml
 sed 'lastTransitionTime: ".*"' 'lastTransitionTime: "<time>"' test0-200.actual.yaml
 * cmp test0-200.expected.yaml test0-200.actual.yaml
 k8s/get isovalent.com.v1alpha1.clusterwideprivatenetworks test1 -o test1-100.actual.yaml
-sed 'resourceVersion: ".*"' 'resourceVersion: "<nr>"' test1-100.actual.yaml
 sed 'lastTransitionTime: ".*"' 'lastTransitionTime: "<time>"' test1-100.actual.yaml
 * cmp test1-100.expected.yaml test1-100.actual.yaml
 
@@ -90,11 +79,9 @@ k8s/update test1-200.yaml
 
 # Now both should have empty VNI allocation and have conflict flag set.
 k8s/get isovalent.com.v1alpha1.clusterwideprivatenetworks test0 -o test0-conflict.actual.yaml
-sed 'resourceVersion: ".*"' 'resourceVersion: "<nr>"' test0-conflict.actual.yaml
 sed 'lastTransitionTime: ".*"' 'lastTransitionTime: "<time>"' test0-conflict.actual.yaml
 * cmp test0-conflict.expected.yaml test0-conflict.actual.yaml
 k8s/get isovalent.com.v1alpha1.clusterwideprivatenetworks test1 -o test1-conflict.actual.yaml
-sed 'resourceVersion: ".*"' 'resourceVersion: "<nr>"' test1-conflict.actual.yaml
 sed 'lastTransitionTime: ".*"' 'lastTransitionTime: "<time>"' test1-conflict.actual.yaml
 * cmp test1-conflict.expected.yaml test1-conflict.actual.yaml
 
@@ -103,7 +90,6 @@ k8s/update test1-no-request.yaml
 
 # Now test0 should get VNIs
 k8s/get isovalent.com.v1alpha1.clusterwideprivatenetworks test0 -o test0-200.actual.yaml
-sed 'resourceVersion: ".*"' 'resourceVersion: "<nr>"' test0-200.actual.yaml
 sed 'lastTransitionTime: ".*"' 'lastTransitionTime: "<time>"' test0-200.actual.yaml
 * cmp test0-200.expected.yaml test0-200.actual.yaml
 
@@ -112,10 +98,8 @@ k8s/update test0-no-request.yaml
 
 # Now none should have VNI
 k8s/get isovalent.com.v1alpha1.clusterwideprivatenetworks test0 -o test0-no-request.actual.yaml
-sed 'resourceVersion: ".*"' 'resourceVersion: "<nr>"' test0-no-request.actual.yaml
 * cmp test0-no-request.expected.yaml test0-no-request.actual.yaml
 k8s/get isovalent.com.v1alpha1.clusterwideprivatenetworks test1 -o test1-no-request.actual.yaml
-sed 'resourceVersion: ".*"' 'resourceVersion: "<nr>"' test1-no-request.actual.yaml
 * cmp test1-no-request.expected.yaml test1-no-request.actual.yaml
 
 -- icpn-crd.yaml --
@@ -203,7 +187,6 @@ apiVersion: isovalent.com/v1alpha1
 kind: ClusterwidePrivateNetwork
 metadata:
   name: test0
-  resourceVersion: "<nr>"
 spec:
   networkAttachmentDefinitions: {}
   subnets:
@@ -226,7 +209,6 @@ apiVersion: isovalent.com/v1alpha1
 kind: ClusterwidePrivateNetwork
 metadata:
   name: test0
-  resourceVersion: "<nr>"
 spec:
   networkAttachmentDefinitions: {}
   subnets:
@@ -249,7 +231,6 @@ apiVersion: isovalent.com/v1alpha1
 kind: ClusterwidePrivateNetwork
 metadata:
   name: test1
-  resourceVersion: "<nr>"
 spec:
   networkAttachmentDefinitions: {}
   subnets:
@@ -272,7 +253,6 @@ apiVersion: isovalent.com/v1alpha1
 kind: ClusterwidePrivateNetwork
 metadata:
   name: test1
-  resourceVersion: "<nr>"
 spec:
   networkAttachmentDefinitions: {}
   subnets:
@@ -295,7 +275,6 @@ apiVersion: isovalent.com/v1alpha1
 kind: ClusterwidePrivateNetwork
 metadata:
   name: test0
-  resourceVersion: "<nr>"
 spec:
   networkAttachmentDefinitions: {}
   subnets:
@@ -317,7 +296,6 @@ apiVersion: isovalent.com/v1alpha1
 kind: ClusterwidePrivateNetwork
 metadata:
   name: test1
-  resourceVersion: "<nr>"
 spec:
   networkAttachmentDefinitions: {}
   subnets:
@@ -339,7 +317,6 @@ apiVersion: isovalent.com/v1alpha1
 kind: ClusterwidePrivateNetwork
 metadata:
   name: test0
-  resourceVersion: "<nr>"
 spec:
   networkAttachmentDefinitions: {}
   subnets:
@@ -354,7 +331,6 @@ apiVersion: isovalent.com/v1alpha1
 kind: ClusterwidePrivateNetwork
 metadata:
   name: test1
-  resourceVersion: "<nr>"
 spec:
   networkAttachmentDefinitions: {}
   subnets:

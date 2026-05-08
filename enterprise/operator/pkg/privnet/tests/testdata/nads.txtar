@@ -20,7 +20,6 @@ db/cmp privnet-desired-nads desired-nads.v1.table
 
 # ... and assert that the created NADs are correct.
 * k8s/get networkattachmentdefinitions crow/sturgeon-longhorn -o nad.actual.yaml
-sed 'resourceVersion: ".*"' 'resourceVersion: "<nr>"' nad.actual.yaml
 cmp nad-sturgeon-longhorn.expected.yaml nad.actual.yaml
 
 # ... and assert that stale NADs are correctly pruned.
@@ -68,7 +67,6 @@ k8s/update nad-crow-sturgeon-longhorn.v2.yaml nad-crow-sturgeon-starfish.v2.yaml
 
 # ... and validate that they are reconciled back, but only if managed by Cilium.
 k8s/list networkattachmentdefinitions crow -o nads.actual.yaml
-sed 'resourceVersion: ".*"' 'resourceVersion: "<nr>"' nads.actual.yaml
 * cmp nads-crow.v2.expected.yaml nads.actual.yaml
 
 # Manually delete a NAD object...
@@ -152,7 +150,6 @@ metadata:
     app.kubernetes.io/managed-by: cilium
   name: sturgeon-longhorn
   namespace: crow
-  resourceVersion: "<nr>"
 spec:
   config: '{"cniVersion": "0.3.1", "type": "cilium-cni", "enable-debug": false, "log-format":
     "text-ts", "log-file": "/var/run/cilium/cilium-cni.log", "private-networks": {"network":
@@ -198,7 +195,6 @@ items:
       app.kubernetes.io/managed-by: cilium
     name: sturgeon-longhorn
     namespace: crow
-    resourceVersion: "<nr>"
   spec:
     config: '{"cniVersion": "0.3.1", "type": "cilium-cni", "enable-debug": false,
       "log-format": "text-ts", "log-file": "/var/run/cilium/cilium-cni.log", "private-networks":
@@ -210,13 +206,11 @@ items:
       qux: baz
     name: sturgeon-starfish
     namespace: crow
-    resourceVersion: "<nr>"
   spec:
     config: '{"cniVersion": "0.3.1", "type": "cilium-cni", "enable-debug": false,
       "log-format": "text-ts","log-file": "/var/run/cilium/cilium-cni.log", "private-networks":
       {"network": "sturgeon"}}'
-metadata:
-  resourceVersion: "<nr>"
+metadata: {}
 -- EOR --
 
 -- icpn-1.yaml --
