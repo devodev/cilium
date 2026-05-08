@@ -12,6 +12,7 @@ package test
 
 import (
 	"context"
+	"flag"
 	"log/slog"
 	"maps"
 	"net"
@@ -105,6 +106,9 @@ const (
 	defaultEVPNSecurityGroupIDFlag   = "evpn-default-security-group-id"
 	kubeProxyReplacementFlag         = "kube-proxy-replacement"
 )
+
+// Global flag for disabling OSS BGP CPlane.
+var disableOSSBGPControlPlane = flag.Bool("disable-oss-bgp-control-plane", false, "Disable OSS BGP Control Plane")
 
 func TestPrivilegedScript(t *testing.T) {
 	testutils.PrivilegedTest(t)
@@ -223,7 +227,7 @@ func TestPrivilegedScript(t *testing.T) {
 			cell.Provide(func() *option.DaemonConfig {
 				// BGP Manager uses the global variable option.Config so we need to set it there as well
 				option.Config = &option.DaemonConfig{
-					EnableBGPControlPlane:     true,
+					EnableBGPControlPlane:     !*disableOSSBGPControlPlane,
 					BGPSecretsNamespace:       testSecretsNamespace,
 					BGPRouterIDAllocationMode: option.BGPRouterIDAllocationModeDefault,
 					IPAM:                      *useIPAM,
