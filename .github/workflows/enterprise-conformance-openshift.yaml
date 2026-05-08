@@ -1,7 +1,7 @@
 name: Conformance OpenShift (ci-openshift)
 
 # Usage with Ariane (GitHub issue comment):
-# `/ci-openshift {"kubevirt":"true", "ocp_version":"4.17.14", "kpr":"true", "ossm":"true", "hcp":"true", "region":"us-east-1"}`
+# `/ci-openshift {"kubevirt":"true", "ocp_version":"4.17.14", "kpr":"true", "ossm":"true", "hcp":"true", "region":"eu-central-1", "azs":"eu-central-1a"}`
 # The json parameters are optional. By default no KubeVirt and no OpenShift Service Mesh conformance tests are launched.
 # Bare-metal nodes get provisioned for running KubeVirt conformance tests, which is expensive.
 # The default region is us-east-1.
@@ -12,7 +12,6 @@ name: Conformance OpenShift (ci-openshift)
 # TODO: Possibility to test with dual stack
 # TODO: Make multi-arch builds and provision arm64 nodes
 # TODO: Send notifications for scheduled runs (cf enterprise-cute.yaml)
-# TODO: Provision a node with labels and annotations so that it runs without Cilium. It activates additional tests, e.g. BGP.
 
 on:
   workflow_dispatch:
@@ -244,6 +243,7 @@ jobs:
             ossm=$(echo "$extra_args_raw" | jq -r '.ossm // empty')
             hcp=$(echo "$extra_args_raw" | jq -r '.hcp // empty')
             region=$(echo "$extra_args_raw" | jq -r '.region // empty')
+            azs=$(echo "$extra_args_raw" | jq -r '.azs // empty')
             if [[ -n "$kpr" ]] && [[ ! "$kpr" =~ ^(true|false)$ ]]; then
               echo "❌ ERROR: Invalid kpr value. Must be 'true' or 'false', got: ${kpr}"
               exit 1
@@ -268,12 +268,26 @@ jobs:
               echo "❌ ERROR: Invalid region format. Expected 'xx-yyyy-#', got: ${region}"
               exit 1
             fi
+             if [[ -n "$azs" ]] && [[ ! "$azs" =~ ^([a-z]+-[a-z]+-[0-9]+[a-z](,[a-z]+-[a-z]+-[0-9]+[a-z])*)?$ ]]; then
+              echo "❌ ERROR: Invalid azs format. Expected 'xx-yyyy-#z', got: ${azs}"
+              exit 1
+            fi
           fi
           kpr="${kpr:-true}"
           kubevirt="${kubevirt:-false}"
           ossm="${ossm:-false}"
           hcp="${hcp:-false}"
           ocp_version="${ocp_version:-$(echo ${{ env.ocp_version_multi }} | cut -f1 -d "-")}"
+          # Defaults to eu-central-1 with a randomly selected single AZ.
+          # Tests needing static routes do not work across AZs.
+          # Still allows to configure other regions, possibly without specifying AZs, in this
+          # case OpenShift installer auto-selects 3 availability zones.
+          if [[ -z "$regions" ]] && [[ -z "$azs" ]]; then
+            rchar=$(echo "abc" | fold -w1 | shuf | head -n 1)
+            azs="eu-central-1${rchar}"
+          else
+            azs="${azs:-}"
+          fi
           region="${region:-eu-central-1}"
 
           ocp_minor_version=$(echo ${ocp_version} | cut -d '.' -f 1,2)
@@ -295,6 +309,7 @@ jobs:
           echo "sha=${sha}" >> $GITHUB_OUTPUT
           echo "owner=${OWNER}" >> $GITHUB_OUTPUT
           echo "region=${region}" >> $GITHUB_OUTPUT
+          echo "azs=${azs}" >> $GITHUB_OUTPUT
 
       - name: Setup go
         uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
@@ -366,6 +381,7 @@ jobs:
           CLUSTER_NAME="${{ env.clusterName }}"
           OWNER="${{ steps.vars.outputs.owner }}"
           REGION="${{ steps.vars.outputs.region }}"
+          AZS="${{ steps.vars.outputs.azs }}"
           PULL_SECRET_PATH="${PWD}/.pullsecret.json"
           BASE_DOMAIN="${{ vars.AWS_BASE_DOMAIN }}"
           POD_IPV4_CIDR="${{ env.pod_cidr }}"
