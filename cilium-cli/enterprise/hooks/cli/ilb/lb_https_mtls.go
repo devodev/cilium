@@ -88,7 +88,7 @@ func TestHTTPSProxyMutualTLS(t T) {
 			return fmt.Errorf("unexpected response code (cmd: %q, stdout: %q, stderr: %q)", testCmd, stdout, stderr)
 		}
 		return nil
-	}, 10*time.Second, 100*time.Millisecond)
+	}, shortTimeout, 100*time.Millisecond)
 
 	// 4. Test mTLS connectivity
 	t.Log("Checking mTLS Connectivity")
