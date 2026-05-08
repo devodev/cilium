@@ -30,7 +30,6 @@ import (
 	k8sFake "github.com/cilium/cilium/pkg/k8s/client/testutils"
 	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	slimv1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
-	nodeTypes "github.com/cilium/cilium/pkg/node/types"
 )
 
 type EgressGatewayOperatorTestSuite struct {
@@ -107,28 +106,28 @@ func setupEgressGatewayOperatorTestSuite(t *testing.T) *EgressGatewayOperatorTes
 	return k
 }
 
-func (k *EgressGatewayOperatorTestSuite) addNode(t *testing.T, name, nodeIP string, nodeLabels map[string]string) nodeTypes.Node {
+func (k *EgressGatewayOperatorTestSuite) addNode(t *testing.T, name, nodeIP string, nodeLabels map[string]string) *cilium_api_v2.CiliumNode {
 	node := newCiliumNode(name, nodeIP, nodeLabels)
 	addNode(t, k.nodeResources, k.ciliumNodes, node, nil)
 
 	return node
 }
 
-func (k *EgressGatewayOperatorTestSuite) updateNodeLabels(t *testing.T, node nodeTypes.Node, labels map[string]string) nodeTypes.Node {
+func (k *EgressGatewayOperatorTestSuite) updateNodeLabels(t *testing.T, node *cilium_api_v2.CiliumNode, labels map[string]string) *cilium_api_v2.CiliumNode {
 	node.Labels = labels
 	addNode(t, k.nodeResources, k.ciliumNodes, node, nil)
 
 	return node
 }
 
-func (k *EgressGatewayOperatorTestSuite) updateNodeAnnotations(t *testing.T, node nodeTypes.Node, annotations map[string]string) nodeTypes.Node {
+func (k *EgressGatewayOperatorTestSuite) updateNodeAnnotations(t *testing.T, node *cilium_api_v2.CiliumNode, annotations map[string]string) *cilium_api_v2.CiliumNode {
 	node.Annotations = annotations
 	addNode(t, k.nodeResources, k.ciliumNodes, node, nil)
 
 	return node
 }
 
-func (k *EgressGatewayOperatorTestSuite) updateNodeTaints(t *testing.T, node nodeTypes.Node, taints []slim_corev1.Taint) nodeTypes.Node {
+func (k *EgressGatewayOperatorTestSuite) updateNodeTaints(t *testing.T, node *cilium_api_v2.CiliumNode, taints []slim_corev1.Taint) *cilium_api_v2.CiliumNode {
 	addNode(t, k.nodeResources, k.ciliumNodes, node, taints)
 
 	return node
@@ -180,7 +179,7 @@ func (k *EgressGatewayOperatorTestSuite) makeNodesAgentDown(nodes ...string) {
 	k.manager.reconciliationTrigger.Trigger()
 }
 
-func (k *EgressGatewayOperatorTestSuite) makeNodeUnschedulableByTaint(t *testing.T, node nodeTypes.Node) {
+func (k *EgressGatewayOperatorTestSuite) makeNodeUnschedulableByTaint(t *testing.T, node *cilium_api_v2.CiliumNode) {
 	k.updateNodeTaints(t, node, []slim_corev1.Taint{
 		{
 			Key:    core_v1.TaintNodeUnschedulable,
@@ -189,7 +188,7 @@ func (k *EgressGatewayOperatorTestSuite) makeNodeUnschedulableByTaint(t *testing
 	})
 }
 
-func (k *EgressGatewayOperatorTestSuite) makeNodeUnschedulableByAnnotation(t *testing.T, node nodeTypes.Node) {
+func (k *EgressGatewayOperatorTestSuite) makeNodeUnschedulableByAnnotation(t *testing.T, node *cilium_api_v2.CiliumNode) {
 	k.updateNodeAnnotations(t, node, map[string]string{
 		nodeEgressGatewayKey: nodeEgressGatewayUnschedulableValue,
 	})

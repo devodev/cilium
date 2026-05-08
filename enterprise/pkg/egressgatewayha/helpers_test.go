@@ -13,7 +13,6 @@ package egressgatewayha
 import (
 	"context"
 	"errors"
-	"net"
 	"net/netip"
 	"testing"
 
@@ -205,7 +204,7 @@ func deleteEndpoint(tb testing.TB, endpoints fakeResource[*k8sTypes.CiliumEndpoi
 	})
 }
 
-func addNode(tb testing.TB, nodeResources fakeResource[*slim_corev1.Node], ciliumNodes fakeResource[*cilium_api_v2.CiliumNode], node nodeTypes.Node, taints []slim_corev1.Taint) {
+func addNode(tb testing.TB, nodeResources fakeResource[*slim_corev1.Node], ciliumNodes fakeResource[*cilium_api_v2.CiliumNode], node *cilium_api_v2.CiliumNode, taints []slim_corev1.Taint) {
 	if nodeResources != nil {
 		nodeResources.process(tb, resource.Event[*slim_corev1.Node]{
 			Kind: resource.Upsert,
@@ -224,7 +223,7 @@ func addNode(tb testing.TB, nodeResources fakeResource[*slim_corev1.Node], ciliu
 
 	ciliumNodes.process(tb, resource.Event[*cilium_api_v2.CiliumNode]{
 		Kind:   resource.Upsert,
-		Object: node.ToCiliumNode(),
+		Object: node,
 	})
 }
 
@@ -463,22 +462,18 @@ func newIEGP(params *policyParams) (*Policy, *PolicyConfig) {
 	return iegp, policy
 }
 
-func newCiliumNode(name, nodeIP string, nodeLabels map[string]string) nodeTypes.Node {
-	n := nodeTypes.Node{
-		Name: name,
-		IPAddresses: []nodeTypes.Address{
-			{
-				Type: addressing.NodeInternalIP,
-				IP:   net.ParseIP(nodeIP),
+func newCiliumNode(name, nodeIP string, nodeLabels map[string]string) *cilium_api_v2.CiliumNode {
+	return &cilium_api_v2.CiliumNode{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Labels: nodeLabels},
+		Spec: cilium_api_v2.NodeSpec{
+			Addresses: []cilium_api_v2.NodeAddress{
+				{
+					Type: addressing.NodeInternalIP,
+					IP:   nodeIP,
+				},
 			},
 		},
 	}
-
-	if len(nodeLabels) != 0 {
-		n.Labels = nodeLabels
-	}
-
-	return n
 }
 
 // Mock the creation of endpoint and its corresponding identity, returns endpoint and ID.

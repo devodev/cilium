@@ -276,7 +276,7 @@ func unique(slice []string) []string {
 	return list
 }
 
-func (k *EgressGatewayTestSuite) addNode(t *testing.T, name, nodeIP string, nodeLabels map[string]string) nodeTypes.Node {
+func (k *EgressGatewayTestSuite) addNode(t *testing.T, name, nodeIP string, nodeLabels map[string]string) *cilium_api_v2.CiliumNode {
 	node := newCiliumNode(name, nodeIP, nodeLabels)
 	addNode(t, nil, k.ciliumNodes, node, nil)
 	k.waitForReconciliationRun(t)
