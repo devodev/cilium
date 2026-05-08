@@ -504,7 +504,7 @@ jobs:
           # Disable history expansion because of the exclamation mark in the flags
           set +H
           export CILIUM_TEST_FLAGS="${{ steps.e2e_config.outputs.test_flags }}
-            --test=\"!check-log-errors\"
+            --log-check-only-test-time
             --junit-file ${PWD}/cilium-junits/openshift-1.xml
             --junit-property github_job_step=\"Cilium connectivity tests\""
           ./scripts/cilium-cli-tests.sh
