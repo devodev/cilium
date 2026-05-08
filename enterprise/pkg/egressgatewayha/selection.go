@@ -78,6 +78,19 @@ func parseNodeIP(n nodeTypes.Node) netip.Addr {
 	return nodeIP
 }
 
+// parseNodeTunnelIP returns the NodeCiliumTunnelIP for the given node, falling
+// back to the NodeInternalIP (via GetK8sNodeIP) if no tunnel IP is found.
+func parseNodeTunnelIP(n nodeTypes.Node) netip.Addr {
+	if tunnelIP := n.GetCiliumTunnelIP(); tunnelIP != nil {
+		if ip, ok := netipx.FromStdIP(tunnelIP); ok {
+			return ip
+		}
+	}
+
+	// Fall back to the standard node IP if no tunnel IP is configured.
+	return parseNodeIP(n)
+}
+
 func (config *PolicyConfig) preComputePolicyHealthyGateways(logger *slog.Logger, operatorManager *OperatorManager) (
 	allAZs sets.Set[string], policyHealthyGatewayIPs []gatewayNodeIP) {
 	allAZs = sets.New[string]()
@@ -105,7 +118,7 @@ func (config *PolicyConfig) preComputePolicyHealthyGateways(logger *slog.Logger,
 	var policyHealthyGateways []gatewayNodeIP
 	for _, n := range operatorManager.nodes {
 		gn := gatewayNodeIP{
-			ip:   parseNodeIP(n),
+			ip:   parseNodeTunnelIP(n),
 			Node: &n,
 			zone: n.Labels[core_v1.LabelTopologyZone],
 

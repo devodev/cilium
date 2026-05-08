@@ -210,27 +210,32 @@ func (h *healthchecker) Events() chan Event {
 }
 
 func (h *healthchecker) createProber(node nodeTypes.Node, mode probeMode) healthProber {
+	ip := node.GetCiliumTunnelIP()
+	if ip == nil {
+		ip = node.GetNodeIP(false)
+	}
+
 	switch mode {
 	case HTTP:
-		return h.createHttpProber(node)
+		return h.createHttpProber(ip)
 	case ICMP:
 		return &icmpProber{
 			logger:           h.logger,
-			ip:               node.GetNodeIP(false).String(),
+			ip:               ip.String(),
 			timeout:          h.EgressGatewayHAHealthcheckTimeout,
 			failureThreshold: h.EgressGatewayHAHealthcheckICMPHealthProbeFailureThreshold,
 			interval:         h.EgressGatewayHAHealthcheckICMPHealthProbeInterval,
 		}
 	default:
-		return h.createHttpProber(node)
+		return h.createHttpProber(ip)
 	}
 }
 
-func (h *healthchecker) createHttpProber(node nodeTypes.Node) healthProber {
+func (h *healthchecker) createHttpProber(ip net.IP) healthProber {
 	return &httpProber{
 		netClient: &http.Client{Timeout: h.EgressGatewayHAHealthcheckTimeout},
 		url: fmt.Sprintf("http://%s/hello",
-			net.JoinHostPort(node.GetNodeIP(false).String(), strconv.Itoa(h.ClusterHealthPort))),
+			net.JoinHostPort(ip.String(), strconv.Itoa(h.ClusterHealthPort))),
 	}
 }
 

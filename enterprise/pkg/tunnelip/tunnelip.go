@@ -27,8 +27,10 @@ import (
 	"github.com/cilium/cilium/pkg/container/set"
 	dpipc "github.com/cilium/cilium/pkg/datapath/ipcache"
 	"github.com/cilium/cilium/pkg/datapath/linux/safenetlink"
+	"github.com/cilium/cilium/pkg/datapath/tables"
 	dptables "github.com/cilium/cilium/pkg/datapath/tables"
 	"github.com/cilium/cilium/pkg/datapath/tunnel"
+	"github.com/cilium/cilium/pkg/defaults"
 	"github.com/cilium/cilium/pkg/ipcache"
 	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/cilium/pkg/logging/logfields"
@@ -353,15 +355,30 @@ func (m *manager) runDeviceSync(ctx context.Context, store *node.LocalNodeStore)
 	)
 
 	for {
-		devices, watch := m.devices.ListWatch(m.db.ReadTxn(), dptables.DeviceSelectedIndex.Query(true))
-		m.reconcileTunnelEndpoints(statedb.ToSeq(devices))
-		tunnelIPs = m.syncLocalNodeTunnelIPs(statedb.ToSeq(devices), store, tunnelIPs, initialized)
+		rxn := m.db.ReadTxn()
+		selectedDevices, watchSelected := m.devices.ListWatch(rxn, dptables.DeviceSelectedIndex.Query(true))
+
+		hostDev, _, watchHost, found := m.devices.GetWatch(rxn, tables.DeviceNameIndex.Query(defaults.HostDevice))
+		devIter := iter.Seq[*dptables.Device](func(yield func(*dptables.Device) bool) {
+			for dev := range selectedDevices {
+				if !yield(dev) {
+					return
+				}
+			}
+			if found {
+				yield(hostDev)
+			}
+		})
+
+		m.reconcileTunnelEndpoints(devIter)
+		tunnelIPs = m.syncLocalNodeTunnelIPs(devIter, store, tunnelIPs, initialized)
 		initialized = true
 
 		select {
 		case <-ctx.Done():
 			return nil
-		case <-watch:
+		case <-watchSelected:
+		case <-watchHost:
 		}
 		if err := limiter.Wait(ctx); err != nil {
 			return err
@@ -377,6 +394,7 @@ func (m *manager) syncLocalNodeTunnelIPs(devices iter.Seq[*dptables.Device], sto
 		if !match || exclude {
 			continue
 		}
+
 		for _, addr := range dev.Addrs {
 			if addr.Addr.IsGlobalUnicast() {
 				newTunnelIPs = append(newTunnelIPs, addr.Addr)
@@ -404,6 +422,7 @@ func (m *manager) syncLocalNodeTunnelIPs(devices iter.Seq[*dptables.Device], sto
 				IP:   addr.AsSlice(),
 			})
 		}
+
 		ln.IPAddresses = addrs
 	})
 

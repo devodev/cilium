@@ -182,7 +182,10 @@ func (config *AgentPolicyConfig) regenerateGatewayConfig(manager *Manager, tx st
 		return
 	}
 
-	nip := localNode.GetK8sNodeIP()
+	nip := localNode.GetCiliumTunnelIP()
+	if nip == nil {
+		nip = localNode.GetK8sNodeIP()
+	}
 	localNodeK8sAddr, ok := netipx.FromStdIP(nip)
 	if !ok {
 		manager.logger.Error("Failed to parse local node IP",

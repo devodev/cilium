@@ -621,6 +621,7 @@
 /pkg/metrics/features/**/*enterprise*.go @isovalent/metrics
 /pkg/monitor/**/*enterprise* @isovalent/cilium-datapath
 /pkg/node/manager/*enterprise* @isovalent/cni
+/pkg/node/types/enterprise_node.go @isovalent/cilium-agent
 /pkg/k8s/**/*enterprise* @isovalent/sig-k8s
 /pkg/k8s/apis/isovalent.com @isovalent/sig-k8s
 /pkg/k8s/apis/isovalent.com/client/crds/v1alpha1/isovalentbfd*.yaml @isovalent/traffic-engineering

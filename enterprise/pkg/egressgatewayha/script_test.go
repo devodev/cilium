@@ -31,6 +31,7 @@ import (
 	"github.com/cilium/cilium/enterprise/pkg/egressgatewayha/healthcheck"
 	enterpriseHealthConfig "github.com/cilium/cilium/enterprise/pkg/healthconfig"
 	"github.com/cilium/cilium/enterprise/pkg/maps/egressmapha"
+	"github.com/cilium/cilium/enterprise/pkg/tunnelip"
 	operatorK8s "github.com/cilium/cilium/operator/k8s"
 	operatorOption "github.com/cilium/cilium/operator/option"
 	"github.com/cilium/cilium/pkg/bgp/agent/signaler"
@@ -159,6 +160,7 @@ func TestPrivilegedAgentScripts(t *testing.T) {
 				healthconfig.Cell,
 				cell.Config(metrics.RegistryConfig{}),
 				cell.Config(cmtypes.DefaultClusterInfo),
+				cell.Config(tunnelip.Config{}),
 				cell.Provide(
 					metrics.NewRegistry,
 					// LocalNodeSynchronizer syncs via apiserver, after the node is initialized, generally
@@ -166,10 +168,13 @@ func TestPrivilegedAgentScripts(t *testing.T) {
 					func() (*gc.GC, ctmap.GCRunner) {
 						return &gc.GC{}, ctmap.NewFakeGCRunner()
 					},
-					func() node.LocalNodeSynchronizer {
-						return &mockNodeSync{}
+					func(tipConfig tunnelip.Config) node.LocalNodeSynchronizer {
+						mock := &mockNodeSync{}
+						if len(tipConfig.PreferredTunnelEndpointDevices) != 0 {
+							mock.ciliumTunnelIP = "10.254.0.1"
+						}
+						return mock
 					},
-
 					func() *option.DaemonConfig {
 						return &option.DaemonConfig{
 							EnterpriseDaemonConfig: option.EnterpriseDaemonConfig{
@@ -222,6 +227,10 @@ func TestPrivilegedAgentScripts(t *testing.T) {
 
 			flags := pflag.NewFlagSet("", pflag.ContinueOnError)
 			h.RegisterFlags(flags)
+
+			// Parse the shebang arguments in the script.
+			require.NoError(t, flags.Parse(args), "flags.Parse")
+
 			// Enterprise config overrides the OSS config.
 			flags.Set(healthconfig.EnableHealthCheckingName, "false")
 			flags.Set(enterpriseHealthConfig.EnableHealthServerName, "true")
@@ -269,7 +278,9 @@ func (m *mockHealthChecker) Events() chan healthcheck.Event {
 	return ch
 }
 
-type mockNodeSync struct{}
+type mockNodeSync struct {
+	ciliumTunnelIP string
+}
 
 func (m *mockNodeSync) WaitForNodeInformation(ctx context.Context, store *node.LocalNodeStore) error {
 	return nil
@@ -281,6 +292,12 @@ func (m *mockNodeSync) InitLocalNode(ctx context.Context, n *node.LocalNode) err
 		IPAddresses: []nodeTypes.Address{
 			{Type: addressing.NodeInternalIP, IP: net.ParseIP("172.18.0.3")},
 		},
+	}
+	if m.ciliumTunnelIP != "" {
+		n.IPAddresses = append(n.IPAddresses, nodeTypes.Address{
+			Type: addressing.NodeCiliumTunnelIP,
+			IP:   net.ParseIP(m.ciliumTunnelIP),
+		})
 	}
 	return nil
 }

@@ -1,0 +1,60 @@
+hive start
+
+k8s/add node1.yaml
+k8s/add node2.yaml
+k8s/add policy1.yaml
+
+# Validate that the CiliumTunnelIPs are used over the InternalIPs when available
+db/cmp policy-config policyconfig.state.expected
+
+-- node1.yaml --
+apiVersion: cilium.io/v2
+kind: CiliumNode
+metadata:
+  name: node1
+  labels:
+    group: group1
+spec:
+  addresses:
+  - ip: 192.168.1.1
+    type: InternalIP
+  - ip: 10.254.0.1
+    type: CiliumTunnelIP
+
+-- node2.yaml --
+apiVersion: cilium.io/v2
+kind: CiliumNode
+metadata:
+  name: node2
+  labels:
+    group: group1
+spec:
+  addresses:
+  - ip: 192.168.1.2
+    type: InternalIP
+  - ip: 10.254.0.2
+    type: CiliumTunnelIP
+
+-- policy1.yaml --
+apiVersion: isovalent.com/v1
+kind: IsovalentEgressGatewayPolicy
+metadata:
+  name: policy-1
+  uid: 00000000-0000-0000-0000-000000000001
+spec:
+  destinationCIDRs:
+  - 0.0.0.0/0
+  egressCIDRs:
+  - 10.100.255.48/28
+  egressGroups:
+  - nodeSelector:
+      matchLabels:
+        group: group1
+  selectors:
+  - podSelector:
+      matchLabels:
+        app: test-app
+
+-- policyconfig.state.expected --
+ID                     Generation   Statuses
+policy-1               0            [active=[10.254.0.1 10.254.0.2],healthy=[10.254.0.1 10.254.0.2],byGateway=map[10.254.0.1:10.100.255.48 10.254.0.2:10.100.255.49]]
