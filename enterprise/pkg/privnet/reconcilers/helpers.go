@@ -20,6 +20,7 @@ import (
 
 	"github.com/cilium/cilium/enterprise/pkg/privnet/endpoints"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/tables"
+	"github.com/cilium/cilium/enterprise/pkg/privnet/types"
 	"github.com/cilium/cilium/pkg/hive"
 	"github.com/cilium/cilium/pkg/time"
 )
@@ -53,7 +54,7 @@ func (e *EndpointActivationManager) Subscribe(subscriber endpointActivationSubsc
 
 // SetActivatedAt sets the activatedAt timestamp of an endpoint and informs the subscribers
 func (e *EndpointActivationManager) SetActivatedAt(ep endpoints.Endpoint, time time.Time) {
-	ep.SetPropertyValue(endpoints.PropertyPrivNetActivatedAt, endpoints.FormatActivatedAtProperty(time))
+	ep.SetPropertyValue(types.PropertyPrivNetActivatedAt, endpoints.FormatActivatedAtProperty(time))
 	ep.SyncEndpointHeaderFile() // ensure the new activatedAt timestamp is persisted on disk
 	for _, subscriber := range e.subscribers {
 		subscriber.EndpointActivationChanged(ep)

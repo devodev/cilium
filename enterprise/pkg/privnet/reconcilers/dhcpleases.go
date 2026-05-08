@@ -22,6 +22,7 @@ import (
 	"github.com/cilium/cilium/enterprise/pkg/privnet/dhcp"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/endpoints"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/tables"
+	"github.com/cilium/cilium/enterprise/pkg/privnet/types"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/mac"
 	"github.com/cilium/cilium/pkg/time"
@@ -226,8 +227,8 @@ func (m *dhcpLeaseReconciler) updateLocalWorkloadIP(
 	// that propagate to LocalWorkload won't overwrite the IP and that the IP is persisted to disk
 	// and restored on restart.
 	if ep := m.endpoints.LookupID(endpointID); ep != nil {
-		if value, _ := ep.GetPropertyValue(endpoints.PropertyPrivNetIPv4).(string); value != ipv4 {
-			ep.SetPropertyValue(endpoints.PropertyPrivNetIPv4, ipv4)
+		if value, _ := ep.GetPropertyValue(types.PropertyPrivNetIPv4).(string); value != ipv4 {
+			ep.SetPropertyValue(types.PropertyPrivNetIPv4, ipv4)
 			ep.SyncEndpointHeaderFile()
 		}
 	}

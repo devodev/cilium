@@ -563,8 +563,8 @@ func (e *externalEndpointReconcilerOps) createEndpoint(ctx context.Context, obj 
 			endpoint.PropertyCEPOwner:            cepOwner,
 			endpoint.PropertyCEPName:             cepOwner.Name,
 
-			endpoints.PropertyPrivNetNetwork:     string(obj.Network),
-			endpoints.PropertyPrivNetActivatedAt: endpoints.FormatActivatedAtProperty(obj.ActivatedAt),
+			types.PropertyPrivNetNetwork:     string(obj.Network),
+			types.PropertyPrivNetActivatedAt: endpoints.FormatActivatedAtProperty(obj.ActivatedAt),
 		},
 		Labels: lbls.GetModel(),
 		Mac:    obj.MAC.String(),
@@ -573,13 +573,13 @@ func (e *externalEndpointReconcilerOps) createEndpoint(ctx context.Context, obj 
 		if !obj.IPv4.Is4() {
 			return fmt.Errorf("IPv4 is enabled, but no valid IPv4 address was provided: %s", obj.IPv4)
 		}
-		epReq.Properties[endpoints.PropertyPrivNetIPv4] = obj.IPv4.String()
+		epReq.Properties[types.PropertyPrivNetIPv4] = obj.IPv4.String()
 	}
 	if hasPIPv6 {
 		if !obj.IPv6.Is6() {
 			return fmt.Errorf("IPv6 is enabled, but no valid IPv6 address was provided: %s", obj.IPv6)
 		}
-		epReq.Properties[endpoints.PropertyPrivNetIPv6] = obj.IPv6.String()
+		epReq.Properties[types.PropertyPrivNetIPv6] = obj.IPv6.String()
 	}
 
 	// Create the endpoint
@@ -851,7 +851,7 @@ func (e *ExternalEndpoints) registerEndpointCreationReconciler(in struct {
 
 // isPrivateNetworkExternalEndpoint returns true if the given endpoint is a private network external endpoint
 func isPrivateNetworkExternalEndpoint(ep endpoints.Endpoint) bool {
-	return ep.GetPropertyValue(endpoints.PropertyPrivNetNetwork) != nil &&
+	return ep.GetPropertyValue(types.PropertyPrivNetNetwork) != nil &&
 		ep.IsProperty(endpoint.PropertyWithouteBPFDatapath)
 }
 

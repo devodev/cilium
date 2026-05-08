@@ -23,7 +23,6 @@ import (
 	"github.com/cilium/cilium/api/v1/models"
 	enterpriseModels "github.com/cilium/cilium/enterprise/api/v1/models"
 	"github.com/cilium/cilium/enterprise/pkg/client"
-	"github.com/cilium/cilium/enterprise/pkg/privnet/endpoints"
 	privnetTypes "github.com/cilium/cilium/enterprise/pkg/privnet/types"
 
 	"github.com/cilium/cilium/pkg/datapath/connector"
@@ -180,8 +179,8 @@ func (h *addHooks) OnInterfaceConfigReady(state *cmd.CmdState, ep *models.Endpoi
 	if h.privNetAddressing.Subnet == "" {
 		return errors.New("private network subnet is required")
 	}
-	ep.Properties[endpoints.PropertyPrivNetNetwork] = h.privNetAddressing.Network
-	ep.Properties[endpoints.PropertyPrivNetSubnet] = h.privNetAddressing.Subnet
+	ep.Properties[privnetTypes.PropertyPrivNetNetwork] = h.privNetAddressing.Network
+	ep.Properties[privnetTypes.PropertyPrivNetSubnet] = h.privNetAddressing.Subnet
 
 	// TODO: Should we allow this kind of label to be set via API or should it be treated like `reserved` labels
 	// and be set by the daemon on endpoint creation?
@@ -194,8 +193,8 @@ func (h *addHooks) OnInterfaceConfigReady(state *cmd.CmdState, ep *models.Endpoi
 			return fmt.Errorf("unable to parse private network IPv4 address: %w", err)
 		}
 		state.IP4 = netIPv4
-		ep.Properties[endpoints.PropertyPrivNetIPv4] = h.privNetAddressing.Address.IPv4
-		ep.Properties[endpoints.PropertyPrivNetIPv4UsesDHCP] = netIPv4.IsUnspecified()
+		ep.Properties[privnetTypes.PropertyPrivNetIPv4] = h.privNetAddressing.Address.IPv4
+		ep.Properties[privnetTypes.PropertyPrivNetIPv4UsesDHCP] = netIPv4.IsUnspecified()
 	}
 
 	if ipv6Enabled && h.daemonConf.Addressing.IPv6 != nil {
@@ -204,7 +203,7 @@ func (h *addHooks) OnInterfaceConfigReady(state *cmd.CmdState, ep *models.Endpoi
 			return fmt.Errorf("unable to parse private network IPv6 address: %w", err)
 		}
 		state.IP6 = netIPv6
-		ep.Properties[endpoints.PropertyPrivNetIPv6] = h.privNetAddressing.Address.IPv6
+		ep.Properties[privnetTypes.PropertyPrivNetIPv6] = h.privNetAddressing.Address.IPv6
 	}
 
 	if h.privNetAddressing.Mac != "" {
@@ -212,7 +211,7 @@ func (h *addHooks) OnInterfaceConfigReady(state *cmd.CmdState, ep *models.Endpoi
 	}
 
 	if !h.privNetAddressing.ActivatedAt.IsZero() {
-		ep.Properties[endpoints.PropertyPrivNetActivatedAt] = h.privNetAddressing.ActivatedAt
+		ep.Properties[privnetTypes.PropertyPrivNetActivatedAt] = h.privNetAddressing.ActivatedAt
 	}
 
 	// Disable the configuration of the legacy endpoint identifiers for secondary interfaces,

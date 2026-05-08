@@ -23,6 +23,7 @@ import (
 
 	"github.com/cilium/cilium/api/v1/models"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/observers"
+	"github.com/cilium/cilium/enterprise/pkg/privnet/types"
 	"github.com/cilium/cilium/pkg/endpoint"
 	"github.com/cilium/cilium/pkg/ipam"
 	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
@@ -30,28 +31,6 @@ import (
 	"github.com/cilium/cilium/pkg/mac"
 	"github.com/cilium/cilium/pkg/maps/policymap"
 	"github.com/cilium/cilium/pkg/time"
-)
-
-const (
-	// PropertyPrivNetNetwork is the name of the network this endpoint is attached to. If unset, then the endpoint is
-	// not attached to a custom private network.
-	PropertyPrivNetNetwork = "isovalent-privnet-network"
-
-	// PropertyPrivNetSubnet is the name of the subnet this endpoint is attached to.
-	PropertyPrivNetSubnet = "isovalent-privnet-subnet"
-
-	// PropertyPrivNetIPv4 contains the IPv4 address of the endpoint within the network.
-	PropertyPrivNetIPv4 = "isovalent-privnet-ipv4-addr"
-
-	// PropertyPrivNetIPv4UsesDHCP records whether the endpoint was configured to
-	// obtain its IPv4 address via DHCP rather than from an explicit annotation.
-	PropertyPrivNetIPv4UsesDHCP = "isovalent-privnet-ipv4-uses-dhcp"
-
-	// PropertyPrivNetIPv6 contains the IPv6 address of the endpoint within the network.
-	PropertyPrivNetIPv6 = "isovalent-privnet-ipv6-addr"
-
-	// PropertyPrivNetActivatedAt contains the timestamp when the endpoint became active.
-	PropertyPrivNetActivatedAt = "isovalent-privnet-activated-at"
 )
 
 // EndpointGetter allows read operations on the endpoint manager.
@@ -143,12 +122,12 @@ type EndpointProperties struct {
 // ExtractEndpointProperties extracts the private network relevant endpoint properties.
 // It returns (nil, false) if the given endpoint is not attached to a private network.
 func ExtractEndpointProperties(ep EndpointPropertyProvider) (*EndpointProperties, bool) {
-	network, ok := ep.GetPropertyValue(PropertyPrivNetNetwork).(string)
+	network, ok := ep.GetPropertyValue(types.PropertyPrivNetNetwork).(string)
 	if !ok || network == "" {
 		return nil, false
 	}
 
-	subnet, _ := ep.GetPropertyValue(PropertyPrivNetSubnet).(string)
+	subnet, _ := ep.GetPropertyValue(types.PropertyPrivNetSubnet).(string)
 
 	return &EndpointProperties{
 		network: network,
@@ -169,7 +148,7 @@ func (p *EndpointProperties) PrivateSubnet() string {
 
 // NetworkIPv4 returns the IPv4 address of the endpoint within the network.
 func (p *EndpointProperties) NetworkIPv4() (netip.Addr, error) {
-	addr, ok := p.ep.GetPropertyValue(PropertyPrivNetIPv4).(string)
+	addr, ok := p.ep.GetPropertyValue(types.PropertyPrivNetIPv4).(string)
 	if !ok || addr == "" {
 		return netip.Addr{}, nil
 	}
@@ -187,7 +166,7 @@ func (p *EndpointProperties) NetworkIPv4() (netip.Addr, error) {
 // NetworkIPv4UsesDHCP returns whether the endpoint was configured to obtain its
 // IPv4 address via DHCP.
 func (p *EndpointProperties) NetworkIPv4UsesDHCP() bool {
-	usesDHCP, ok := p.ep.GetPropertyValue(PropertyPrivNetIPv4UsesDHCP).(bool)
+	usesDHCP, ok := p.ep.GetPropertyValue(types.PropertyPrivNetIPv4UsesDHCP).(bool)
 	if !ok {
 		// The property is missing which implies that the endpoint was created
 		// before this property was added and thus we don't know whether or not
@@ -199,7 +178,7 @@ func (p *EndpointProperties) NetworkIPv4UsesDHCP() bool {
 
 // NetworkIPv6 returns the IPv6 address of the endpoint within the network.
 func (p *EndpointProperties) NetworkIPv6() (netip.Addr, error) {
-	addr, ok := p.ep.GetPropertyValue(PropertyPrivNetIPv6).(string)
+	addr, ok := p.ep.GetPropertyValue(types.PropertyPrivNetIPv6).(string)
 	if !ok || addr == "" {
 		return netip.Addr{}, nil
 	}
@@ -216,7 +195,7 @@ func (p *EndpointProperties) NetworkIPv6() (netip.Addr, error) {
 
 // ActivatedAt returns the timestamp when the endpoint became active.
 func (p *EndpointProperties) ActivatedAt() (time.Time, error) {
-	datetime, ok := p.ep.GetPropertyValue(PropertyPrivNetActivatedAt).(string)
+	datetime, ok := p.ep.GetPropertyValue(types.PropertyPrivNetActivatedAt).(string)
 	if !ok {
 		return time.Time{}, nil
 	}
