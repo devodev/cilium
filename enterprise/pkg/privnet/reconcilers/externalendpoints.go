@@ -357,33 +357,11 @@ type externalEndpointK8sReconcilerOps struct {
 // Please note that tables.ExternalEndpoint has multiple reconcilers status fields, so ensure that [obj] is not modified.
 func (e *externalEndpointK8sReconcilerOps) Update(ctx context.Context, txn statedb.ReadTxn, revision statedb.Revision, obj *tables.ExternalEndpoint) error {
 	client := e.client.IsovalentV1alpha1().PrivateNetworkExternalEndpoints(obj.Namespace)
-	ipStr := func(addr netip.Addr) string {
-		if !addr.IsValid() {
-			return ""
-		}
-		return addr.String()
-	}
 	pnee := &iso_v1alpha1.PrivateNetworkExternalEndpoint{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            obj.Name,
 			Namespace:       obj.Namespace,
 			ResourceVersion: obj.ResourceVersion,
-			Labels:          obj.K8sLabels, // workaround for script test bug
-			UID:             obj.UID,       // workaround for script test bug
-		},
-		// The object spec (and labels) are ignored by K8s when doing UpdateStatus.
-		// However, our script test framework has a bug where it does not ignore
-		// them and will replace them in the object tracker, so set them anyway.
-		Spec: iso_v1alpha1.PrivateNetworkExternalEndpointSpec{
-			Inactive: obj.ActivatedAt.IsZero(),
-			Interface: iso_v1alpha1.PrivateNetworkEndpointSliceInterface{
-				Addressing: iso_v1alpha1.PrivateNetworkEndpointAddressing{
-					IPv4: ipStr(obj.IPv4),
-					IPv6: ipStr(obj.IPv6),
-				},
-				MAC:     obj.MAC.String(),
-				Network: string(obj.Network),
-			},
 		},
 		Status: iso_v1alpha1.PrivateNetworkExternalEndpointStatus{
 			ActivatedAt: metav1.NewMicroTime(obj.ActivatedAt),
