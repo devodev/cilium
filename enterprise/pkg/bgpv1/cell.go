@@ -53,6 +53,10 @@ var Cell = cell.Module(
 		manager.NewBGPRouterManager,
 	),
 
+	cell.ProvidePrivate(
+		gobgp.NewEnterpriseRouterProvider,
+	),
+
 	// override GoBGP router provider with the enterprise version
 	cell.DecorateAll(
 		func(_ types.RouterProvider) types.RouterProvider {

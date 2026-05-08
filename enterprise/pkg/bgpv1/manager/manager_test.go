@@ -20,8 +20,11 @@ import (
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/agent"
 	ossAgent "github.com/cilium/cilium/pkg/bgp/agent"
+	"github.com/cilium/cilium/pkg/bgp/gobgp"
 	"github.com/cilium/cilium/pkg/bgp/manager"
+	"github.com/cilium/cilium/pkg/bgp/manager/tables"
 	"github.com/cilium/cilium/pkg/hive"
+	"github.com/cilium/cilium/pkg/metrics"
 	"github.com/cilium/cilium/pkg/option"
 )
 
@@ -75,7 +78,10 @@ func TestNewBGPRouterManager(t *testing.T) {
 			var enterpriseRouterManager agent.EnterpriseBGPRouterManager
 
 			h := hive.New(
+				metrics.Metric(manager.NewBGPManagerMetrics),
 				cell.Provide(
+					gobgp.NewEnterpriseRouterProvider,
+					tables.NewBGPReconcileErrorTable,
 					func() *option.DaemonConfig {
 						return &option.DaemonConfig{
 							EnableBGPControlPlane: tt.ossEnabled,
