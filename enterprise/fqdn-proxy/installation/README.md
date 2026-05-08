@@ -46,7 +46,7 @@ DNS Proxy for Isovalent Enterprise Grade eBPF-based Networking, Security, and Ob
 | readinessProbe.periodSeconds | int | `30` | Interval between checks of the readiness probe. |
 | resources | object | `{}` | Cilium-dnsproxy resource limits & requests ref: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/ |
 | runPath | string | `"/var/run/cilium"` | Configure where Cilium runtime state should be stored. This must match the cilium agent. |
-| securityContext | object | `{}` | The pod security context, by default adds NET_ADMIN, NET_RAW and BPF (if needed). |
+| securityContext | object | `{"allowPrivilegeEscalation":false}` | The pod security context, by default adds NET_ADMIN, NET_RAW and BPF (if needed). |
 | serviceAccount.annotations | object | `{}` | Annotations for the service account |
 | serviceAccount.automount | bool | `true` | Whether or not to mount the service account's token |
 | serviceAccount.create | bool | `true` | Whether or not to create the cilium-dnsproxy service account |
