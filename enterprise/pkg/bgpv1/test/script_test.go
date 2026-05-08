@@ -103,6 +103,7 @@ const (
 	enableNoEndpointsRoutableFlag    = "enable-no-service-endpoints-routable"
 	enableEVPNSecurityGroupTagsFlag  = "enable-evpn-security-group-tags"
 	defaultEVPNSecurityGroupIDFlag   = "evpn-default-security-group-id"
+	kubeProxyReplacementFlag         = "kube-proxy-replacement"
 )
 
 func TestPrivilegedScript(t *testing.T) {
@@ -134,6 +135,7 @@ func TestPrivilegedScript(t *testing.T) {
 		enableNoEndpointsRoutable := flags.Bool(enableNoEndpointsRoutableFlag, true, "")
 		enableEVPNSecurityGroupTags := flags.Bool(enableEVPNSecurityGroupTagsFlag, false, "Enable Security Group Tags in EVPN advertisements")
 		defaultEVPNSecurityGroupID := flags.Uint16(defaultEVPNSecurityGroupIDFlag, 0, "Default Security Group ID used in EVPN advertisements")
+		kubeProxyReplacement := flags.Bool(kubeProxyReplacementFlag, true, "Enable kube-proxy replacement")
 		require.NoError(t, flags.Parse(args), "Error parsing test flags")
 
 		if *probeTCPMD5 {
@@ -238,7 +240,7 @@ func TestPrivilegedScript(t *testing.T) {
 			},
 				func() kpr.KPRConfig {
 					return kpr.KPRConfig{
-						KubeProxyReplacement: true,
+						KubeProxyReplacement: *kubeProxyReplacement,
 					}
 				},
 			),
