@@ -41,10 +41,11 @@ const (
 type linkLocalTestFixture struct {
 	hive *hive.Hive
 
-	reconciler  *LinkLocalReconciler
-	bgpSignaler *signaler.BGPCPSignaler
-	upgrader    *upgraderMock
-	raDaemon    *mockRADaemon
+	reconciler    *LinkLocalReconciler
+	ossReconciler reconciler.ConfigReconciler
+	bgpSignaler   *signaler.BGPCPSignaler
+	upgrader      *upgraderMock
+	raDaemon      *mockRADaemon
 
 	db            *statedb.DB
 	deviceTable   statedb.RWTable[*tables.Device]
@@ -81,7 +82,8 @@ func newLinkLocalTestFixture() *linkLocalTestFixture {
 
 			cell.Invoke(func(p LinkLocalReconcilerIn) {
 				out := NewLinkLocalReconciler(p)
-				f.reconciler = out.Reconciler.(*LinkLocalReconciler)
+				f.reconciler = out.EnterpriseReconciler.(*LinkLocalReconciler)
+				f.ossReconciler = out.Reconciler
 			}),
 			cell.Invoke(func(sig *signaler.BGPCPSignaler) {
 				f.bgpSignaler = sig
@@ -112,6 +114,7 @@ func TestLinkLocalReconciler(t *testing.T) {
 		Name:     iNodeInstance.Name,
 		LocalASN: iNodeInstance.LocalASN,
 	}
+	ciliumNode := &v2.CiliumNode{}
 
 	devices := []*tables.Device{
 		{
@@ -332,7 +335,7 @@ func TestLinkLocalReconciler(t *testing.T) {
 	t.Cleanup(func() {
 		f.hive.Stop(log, context.Background())
 	})
-	f.reconciler.Init(instance)
+	f.ossReconciler.Init(instance)
 	f.upgrader.setNodeInstance(iNodeInstance)
 
 	// write devices to statedb
@@ -387,8 +390,9 @@ func TestLinkLocalReconciler(t *testing.T) {
 			reconcileParams := reconciler.ReconcileParams{
 				BGPInstance:   instance,
 				DesiredConfig: ossNodeInstance,
+				CiliumNode:    ciliumNode,
 			}
-			err = f.reconciler.Reconcile(testCtx, reconcileParams)
+			err = f.ossReconciler.Reconcile(testCtx, reconcileParams)
 			require.NoError(t, err)
 
 			// verify expected peers in CEE and OSS instances
@@ -589,18 +593,19 @@ func TestLinkLocalReconcilerMultipleInstances(t *testing.T) {
 				})
 			}
 			if tt.deleteInstance {
-				f.reconciler.Cleanup(instance)
+				f.ossReconciler.Cleanup(instance)
 				return
 			}
-			f.reconciler.Init(instance)
+			f.ossReconciler.Init(instance)
 			f.upgrader.setNodeInstance(tt.nodeInstance)
 
 			// run reconciliation
 			reconcileParams := reconciler.ReconcileParams{
 				BGPInstance:   instance,
 				DesiredConfig: ossNodeInstance,
+				CiliumNode:    &v2.CiliumNode{},
 			}
-			err = f.reconciler.Reconcile(testCtx, reconcileParams)
+			err = f.ossReconciler.Reconcile(testCtx, reconcileParams)
 			require.NoError(t, err)
 
 			verifyRAInterfaces(t, f, tt.expectedRAInterfaces)

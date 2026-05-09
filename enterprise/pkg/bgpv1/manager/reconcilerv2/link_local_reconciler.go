@@ -12,7 +12,6 @@ package reconcilerv2
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"sync/atomic"
@@ -25,10 +24,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
+	"github.com/cilium/cilium/enterprise/pkg/bgpv1/manager/instance"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/utils"
 	"github.com/cilium/cilium/pkg/bgp/agent/signaler"
-	"github.com/cilium/cilium/pkg/bgp/manager/instance"
 	ossreconcilerv2 "github.com/cilium/cilium/pkg/bgp/manager/reconciler"
 	osstypes "github.com/cilium/cilium/pkg/bgp/types"
 	"github.com/cilium/cilium/pkg/datapath/tables"
@@ -56,7 +55,8 @@ type LinkLocalReconcilerIn struct {
 type LinkLocalReconcilerOut struct {
 	cell.Out
 
-	Reconciler ossreconcilerv2.ConfigReconciler `group:"bgp-config-reconciler"`
+	EnterpriseReconciler EnterpriseConfigReconciler       `group:"enterprise-bgp-config-reconciler"`
+	Reconciler           ossreconcilerv2.ConfigReconciler `group:"bgp-config-reconciler"`
 }
 
 type LinkLocalReconciler struct {
@@ -64,7 +64,6 @@ type LinkLocalReconciler struct {
 
 	config   Config
 	signaler *signaler.BGPCPSignaler
-	upgrader paramUpgrader
 	raDaemon RADaemon // provides router-side functionality of IPv6 Neighbor Discovery mechanism
 
 	db            *statedb.DB
@@ -94,7 +93,6 @@ func NewLinkLocalReconciler(params LinkLocalReconcilerIn) LinkLocalReconcilerOut
 		logger:        params.Logger.With(osstypes.ReconcilerLogField, "LinkLocal"),
 		config:        params.Config,
 		signaler:      params.Signaler,
-		upgrader:      params.Upgrader,
 		raDaemon:      params.RADaemon,
 		db:            params.DB,
 		neighborTable: params.NeighborTable,
@@ -114,7 +112,8 @@ func NewLinkLocalReconciler(params LinkLocalReconcilerIn) LinkLocalReconcilerOut
 	}))
 
 	return LinkLocalReconcilerOut{
-		Reconciler: r,
+		EnterpriseReconciler: r,
+		Reconciler:           newOSSConfigReconcilerAdapter(r, params.Upgrader),
 	}
 }
 
@@ -126,7 +125,7 @@ func (r *LinkLocalReconciler) Priority() int {
 	return LinkLocalReconcilerPriority
 }
 
-func (r *LinkLocalReconciler) Init(i *instance.BGPInstance) error {
+func (r *LinkLocalReconciler) Init(i *instance.EnterpriseBGPInstance) error {
 	if i == nil {
 		return fmt.Errorf("BUG: %s reconciler initialization with nil BGPInstance", r.Name())
 	}
@@ -138,7 +137,7 @@ func (r *LinkLocalReconciler) Init(i *instance.BGPInstance) error {
 	return nil
 }
 
-func (r *LinkLocalReconciler) Cleanup(i *instance.BGPInstance) {
+func (r *LinkLocalReconciler) Cleanup(i *instance.EnterpriseBGPInstance) {
 	if i != nil {
 		if r.metadata[i.Name].hasUnnumberedPeers {
 			r.instancesWithUnnumberedPeers.Add(-1)
@@ -162,24 +161,11 @@ func (r *LinkLocalReconciler) Cleanup(i *instance.BGPInstance) {
 	}
 }
 
-func (r *LinkLocalReconciler) Reconcile(ctx context.Context, p ossreconcilerv2.ReconcileParams) error {
-	iParams, err := r.upgrader.upgrade(p)
-	if err != nil {
-		if errors.Is(err, ErrEntNodeConfigNotFound) {
-			r.logger.Debug("Enterprise node config not found yet, skipping reconciliation")
-			return nil
-		}
-		if errors.Is(err, ErrNotInitialized) {
-			r.logger.Debug("Initialization is not done, skipping reconciliation")
-			return nil
-		}
-		return err
-	}
-
+func (r *LinkLocalReconciler) Reconcile(ctx context.Context, p EnterpriseReconcileParams) error {
 	metadata := r.getMetadata(p.BGPInstance)
 
 	// retrieve all configured unnumbered interfaces from the desired config
-	unnumberedInterfaces := r.getUnnumberedInterfaces(iParams.DesiredConfig)
+	unnumberedInterfaces := r.getUnnumberedInterfaces(p.DesiredConfig)
 
 	if unnumberedInterfaces.Len() > 0 {
 		// there are some unnumbered peers configured
@@ -189,8 +175,7 @@ func (r *LinkLocalReconciler) Reconcile(ctx context.Context, p ossreconcilerv2.R
 			metadata.hasUnnumberedPeers = true
 		}
 		// update peer address in BGPNodeInstance's DesiredConfig for unnumbered peers
-		err = r.updateUnnumberedPeerAddresses(iParams, p, &metadata)
-		if err != nil {
+		if err := r.updateUnnumberedPeerAddresses(p, &metadata); err != nil {
 			return err
 		}
 	} else {
@@ -205,8 +190,7 @@ func (r *LinkLocalReconciler) Reconcile(ctx context.Context, p ossreconcilerv2.R
 	if !metadata.raEnabledInterfaces.Equal(unnumberedInterfaces) {
 		// change in unnumbered interfaces, reconfigure RA
 		metadata.raEnabledInterfaces = unnumberedInterfaces
-		err = r.reconcileRAInterfaces(ctx, p.BGPInstance, &metadata)
-		if err != nil {
+		if err := r.reconcileRAInterfaces(ctx, p.BGPInstance, &metadata); err != nil {
 			return err
 		}
 	}
@@ -215,11 +199,11 @@ func (r *LinkLocalReconciler) Reconcile(ctx context.Context, p ossreconcilerv2.R
 	return nil
 }
 
-func (r *LinkLocalReconciler) getMetadata(i *instance.BGPInstance) LinkLocalReconcilerMetadata {
+func (r *LinkLocalReconciler) getMetadata(i *instance.EnterpriseBGPInstance) LinkLocalReconcilerMetadata {
 	return r.metadata[i.Name]
 }
 
-func (r *LinkLocalReconciler) setMetadata(i *instance.BGPInstance, m LinkLocalReconcilerMetadata) {
+func (r *LinkLocalReconciler) setMetadata(i *instance.EnterpriseBGPInstance, m LinkLocalReconcilerMetadata) {
 	r.metadata[i.Name] = m
 }
 
@@ -235,7 +219,7 @@ func (r *LinkLocalReconciler) getUnnumberedInterfaces(nodeInstance *v1.Isovalent
 
 // updateUnnumberedPeerAddresses sets the peer address in BGPNodeInstance's DesiredConfig for unnumbered peers.
 // PeerAddress is then referenced from various other reconcilers.
-func (r *LinkLocalReconciler) updateUnnumberedPeerAddresses(iParams EnterpriseReconcileParams, oParams ossreconcilerv2.ReconcileParams, metadata *LinkLocalReconcilerMetadata) error {
+func (r *LinkLocalReconciler) updateUnnumberedPeerAddresses(iParams EnterpriseReconcileParams, metadata *LinkLocalReconcilerMetadata) error {
 	l := r.logger.With(osstypes.InstanceLogField, iParams.DesiredConfig.Name)
 	txn := r.db.ReadTxn()
 
@@ -278,14 +262,6 @@ func (r *LinkLocalReconciler) updateUnnumberedPeerAddresses(iParams EnterpriseRe
 
 			// update the peer address in CEE desired config
 			iParams.DesiredConfig.Peers[i].PeerAddress = &peerAddress
-
-			// find the peer in the OSS desired config and update the peer address
-			for j, p := range oParams.DesiredConfig.Peers {
-				if p.Name == peer.Name {
-					oParams.DesiredConfig.Peers[j].PeerAddress = &peerAddress
-					break
-				}
-			}
 		}
 	}
 
@@ -293,7 +269,7 @@ func (r *LinkLocalReconciler) updateUnnumberedPeerAddresses(iParams EnterpriseRe
 }
 
 // reconcileRAInterfaces reconciles the RA Daemon config with the desired set of unnumbered interfaces across all BGP instances.
-func (r *LinkLocalReconciler) reconcileRAInterfaces(ctx context.Context, i *instance.BGPInstance, metadata *LinkLocalReconcilerMetadata) error {
+func (r *LinkLocalReconciler) reconcileRAInterfaces(ctx context.Context, i *instance.EnterpriseBGPInstance, metadata *LinkLocalReconcilerMetadata) error {
 	desiredRAInterfaces := sets.Set[string]{}
 	for instanceName, instanceMeta := range r.metadata {
 		if instanceName == i.Name {

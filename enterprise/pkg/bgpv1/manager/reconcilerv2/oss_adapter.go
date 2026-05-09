@@ -17,6 +17,8 @@ import (
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/manager/instance"
 	ossInstance "github.com/cilium/cilium/pkg/bgp/manager/instance"
 	ossReconciler "github.com/cilium/cilium/pkg/bgp/manager/reconciler"
+	v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
+	v1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
 )
 
 // ossConfigReconcilerAdapter takes enterprise config reconciler and
@@ -84,5 +86,36 @@ func (a ossConfigReconcilerAdapter) Reconcile(ctx context.Context, params ossRec
 	if ep.CiliumNode == nil {
 		return errors.Join(errors.New("BUG: reconciler called with nil CiliumNode"), ErrAbortReconcile)
 	}
-	return a.reconciler.Reconcile(ctx, ep)
+
+	if err := a.reconciler.Reconcile(ctx, ep); err != nil {
+		return err
+	}
+
+	if a.reconciler.Name() == LinkLocalReconcilerName {
+		// When OSS and CEE BGP control planes are both enabled, later OSS
+		// reconcilers still consume the OSS desired config. LinkLocal resolves
+		// unnumbered peer addresses in the Enterprise config, so copy those
+		// resolved addresses back for the remaining OSS reconciler pass.
+		copyAutoDiscoveredPeerAddressesToOSS(params.DesiredConfig, ep.DesiredConfig)
+	}
+
+	return nil
+}
+
+func copyAutoDiscoveredPeerAddressesToOSS(ossConfig *v2.CiliumBGPNodeInstance, enterpriseConfig *v1.IsovalentBGPNodeInstance) {
+	if ossConfig == nil || enterpriseConfig == nil {
+		return
+	}
+
+	for _, enterprisePeer := range enterpriseConfig.Peers {
+		if enterprisePeer.AutoDiscovery == nil {
+			continue
+		}
+		for i := range ossConfig.Peers {
+			if ossConfig.Peers[i].Name == enterprisePeer.Name {
+				ossConfig.Peers[i].PeerAddress = enterprisePeer.PeerAddress
+				break
+			}
+		}
+	}
 }
