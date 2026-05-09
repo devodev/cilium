@@ -53,7 +53,6 @@ type EnterpriseReconcileParams struct {
 // reconcilerv2.StateReconcileParams. It must be created with
 // reconcileParamsUpgrader.upgradeState.
 type EnterpriseStateReconcileParams struct {
-	DesiredConfig   *v1.IsovalentBGPNodeInstance
 	UpdatedInstance *EnterpriseBGPInstance
 	DeletedInstance string
 }
@@ -183,7 +182,6 @@ func (u *reconcileParamsUpgrader) upgradeState(params reconciler.StateReconcileP
 	// If the instance is being deleted, we don't need to find the instance in the config.
 	if params.DeletedInstance != "" {
 		return EnterpriseStateReconcileParams{
-			DesiredConfig:   nil,
 			UpdatedInstance: nil,
 			DeletedInstance: params.DeletedInstance,
 		}, nil
@@ -204,15 +202,11 @@ func (u *reconcileParamsUpgrader) upgradeState(params reconciler.StateReconcileP
 
 	for i, inst := range nc.Spec.BGPInstances {
 		if inst.Name == params.UpdatedInstance.Config.Name {
+			config := nc.Spec.BGPInstances[i].DeepCopy()
 			return EnterpriseStateReconcileParams{
-				DesiredConfig: &nc.Spec.BGPInstances[i],
 				UpdatedInstance: &EnterpriseBGPInstance{
-					Name: params.UpdatedInstance.Name,
-					// So far, we don't need to keep the previous
-					// config. Once we have a use case for it, we
-					// can consider storing it in the metadata and
-					// copying it here.
-					Config: nil,
+					Name:   params.UpdatedInstance.Name,
+					Config: config,
 					Router: upgradeRouter(params.UpdatedInstance.Router),
 				},
 			}, nil

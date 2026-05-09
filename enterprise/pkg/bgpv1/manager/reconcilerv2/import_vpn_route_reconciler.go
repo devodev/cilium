@@ -159,14 +159,16 @@ func (r *importVPNRouteReconciler) Reconcile(ctx context.Context, _p reconciler.
 		return fmt.Errorf("failed to get BGP routes: %w", err)
 	}
 
-	owner := ribOwnerName(p.DesiredConfig.Name)
+	config := p.UpdatedInstance.Config
+
+	owner := ribOwnerName(config.Name)
 
 	// Obtain the desired routes from BGP RIB
 	desiredRoutes, err := r.desiredRoutes(
 		owner,
-		uint32(*p.DesiredConfig.LocalASN),
+		uint32(*config.LocalASN),
 		res.Routes,
-		p.DesiredConfig.VRFs,
+		config.VRFs,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to get desired routes: %w", err)

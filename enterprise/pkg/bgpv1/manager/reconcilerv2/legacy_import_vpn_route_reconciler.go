@@ -104,14 +104,16 @@ func (r *legacyImportVPNRouteReconciler) Reconcile(ctx context.Context, p reconc
 		return nil
 	}
 
-	if iParams.DesiredConfig.SRv6Responder == nil || !*iParams.DesiredConfig.SRv6Responder {
+	config := iParams.UpdatedInstance.Config
+
+	if config.SRv6Responder == nil || !*config.SRv6Responder {
 		// If node is not SRv6 responder, we don't need to reconcile imported VPN routes
 		r.Logger.Debug("Node is not SRv6 responder, skipping imported VPN route reconciliation")
 		return nil
 	}
 
 	var (
-		l        = r.Logger.With(types.InstanceLogField, iParams.DesiredConfig.Name)
+		l        = r.Logger.With(types.InstanceLogField, config.Name)
 		toCreate []*srv6.EgressPolicy
 		toRemove []*srv6.EgressPolicy
 	)
@@ -119,7 +121,7 @@ func (r *legacyImportVPNRouteReconciler) Reconcile(ctx context.Context, p reconc
 	curPolicies := r.SRv6Manager.GetEgressPolicies()
 	r.Logger.Debug("Discovered current egress policies", logfields.Count, len(curPolicies))
 
-	newPolicies, err := r.mapSRv6PathsToEgressPolicy(ctx, l, iParams.UpdatedInstance.Router, iParams.DesiredConfig.VRFs)
+	newPolicies, err := r.mapSRv6PathsToEgressPolicy(ctx, l, iParams.UpdatedInstance.Router, config.VRFs)
 	if err != nil {
 		return fmt.Errorf("failed to map VRFs into SRv6 egress policies: %w", err)
 	}

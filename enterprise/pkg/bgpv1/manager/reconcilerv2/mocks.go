@@ -103,9 +103,9 @@ func (u *upgraderMock) upgrade(params reconciler.ReconcileParams) (EnterpriseRec
 
 func (u *upgraderMock) upgradeState(params reconciler.StateReconcileParams) (EnterpriseStateReconcileParams, error) {
 	return EnterpriseStateReconcileParams{
-		DesiredConfig: u.bgpNodeInstance, // put provided isovalentBGPNodeInstance into the desired config
 		UpdatedInstance: &EnterpriseBGPInstance{
 			Name:   params.UpdatedInstance.Name,
+			Config: u.bgpNodeInstance, // put provided isovalentBGPNodeInstance into the config
 			Router: upgradeRouter(params.UpdatedInstance.Router),
 		},
 	}, nil
