@@ -473,8 +473,10 @@
 /cilium-cli/enterprise/hooks/connectivity/tests/mixedrouting.go @isovalent/clustermesh
 /cilium-cli/enterprise/hooks/connectivity/tests/multicast.go @isovalent/traffic-engineering
 /cilium-cli/enterprise/hooks/connectivity/tests/phantom.go @isovalent/clustermesh
+/cilium-cli/enterprise/hooks/connectivity_egw_ha.go @isovalent/egress-gateway
 /cilium-cli/enterprise/hooks/connectivity_ingress.go @isovalent/service-mesh
 /cilium-cli/enterprise/hooks/k8s/vm_exec.go @isovalent/private-networking
+/cilium-cli/enterprise/hooks/manifests/egw-ha/ @isovalent/egress-gateway
 /cilium-cli/enterprise/hooks/manifests/ingress-policy/ @isovalent/service-mesh
 /cilium-cli/enterprise/hooks/manifests/network-policy @isovalent/policy-identity-networking
 /cilium-cli/enterprise/hooks/sysdump/timescape*.go @isovalent/timescape
