@@ -43,6 +43,10 @@ func main() {
 			logger := logging.DefaultSlogLogger.With(logfields.LogSubsys, binaryName)
 
 			option.Config.SetupLogging(Hive.Viper(), "external-dns-proxy")
+			// dnsproxy does not manage identity allocation; set the
+			// mode explicitly to suppress the spurious warning from
+			// option.Config.Populate() when kvstore is empty.
+			Hive.Viper().Set(option.IdentityAllocationMode, option.IdentityAllocationModeCRD)
 			option.Config.Populate(logger, Hive.Viper())
 			option.LogRegisteredSlogOptions(Hive.Viper(), logger)
 
