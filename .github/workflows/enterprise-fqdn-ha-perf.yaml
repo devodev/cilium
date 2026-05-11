@@ -54,7 +54,7 @@ concurrency:
 
 env:
   # renovate: datasource=golang-version depName=go
-  go_version: 1.26.2
+  go_version: 1.26.3
   test_name: perf-fqdn-ha
   cluster_name: ${{ github.run_id }}-${{ github.run_attempt }}
 

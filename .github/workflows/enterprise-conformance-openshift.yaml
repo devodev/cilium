@@ -167,7 +167,7 @@ jobs:
         with:
           cache: false
           # renovate: datasource=golang-version depName=go
-          go-version: 1.26.2
+          go-version: 1.26.3
 
       - name: Build and Push CLife image
         if: ${{ steps.wait_images.outputs.rebuild_clife  == 'true' }}
@@ -316,7 +316,7 @@ jobs:
         with:
           cache: false
           # renovate: datasource=golang-version depName=go
-          go-version: 1.26.2
+          go-version: 1.26.3
 
       - name: Generate installation manifests
         working-directory: ./enterprise/olm
@@ -338,7 +338,7 @@ jobs:
           touch /home/runner/.kube/config
 
       - name: Set up AWS CLI credentials
-        uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37 # v6.1.0
+        uses: aws-actions/configure-aws-credentials@d979d5b3a71173a29b74b5b88418bfda9437d885 # v6.1.1
         with:
           role-to-assume: ${{ secrets.AWS_PR_ASSUME_ROLE }}
           aws-region: ${{ steps.vars.outputs.region }}
@@ -580,7 +580,7 @@ jobs:
       - name: Refresh AWS CLI credentials for getting VPC information for the hosted cluster
         if: ${{ !cancelled() && steps.wait-for-co.outcome == 'success' && steps.vars.outputs.hcp == 'true' }}
         id: hcp-creds
-        uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37 # v6.1.0
+        uses: aws-actions/configure-aws-credentials@d979d5b3a71173a29b74b5b88418bfda9437d885 # v6.1.1
         with:
           role-to-assume: ${{ secrets.AWS_PR_ASSUME_ROLE }}
           aws-region: ${{ steps.vars.outputs.region }}
@@ -728,7 +728,7 @@ jobs:
       # refresh credentials
       - name: Set up AWS CLI credentials
         if: always() && steps.provisioning.outcome != 'skipped'
-        uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37 # v6.1.0
+        uses: aws-actions/configure-aws-credentials@d979d5b3a71173a29b74b5b88418bfda9437d885 # v6.1.1
         with:
           role-to-assume: ${{ secrets.AWS_PR_ASSUME_ROLE }}
           aws-region: ${{ steps.vars.outputs.region }}

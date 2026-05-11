@@ -49,7 +49,7 @@ jobs:
         id: version
         env:
           # renovate: datasource=docker depName=mikefarah/yq
-          yq_version: 4.52.4
+          yq_version: 4.53.2
         run: |
           tag=${GITHUB_REF##*/}
           echo release_tag=$tag >> $GITHUB_OUTPUT
@@ -182,7 +182,7 @@ jobs:
 
       - name: Install Cosign
         if: ${{ steps.version.outputs.rebuild == 'true' }}
-        uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4.1.1
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
 
       - name: Sign Container Images
         if: ${{ steps.version.outputs.rebuild == 'true' }}
@@ -346,7 +346,7 @@ jobs:
           echo digest=${digest} >> $GITHUB_OUTPUT
 
       - name: Install Cosign
-        uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4.1.1
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
 
       - name: Sign Container Images
         run: |
@@ -413,7 +413,7 @@ jobs:
         with:
           cache: false
           # renovate: datasource=golang-version depName=go
-          go-version: 1.26.2
+          go-version: 1.26.3
 
       - name: Getting image tag
         id: tag
@@ -478,7 +478,7 @@ jobs:
           # renovate: datasource=docker depName=mikefarah/yq
           yq_version: 4.53.2
           # renovate: datasource=github-releases depName=operator-framework/operator-registry
-          opm_version: 1.65.0
+          opm_version: 1.67.0
           VERSION: "${{ steps.tag.outputs.tag }}"
           CATALOG_TAG: "1.0.0"
           IMAGE_TAG_BASE: "${{ steps.tag.outputs.image_tag_base }}"
@@ -505,7 +505,7 @@ jobs:
           echo catalog=${digest} >> $GITHUB_OUTPUT
 
       - name: Install Cosign
-        uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4.1.1
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
 
       - name: Sign Container Images
         run: |
