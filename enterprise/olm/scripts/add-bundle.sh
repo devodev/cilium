@@ -13,7 +13,7 @@ set -o nounset
 # renovate: datasource=docker depName=mikefarah/yq
 yq_version=4.45.1
 # renovate: datasource=github-releases depName=operator-framework/operator-registry
-opm_version=v1.52.0
+opm_version=v1.67.0
 
 root_dir="$(git rev-parse --show-toplevel)"
 olm_dir="${root_dir}/enterprise/olm"
