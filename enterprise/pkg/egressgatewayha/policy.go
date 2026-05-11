@@ -239,7 +239,7 @@ func ParseIEGP(logger *slog.Logger, iegp *v1.IsovalentEgressGatewayPolicy) (*Pol
 
 	for _, egressRule := range iegp.Spec.Selectors {
 		if egressRule.NamespaceSelector != nil {
-			prefixedNsSelector := egressRule.NamespaceSelector
+			prefixedNsSelector := egressRule.NamespaceSelector.DeepCopy()
 			matchLabels := map[string]string{}
 			// We use our own special label prefix for namespace metadata,
 			// thus we need to prefix that prefix to all NamespaceSelector.MatchLabels

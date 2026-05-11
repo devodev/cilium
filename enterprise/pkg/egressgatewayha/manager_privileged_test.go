@@ -724,6 +724,34 @@ func TestEgressGatewayIEGPParser(t *testing.T) {
 	_, err = ParseIEGP(logger, iegp)
 	require.Error(t, err)
 
+	// PodSelector is not mutated by the IEGP parser
+	policy = policyParams{
+		name:             "policy-1",
+		uid:              policy1UID,
+		endpointLabels:   ep1Labels,
+		destinationCIDRs: []string{destCIDR},
+		egressGroups:     []egressGroupParams{{iface: testInterface1}},
+	}
+
+	iegp, _ = newIEGP(&policy)
+	_, err = ParseIEGP(logger, iegp)
+	require.NoError(t, err)
+	require.Equal(t, ep1Labels, iegp.Spec.Selectors[0].PodSelector.MatchLabels)
+
+	// NamespaceSelector is not mutated by the IEGP parser
+	policy = policyParams{
+		name:             "policy-1",
+		uid:              policy1UID,
+		namespaceLabels:  ns1Labels,
+		destinationCIDRs: []string{destCIDR},
+		egressGroups:     []egressGroupParams{{iface: testInterface1}},
+	}
+
+	iegp, _ = newIEGP(&policy)
+	_, err = ParseIEGP(logger, iegp)
+	require.NoError(t, err)
+	require.Equal(t, ns1Labels, iegp.Spec.Selectors[0].NamespaceSelector.MatchLabels)
+
 	// can't specify both egress iface and IP
 	policy = policyParams{
 		name:             "policy-1",

@@ -106,6 +106,8 @@ var (
 	ep1Labels = map[string]string{"test-key": "test-value-1"}
 	ep2Labels = map[string]string{"test-key": "test-value-2"}
 
+	ns1Labels = map[string]string{"test-key": "ns-test-value-1"}
+
 	identityAllocator = testidentity.NewMockIdentityAllocator(nil)
 
 	noNodeGroup      = map[string]string{}
@@ -304,6 +306,7 @@ type policyParams struct {
 	labels             map[string]string
 	annotations        map[string]string
 	endpointLabels     map[string]string
+	namespaceLabels    map[string]string
 	destinationCIDRs   []string
 	excludedCIDRs      []string
 	egressCIDRs        []string
@@ -440,13 +443,6 @@ func newIEGP(params *policyParams) (*Policy, *PolicyConfig) {
 			Annotations:       params.annotations,
 		},
 		Spec: v1.IsovalentEgressGatewayPolicySpec{
-			Selectors: []v1.EgressRule{
-				{
-					PodSelector: &slimv1.LabelSelector{
-						MatchLabels: params.endpointLabels,
-					},
-				},
-			},
 			DestinationCIDRs: destinationCIDRs,
 			ExcludedCIDRs:    excludedCIDRs,
 			EgressCIDRs:      egressCIDRs,
@@ -457,6 +453,24 @@ func newIEGP(params *policyParams) (*Policy, *PolicyConfig) {
 			GroupStatuses:      groupStatuses,
 			ObservedGeneration: params.observedGeneration,
 		},
+	}
+
+	if len(params.namespaceLabels) != 0 {
+		iegp.Spec.Selectors = []v1.EgressRule{
+			{
+				NamespaceSelector: &slimv1.LabelSelector{
+					MatchLabels: params.namespaceLabels,
+				},
+			},
+		}
+	} else {
+		iegp.Spec.Selectors = []v1.EgressRule{
+			{
+				PodSelector: &slimv1.LabelSelector{
+					MatchLabels: params.endpointLabels,
+				},
+			},
+		}
 	}
 
 	return iegp, policy
