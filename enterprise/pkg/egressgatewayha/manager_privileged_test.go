@@ -663,9 +663,21 @@ func TestEgressGatewayIEGPParser(t *testing.T) {
 	_, err := ParseIEGP(logger, iegp)
 	require.Error(t, err)
 
+	// must specify UID
+	policy = policyParams{
+		name:             "policy-1",
+		destinationCIDRs: []string{destCIDR},
+		egressGroups:     []egressGroupParams{{iface: testInterface1}},
+	}
+
+	iegp, _ = newIEGP(&policy)
+	_, err = ParseIEGP(logger, iegp)
+	require.Error(t, err)
+
 	// catch nil DestinationCIDR field
 	policy = policyParams{
 		name:         "policy-1",
+		uid:          policy1UID,
 		egressGroups: []egressGroupParams{{iface: testInterface1}},
 	}
 
@@ -673,19 +685,22 @@ func TestEgressGatewayIEGPParser(t *testing.T) {
 	iegp.Spec.DestinationCIDRs = nil
 	_, err = ParseIEGP(logger, iegp)
 	require.Error(t, err)
-	// must specify at least one DestinationCIDR
+
+	// No DestinationCIDR is fine though
 	policy = policyParams{
 		name:         "policy-1",
+		uid:          policy1UID,
 		egressGroups: []egressGroupParams{{iface: testInterface1}},
 	}
 
 	iegp, _ = newIEGP(&policy)
 	_, err = ParseIEGP(logger, iegp)
-	require.Error(t, err)
+	require.NoError(t, err)
 
 	// catch nil EgressGateway field
 	policy = policyParams{
 		name:             "policy-1",
+		uid:              policy1UID,
 		destinationCIDRs: []string{destCIDR},
 		egressGroups:     []egressGroupParams{{iface: testInterface1}},
 	}
@@ -698,6 +713,7 @@ func TestEgressGatewayIEGPParser(t *testing.T) {
 	// must specify some sort of endpoint selector
 	policy = policyParams{
 		name:             "policy-1",
+		uid:              policy1UID,
 		destinationCIDRs: []string{destCIDR},
 		egressGroups:     []egressGroupParams{{iface: testInterface1}},
 	}
@@ -711,6 +727,7 @@ func TestEgressGatewayIEGPParser(t *testing.T) {
 	// can't specify both egress iface and IP
 	policy = policyParams{
 		name:             "policy-1",
+		uid:              policy1UID,
 		destinationCIDRs: []string{destCIDR},
 		egressGroups:     []egressGroupParams{{iface: testInterface1, egressIP: egressIP1}},
 	}
