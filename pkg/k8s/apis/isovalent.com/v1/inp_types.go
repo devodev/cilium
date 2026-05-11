@@ -330,36 +330,6 @@ func (r *IsovalentNetworkPolicyRule) Sanitize(isICNP bool) error {
 		}
 	}
 
-	for _, ingress := range r.Ingress {
-		if len(ingress.FromGroups) != 0 {
-			return errors.New("ingress.fromGroups is not supported in IsovalentNetworkPolicy")
-		}
-	}
-	for _, ingress := range r.IngressDeny {
-		if len(ingress.FromGroups) != 0 {
-			return errors.New("ingressDeny.fromGroups is not supported in IsovalentNetworkPolicy")
-		}
-	}
-	for _, ingress := range r.IngressPass {
-		if len(ingress.FromGroups) != 0 {
-			return errors.New("ingressPass.fromGroups is not supported in IsovalentNetworkPolicy")
-		}
-	}
-	for _, egress := range r.Egress {
-		if len(egress.ToGroups) != 0 {
-			return errors.New("egress.toGroups is not supported in IsovalentNetworkPolicy")
-		}
-	}
-	for _, egress := range r.EgressDeny {
-		if len(egress.ToGroups) != 0 {
-			return errors.New("egressDeny.toGroups is not supported in IsovalentNetworkPolicy")
-		}
-	}
-	for _, egress := range r.EgressPass {
-		if len(egress.ToGroups) != 0 {
-			return errors.New("egressPass.toGroups is not supported in IsovalentNetworkPolicy")
-		}
-	}
 	return nil
 }
 
