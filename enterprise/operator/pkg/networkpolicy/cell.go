@@ -30,6 +30,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
+	enterpriseSecretSync "github.com/cilium/cilium/enterprise/operator/pkg/networkpolicy/secretsync"
 	"github.com/cilium/cilium/operator/pkg/networkpolicy"
 	"github.com/cilium/cilium/pkg/fqdn/re"
 	isovalent_api_v1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
@@ -45,6 +46,7 @@ var Cell = cell.Module(
 	"Validates INPs and ICNPs and reports their validity status",
 
 	cell.Invoke(registerPolicyValidator),
+	enterpriseSecretSync.Cell,
 )
 
 type PolicyParams struct {

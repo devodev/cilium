@@ -84,7 +84,6 @@ var (
 			enterprisegatewayapi.Cell,
 
 			networkpolicy.Cell,
-			networkpolicy.SecretSyncCell,
 
 			clustercfg.Cell,
 			phantom.Cell,

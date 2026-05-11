@@ -14,7 +14,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright Authors of Cilium
 
-package networkpolicy
+package secretsync
 
 import (
 	"context"
@@ -41,9 +41,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-// SecretSyncCell manages the Network Policy related controllers.
-var SecretSyncCell = cell.Module(
-	"isovalent-netpol-secretsync",
+var Cell = cell.Module(
+	"isovalent-secretsync-watcher",
 	"Watches Isovalent network policy updates for TLS secrets to sync",
 
 	cell.Provide(registerINPSecretSync),
