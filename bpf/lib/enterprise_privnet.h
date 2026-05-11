@@ -903,9 +903,8 @@ privnet_unknown_policy_can_access(struct __ctx_buff *ctx, __u32 local_id, __u32 
 	return verdict;
 }
 
-static __always_inline int
+__noinline __weak int
 privnet_unknown_policy_egress4(struct __ctx_buff *ctx,
-			       struct iphdr *ip4,
 			       __u16 net_id,
 			       __u32 sec_label,
 			       struct trace_ctx *trace)
@@ -919,14 +918,19 @@ privnet_unknown_policy_egress4(struct __ctx_buff *ctx,
 	struct ct_state ct_state = {};
 	void *ct_map, *ct_map_any;
 	int verdict = CTX_ACT_OK;
+	void *data, *data_end;
 	__u16 proxy_port = 0;
 	__s8 *ext_err = NULL;
+	struct iphdr *ip4;
 	__u32 monitor = 0;
 	__u8 audited = 0;
 	__u32 cookie = 0;
 	int l4_off;
 	int ct_ret;
 	int ret;
+
+	if (!revalidate_data(ctx, &data, &data_end, &ip4))
+		return DROP_INVALID;
 
 	fraginfo = ipfrag_encode_ipv4(ip4);
 	l4_off = ETH_HLEN + ipv4_hdrlen(ip4);
@@ -1036,7 +1040,7 @@ static __always_inline int privnet_egress_ipv4(struct __ctx_buff *ctx,
 		 */
 		if (is_privnet_route_entry(dip_val) && sec_label) {
 			/* enforce egress policy for unknown flow */
-			ret = privnet_unknown_policy_egress4(ctx, ip4, net_id, sec_label, trace);
+			ret = privnet_unknown_policy_egress4(ctx, net_id, sec_label, trace);
 			if (ret != CTX_ACT_OK)
 				return ret;
 
@@ -1125,9 +1129,8 @@ static __always_inline int privnet_egress_ipv4(struct __ctx_buff *ctx,
 	return enforce_privnet_egress_segmentation(sip_val, dip_val, host_traffic);
 }
 
-static __always_inline int
+__noinline __weak int
 privnet_unknown_policy_egress6(struct __ctx_buff *ctx,
-			       struct ipv6hdr *ip6,
 			       __u16 net_id,
 			       __u32 sec_label,
 			       struct trace_ctx *trace)
@@ -1141,8 +1144,10 @@ privnet_unknown_policy_egress6(struct __ctx_buff *ctx,
 	struct ct_state ct_state = {};
 	void *ct_map, *ct_map_any;
 	int verdict = CTX_ACT_OK;
+	void *data, *data_end;
 	__u16 proxy_port = 0;
 	__s8 *ext_err = NULL;
+	struct ipv6hdr *ip6;
 	__u32 monitor = 0;
 	__u8 audited = 0;
 	__u32 cookie = 0;
@@ -1150,6 +1155,9 @@ privnet_unknown_policy_egress6(struct __ctx_buff *ctx,
 	int l4_off;
 	int ct_ret;
 	int ret;
+
+	if (!revalidate_data(ctx, &data, &data_end, &ip6))
+		return DROP_INVALID;
 
 	tuple.nexthdr = ip6->nexthdr;
 	hdrlen = ipv6_hdrlen_with_fraginfo(ctx, &tuple.nexthdr, &fraginfo);
@@ -1288,8 +1296,8 @@ static __always_inline int privnet_egress_ipv6(struct __ctx_buff *ctx,
 
 		if (is_privnet_route_entry(dip_val) && sec_label) {
 			/* enforce egress policy for unknown flow */
-			ret = privnet_unknown_policy_egress6(ctx, ip6, net_id,
-							     sec_label, trace);
+			ret = privnet_unknown_policy_egress6(ctx, net_id, sec_label,
+							     trace);
 			if (ret != CTX_ACT_OK)
 				return ret;
 
