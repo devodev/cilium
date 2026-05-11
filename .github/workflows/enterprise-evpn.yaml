@@ -228,10 +228,12 @@ jobs:
             --test='allow-all-except-world/' \
             --test='client-ingress/' \
             --test='client-egress/' \
-            --test='check-log-errors' --log-check-levels=error \
+            --test='check-log-errors' \
             --junit-file "cilium-junits/${{ env.job_name }} - cluster (${{ join(matrix.*, ', ') }}).xml" \
-            --junit-property github_job_step="Run tests - cluster (${{ join(matrix.*, ', ') }})"
-          # TODO: Also check warning-level logs once the "Netlink error received, restarting" warning is gone or whitelisted
+            --junit-property github_job_step="Run tests - cluster (${{ join(matrix.*, ', ') }})" \
+            --log-check-extra-exceptions="Netlink error received, restarting"
+            # Note: "Netlink error received, restarting" log warning is expected here due to
+            # multiple netlink subscriptions caused by using go-ra for BGP unnumbered.
 
       - name: Fetch logs
         if: ${{ !success() }}
