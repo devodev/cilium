@@ -27,5 +27,6 @@ var Cell = cell.Module(
 	"Validates INPs and ICNPs and reports their validity status",
 
 	cell.Invoke(registerPolicyValidator),
+	cell.Invoke(registerPolicyToGroupController),
 	enterpriseSecretSync.Cell,
 )
