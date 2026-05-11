@@ -21,7 +21,7 @@ channel=$(echo "$version" | cut -d \. -f -2)
 channel=${channel#v}
 
 # renovate: datasource=docker depName=mikefarah/yq
-yq_version=4.46.1
+yq_version=4.53.2
 
 mkdir -p ${olm_dir}/.docs
 cp ${olm_dir}/config/samples/cilium.io_v1alpha1_ciliumconfig.yaml ${olm_dir}/dist/manifests/ciliumconfig.yaml

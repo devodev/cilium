@@ -14,7 +14,7 @@ set -o pipefail
 set -o nounset
 
 # renovate: datasource=docker depName=mikefarah/yq
-yq_version=4.45.1  
+yq_version=4.53.2  
 
 root_dir=$(git rev-parse --show-toplevel)
 values_file="${root_dir}/enterprise/olm/manifests/values.yaml"
