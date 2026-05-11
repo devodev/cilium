@@ -24,7 +24,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrlRuntime "sigs.k8s.io/controller-runtime"
 
-	"github.com/cilium/cilium/enterprise/operator/pkg/networkpolicy/helpers"
 	operatorOption "github.com/cilium/cilium/operator/option"
 	netPolSecretSync "github.com/cilium/cilium/operator/pkg/networkpolicy/secretsync"
 	"github.com/cilium/cilium/operator/pkg/secretsync"
@@ -135,12 +134,12 @@ func EnqueueTLSSecrets(c client.Client, logger *slog.Logger) handler.EventHandle
 		var reqs []reconcile.Request
 		for _, rule := range specs {
 			for _, egress := range rule.Egress {
-				reqs = append(reqs, helpers.GetReferencedTLSSecretsFromPortRules(egress.ToPorts, scopedLog)...)
-				reqs = append(reqs, helpers.GetReferencedSecretsFromHeaderRules(egress.ToPorts, scopedLog)...)
+				reqs = append(reqs, netPolSecretSync.GetReferencedTLSSecretsFromPortRules(egress.ToPorts, scopedLog)...)
+				reqs = append(reqs, netPolSecretSync.GetReferencedSecretsFromHeaderRules(egress.ToPorts, scopedLog)...)
 			}
 			for _, ingress := range rule.Ingress {
-				reqs = append(reqs, helpers.GetReferencedTLSSecretsFromPortRules(ingress.ToPorts, scopedLog)...)
-				reqs = append(reqs, helpers.GetReferencedSecretsFromHeaderRules(ingress.ToPorts, scopedLog)...)
+				reqs = append(reqs, netPolSecretSync.GetReferencedTLSSecretsFromPortRules(ingress.ToPorts, scopedLog)...)
+				reqs = append(reqs, netPolSecretSync.GetReferencedSecretsFromHeaderRules(ingress.ToPorts, scopedLog)...)
 			}
 		}
 		return reqs
@@ -177,12 +176,12 @@ func IsReferencedByIsovalentNetworkPolicy(ctx context.Context, c client.Client, 
 
 		for _, rule := range rules {
 			for _, egress := range rule.Egress {
-				if helpers.IsSecretReferencedByPortRule(egress.ToPorts, scopedLog, secretName) {
+				if netPolSecretSync.IsSecretReferencedByPortRule(egress.ToPorts, scopedLog, secretName) {
 					return true
 				}
 			}
 			for _, ingress := range rule.Ingress {
-				if helpers.IsSecretReferencedByPortRule(ingress.ToPorts, scopedLog, secretName) {
+				if netPolSecretSync.IsSecretReferencedByPortRule(ingress.ToPorts, scopedLog, secretName) {
 					return true
 				}
 			}
@@ -221,12 +220,12 @@ func IsReferencedByIsovalentClusterwideNetworkPolicy(ctx context.Context, c clie
 
 		for _, rule := range rules {
 			for _, egress := range rule.Egress {
-				if helpers.IsSecretReferencedByPortRule(egress.ToPorts, scopedLog, secretName) {
+				if netPolSecretSync.IsSecretReferencedByPortRule(egress.ToPorts, scopedLog, secretName) {
 					return true
 				}
 			}
 			for _, ingress := range rule.Ingress {
-				if helpers.IsSecretReferencedByPortRule(ingress.ToPorts, scopedLog, secretName) {
+				if netPolSecretSync.IsSecretReferencedByPortRule(ingress.ToPorts, scopedLog, secretName) {
 					return true
 				}
 			}
