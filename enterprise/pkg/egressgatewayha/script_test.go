@@ -45,6 +45,7 @@ import (
 	"github.com/cilium/cilium/pkg/hive"
 	"github.com/cilium/cilium/pkg/identity/cache"
 	k8sFake "github.com/cilium/cilium/pkg/k8s/client/testutils"
+	k8sTables "github.com/cilium/cilium/pkg/k8s/tables"
 	"github.com/cilium/cilium/pkg/kpr"
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/loadbalancer"
@@ -132,7 +133,7 @@ func TestPrivilegedAgentScripts(t *testing.T) {
 			h := hive.New(
 				k8sFake.FakeClientCell(),
 				daemonk8s.ResourcesCell,
-				daemonk8s.NamespaceTableCell,
+				k8sTables.NamespaceTableCell,
 				agent.Cell,
 
 				Cell,

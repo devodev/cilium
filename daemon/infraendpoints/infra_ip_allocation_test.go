@@ -6,6 +6,7 @@ package infraendpoints
 import (
 	"fmt"
 	"net"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"testing"
@@ -29,60 +30,72 @@ func TestCoalesceCIDRs(t *testing.T) {
 		logger: hivetest.Logger(t),
 	}
 
-	CIDR := []string{"10.0.0.0/8"}
-	expectedCIDR := []string{"10.0.0.0/8"}
-	newCIDR, err := infraIPAllocator.coalesceCIDRs(CIDR)
-	if err != nil || len(newCIDR) != len(expectedCIDR) || newCIDR[0] != expectedCIDR[0] {
-		t.Errorf("got %v, want %v, err: %v\n", newCIDR, expectedCIDR, err)
+	cases := []struct {
+		in   []netip.Prefix
+		want []netip.Prefix
+	}{
+		{
+			in:   []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8")},
+			want: []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8")},
+		},
+		{
+			in:   []netip.Prefix{netip.MustParsePrefix("10.105.0.0/16"), netip.MustParsePrefix("10.0.0.0/8")},
+			want: []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8")},
+		},
+		{
+			in: []netip.Prefix{
+				netip.MustParsePrefix("10.105.0.0/16"),
+				netip.MustParsePrefix("10.104.0.0/19"),
+				netip.MustParsePrefix("10.0.0.0/8"),
+			},
+			want: []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8")},
+		},
+		{
+			in:   []netip.Prefix{netip.MustParsePrefix("10.105.0.0/16"), netip.MustParsePrefix("192.168.1.0/24")},
+			want: []netip.Prefix{netip.MustParsePrefix("10.105.0.0/16"), netip.MustParsePrefix("192.168.1.0/24")},
+		},
+		{
+			in: []netip.Prefix{
+				netip.MustParsePrefix("10.105.0.0/16"),
+				netip.MustParsePrefix("192.168.1.0/24"),
+				netip.MustParsePrefix("10.0.0.0/8"),
+			},
+			want: []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8"), netip.MustParsePrefix("192.168.1.0/24")},
+		},
+		{
+			in: []netip.Prefix{
+				netip.MustParsePrefix("10.105.0.0/16"),
+				netip.MustParsePrefix("192.168.1.0/24"),
+				netip.MustParsePrefix("10.0.0.0/8"),
+				netip.MustParsePrefix("f00d::a0f:0:0:0/96"),
+			},
+			want: []netip.Prefix{
+				netip.MustParsePrefix("10.0.0.0/8"),
+				netip.MustParsePrefix("192.168.1.0/24"),
+				netip.MustParsePrefix("f00d::a0f:0:0:0/96"),
+			},
+		},
+		{
+			in: []netip.Prefix{
+				netip.MustParsePrefix("f00d::a0f:0:0:0/96"),
+				netip.MustParsePrefix("10.105.0.0/16"),
+				netip.MustParsePrefix("192.168.1.0/24"),
+				netip.MustParsePrefix("10.0.0.0/8"),
+			},
+			want: []netip.Prefix{
+				netip.MustParsePrefix("10.0.0.0/8"),
+				netip.MustParsePrefix("192.168.1.0/24"),
+				netip.MustParsePrefix("f00d::a0f:0:0:0/96"),
+			},
+		},
+		{
+			in:   []netip.Prefix{netip.MustParsePrefix("f00d::a0f:0:0:0/96")},
+			want: []netip.Prefix{netip.MustParsePrefix("f00d::a0f:0:0:0/96")},
+		},
 	}
 
-	CIDR = []string{"10.105.0.0/16", "10.0.0.0/8"}
-	expectedCIDR = []string{"10.0.0.0/8"}
-	newCIDR, err = infraIPAllocator.coalesceCIDRs(CIDR)
-	if err != nil || len(newCIDR) != len(expectedCIDR) || newCIDR[0] != expectedCIDR[0] {
-		t.Errorf("got %v, want %v, err: %v\n", newCIDR, expectedCIDR, err)
-	}
-
-	CIDR = []string{"10.105.0.0/16", "10.104.0.0/19", "10.0.0.0/8"}
-	expectedCIDR = []string{"10.0.0.0/8"}
-	newCIDR, err = infraIPAllocator.coalesceCIDRs(CIDR)
-	if err != nil || len(newCIDR) != len(expectedCIDR) || newCIDR[0] != expectedCIDR[0] {
-		t.Errorf("got %v, want %v, err: %v\n", newCIDR, expectedCIDR, err)
-	}
-
-	CIDR = []string{"10.105.0.0/16", "192.168.1.0/24"}
-	expectedCIDR = []string{"10.105.0.0/16", "192.168.1.0/24"}
-	newCIDR, err = infraIPAllocator.coalesceCIDRs(CIDR)
-	if err != nil || len(newCIDR) != len(expectedCIDR) || newCIDR[0] != expectedCIDR[0] || newCIDR[1] != expectedCIDR[1] {
-		t.Errorf("got %v, want %v, err: %v\n", newCIDR, expectedCIDR, err)
-	}
-
-	CIDR = []string{"10.105.0.0/16", "192.168.1.0/24", "10.0.0.0/8"}
-	expectedCIDR = []string{"10.0.0.0/8", "192.168.1.0/24"}
-	newCIDR, err = infraIPAllocator.coalesceCIDRs(CIDR)
-	if err != nil || len(newCIDR) != len(expectedCIDR) || newCIDR[0] != expectedCIDR[0] || newCIDR[1] != expectedCIDR[1] {
-		t.Errorf("got %v, want %v, err: %v\n", newCIDR, expectedCIDR, err)
-	}
-
-	CIDR = []string{"10.105.0.0/16", "192.168.1.0/24", "10.0.0.0/8", "f00d::a0f:0:0:0/96"}
-	expectedCIDR = []string{"10.0.0.0/8", "192.168.1.0/24", "f00d::a0f:0:0:0/96"}
-	newCIDR, err = infraIPAllocator.coalesceCIDRs(CIDR)
-	if err != nil || len(newCIDR) != len(expectedCIDR) || newCIDR[0] != expectedCIDR[0] || newCIDR[1] != expectedCIDR[1] || newCIDR[2] != expectedCIDR[2] {
-		t.Errorf("got %v, want %v, err: %v\n", newCIDR, expectedCIDR, err)
-	}
-
-	CIDR = []string{"f00d::a0f:0:0:0/96", "10.105.0.0/16", "192.168.1.0/24", "10.0.0.0/8"}
-	expectedCIDR = []string{"10.0.0.0/8", "192.168.1.0/24", "f00d::a0f:0:0:0/96"}
-	newCIDR, err = infraIPAllocator.coalesceCIDRs(CIDR)
-	if err != nil || len(newCIDR) != len(expectedCIDR) || newCIDR[0] != expectedCIDR[0] || newCIDR[1] != expectedCIDR[1] || newCIDR[2] != expectedCIDR[2] {
-		t.Errorf("got %v, want %v, err: %v\n", newCIDR, expectedCIDR, err)
-	}
-
-	CIDR = []string{"f00d::a0f:0:0:0/96"}
-	expectedCIDR = []string{"f00d::a0f:0:0:0/96"}
-	newCIDR, err = infraIPAllocator.coalesceCIDRs(CIDR)
-	if err != nil || len(newCIDR) != len(expectedCIDR) || newCIDR[0] != expectedCIDR[0] {
-		t.Errorf("got %v, want %v, err: %v\n", newCIDR, expectedCIDR, err)
+	for _, tc := range cases {
+		require.Equal(t, tc.want, infraIPAllocator.coalesceCIDRs(tc.in))
 	}
 }
 
@@ -94,7 +107,8 @@ func (m *mockIPAllocator) AllocateIPWithoutSyncUpstream(ip net.IP, owner string,
 	if !m.allocCIDR.Contains(ip) {
 		return nil, fmt.Errorf("cannot allocate IP %s", ip)
 	}
-	return &ipam.AllocationResult{IP: ip}, nil
+	addr, _ := netip.AddrFromSlice(ip)
+	return &ipam.AllocationResult{IP: addr.Unmap()}, nil
 }
 
 func (m *mockIPAllocator) AllocateNextFamilyWithoutSyncUpstream(family ipam.Family, owner string, pool ipam.Pool) (result *ipam.AllocationResult, err error) {
@@ -119,6 +133,8 @@ func TestDaemon_reallocateDatapathIPs(t *testing.T) {
 
 	fromFS := net.ParseIP("10.20.30.42")
 	fromK8s := net.ParseIP("10.20.30.41")
+	fromFSAddr := netip.MustParseAddr("10.20.30.42")
+	fromK8sAddr := netip.MustParseAddr("10.20.30.41")
 
 	invalidFromFS := net.ParseIP("172.16.0.42")
 	invalidFromK8s := net.ParseIP("172.16.0.41")
@@ -130,17 +146,17 @@ func TestDaemon_reallocateDatapathIPs(t *testing.T) {
 	// fromK8s if fromFS is not available
 	result = infraIPAllocator.reallocateOldRouterIPs(fromK8s, nil)
 	assert.NotNil(t, result)
-	assert.Equal(t, result.IP, fromK8s)
+	assert.Equal(t, result.IP, fromK8sAddr)
 
 	// fromFS if fromK8s is not available
 	result = infraIPAllocator.reallocateOldRouterIPs(nil, fromFS)
 	assert.NotNil(t, result)
-	assert.Equal(t, result.IP, fromFS)
+	assert.Equal(t, result.IP, fromFSAddr)
 
 	// fromFS should be preferred
 	result = infraIPAllocator.reallocateOldRouterIPs(fromK8s, fromFS)
 	assert.NotNil(t, result)
-	assert.Equal(t, result.IP, fromFS)
+	assert.Equal(t, result.IP, fromFSAddr)
 
 	// reject restoration if the IP is not in the allocation CIDR
 	result = infraIPAllocator.reallocateOldRouterIPs(invalidFromFS, invalidFromK8s)
@@ -149,12 +165,12 @@ func TestDaemon_reallocateDatapathIPs(t *testing.T) {
 	// fromFS with invalid fromK8s
 	result = infraIPAllocator.reallocateOldRouterIPs(invalidFromK8s, fromFS)
 	assert.NotNil(t, result)
-	assert.Equal(t, result.IP, fromFS)
+	assert.Equal(t, result.IP, fromFSAddr)
 
 	// fromFS with invalid fromK8s
 	result = infraIPAllocator.reallocateOldRouterIPs(fromK8s, invalidFromFS)
 	assert.NotNil(t, result)
-	assert.Equal(t, result.IP, fromK8s)
+	assert.Equal(t, result.IP, fromK8sAddr)
 }
 
 func TestPrivilegedRemoveOldRouterState(t *testing.T) {

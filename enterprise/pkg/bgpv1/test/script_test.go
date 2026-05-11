@@ -65,6 +65,7 @@ import (
 	"github.com/cilium/cilium/pkg/ipam"
 	ipamOption "github.com/cilium/cilium/pkg/ipam/option"
 	k8sfake "github.com/cilium/cilium/pkg/k8s/client/testutils"
+	k8sTables "github.com/cilium/cilium/pkg/k8s/tables"
 	k8sTestutils "github.com/cilium/cilium/pkg/k8s/testutils"
 	k8sVersion "github.com/cilium/cilium/pkg/k8s/version"
 	"github.com/cilium/cilium/pkg/kpr"
@@ -146,7 +147,7 @@ func TestPrivilegedScript(t *testing.T) {
 		h := ciliumhive.New(
 			k8sfake.FakeClientCell(),
 			daemonk8s.ResourcesCell,
-			daemonk8s.TablesCell,
+			k8sTables.TablesCell,
 			cell.Config(envoyCfg.SecretSyncConfig{}),
 			metrics.Cell,
 			lbcell.Cell,

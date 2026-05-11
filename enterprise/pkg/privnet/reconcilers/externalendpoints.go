@@ -32,7 +32,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/cilium/cilium/api/v1/models"
-	daemonK8s "github.com/cilium/cilium/daemon/k8s"
 	"github.com/cilium/cilium/enterprise/pkg/maps/extepspolicy"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/config"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/endpoints"
@@ -48,6 +47,7 @@ import (
 	slim_core_v1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	slim_metav1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
 	k8sSynced "github.com/cilium/cilium/pkg/k8s/synced"
+	k8sTables "github.com/cilium/cilium/pkg/k8s/tables"
 	k8sUtils "github.com/cilium/cilium/pkg/k8s/utils"
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/labelsfilter"
@@ -128,7 +128,7 @@ type externalEndpointK8sReflector struct {
 	db *statedb.DB
 
 	endpoints  statedb.RWTable[*tables.ExternalEndpoint]
-	namespaces statedb.Table[daemonK8s.Namespace]
+	namespaces statedb.Table[k8sTables.Namespace]
 }
 
 // parsePrivateNetworkExternalEndpoint parses a K8s PrivateNetworkExternalEndpoint into tables.ExternalEndpoint
@@ -178,7 +178,7 @@ func (e *externalEndpointK8sReflector) parsePrivateNetworkExternalEndpoint(
 	}
 
 	var namespaceLabels map[string]string
-	ns, _, hasNamespaceLabels := e.namespaces.Get(txn, daemonK8s.NamespaceByName(pnee.Namespace))
+	ns, _, hasNamespaceLabels := e.namespaces.Get(txn, k8sTables.NamespaceByName(pnee.Namespace))
 	if hasNamespaceLabels {
 		namespaceLabels = ns.Labels
 	} else {
@@ -211,7 +211,7 @@ func (e *externalEndpointK8sReflector) parsePrivateNetworkExternalEndpoint(
 
 // handleNamespaceChange updates the labels of every external endpoint in said namespace.
 // [wtx] needs to be a write transaction on e.endpoints.
-func (e *externalEndpointK8sReflector) handleNamespaceChange(wtx statedb.WriteTxn, ns daemonK8s.Namespace) {
+func (e *externalEndpointK8sReflector) handleNamespaceChange(wtx statedb.WriteTxn, ns k8sTables.Namespace) {
 	for ep := range e.endpoints.Prefix(wtx, tables.ExternalEndpointsByNamespace(ns.Name)) {
 		if ep.K8sNamespaceLabels != nil && maps.Equal(ep.K8sNamespaceLabels, ns.Labels) {
 			continue
@@ -232,7 +232,7 @@ func (e *ExternalEndpoints) registerK8sReflector(in struct {
 
 	Client     client.Clientset
 	CRDSync    promise.Promise[k8sSynced.CRDSync]
-	Namespaces statedb.Table[daemonK8s.Namespace]
+	Namespaces statedb.Table[k8sTables.Namespace]
 }) error {
 	if !(e.cfg.EnabledAsBridge() && e.cfg.ExternalEndpoints) {
 		return nil
@@ -502,7 +502,7 @@ func (e *externalEndpointReconcilerOps) createEndpoint(ctx context.Context, obj 
 	// Allocate endpoint IPs with the CEP name as the owner. If endpoint creation fails, we will try to release the IPs
 	// in the defer statement below
 	ipstr := func(result *ipam.AllocationResult) string {
-		if result == nil || result.IP == nil {
+		if result == nil || !result.IP.IsValid() {
 			return ""
 		}
 		return result.IP.String()
@@ -511,12 +511,12 @@ func (e *externalEndpointReconcilerOps) createEndpoint(ctx context.Context, obj 
 	if err != nil {
 		return fmt.Errorf("failed to allocate IPs for external endpoint %q: %w", cepName, err)
 	}
-	hasPIPv4 := pipv4 != nil && pipv4.IP != nil
-	hasPIPv6 := pipv6 != nil && pipv6.IP != nil
+	hasPIPv4 := pipv4 != nil && pipv4.IP.IsValid()
+	hasPIPv6 := pipv6 != nil && pipv6.IP.IsValid()
 	defer func() {
 		if err != nil {
 			if hasPIPv4 {
-				releaseErr := e.ipam.ReleaseIP(pipv4.IP, ipam.PoolDefault())
+				releaseErr := e.ipam.ReleaseIP(pipv4.IP.AsSlice(), ipam.PoolDefault())
 				if releaseErr != nil {
 					e.log.Warn("IPv4 cleanup failed. Leaking IPv4 for external endpoint",
 						logfields.Error, releaseErr,
@@ -526,7 +526,7 @@ func (e *externalEndpointReconcilerOps) createEndpoint(ctx context.Context, obj 
 				}
 			}
 			if hasPIPv6 {
-				releaseErr := e.ipam.ReleaseIP(pipv6.IP, ipam.PoolDefault())
+				releaseErr := e.ipam.ReleaseIP(pipv6.IP.AsSlice(), ipam.PoolDefault())
 				if releaseErr != nil {
 					e.log.Warn("IPv6 cleanup failed. Leaking IPv6 for external endpoint",
 						logfields.Error, releaseErr,

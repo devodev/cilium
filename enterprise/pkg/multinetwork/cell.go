@@ -13,7 +13,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/workqueue"
 
-	"github.com/cilium/cilium/daemon/k8s"
 	"github.com/cilium/cilium/enterprise/api/v1/models"
 	"github.com/cilium/cilium/enterprise/api/v1/server/restapi/network"
 	"github.com/cilium/cilium/enterprise/pkg/api"
@@ -23,6 +22,7 @@ import (
 	iso_v1alpha1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
 	"github.com/cilium/cilium/pkg/k8s/client"
 	"github.com/cilium/cilium/pkg/k8s/resource"
+	"github.com/cilium/cilium/pkg/k8s/tables"
 	"github.com/cilium/cilium/pkg/k8s/utils"
 	"github.com/cilium/cilium/pkg/node"
 	"github.com/cilium/cilium/pkg/option"
@@ -83,7 +83,7 @@ type managerParams struct {
 	DB                 *statedb.DB
 	DaemonConfig       *option.DaemonConfig
 	Sysctl             sysctl.Sysctl
-	Pods               statedb.Table[k8s.LocalPod]
+	Pods               statedb.Table[tables.LocalPod]
 	NetworkResource    resource.Resource[*iso_v1alpha1.IsovalentPodNetwork]
 	CiliumNodeResource resource.Resource[*cilium_api_v2.CiliumNode]
 	LocalNodeStore     *node.LocalNodeStore

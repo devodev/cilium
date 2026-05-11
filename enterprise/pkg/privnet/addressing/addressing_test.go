@@ -25,7 +25,6 @@ import (
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 
-	"github.com/cilium/cilium/daemon/k8s"
 	"github.com/cilium/cilium/enterprise/api/v1/models"
 	"github.com/cilium/cilium/enterprise/api/v1/server/restapi/network"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/config"
@@ -34,15 +33,16 @@ import (
 	iso_v1alpha1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
 	slim_core_v1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	slim_meta_v1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
+	k8sTables "github.com/cilium/cilium/pkg/k8s/tables"
 	"github.com/cilium/cilium/pkg/time"
 )
 
 func TestPrivNetAPI_GetPrivateNetworkAddressing(t *testing.T) {
-	initPrivNetAPI := func(t *testing.T, cfg cfg, pod k8s.LocalPod) *PrivNetAPI {
+	initPrivNetAPI := func(t *testing.T, cfg cfg, pod k8sTables.LocalPod) *PrivNetAPI {
 		t.Helper()
 
 		db := statedb.New()
-		pods, err := k8s.NewPodTable(db)
+		pods, err := k8sTables.NewPodTable(db)
 		if err != nil {
 			t.Fatalf("NewPodTable: %s", err)
 		}
@@ -130,8 +130,8 @@ func TestPrivNetAPI_GetPrivateNetworkAddressing(t *testing.T) {
 		}
 	}
 
-	newPod := func(namespace, name, uid string, annotations map[string]string) k8s.LocalPod {
-		return k8s.LocalPod{Pod: &slim_core_v1.Pod{
+	newPod := func(namespace, name, uid string, annotations map[string]string) k8sTables.LocalPod {
+		return k8sTables.LocalPod{Pod: &slim_core_v1.Pod{
 			ObjectMeta: slim_meta_v1.ObjectMeta{
 				Namespace:   namespace,
 				Name:        name,
@@ -185,7 +185,7 @@ func TestPrivNetAPI_GetPrivateNetworkAddressing(t *testing.T) {
 	tests := []struct {
 		name           string
 		cfg            *cfg
-		pod            k8s.LocalPod
+		pod            k8sTables.LocalPod
 		override       override
 		wantAddressing *models.PrivateNetworkAddressing
 		wantErr        string

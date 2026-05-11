@@ -3570,7 +3570,10 @@
         "gatewayClass": {
           "properties": {
             "create": {
-              "type": "string"
+              "type": [
+                "boolean",
+                "string"
+              ]
             }
           },
           "type": "object"

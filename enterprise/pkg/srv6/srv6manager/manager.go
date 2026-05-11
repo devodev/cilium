@@ -21,7 +21,6 @@ import (
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/hive/job"
 	"github.com/cilium/stream"
-	"go4.org/netipx"
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/cilium/cilium/daemon/cmd/legacy"
@@ -996,18 +995,9 @@ func (m *Manager) allocateSID(pool, metadata string) (*sidmanager.SIDInfo, error
 			return nil, err
 		}
 
-		addr, ok := netipx.FromStdIP(res.IP)
-		if !ok {
-			err := fmt.Errorf("failed to convert IP to Addr")
-			if releaseErr := m.sidAlloc.Release(res.IP); releaseErr != nil {
-				err = errors.Join(err, fmt.Errorf("failed to release SID: %w", releaseErr))
-			}
-			return nil, err
-		}
-
-		sid, err := srv6Types.NewSID(addr)
+		sid, err := srv6Types.NewSID(res.IP)
 		if err != nil {
-			m.sidAlloc.Release(res.IP)
+			m.sidAlloc.Release(res.IP.AsSlice())
 			return nil, fmt.Errorf("failed to create SID: %w", err)
 		}
 

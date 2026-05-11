@@ -37,7 +37,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 
-	daemonk8s "github.com/cilium/cilium/daemon/k8s"
 	"github.com/cilium/cilium/enterprise/operator/pkg/privnet/config"
 	"github.com/cilium/cilium/enterprise/operator/pkg/privnet/tables"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/reconcilers"
@@ -45,6 +44,7 @@ import (
 	"github.com/cilium/cilium/pkg/k8s/client"
 	"github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/labels"
 	"github.com/cilium/cilium/pkg/k8s/synced"
+	k8sTables "github.com/cilium/cilium/pkg/k8s/tables"
 	"github.com/cilium/cilium/pkg/k8s/utils"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/promise"
@@ -112,7 +112,7 @@ type NetworkAttachmentDefinitions struct {
 	nads       statedb.RWTable[tables.NetworkAttachmentDefinition]
 	tbl        statedb.RWTable[tables.DesiredNetworkAttachmentDefinition]
 	networks   statedb.Table[tables.PrivateNetwork]
-	namespaces statedb.Table[daemonk8s.Namespace]
+	namespaces statedb.Table[k8sTables.Namespace]
 
 	crdcl apiextclientv1.CustomResourceDefinitionInterface
 	nadcl func(string) nadclientv1.NetworkAttachmentDefinitionInterface
@@ -130,7 +130,7 @@ func newNetworkAttachmentDefinitions(in struct {
 	NADs       statedb.RWTable[tables.NetworkAttachmentDefinition]
 	Table      statedb.RWTable[tables.DesiredNetworkAttachmentDefinition]
 	Networks   statedb.Table[tables.PrivateNetwork]
-	Namespaces statedb.Table[daemonk8s.Namespace]
+	Namespaces statedb.Table[k8sTables.Namespace]
 
 	Client       client.Clientset
 	MultusClient nadclientv1.K8sCniCncfIoV1Interface
@@ -353,7 +353,7 @@ func (n *NetworkAttachmentDefinitions) deleteDesiredNADsForNetwork(wtx statedb.W
 	}
 }
 
-func (n *NetworkAttachmentDefinitions) upsertDesiredNADsForNamespace(wtx statedb.WriteTxn, namespace daemonk8s.Namespace) {
+func (n *NetworkAttachmentDefinitions) upsertDesiredNADsForNamespace(wtx statedb.WriteTxn, namespace k8sTables.Namespace) {
 	// Delete any stale entries that haven't been refreshed by the logic below.
 	defer func(watermark statedb.Revision) {
 		for nad, revision := range n.tbl.Prefix(wtx, tables.DesiredNADsByNamespace(namespace.Name)) {

@@ -195,6 +195,7 @@ cilium-operator-azure hive dot-graph [flags]
       --parallel-alloc-workers int                                        Maximum number of parallel IPAM workers (default 50)
       --pod-restart-selector string                                       cilium-operator will delete/restart any pods with these labels if the pod is not managed by Cilium. If this option is empty, then all pods may be restarted (default "k8s-app=kube-dns")
       --policy-default-local-cluster                                      Control whether policy rules assume by default the local cluster if not explicitly selected (default true)
+      --policy-external-group-sync-interval duration                      Period between refreshing the CIDRs for a given policy external group. (default 10m0s)
       --policy-secrets-namespace string                                   Namespace where secrets used in TLS Interception will be synced to. (default "cilium-secrets")
       --private-networks-enabled                                          Enable support for private networks
       --private-networks-nad-cni-log-file string                          CNI logs path configured for managed Multus network attachment definitions (default "/var/run/cilium/cilium-cni.log")

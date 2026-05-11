@@ -267,6 +267,7 @@
 /.github/workflows/*ipsec*.yaml @cilium/ipsec @cilium/github-sec @cilium/ci-structure
 /.github/workflows/*ingress*.yaml @cilium/sig-servicemesh @cilium/github-sec @cilium/ci-structure
 /.github/workflows/*kpr*.yaml @cilium/sig-datapath @cilium/github-sec @cilium/ci-structure
+/.github/workflows/*ztunnel*.yaml @cilium/ztunnel @cilium/github-sec @cilium/ci-structure
 /.github/actions/cl2-modules/ @cilium/sig-scalability
 /.github/actions/cl2-modules/l7 @cilium/envoy @cilium/sig-scalability
 /.github/workflows/*scale*.yaml @cilium/sig-scalability @cilium/github-sec @cilium/ci-structure
@@ -521,6 +522,10 @@ Makefile* @cilium/build
 /operator/pkg/ipam/alibabacloud.go @cilium/sig-ipam @cilium/alibabacloud
 /operator/pkg/ipam/aws.go @cilium/sig-ipam @cilium/aws
 /operator/pkg/ipam/azure.go @cilium/sig-ipam @cilium/azure
+/operator/pkg/ipam/allocator/alibabacloud/ @cilium/sig-ipam @cilium/alibabacloud
+/operator/pkg/ipam/allocator/aws/ @cilium/sig-ipam @cilium/aws
+/operator/pkg/ipam/allocator/azure/ @cilium/sig-ipam @cilium/azure
+/operator/pkg/ipam/allocator/clusterpool/ @cilium/sig-ipam @cilium/operator
 /operator/pkg/kvstore @cilium/kvstore
 /operator/pkg/lbipam @cilium/sig-lb
 /operator/pkg/model @cilium/sig-servicemesh
@@ -530,7 +535,6 @@ Makefile* @cilium/build
 /operator/pkg/secretsync @cilium/envoy @cilium/sig-servicemesh
 /operator/pkg/workqueuemetrics @cilium/metrics
 /operator/pkg/ztunnel @cilium/ztunnel
-/operator/policyderivative @cilium/sig-policy
 /operator/watchers @cilium/sig-k8s
 /pkg/act/ @cilium/sig-datapath @cilium/metrics
 /pkg/annotation @cilium/sig-k8s
@@ -607,10 +611,6 @@ Makefile* @cilium/build
 /pkg/ip/ @cilium/sig-agent
 /pkg/ipalloc/ @cilium/sig-ipam
 /pkg/ipam/ @cilium/sig-ipam
-/pkg/ipam/allocator/alibabacloud/ @cilium/sig-ipam @cilium/alibabacloud
-/pkg/ipam/allocator/aws/ @cilium/sig-ipam @cilium/aws
-/pkg/ipam/allocator/azure/ @cilium/sig-ipam @cilium/azure
-/pkg/ipam/allocator/clusterpool/ @cilium/sig-ipam @cilium/operator
 /pkg/ipcache/ @cilium/ipcache
 /pkg/ipcache/restore @cilium/sig-policy @cilium/ipcache
 /pkg/ipmasq @cilium/sig-agent
@@ -728,7 +728,6 @@ Makefile* @cilium/build
 /tools/dpgen @cilium/loader
 /tools/envoy-bootstrap-locality @cilium/envoy
 /tools/metricslint @cilium/metrics
-/tools/stackwhere @cilium/loader
 /USERS.md @cilium/community
 /go.sum @cilium/vendor
 /go.mod @cilium/vendor

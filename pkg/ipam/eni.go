@@ -9,11 +9,13 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/netip"
 	"slices"
 	"strconv"
 
 	"github.com/cilium/hive/job"
 	"github.com/vishvananda/netlink"
+	"go4.org/netipx"
 	"golang.org/x/sys/unix"
 
 	agentK8s "github.com/cilium/cilium/daemon/k8s"
@@ -336,26 +338,34 @@ func configureENINetlinkDevice(link netlink.Link, cfg eniDeviceConfig, sysctl sy
 // owns the given IP.
 func buildENIAllocationResult(
 	logger *slog.Logger,
-	allocatedIP net.IP,
+	allocatedAddr netip.Addr,
 	node *ciliumv2.CiliumNode,
 	conf *option.DaemonConfig,
 	ipMasqAgent *ipmasq.IPMasqAgent,
 ) (*AllocationResult, error) {
 	for _, eni := range node.Status.ENI.ENIs {
-		if !eniContainsIP(eni, allocatedIP) {
+		if !eniContainsIP(eni, allocatedAddr) {
 			continue
 		}
 
 		result := &AllocationResult{
-			IP:         allocatedIP,
+			IP:         allocatedAddr,
 			PrimaryMAC: eni.MAC,
-			CIDRs:      []string{eni.VPC.PrimaryCIDR},
 		}
-		result.CIDRs = append(result.CIDRs, eni.VPC.CIDRs...)
+		if primaryCIDR, err := netip.ParsePrefix(eni.VPC.PrimaryCIDR); err == nil {
+			result.CIDRs = append(result.CIDRs, primaryCIDR)
+		}
+		for _, c := range eni.VPC.CIDRs {
+			if p, err := netip.ParsePrefix(c); err == nil {
+				result.CIDRs = append(result.CIDRs, p)
+			}
+		}
 
 		// Add manually configured Native Routing CIDR
 		if conf.IPv4NativeRoutingCIDR != nil {
-			result.CIDRs = append(result.CIDRs, conf.IPv4NativeRoutingCIDR.String())
+			if p, ok := netipx.FromStdIPNet(conf.IPv4NativeRoutingCIDR.IPNet); ok {
+				result.CIDRs = append(result.CIDRs, p)
+			}
 		}
 
 		// If the ip-masq-agent is enabled, get the CIDRs that are not masqueraded.
@@ -363,44 +373,44 @@ func buildENIAllocationResult(
 		// ip-masq-agent configuration changes.
 		if conf.EnableIPMasqAgent {
 			for _, prefix := range ipMasqAgent.NonMasqCIDRsFromConfig() {
-				if allocatedIP.To4() != nil && prefix.Addr().Is4() {
-					result.CIDRs = append(result.CIDRs, prefix.String())
-				} else if allocatedIP.To4() == nil && prefix.Addr().Is6() {
-					result.CIDRs = append(result.CIDRs, prefix.String())
+				if allocatedAddr.Is4() && prefix.Addr().Is4() {
+					result.CIDRs = append(result.CIDRs, prefix)
+				} else if !allocatedAddr.Is4() && prefix.Addr().Is6() {
+					result.CIDRs = append(result.CIDRs, prefix)
 				}
 			}
 		}
 
-		if eni.Subnet.CIDR != "" {
-			// The gateway for a subnet and VPC is always x.x.x.1
+		if prefix, err := netip.ParsePrefix(eni.Subnet.CIDR); err == nil {
+			// AWS reserves the first subnet IP for the gateway.
 			// Ref: https://docs.aws.amazon.com/vpc/latest/userguide/VPC_Route_Tables.html
-			result.GatewayIP = deriveGatewayIP(logger, eni.Subnet.CIDR, 1)
+			result.GatewayIP = prefix.Addr().Next()
 		}
 		result.InterfaceNumber = strconv.Itoa(eni.Number)
 
 		return result, nil
 	}
 
-	return nil, fmt.Errorf("unable to find ENI for IP %s", allocatedIP)
+	return nil, fmt.Errorf("unable to find ENI for IP %s", allocatedAddr)
 }
 
 // eniContainsIP returns true if the given IP belongs to the ENI: either as the
 // primary IP, a secondary address, or within one of its delegated prefixes.
-func eniContainsIP(eni eniTypes.ENI, ip net.IP) bool {
-	ipStr := ip.String()
-	if eni.IP == ipStr {
+func eniContainsIP(eni eniTypes.ENI, addr netip.Addr) bool {
+	addrStr := addr.String()
+	if eni.IP == addrStr {
 		return true
 	}
-	if slices.Contains(eni.Addresses, ipStr) {
+	if slices.Contains(eni.Addresses, addrStr) {
 		return true
 	}
 
 	for _, prefix := range eni.Prefixes {
-		_, cidr, err := net.ParseCIDR(prefix)
+		parsed, err := netip.ParsePrefix(prefix)
 		if err != nil {
 			continue
 		}
-		if cidr.Contains(ip) {
+		if parsed.Contains(addr) {
 			return true
 		}
 	}

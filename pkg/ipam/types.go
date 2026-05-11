@@ -5,7 +5,7 @@ package ipam
 
 import (
 	"log/slog"
-	"net"
+	"net/netip"
 
 	"github.com/davecgh/go-spew/spew"
 
@@ -27,7 +27,7 @@ import (
 // AllocationResult is the result of an allocation
 type AllocationResult struct {
 	// IP is the allocated IP
-	IP net.IP
+	IP netip.Addr
 
 	// IPPoolName is the IPAM pool from which the above IP was allocated from
 	IPPoolName Pool
@@ -36,7 +36,7 @@ type AllocationResult struct {
 	// This is primarily useful if the IP has been allocated out of a VPC
 	// subnet range and the VPC provides routing to a set of CIDRs in which
 	// the IP is routable.
-	CIDRs []string
+	CIDRs []netip.Prefix
 
 	// PrimaryMAC is the MAC address of the primary interface. This is useful
 	// when the IP is a secondary address of an interface which is
@@ -47,7 +47,7 @@ type AllocationResult struct {
 	// GatewayIP is the IP of the gateway which must be used for this IP.
 	// If the allocated IP is derived from a VPC, then the gateway
 	// represented the gateway of the VPC or VPC subnet.
-	GatewayIP string
+	GatewayIP netip.Addr
 
 	// ExpirationUUID is the UUID of the expiration timer. This field is
 	// only set if AllocateNextWithExpiration is used.
@@ -64,14 +64,14 @@ type AllocationResult struct {
 // Allocator is the interface for an IP allocator implementation
 type Allocator interface {
 	// Allocate allocates a specific IP or fails
-	Allocate(ip net.IP, owner string, pool Pool) (*AllocationResult, error)
+	Allocate(addr netip.Addr, owner string, pool Pool) (*AllocationResult, error)
 
 	// AllocateWithoutSyncUpstream allocates a specific IP without syncing
 	// upstream or fails
-	AllocateWithoutSyncUpstream(ip net.IP, owner string, pool Pool) (*AllocationResult, error)
+	AllocateWithoutSyncUpstream(addr netip.Addr, owner string, pool Pool) (*AllocationResult, error)
 
 	// Release releases a previously allocated IP or fails
-	Release(ip net.IP, pool Pool) error
+	Release(addr netip.Addr, pool Pool) error
 
 	// AllocateNext allocates the next available IP or fails if no more IPs
 	// are available
@@ -196,12 +196,4 @@ type timerKey struct {
 type expirationTimer struct {
 	uuid string
 	stop chan<- struct{}
-}
-
-// LimitsNotFound is an error that signals lack of limits for given instance type
-type LimitsNotFound struct{}
-
-// Error implements error interface
-func (_ LimitsNotFound) Error() string {
-	return "Limits not found"
 }

@@ -24,5 +24,5 @@ Ensure your pull request adheres to the following guidelines:
 Fixes: #issue-number
 
 ```release-note
-<!-- Enter the release note text here if needed or remove this section! -->
+<!-- Enter the release note text here or remove this release-note section from your PR description. Do NOT put an "empty" release note here -->
 ```

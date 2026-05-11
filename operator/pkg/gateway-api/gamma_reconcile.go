@@ -27,10 +27,8 @@ import (
 	"github.com/cilium/cilium/operator/pkg/gateway-api/routechecks"
 	"github.com/cilium/cilium/operator/pkg/model"
 	"github.com/cilium/cilium/operator/pkg/model/ingestion"
-	gwModel "github.com/cilium/cilium/operator/pkg/model/translation/gateway-api"
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	"github.com/cilium/cilium/pkg/logging/logfields"
-	"github.com/cilium/cilium/pkg/shortener"
 )
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
@@ -52,13 +50,6 @@ func (r *gammaReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 			return controllerruntime.Success()
 		}
 		scopedLog.ErrorContext(ctx, "Unable to get Service for GAMMA checks", logfields.Error, err)
-		return controllerruntime.Fail(err)
-	}
-
-	// Ensure that any existing EndpointSlice from a previous version gets deleted (dummy ingress endpoints are no longer required)
-	// This can be removed in v1.21
-	if err := r.ensureEndpointSliceDeleted(ctx, types.NamespacedName{Namespace: originalSvc.Namespace, Name: shortener.ShortenK8sResourceName(gwModel.CiliumGatewayPrefix + originalSvc.Name)}); err != nil {
-		scopedLog.ErrorContext(ctx, "Unable to ensure EndpointSlice deleted", logfields.Error, err)
 		return controllerruntime.Fail(err)
 	}
 
@@ -146,7 +137,7 @@ func (r *gammaReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 
 	setGammaServiceAccepted(svc, true, "Gamma Service has routes attached", CiliumGammaReasonAccepted)
 
-	cec, _, err := r.translator.Translate(&model.Model{HTTP: httpListeners})
+	cec, _, cep, err := r.translator.Translate(&model.Model{HTTP: httpListeners})
 	if err != nil {
 		scopedLog.ErrorContext(ctx, "Unable to translate resources", logfields.Error, err)
 		return r.handleReconcileErrorWithStatus(ctx, err, originalSvc, svc)
@@ -154,6 +145,11 @@ func (r *gammaReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 
 	if err = r.ensureEnvoyConfig(ctx, cec); err != nil {
 		scopedLog.ErrorContext(ctx, "Unable to ensure CiliumEnvoyConfig", logfields.Error, err)
+		return r.handleReconcileErrorWithStatus(ctx, err, originalSvc, svc)
+	}
+
+	if err = r.ensureEndpointSlice(ctx, cep); err != nil {
+		scopedLog.ErrorContext(ctx, "Unable to ensure Endpoints", logfields.Error, err)
 		return r.handleReconcileErrorWithStatus(ctx, err, originalSvc, svc)
 	}
 
@@ -351,25 +347,16 @@ func (r *gammaReconciler) setGRPCRouteStatuses(gammaLogger *slog.Logger, ctx con
 	return nil
 }
 
-func (r *gatewayReconciler) ensureEndpointSliceDeleted(ctx context.Context, name types.NamespacedName) error {
-	eps := discoveryv1.EndpointSlice{}
-
-	if err := r.Client.Get(ctx, name, &eps); err != nil {
-		if k8serrors.IsNotFound(err) {
-			// no longer exists
-			return nil
-		}
-
-		return fmt.Errorf("failed to get existing EndpointSlice (%s): %w", name, err)
-	}
-
-	if err := r.Client.Delete(ctx, &eps); err != nil {
-		return fmt.Errorf("failed to delete existing EndpointSlice (%s): %w", name, err)
-	}
-
-	r.logger.DebugContext(ctx, "Successfully deleted EndpointSlice", logfields.Name, name)
-
-	return nil
+func (r *gammaReconciler) ensureEndpointSlice(ctx context.Context, desired *discoveryv1.EndpointSlice) error {
+	ep := desired.DeepCopy()
+	_, err := controllerutil.CreateOrPatch(ctx, r.Client, ep, func() error {
+		ep.Endpoints = desired.Endpoints
+		ep.Ports = desired.Ports
+		ep.OwnerReferences = desired.OwnerReferences
+		setMergedLabelsAndAnnotations(ep, desired)
+		return nil
+	})
+	return err
 }
 
 func (r *gammaReconciler) ensureEnvoyConfig(ctx context.Context, desired *ciliumv2.CiliumEnvoyConfig) error {
