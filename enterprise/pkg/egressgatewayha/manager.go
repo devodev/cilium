@@ -1016,12 +1016,6 @@ func (manager *Manager) finishInitializer(initializer func(txn statedb.WriteTxn)
 	txn := manager.db.WriteTxn(manager.egressIPTable)
 	initializer(txn)
 	txn.Commit()
-	// This works around a StateDB bug (see https://github.com/cilium/statedb/pull/47)
-	// where the reconciler does not fire on an empty (but initialized) table.
-	if initialized, _ := manager.egressIPTable.Initialized(manager.db.ReadTxn()); initialized {
-		manager.logger.Debug("Pruning IPAM related rules and routes")
-		manager.egressIPReconciler.Prune()
-	}
 }
 
 // reconcileLocked is responsible for reconciling the state of the manager (i.e. the
