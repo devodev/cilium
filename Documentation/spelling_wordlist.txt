@@ -141,8 +141,11 @@ Twilio
 Uncompress
 Uncordon
 VM
+VMSS
+VMs
 VMware
 VNet
+VNets
 VPC
 Vagrantcloud
 Vagrantfile

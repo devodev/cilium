@@ -21,6 +21,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/cilium/cilium/enterprise/pkg/egressgatewayha/healthcheck"
+	"github.com/cilium/cilium/pkg/k8s"
 	cilium_api_v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	k8sClient "github.com/cilium/cilium/pkg/k8s/client"
 	"github.com/cilium/cilium/pkg/k8s/resource"
@@ -395,7 +396,7 @@ func (operatorManager *OperatorManager) deleteGatewaySelectionMetrics(policy *Po
 func (operatorManager *OperatorManager) handleCiliumNodeEvent(event resource.Event[*cilium_api_v2.CiliumNode]) {
 	defer event.Done(nil)
 
-	node := nodeTypes.ParseCiliumNode(event.Object)
+	node := k8s.ParseCiliumNode(event.Object)
 
 	operatorManager.Lock()
 	defer operatorManager.Unlock()

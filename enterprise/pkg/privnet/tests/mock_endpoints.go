@@ -31,8 +31,8 @@ import (
 	"github.com/cilium/cilium/api/v1/models"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/endpoints"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/observers"
-	"github.com/cilium/cilium/pkg/endpoint"
 	"github.com/cilium/cilium/pkg/endpoint/regeneration"
+	eptypes "github.com/cilium/cilium/pkg/endpoint/types"
 	"github.com/cilium/cilium/pkg/endpointstate"
 	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	"github.com/cilium/cilium/pkg/labels"
@@ -150,7 +150,7 @@ func (f *fakeEP) GetIPv6Address() string {
 
 // GetK8sCEPName implements endpoints.Endpoint.
 func (f *fakeEP) GetK8sCEPName() string {
-	if cepName, ok := f.Properties[endpoint.PropertyCEPName]; ok {
+	if cepName, ok := f.Properties[eptypes.PropertyCEPName]; ok {
 		return cepName.(string)
 	}
 	return f.PodName

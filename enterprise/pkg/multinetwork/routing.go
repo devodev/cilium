@@ -18,6 +18,7 @@ import (
 	"github.com/cilium/cilium/pkg/datapath/linux/linux_defaults"
 	"github.com/cilium/cilium/pkg/datapath/linux/safenetlink"
 	"github.com/cilium/cilium/pkg/datapath/linux/sysctl"
+	"github.com/cilium/cilium/pkg/k8s"
 	v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	iso_v1alpha1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
 	"github.com/cilium/cilium/pkg/k8s/resource"
@@ -365,7 +366,7 @@ func extractDirectNodeRoutes(logger *slog.Logger, networks []*iso_v1alpha1.Isova
 		return nil // return empty slice if node was deleted
 	}
 
-	n := nodeTypes.ParseCiliumNode(node)
+	n := k8s.ParseCiliumNode(node)
 	for _, pool := range node.Spec.IPAM.Pools.Allocated {
 		scopedLog := logger.With(
 			logfields.PoolName, pool.Pool,

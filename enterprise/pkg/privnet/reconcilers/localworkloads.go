@@ -22,7 +22,7 @@ import (
 	"github.com/cilium/cilium/enterprise/pkg/privnet/config"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/endpoints"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/tables"
-	"github.com/cilium/cilium/pkg/endpoint"
+	eptypes "github.com/cilium/cilium/pkg/endpoint/types"
 	"github.com/cilium/cilium/pkg/endpointstate"
 	iso_v1alpha1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
 	"github.com/cilium/cilium/pkg/logging/logfields"
@@ -177,7 +177,7 @@ func (l *LocalWorkloads) upsertEndpoint(ep endpoints.Endpoint) {
 			Name: k8sName,
 		},
 		Flags: iso_v1alpha1.PrivateNetworkEndpointSliceFlags{
-			External: ep.IsProperty(endpoint.PropertyWithouteBPFDatapath),
+			External: ep.IsProperty(eptypes.PropertyWithouteBPFDatapath),
 		},
 		Interface: iso_v1alpha1.PrivateNetworkEndpointSliceInterface{
 			Addressing: iso_v1alpha1.PrivateNetworkEndpointAddressing{
