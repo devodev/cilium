@@ -370,15 +370,48 @@ func (in *PrivateNetworkEndpointSliceEntry) DeepEqual(other *PrivateNetworkEndpo
 		return false
 	}
 
-	if in.Endpoint != other.Endpoint {
+	if !in.Endpoint.DeepEqual(&other.Endpoint) {
 		return false
 	}
 
-	if in.Interface != other.Interface {
+	if !in.Interface.DeepEqual(&other.Interface) {
 		return false
 	}
 
 	return true
+}
+
+// +deepequal-gen=false
+type PrivateNetworkEndpointSlicePreviousAddressing struct {
+	// The Pod IPv4 address.
+	//
+	// +kubebuilder:validation:Format=ipv4
+	IPv4 string `json:"ipv4,omitempty"`
+
+	// The Pod IPv6 address.
+	//
+	// +kubebuilder:validation:Format=ipv6
+	IPv6 string `json:"ipv6,omitempty"`
+
+	// The instant in time when the Pod IPv4/IPv6 address were last known to be valid.
+	// If there is an endpoint with the same Pod IPv4/IPv6 and a newer activatedAt
+	// timestamp than this lastSeen timestamp, then any state associated with the
+	// Pod IPv4/IPv6 address belongs to that newer endpoint and this previousAddressing
+	// data should be ignored.
+	//
+	// +kubebuilder:validation:Required
+	LastSeen metav1.MicroTime `json:"lastSeen"`
+}
+
+// DeepEqual is implemented manually for PrivateNetworkEndpointSlicePreviousAddressing, because metav1.MicroTime has no DeepEqual
+func (in *PrivateNetworkEndpointSlicePreviousAddressing) DeepEqual(other *PrivateNetworkEndpointSlicePreviousAddressing) bool {
+	if other == nil {
+		return false
+	}
+
+	return in.IPv4 == other.IPv4 &&
+		in.IPv6 == other.IPv6 &&
+		in.LastSeen.Equal(&other.LastSeen)
 }
 
 type PrivateNetworkEndpointSliceEndpoint struct {
@@ -392,6 +425,13 @@ type PrivateNetworkEndpointSliceEndpoint struct {
 	//
 	// +kubebuilder:validation:Required
 	Name EndpointName `json:"name"`
+
+	// Previous endpoint addresses (IPv4 and/or IPv6) from the pod network point
+	// of view. This is set if this endpoint's pod IP changed, e.g. due to a
+	// migration to a new node.
+	//
+	// +kubebuilder:validation:Optional
+	PreviousAddressing []PrivateNetworkEndpointSlicePreviousAddressing `json:"previousAddressing,omitempty"`
 }
 
 // Endpoint names must conform to the RFC 1123 DNS Subdomain Names format.

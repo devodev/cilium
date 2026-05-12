@@ -6354,6 +6354,22 @@ func (in *PrivateNetworkEndpointSliceEndpoint) DeepEqual(other *PrivateNetworkEn
 	if in.Name != other.Name {
 		return false
 	}
+	if ((in.PreviousAddressing != nil) && (other.PreviousAddressing != nil)) || ((in.PreviousAddressing == nil) != (other.PreviousAddressing == nil)) {
+		in, other := &in.PreviousAddressing, &other.PreviousAddressing
+		if other == nil {
+			return false
+		}
+
+		if len(*in) != len(*other) {
+			return false
+		} else {
+			for i, inElement := range *in {
+				if !inElement.DeepEqual(&(*other)[i]) {
+					return false
+				}
+			}
+		}
+	}
 
 	return true
 }

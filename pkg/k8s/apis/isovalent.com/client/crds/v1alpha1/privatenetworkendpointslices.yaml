@@ -72,6 +72,34 @@ spec:
                       minLength: 1
                       pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
                       type: string
+                    previousAddressing:
+                      description: |-
+                        Previous endpoint addresses (IPv4 and/or IPv6) from the pod network point
+                        of view. This is set if this endpoint's pod IP changed, e.g. due to a
+                        migration to a new node.
+                      items:
+                        properties:
+                          ipv4:
+                            description: The Pod IPv4 address.
+                            format: ipv4
+                            type: string
+                          ipv6:
+                            description: The Pod IPv6 address.
+                            format: ipv6
+                            type: string
+                          lastSeen:
+                            description: |-
+                              The instant in time when the Pod IPv4/IPv6 address were last known to be valid.
+                              If there is an endpoint with the same Pod IPv4/IPv6 and a newer activatedAt
+                              timestamp than this lastSeen timestamp, then any state associated with the
+                              Pod IPv4/IPv6 address belongs to that newer endpoint and this previousAddressing
+                              data should be ignored.
+                            format: date-time
+                            type: string
+                        required:
+                        - lastSeen
+                        type: object
+                      type: array
                   required:
                   - addressing
                   - name

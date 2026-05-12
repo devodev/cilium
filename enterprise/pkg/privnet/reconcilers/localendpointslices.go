@@ -363,7 +363,10 @@ func (r *endpointSlicesReconcilerOps) updateEndpointSlice(ctx context.Context, n
 	}
 
 	// If the slice exists, and we just need to update it, check first if changes are even needed
-	if slices.Equal(eps, es.Slice.Endpoints) && nodeName == es.Slice.NodeName {
+	equal := slices.EqualFunc(eps, es.Slice.Endpoints, func(a, b iso_v1alpha1.PrivateNetworkEndpointSliceEntry) bool {
+		return a.DeepEqual(&b)
+	})
+	if equal && nodeName == es.Slice.NodeName {
 		r.log.Debug("Skipping update of PrivateNetworkEndpointSlice", logfields.Name, es.Slice.Name)
 		return nil
 	}
