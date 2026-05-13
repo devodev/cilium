@@ -39,6 +39,7 @@ import (
 	"github.com/cilium/cilium/enterprise/pkg/privnet/types"
 	cmtypes "github.com/cilium/cilium/pkg/clustermesh/types"
 	"github.com/cilium/cilium/pkg/endpoint"
+	eptypes "github.com/cilium/cilium/pkg/endpoint/types"
 	"github.com/cilium/cilium/pkg/endpointstate"
 	"github.com/cilium/cilium/pkg/ipam"
 	"github.com/cilium/cilium/pkg/k8s"
@@ -356,33 +357,11 @@ type externalEndpointK8sReconcilerOps struct {
 // Please note that tables.ExternalEndpoint has multiple reconcilers status fields, so ensure that [obj] is not modified.
 func (e *externalEndpointK8sReconcilerOps) Update(ctx context.Context, txn statedb.ReadTxn, revision statedb.Revision, obj *tables.ExternalEndpoint) error {
 	client := e.client.IsovalentV1alpha1().PrivateNetworkExternalEndpoints(obj.Namespace)
-	ipStr := func(addr netip.Addr) string {
-		if !addr.IsValid() {
-			return ""
-		}
-		return addr.String()
-	}
 	pnee := &iso_v1alpha1.PrivateNetworkExternalEndpoint{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            obj.Name,
 			Namespace:       obj.Namespace,
 			ResourceVersion: obj.ResourceVersion,
-			Labels:          obj.K8sLabels, // workaround for script test bug
-			UID:             obj.UID,       // workaround for script test bug
-		},
-		// The object spec (and labels) are ignored by K8s when doing UpdateStatus.
-		// However, our script test framework has a bug where it does not ignore
-		// them and will replace them in the object tracker, so set them anyway.
-		Spec: iso_v1alpha1.PrivateNetworkExternalEndpointSpec{
-			Inactive: obj.ActivatedAt.IsZero(),
-			Interface: iso_v1alpha1.PrivateNetworkEndpointSliceInterface{
-				Addressing: iso_v1alpha1.PrivateNetworkEndpointAddressing{
-					IPv4: ipStr(obj.IPv4),
-					IPv6: ipStr(obj.IPv6),
-				},
-				MAC:     obj.MAC.String(),
-				Network: string(obj.Network),
-			},
 		},
 		Status: iso_v1alpha1.PrivateNetworkExternalEndpointStatus{
 			ActivatedAt: metav1.NewMicroTime(obj.ActivatedAt),
@@ -556,12 +535,12 @@ func (e *externalEndpointReconcilerOps) createEndpoint(ctx context.Context, obj 
 			// respect PropertyWithouteBPFDatapath properly at the moment, so we need to set
 			// on PropertyFakeEndpoint such that the loader does not try to look for an endpoint
 			// interface.
-			endpoint.PropertyFakeEndpoint: true,
+			eptypes.PropertyFakeEndpoint: true,
 
-			endpoint.PropertySkipBPFPolicy:       false,
-			endpoint.PropertyWithouteBPFDatapath: true,
-			endpoint.PropertyCEPOwner:            cepOwner,
-			endpoint.PropertyCEPName:             cepOwner.Name,
+			eptypes.PropertySkipBPFPolicy:       false,
+			eptypes.PropertyWithouteBPFDatapath: true,
+			eptypes.PropertyCEPOwner:            cepOwner,
+			eptypes.PropertyCEPName:             cepOwner.Name,
 
 			types.PropertyPrivNetNetwork:     string(obj.Network),
 			types.PropertyPrivNetActivatedAt: endpoints.FormatActivatedAtProperty(obj.ActivatedAt),
@@ -627,7 +606,7 @@ func (e *externalEndpointReconcilerOps) updateEndpoint(ctx context.Context, ep e
 	ep.UpdateLabels(ctx, labels.LabelSourceK8s, identityLabels, infoLabels, false)
 
 	// Update the labels in CEP owner
-	ep.SetPropertyValue(endpoint.PropertyCEPOwner, e.cepOwner(obj))
+	ep.SetPropertyValue(eptypes.PropertyCEPOwner, e.cepOwner(obj))
 
 	return nil
 }
@@ -647,7 +626,7 @@ func (e *externalEndpointReconcilerOps) deleteEndpoint(obj *tables.ExternalEndpo
 
 // endpointUID returns the UID of the local endpoint (if there is one)
 func endpointUID(ep endpoints.Endpoint) (k8sTypes.UID, bool) {
-	cepOwner, ok := ep.GetPropertyValue(endpoint.PropertyCEPOwner).(endpoint.CEPOwnerInterface)
+	cepOwner, ok := ep.GetPropertyValue(eptypes.PropertyCEPOwner).(endpoint.CEPOwnerInterface)
 	if !ok || cepOwner == nil {
 		return "", false
 	}
@@ -725,7 +704,7 @@ func (e *externalEndpointReconcilerOps) Prune(
 	// re-create it.
 	for ep := range e.epLookup.GetEndpoints() {
 		// Check if the endpoint is owned by a PrivateNetworkExternalEndpoint
-		cepOwner, ok := ep.GetPropertyValue(endpoint.PropertyCEPOwner).(endpoint.CEPOwnerInterface)
+		cepOwner, ok := ep.GetPropertyValue(eptypes.PropertyCEPOwner).(endpoint.CEPOwnerInterface)
 		if !ok || cepOwner == nil ||
 			cepOwner.GetAPIVersion() != pneeAPIVersion ||
 			cepOwner.GetKind() != pneeKind {
@@ -852,7 +831,7 @@ func (e *ExternalEndpoints) registerEndpointCreationReconciler(in struct {
 // isPrivateNetworkExternalEndpoint returns true if the given endpoint is a private network external endpoint
 func isPrivateNetworkExternalEndpoint(ep endpoints.Endpoint) bool {
 	return ep.GetPropertyValue(types.PropertyPrivNetNetwork) != nil &&
-		ep.IsProperty(endpoint.PropertyWithouteBPFDatapath)
+		ep.IsProperty(eptypes.PropertyWithouteBPFDatapath)
 }
 
 // externalEndpointRestorer implements two workarounds for the fact that endpoint
@@ -873,7 +852,7 @@ type externalEndpointRestorer struct {
 // fixupRestoredEndpointProperties fixes up the endpoint properties for endpoints parsed from disk
 func (e *externalEndpointRestorer) fixupRestoredEndpointProperties(ep endpoints.Endpoint) {
 	// Ignore endpoints which were not created by us
-	owner := ep.GetPropertyValue(endpoint.PropertyCEPOwner)
+	owner := ep.GetPropertyValue(eptypes.PropertyCEPOwner)
 	if owner == nil || !isPrivateNetworkExternalEndpoint(ep) {
 		return
 	}
@@ -902,7 +881,7 @@ func (e *externalEndpointRestorer) fixupRestoredEndpointProperties(ep endpoints.
 	}
 
 	// Set the correctly typed CEPOwner.
-	ep.SetPropertyValue(endpoint.PropertyCEPOwner, typedOwner)
+	ep.SetPropertyValue(eptypes.PropertyCEPOwner, typedOwner)
 
 	// Also set K8s metadata again. For pods, RunRestoredMetadataResolver would do this, but we do not
 	// have a pod, so RunRestoredMetadataResolver is skipped upstream.
@@ -926,7 +905,7 @@ func (e *externalEndpointRestorer) RestorationNotify(possible iter.Seq[endpoints
 // At that point, the IPAM subsystem is available, but new endpoints are not being created yet,
 // so this allows us to re-allocate the IPs of restored external endpoints.
 func (e *externalEndpointRestorer) EndpointRestored(ep endpoints.Endpoint) {
-	if !(isPrivateNetworkExternalEndpoint(ep) && ep.IsProperty(endpoint.PropertyFakeEndpoint)) {
+	if !(isPrivateNetworkExternalEndpoint(ep) && ep.IsProperty(eptypes.PropertyFakeEndpoint)) {
 		return // not a private endpoint with PropertyFakeEndpoint
 	}
 

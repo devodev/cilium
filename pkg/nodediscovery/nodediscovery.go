@@ -6,22 +6,14 @@ package nodediscovery
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"slices"
-	"strings"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/cilium/stream"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/net"
 
 	"github.com/cilium/cilium/daemon/cmd/cni"
-	alibabaCloudTypes "github.com/cilium/cilium/pkg/alibabacloud/eni/types"
-	alibabaCloudMetadata "github.com/cilium/cilium/pkg/alibabacloud/metadata"
-	eniTypes "github.com/cilium/cilium/pkg/aws/eni/types"
-	"github.com/cilium/cilium/pkg/aws/metadata"
-	azureTypes "github.com/cilium/cilium/pkg/azure/types"
 	"github.com/cilium/cilium/pkg/controller"
 	"github.com/cilium/cilium/pkg/defaults"
 	ipamOption "github.com/cilium/cilium/pkg/ipam/option"
@@ -394,198 +386,13 @@ func (n *NodeDiscovery) mutateNodeResource(ctx context.Context, nodeResource *ci
 
 	switch option.Config.IPAM {
 	case ipamOption.IPAMENI:
-		// set ENI field in the node only when the ENI ipam is specified
-		nodeResource.Spec.ENI = eniTypes.ENISpec{}
-		imds, err := metadata.NewClient(ctx)
-		if err != nil {
-			logging.Fatal(n.logger, "Unable to create metadata client", logfields.Error, err)
-		}
-		info, err := imds.GetInstanceMetadata(ctx)
-		if err != nil {
-			logging.Fatal(n.logger, "Unable to retrieve InstanceID of own EC2 instance", logfields.Error, err)
-		}
-
-		if info.InstanceID == "" {
-			return errors.New("InstanceID of own EC2 instance is empty")
-		}
-
-		// It is important to determine the interface index here because this
-		// function (mutateNodeResource()) will be called when the agent is
-		// first coming up and is initializing the IPAM layer (CRD allocator in
-		// this case). Later on, the Operator will adjust this value based on
-		// the PreAllocate value, so to ensure that the agent and the Operator
-		// are not conflicting with each other, we must have similar logic to
-		// determine the appropriate value to place inside the resource.
-		nodeResource.Spec.ENI.VpcID = info.VPCID
-		nodeResource.Spec.ENI.FirstInterfaceIndex = aws.Int(n.config.ENIFirstInterfaceIndex)
-		nodeResource.Spec.ENI.UsePrimaryAddress = aws.Bool(n.config.ENIUsePrimaryAddress)
-		nodeResource.Spec.ENI.DisablePrefixDelegation = aws.Bool(n.config.ENIDisablePrefixDelegation)
-		nodeResource.Spec.ENI.DeleteOnTermination = aws.Bool(n.config.ENIDeleteOnTermination)
-
-		nodeResource.Spec.ENI.SubnetIDs = n.config.ENISubnetIDs
-		nodeResource.Spec.ENI.SubnetTags = n.config.ENISubnetTags
-		nodeResource.Spec.ENI.SecurityGroups = n.config.ENISecurityGroups
-		nodeResource.Spec.ENI.SecurityGroupTags = n.config.ENISecurityGroupTags
-		nodeResource.Spec.ENI.ExcludeInterfaceTags = n.config.ENIExcludeInterfaceTags
-
-		nodeResource.Spec.IPAM.MinAllocate = n.config.IPAMMinAllocate
-		nodeResource.Spec.IPAM.PreAllocate = n.config.IPAMPreAllocate
-		nodeResource.Spec.IPAM.MaxAllocate = n.config.IPAMMaxAllocate
-
-		if c := n.cniConfigManager.GetCustomNetConf(); c != nil {
-			if c.IPAM.MinAllocate != 0 {
-				nodeResource.Spec.IPAM.MinAllocate = c.IPAM.MinAllocate
-			}
-
-			if c.IPAM.PreAllocate != 0 {
-				nodeResource.Spec.IPAM.PreAllocate = c.IPAM.PreAllocate
-			}
-
-			if c.ENI.FirstInterfaceIndex != nil {
-				nodeResource.Spec.ENI.FirstInterfaceIndex = c.ENI.FirstInterfaceIndex
-			}
-
-			if len(c.ENI.SecurityGroups) > 0 {
-				nodeResource.Spec.ENI.SecurityGroups = c.ENI.SecurityGroups
-			}
-
-			if len(c.ENI.SecurityGroupTags) > 0 {
-				nodeResource.Spec.ENI.SecurityGroupTags = c.ENI.SecurityGroupTags
-			}
-
-			if len(c.ENI.SubnetIDs) > 0 {
-				nodeResource.Spec.ENI.SubnetIDs = c.ENI.SubnetIDs
-			}
-
-			if len(c.ENI.SubnetTags) > 0 {
-				nodeResource.Spec.ENI.SubnetTags = c.ENI.SubnetTags
-			}
-
-			if c.ENI.VpcID != "" {
-				nodeResource.Spec.ENI.VpcID = c.ENI.VpcID
-			}
-
-			if len(c.ENI.ExcludeInterfaceTags) > 0 {
-				nodeResource.Spec.ENI.ExcludeInterfaceTags = c.ENI.ExcludeInterfaceTags
-			}
-
-			if c.ENI.UsePrimaryAddress != nil {
-				nodeResource.Spec.ENI.UsePrimaryAddress = c.ENI.UsePrimaryAddress
-			}
-
-			if c.ENI.DisablePrefixDelegation != nil {
-				nodeResource.Spec.ENI.DisablePrefixDelegation = c.ENI.DisablePrefixDelegation
-			}
-
-			nodeResource.Spec.ENI.DeleteOnTermination = c.ENI.DeleteOnTermination
-		}
-
-		nodeResource.Spec.InstanceID = info.InstanceID
-		nodeResource.Spec.ENI.InstanceType = info.InstanceType
-		nodeResource.Spec.ENI.AvailabilityZone = info.AvailabilityZone
-		nodeResource.Spec.ENI.NodeSubnetID = info.SubnetID
+		return n.mutateENINodeResource(ctx, nodeResource)
 
 	case ipamOption.IPAMAzure:
-		if ln.Local.ProviderID == "" {
-			logging.Fatal(n.logger, "Spec.ProviderID in k8s node resource must be set for Azure IPAM")
-		}
-		if !strings.HasPrefix(ln.Local.ProviderID, azureTypes.ProviderPrefix) {
-			logging.Fatal(n.logger, fmt.Sprintf("Spec.ProviderID in k8s node resource must have prefix %s", azureTypes.ProviderPrefix))
-		}
-		// The Azure controller in Kubernetes creates a mix of upper
-		// and lower case when filling in the ProviderID and is
-		// therefore not providing the exact representation of what is
-		// returned by the Azure API. Convert it to lower case for
-		// consistent results.
-		nodeResource.Spec.InstanceID = strings.ToLower(strings.TrimPrefix(ln.Local.ProviderID, azureTypes.ProviderPrefix))
-
-		nodeResource.Spec.IPAM.MinAllocate = n.config.IPAMMinAllocate
-		nodeResource.Spec.IPAM.PreAllocate = n.config.IPAMPreAllocate
-		nodeResource.Spec.IPAM.MaxAllocate = n.config.IPAMMaxAllocate
-		nodeResource.Spec.Azure.InterfaceName = n.config.AzureInterfaceName
-
-		if c := n.cniConfigManager.GetCustomNetConf(); c != nil {
-			if c.IPAM.MinAllocate != 0 {
-				nodeResource.Spec.IPAM.MinAllocate = c.IPAM.MinAllocate
-			}
-			if c.IPAM.PreAllocate != 0 {
-				nodeResource.Spec.IPAM.PreAllocate = c.IPAM.PreAllocate
-			}
-			if c.Azure.InterfaceName != "" {
-				nodeResource.Spec.Azure.InterfaceName = c.Azure.InterfaceName
-			}
-		}
+		return n.mutateAzureNodeResource(ctx, nodeResource, ln)
 
 	case ipamOption.IPAMAlibabaCloud:
-		nodeResource.Spec.AlibabaCloud = alibabaCloudTypes.Spec{}
-
-		instanceID, err := alibabaCloudMetadata.GetInstanceID(ctx)
-		if err != nil {
-			logging.Fatal(n.logger, "Unable to retrieve InstanceID of own ECS instance", logfields.Error, err)
-		}
-
-		if instanceID == "" {
-			return errors.New("InstanceID of own ECS instance is empty")
-		}
-
-		instanceType, err := alibabaCloudMetadata.GetInstanceType(ctx)
-		if err != nil {
-			logging.Fatal(n.logger, "Unable to retrieve InstanceType of own ECS instance", logfields.Error, err)
-		}
-		vpcID, err := alibabaCloudMetadata.GetVPCID(ctx)
-		if err != nil {
-			logging.Fatal(n.logger, "Unable to retrieve VPC ID of own ECS instance", logfields.Error, err)
-		}
-		vpcCidrBlock, err := alibabaCloudMetadata.GetVPCCIDRBlock(ctx)
-		if err != nil {
-			logging.Fatal(n.logger, "Unable to retrieve VPC CIDR block of own ECS instance", logfields.Error, err)
-		}
-		zoneID, err := alibabaCloudMetadata.GetZoneID(ctx)
-		if err != nil {
-			logging.Fatal(n.logger, "Unable to retrieve Zone ID of own ECS instance", logfields.Error, err)
-		}
-		nodeResource.Spec.InstanceID = instanceID
-		nodeResource.Spec.AlibabaCloud.InstanceType = instanceType
-		nodeResource.Spec.AlibabaCloud.VPCID = vpcID
-		nodeResource.Spec.AlibabaCloud.CIDRBlock = vpcCidrBlock
-		nodeResource.Spec.AlibabaCloud.AvailabilityZone = zoneID
-
-		nodeResource.Spec.IPAM.PreAllocate = n.config.IPAMPreAllocate
-		nodeResource.Spec.IPAM.MinAllocate = n.config.IPAMMinAllocate
-		nodeResource.Spec.IPAM.MaxAllocate = n.config.IPAMMaxAllocate
-		nodeResource.Spec.AlibabaCloud.VSwitches = n.config.AlibabaCloudVSwitches
-		nodeResource.Spec.AlibabaCloud.VSwitchTags = n.config.AlibabaCloudVSwitchTags
-		nodeResource.Spec.AlibabaCloud.SecurityGroups = n.config.AlibabaCloudSecurityGroups
-		nodeResource.Spec.AlibabaCloud.SecurityGroupTags = n.config.AlibabaCloudSecurityGroupTags
-
-		if c := n.cniConfigManager.GetCustomNetConf(); c != nil {
-			if c.AlibabaCloud.VPCID != "" {
-				nodeResource.Spec.AlibabaCloud.VPCID = c.AlibabaCloud.VPCID
-			}
-			if c.AlibabaCloud.CIDRBlock != "" {
-				nodeResource.Spec.AlibabaCloud.CIDRBlock = c.AlibabaCloud.CIDRBlock
-			}
-
-			if len(c.AlibabaCloud.VSwitches) > 0 {
-				nodeResource.Spec.AlibabaCloud.VSwitches = c.AlibabaCloud.VSwitches
-			}
-
-			if len(c.AlibabaCloud.VSwitchTags) > 0 {
-				nodeResource.Spec.AlibabaCloud.VSwitchTags = c.AlibabaCloud.VSwitchTags
-			}
-
-			if len(c.AlibabaCloud.SecurityGroups) > 0 {
-				nodeResource.Spec.AlibabaCloud.SecurityGroups = c.AlibabaCloud.SecurityGroups
-			}
-
-			if len(c.AlibabaCloud.SecurityGroupTags) > 0 {
-				nodeResource.Spec.AlibabaCloud.SecurityGroupTags = c.AlibabaCloud.SecurityGroupTags
-			}
-
-			if c.IPAM.PreAllocate != 0 {
-				nodeResource.Spec.IPAM.PreAllocate = c.IPAM.PreAllocate
-			}
-		}
+		return n.mutateAlibabaCloudNodeResource(ctx, nodeResource)
 	}
 
 	return nil

@@ -44,13 +44,11 @@ sed 'Done \([^)]+\)' 'Done (<time>)' externalendpoints.actual.v1.table
 * cmp externalendpoints.expected.v1.table externalendpoints.actual.v1.table
 
 # Assert no change in status of dashing-raven
-k8s/get isovalent.com.v1alpha1.privatenetworkexternalendpoints sky/dashing-raven -o dashing-raven.v1.actual.yaml
-sed 'resourceVersion: ".*"' 'resourceVersion: "<nr>"' dashing-raven.v1.actual.yaml
+k8s/get isovalent.com.v1alpha1.privatenetworkexternalendpoints sky/dashing-raven -o dashing-raven.v1.actual.yaml --show-redacted=uid
 cmp dashing-raven.v1.expected.yaml dashing-raven.v1.actual.yaml
 
 # Assert status field of noble-wolf is cleared
-k8s/get isovalent.com.v1alpha1.privatenetworkexternalendpoints forest/noble-wolf -o noble-wolf.v1.actual.yaml
-sed 'resourceVersion: ".*"' 'resourceVersion: "<nr>"' noble-wolf.v1.actual.yaml
+k8s/get isovalent.com.v1alpha1.privatenetworkexternalendpoints forest/noble-wolf -o noble-wolf.v1.actual.yaml --show-redacted=uid
 cmp noble-wolf.v1.expected.yaml noble-wolf.v1.actual.yaml
 
 # Assert labels of noble-wolf
@@ -236,7 +234,6 @@ metadata:
     name: dashing-raven
   name: dashing-raven
   namespace: sky
-  resourceVersion: "<nr>"
   uid: 3868faa8-40c8-4813-ba35-87ecc1db55bf
 spec:
   interface:
@@ -257,7 +254,6 @@ metadata:
     name: noble-wolf
   name: noble-wolf
   namespace: forest
-  resourceVersion: "<nr>"
   uid: 68adabc2-7878-4ab5-83d2-be5515d07fb9
 spec:
   inactive: true
