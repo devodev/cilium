@@ -121,6 +121,7 @@ jobs:
           - "multi-node-dual-extlb"
           - "multi-node-ipv4-hc-push"
           - "multi-node-ipv4-zones"
+          - "multi-node-ipv4-waf"
         shard:
           - "1-of-2"
           - "2-of-2"
@@ -234,6 +235,17 @@ jobs:
             t1-nodes: "kind-control-plane kind-worker"
             t2-nodes: "kind-worker2 kind-worker3"
             zones: "zone-a zone-b"
+            run-tests: "!LBK8sBackendCluster"
+          - name: "multi-node-ipv4-waf"
+            mode: "multi-node"
+            kind-ip-family: "ipv4"
+            kernel: "6.1-20240710.064909"
+            use-remote-address: "true"
+            xff-num-trusted-hops: 0
+            nr-of-worker-nodes: 3
+            t1-nodes: "kind-control-plane kind-worker"
+            t2-nodes: "kind-worker2 kind-worker3"
+            waf-enabled: "true"
             run-tests: "!LBK8sBackendCluster"
 
     timeout-minutes: 120
@@ -401,6 +413,10 @@ jobs:
           if [[ "${{ matrix.zones }}" != "" ]]; then
             EXTRA+=" --helm-set=envoy.nodeLocality.enabled=true"
             EXTRA+=" --helm-set-string=extraConfig.loadbalancer-cp-requestid-response=true"
+          fi
+
+          if [[ "${{ matrix.waf-enabled }}" == "true" ]]; then
+            EXTRA+=" --helm-set=enterprise.waf.enabled=true"
           fi
 
           cilium install \
