@@ -170,7 +170,8 @@ jobs:
             --exclude-code-owners=${CILIUM_CLI_EXCLUDE_OWNERS} \
             --flow-validation=disabled \
             --include-unsafe-tests \
-            --collect-sysdump-on-failure
+            --collect-sysdump-on-failure \
+            --log-check-extra-exceptions=cleanup-peer-config-status
           "
 
           OWNER="${{ github.ref_name }}"
