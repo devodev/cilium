@@ -12,6 +12,7 @@ package reconcilerv2
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"maps"
 	"net/netip"
@@ -3738,4 +3739,166 @@ func advertisedPrefixesMatch(req *require.Assertions, bgpInstance *instance.BGPI
 	expPrefixes := slices.Collect(maps.Keys(expected))
 	advPrefixes := slices.Collect(maps.Keys(advertised))
 	req.ElementsMatchf(expPrefixes, advPrefixes, "advertised prefixes do not match expected metadata, expected: %v, got: %v", expPrefixes, advPrefixes)
+}
+
+type failingFakeRouter struct {
+	*fake.EnterpriseFakeRouter
+	failPolicyName string
+	failPrefix     string
+}
+
+func (r *failingFakeRouter) AddRoutePolicyExtended(ctx context.Context, p entTypes.RoutePolicyExtendedRequest) error {
+	if p.Policy != nil && p.Policy.Name == r.failPolicyName {
+		return errors.New("injected add route policy failure")
+	}
+	return r.EnterpriseFakeRouter.AddRoutePolicyExtended(ctx, p)
+}
+
+func (r *failingFakeRouter) AdvertisePath(ctx context.Context, p types.PathRequest) (types.PathResponse, error) {
+	if p.Path != nil && p.Path.NLRI.String() == r.failPrefix {
+		return types.PathResponse{}, errors.New("injected advertise path failure")
+	}
+	return r.FakeRouter.AdvertisePath(ctx, p)
+}
+
+func TestServiceReconcilerMetadataPartialFailure(t *testing.T) {
+	// runFailedReconcile runs a reconciliation attempt that should fail thanks to passed failingFakeRouter.
+	// One aggregated service advertisement is being reconciled here.
+	runFailedReconcile := func(t *testing.T, router *failingFakeRouter, initialMetadata ServiceReconcilerMetadata) ServiceReconcilerMetadata {
+		t.Helper()
+		req := require.New(t)
+
+		f := newServiceTestFixture(t)
+		log := hivetest.Logger(t, hivetest.LogLevel(slog.LevelDebug))
+		err := f.hive.Start(log, context.Background())
+		req.NoError(err)
+		t.Cleanup(func() {
+			f.hive.Stop(log, context.Background())
+		})
+
+		testBGPInstance := &instance.BGPInstance{
+			Name:   "fake-instance",
+			Router: router,
+		}
+		testEnterpriseBGPInstance := &EnterpriseBGPInstance{
+			Name:   testBGPInstance.Name,
+			Router: router,
+		}
+		f.svcReconciler.Init(testBGPInstance)
+		t.Cleanup(func() {
+			f.svcReconciler.Cleanup(testBGPInstance)
+		})
+
+		// Upsert peer config and aggregation advertisement
+		f.peerConfigStore.Upsert(redPeerConfig)
+		f.advertStore.Upsert(redSvcAdvertWithAdvertisements(lbSvcAdvertWithSelectorAndPrefixLen(redSvcSelector, 24)))
+		f.svcReconciler.setMetadata(testEnterpriseBGPInstance, initialMetadata)
+
+		// Upser service frontend + backend
+		frontend := svcLBFrontend(redSvcTPCluster, ingressV4)
+		frontend.Backends = concatBackend(frontend.Backends, *newTestBackend(redSvcName, backendAddr("10.1.0.1", 80), "node1", loadbalancer.BackendStateActive), 1)
+		tx := f.db.WriteTxn(f.frontends)
+		_, _, err = f.frontends.Insert(tx, frontend)
+		req.NoError(err)
+		tx.Commit()
+
+		// Run reconcile
+		err = f.svcReconciler.Reconcile(t.Context(), reconciler.ReconcileParams{
+			BGPInstance: testBGPInstance,
+			CiliumNode:  testCiliumNodeConfig,
+		})
+		req.Error(err)
+
+		return f.svcReconciler.getMetadata(testEnterpriseBGPInstance)
+	}
+
+	// This covers failed route policy replacement:
+	// The old policy is removed, new policy addition fails during reconcile,
+	// so metadata must not keep the old policy that was removed during partial reconcile.
+	t.Run("route policy reconcile failure", func(t *testing.T) {
+		req := require.New(t)
+
+		router := &failingFakeRouter{
+			EnterpriseFakeRouter: fake.NewEnterpriseFakeRouter(),
+			failPolicyName:       redPeer65001v4LBRPName,
+		}
+
+		// add pre-existing route policy that will be updated in the reconcile
+		err := router.EnterpriseFakeRouter.AddRoutePolicyExtended(t.Context(), entTypes.RoutePolicyExtendedRequest{
+			Policy: redPeer65001v4LBRP, // non-aggregation policy, should be replaced with aggregation
+		})
+		req.NoError(err)
+
+		initialMetadata := ServiceReconcilerMetadata{
+			ServicePaths:          make(reconciler.ResourceAFPathsMap),
+			ServiceAdvertisements: make(PeerAdvertisements),
+			ServiceRoutePolicies: ResourceRoutePolicyMap{
+				redSvcKey: {
+					redPeer65001v4LBRPName: redPeer65001v4LBRP,
+				},
+			},
+		}
+		newMetadata := runFailedReconcile(t, router, initialMetadata)
+
+		// route policy should be removed from metadata as well as router now
+		req.Empty(newMetadata.ServiceRoutePolicies[redSvcKey])
+		policies, err := router.GetRoutePoliciesExtended(t.Context())
+		req.NoError(err)
+		req.Empty(policies.Policies)
+
+		// ServiceAdvertisements should not update after failure, FrontendChangesInitialized should be false
+		req.Empty(newMetadata.ServiceAdvertisements)
+		req.False(newMetadata.FrontendChangesInitialized)
+	})
+
+	// This covers failed path replacement:
+	// The old path is withdrawn, the replacement advertise fails during reconcile,
+	// so metadata must not keep the withdrawn old path after reconcile.
+	t.Run("advertise path failure", func(t *testing.T) {
+		req := require.New(t)
+
+		router := &failingFakeRouter{
+			EnterpriseFakeRouter: fake.NewEnterpriseFakeRouter(),
+			failPrefix:           aggregateV4Prefix24, // aggregation prefix will fail during reconcile
+		}
+		oldPath := types.NewPathForPrefix(netip.MustParsePrefix(ingressV4Prefix)) // non-aggregated prefix
+
+		req.NoError(router.EnterpriseFakeRouter.AddRoutePolicyExtended(t.Context(), entTypes.RoutePolicyExtendedRequest{
+			Policy: redPeer65001v4LBRP,
+		}))
+		_, err := router.EnterpriseFakeRouter.AdvertisePath(t.Context(), types.PathRequest{
+			Path: oldPath,
+		})
+		req.NoError(err)
+
+		initialMetadata := ServiceReconcilerMetadata{
+			ServicePaths: reconciler.ResourceAFPathsMap{
+				redSvcKey: {
+					{Afi: types.AfiIPv4, Safi: types.SafiUnicast}: {
+						ingressV4Prefix: oldPath,
+					},
+				},
+			},
+			ServiceAdvertisements: make(PeerAdvertisements),
+			ServiceRoutePolicies: ResourceRoutePolicyMap{
+				redSvcKey: {
+					redPeer65001v4LBRPName: redPeer65001v4LBRP,
+				},
+			},
+		}
+		newMetadata := runFailedReconcile(t, router, initialMetadata)
+
+		// service prefix should be withdrawn from metadata as well as router now
+		paths := newMetadata.ServicePaths[redSvcKey][types.Family{Afi: types.AfiIPv4, Safi: types.SafiUnicast}]
+		req.NotContains(paths, ingressV4Prefix)
+		req.NotContains(paths, aggregateV4Prefix24)
+
+		routes, err := router.GetRoutes(t.Context(), &types.GetRoutesRequest{TableType: types.TableTypeLocRIB})
+		req.NoError(err)
+		req.Empty(routes.Routes)
+
+		// ServiceAdvertisements should not update after failure, FrontendChangesInitialized should be false
+		req.Empty(newMetadata.ServiceAdvertisements)
+		req.False(newMetadata.FrontendChangesInitialized)
+	})
 }

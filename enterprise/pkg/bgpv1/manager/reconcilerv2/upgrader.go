@@ -22,10 +22,8 @@ import (
 
 	daemon_k8s "github.com/cilium/cilium/daemon/k8s"
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
-	"github.com/cilium/cilium/enterprise/pkg/bgpv1/fake"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
 	"github.com/cilium/cilium/pkg/bgp/agent/signaler"
-	"github.com/cilium/cilium/pkg/bgp/gobgp"
 	"github.com/cilium/cilium/pkg/bgp/manager/reconciler"
 	"github.com/cilium/cilium/pkg/bgp/manager/store"
 	ossTypes "github.com/cilium/cilium/pkg/bgp/types"
@@ -247,15 +245,10 @@ func getOSSNodePeerByName(ni *v2.CiliumBGPNodeInstance, peerName string) (*v2.Ci
 	return nil, fmt.Errorf("peer %s not found in the OSS instance %s", peerName, ni.Name)
 }
 
-// upgradeRouter converts an OSS Router to an Enterprise Router. We don't have
-// a good way to do this conversion generically, so we do a type switch here.
+// upgradeRouter converts an OSS Router to an Enterprise Router.
 func upgradeRouter(r ossTypes.Router) types.EnterpriseRouter {
-	switch rt := r.(type) {
-	case *gobgp.GoBGPServer:
+	if rt, ok := r.(types.EnterpriseRouter); ok {
 		return rt
-	case *fake.EnterpriseFakeRouter:
-		return rt
-	default:
-		panic(fmt.Sprintf("unknown router type %T", rt))
 	}
+	panic(fmt.Sprintf("unknown router type %T", r))
 }

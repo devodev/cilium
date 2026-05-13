@@ -99,8 +99,12 @@ type ServiceReconcilerIn struct {
 
 // ServiceReconcilerMetadata holds any announced service CIDRs per address family.
 type ServiceReconcilerMetadata struct {
-	ServicePaths               ossreconcilerv2.ResourceAFPathsMap
-	ServiceRoutePolicies       ResourceRoutePolicyMap
+	// ServicePaths and ServiceRoutePolicies hold actual router state,
+	// must be updated upon unsuccessful partial reconciliation as well.
+	ServicePaths         ossreconcilerv2.ResourceAFPathsMap
+	ServiceRoutePolicies ResourceRoutePolicyMap
+
+	// The below reconciler metadata needs to be updated only upon successful reconciliation.
 	ServiceAdvertisements      PeerAdvertisements
 	FrontendChanges            statedb.ChangeIterator[*loadbalancer.Frontend]
 	FrontendChangesInitialized bool
@@ -191,7 +195,7 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, ossParams ossreconcil
 	// must be done before reconciling paths and policies since it sets metadata with latest desiredPeerAdverts
 	reqFullReconcile := r.modifiedServiceAdvertisements(&metadata, desiredPeerAdverts)
 
-	// if frontend changes iterator has not been initialized yet (first reconcile), perform full reconciliation
+	// if frontend changes iterator has not been initialized (first reconcile or a retry), perform full reconciliation
 	if !metadata.FrontendChangesInitialized {
 		reqFullReconcile = true
 	}
@@ -215,14 +219,25 @@ func (r *ServiceReconciler) Reconcile(ctx context.Context, ossParams ossreconcil
 
 	err = r.reconcileServices(ctx, p, &metadata, desiredPeerAdverts, reqFullReconcile)
 
-	if err == nil {
-		// update svc advertisements and other metadata only if the reconciliation was successful
-		metadata.ServiceAdvertisements = desiredPeerAdverts
-		metadata.LastNodeStatus = nodeStatus
-		metadata.LastMaintenance = p.DesiredConfig.Maintenance
-		r.setMetadata(p.BGPInstance, metadata)
+	if err != nil {
+		// Preserve partial router state without committing desired advertisements or other metadata.
+		currentMetadata := r.getMetadata(p.BGPInstance)
+		currentMetadata.ServicePaths = metadata.ServicePaths
+		currentMetadata.ServiceRoutePolicies = metadata.ServiceRoutePolicies
+
+		// As the frontend change iterator may have advanced before the failure, force full reconciliation
+		// for the next retry, as otherwise we may miss some events.
+		currentMetadata.FrontendChangesInitialized = false
+		r.setMetadata(p.BGPInstance, currentMetadata)
+		return err
 	}
-	return err
+
+	// update svc advertisements and other metadata only if the reconciliation was successful
+	metadata.ServiceAdvertisements = desiredPeerAdverts
+	metadata.LastNodeStatus = nodeStatus
+	metadata.LastMaintenance = p.DesiredConfig.Maintenance
+	r.setMetadata(p.BGPInstance, metadata)
+	return nil
 }
 
 // reconcileServices mirrors the OSS reconciler's reconcileServices() code path and applies enterprise-specific
@@ -653,29 +668,64 @@ func (r *ServiceReconciler) diffReconciliationServiceList(metadata *ServiceRecon
 }
 
 func (r *ServiceReconciler) reconcileSvcRoutePolicies(ctx context.Context, p EnterpriseReconcileParams, metadata *ServiceReconcilerMetadata, desiredSvcRoutePolicies ResourceRoutePolicyMap) error {
-	var err error
-	for svcKey, desiredSvcRoutePolicies := range desiredSvcRoutePolicies {
-		currentSvcRoutePolicies, exists := metadata.ServiceRoutePolicies[svcKey]
-		if !exists && len(desiredSvcRoutePolicies) == 0 {
+	if len(desiredSvcRoutePolicies) == 0 {
+		return nil
+	}
+
+	currentPolicies := make(RoutePolicyMap)
+	desiredPolicies := make(RoutePolicyMap)
+
+	for svcKey, desiredSvcPolicies := range desiredSvcRoutePolicies {
+		currentSvcPolicies, exists := metadata.ServiceRoutePolicies[svcKey]
+		if !exists && len(desiredSvcPolicies) == 0 {
 			continue
 		}
+		maps.Copy(currentPolicies, currentSvcPolicies)
+		maps.Copy(desiredPolicies, desiredSvcPolicies)
+	}
 
-		updatedSvcRoutePolicies, rErr := ReconcileRoutePolicies(&ReconcileRoutePoliciesParams{
-			Logger:          r.logger.With(bgptypes.InstanceLogField, p.DesiredConfig.Name),
-			Ctx:             ctx,
-			Router:          p.BGPInstance.Router,
-			DesiredPolicies: desiredSvcRoutePolicies,
-			CurrentPolicies: currentSvcRoutePolicies,
-		})
+	updatedPolicies, err := ReconcileRoutePolicies(&ReconcileRoutePoliciesParams{
+		Logger:          r.logger.With(bgptypes.InstanceLogField, p.DesiredConfig.Name),
+		Ctx:             ctx,
+		Router:          p.BGPInstance.Router,
+		DesiredPolicies: desiredPolicies,
+		CurrentPolicies: currentPolicies,
+	})
 
-		if rErr == nil && len(desiredSvcRoutePolicies) == 0 {
-			delete(metadata.ServiceRoutePolicies, svcKey)
-		} else {
-			metadata.ServiceRoutePolicies[svcKey] = updatedSvcRoutePolicies
+	// Update per-service policy metadata even if reconciliation failed.
+	// The returned updatedPolicies map reflects router state changes that completed before the error.
+	for svcKey, desiredSvcPolicies := range desiredSvcRoutePolicies {
+		currentSvcPolicies, exists := metadata.ServiceRoutePolicies[svcKey]
+		if !exists && len(desiredSvcPolicies) == 0 {
+			continue
 		}
-		err = errors.Join(err, rErr)
+		updatedSvcPolicies := updatedSvcRoutePolicies(updatedPolicies, currentSvcPolicies, desiredSvcPolicies)
+		if len(updatedSvcPolicies) == 0 && len(desiredSvcPolicies) == 0 {
+			delete(metadata.ServiceRoutePolicies, svcKey)
+			continue
+		}
+		metadata.ServiceRoutePolicies[svcKey] = updatedSvcPolicies
 	}
 	return err
+}
+
+// updatedSvcRoutePolicies reconstructs the policies that were installed for a service during policy reconciliation.
+// Both currentSvcPolicies and desiredSvcPolicies needs to be considered:
+//   - currentSvcPolicies cover policies that may still be installed after failed removals or failed updates,
+//   - desiredSvcPolicies cover successfully added or updated policies.
+func updatedSvcRoutePolicies(updatedPolicies, currentSvcPolicies, desiredSvcPolicies RoutePolicyMap) RoutePolicyMap {
+	updatedSvcPolicies := make(RoutePolicyMap, len(currentSvcPolicies)+len(desiredSvcPolicies))
+	for policyName := range currentSvcPolicies {
+		if policy, exists := updatedPolicies[policyName]; exists {
+			updatedSvcPolicies[policyName] = policy
+		}
+	}
+	for policyName := range desiredSvcPolicies {
+		if policy, exists := updatedPolicies[policyName]; exists {
+			updatedSvcPolicies[policyName] = policy
+		}
+	}
+	return updatedSvcPolicies
 }
 
 func (r *ServiceReconciler) getDesiredRoutePolicies(p EnterpriseReconcileParams, desiredPeerAdverts PeerAdvertisements, toUpdate []*loadbalancer.Service, toRemove []loadbalancer.ServiceName, rx statedb.ReadTxn) (ResourceRoutePolicyMap, error) {
