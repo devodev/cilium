@@ -77,9 +77,32 @@ jobs:
         with:
           sha: ${{ inputs.SHA || github.sha }}
 
+  envoy-version:
+    name: Retrieve the envoy version
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.envoy_version }}
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Get version
+        id: version
+        env:
+          # renovate: datasource=docker depName=mikefarah/yq
+          yq_version: 4.52.4
+        run: |
+          repo_dir=$(git rev-parse --show-toplevel)
+          envoy_version=$(docker run --rm -v "${repo_dir}/install/kubernetes/cilium/values.yaml":/workdir/values.yaml --user "$(id -u):$(id -g)" mikefarah/yq:${yq_version} e ".envoy.image.tag" /workdir/values.yaml)
+          echo "envoy_version=${envoy_version}" >> $GITHUB_OUTPUT
+
   setup-and-test:
     runs-on: ${{ vars.GH_RUNNER_EXTRA_POWER }}
     name: "Setup & Test (${{ matrix.name }}, ${{ matrix.shard }})"
+    needs: [envoy-version]
     env:
       job_name: "Setup & Test"
     strategy:
@@ -400,6 +423,9 @@ jobs:
              --helm-set=enterprise.featureGate.minimumMaturity=Alpha \
              --helm-set=debug.enabled=true \
              --helm-set=debug.verbose="envoy datapath" \
+             --helm-set=envoy.image.repository=quay.io/isovalent-dev/cilium-envoy-ubi \
+             --helm-set=envoy.image.tag=${{ needs.envoy-version.outputs.version }} \
+             --helm-set=envoy.image.useDigest=false \
              --helm-set=envoy.dnsPolicy=ClusterFirstWithHostNet \
              --helm-set=envoy.startupProbe.enabled=false \
              --helm-set=envoy.livenessProbe.enabled=false \
