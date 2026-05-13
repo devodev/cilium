@@ -138,7 +138,8 @@ int privnet_local_access_egress_from_lxc_v4_setup(struct __ctx_buff *ctx)
 	privnet_add_device_entry(NETDEV_IFINDEX, NET_ID, NULL, NULL);
 	privnet_v4_add_subnet_entry(NET_ID, SUBNET_V4, SUBNET_V4_LEN, SUBNET_ID);
 	privnet_v4_add_endpoint_entry(NET_ID, SUBNET_ID, V4_NET_IP_1, V4_POD_IP_1);
-	privnet_v4_add_subnet_route(NET_ID, SUBNET_ID, V4_NET_IP_2, GATEWAY_IP, NETDEV_IFINDEX);
+	privnet_v4_add_subnet_route(NET_ID, SUBNET_ID, V4_NET_IP_2, V4_PRIVNET_KEY_LEN, GATEWAY_IP,
+				    NETDEV_IFINDEX);
 
 	policy_add_egress_allow_all_entry();
 	return pod_send_packet(ctx);
@@ -161,7 +162,7 @@ int privnet_local_access_egress_from_lxc_v4_check(struct __ctx_buff *ctx)
 	assert_privnet_net_ids(NET_ID, NET_ID);
 
 	policy_delete_entry(false, 0, 0, 0, 0);
-	privnet_v4_del_route(NET_ID, SUBNET_ID, V4_NET_IP_2);
+	privnet_v4_del_route(NET_ID, SUBNET_ID, V4_NET_IP_2, V4_PRIVNET_KEY_LEN);
 	privnet_v4_del_endpoint_entry(NET_ID, SUBNET_ID, V4_NET_IP_1, V4_POD_IP_1);
 	privnet_v4_del_subnet_entry(NET_ID, SUBNET_V4, SUBNET_V4_LEN);
 	privnet_del_device_entry(NETDEV_IFINDEX);

@@ -4,12 +4,12 @@
 #pragma once
 
 static __always_inline void
-__privnet_fib_v4_add_entry(__u16 net_id, __u16 subnet_id, __be32 prefix, __be32 nexthop,
-			   enum privnet_fib_type type, bool l2_announce, __u32 ifindex,
-			   const union macaddr *mac)
+__privnet_fib_v4_add_entry(__u16 net_id, __u16 subnet_id, __be32 prefix, __u8 prefix_len,
+			   __be32 nexthop, enum privnet_fib_type type, bool l2_announce,
+			   __u32 ifindex, const union macaddr *mac)
 {
 	struct privnet_fib_key key = {
-		.lpm_key.prefixlen = PRIVNET_FIB_PREFIX_LEN(V4_PRIVNET_KEY_LEN),
+		.lpm_key.prefixlen = PRIVNET_FIB_PREFIX_LEN(prefix_len),
 		.net_id = net_id,
 		.subnet_id = subnet_id,
 		.family = ENDPOINT_KEY_IPV4,
@@ -30,10 +30,10 @@ __privnet_fib_v4_add_entry(__u16 net_id, __u16 subnet_id, __be32 prefix, __be32 
 }
 
 static __always_inline void
-__privnet_fib_v4_del_entry(__u16 net_id, __u16 subnet_id, __be32 prefix)
+__privnet_fib_v4_del_entry(__u16 net_id, __u16 subnet_id, __be32 prefix, __u8 prefix_len)
 {
 	struct privnet_fib_key key = {
-		.lpm_key.prefixlen = PRIVNET_FIB_PREFIX_LEN(V4_PRIVNET_KEY_LEN),
+		.lpm_key.prefixlen = PRIVNET_FIB_PREFIX_LEN(prefix_len),
 		.net_id = net_id,
 		.subnet_id = subnet_id,
 		.family = ENDPOINT_KEY_IPV4,
@@ -149,7 +149,7 @@ static __always_inline void
 __privnet_v4_add_endpoint_entry(__u16 net_id, __u16 subnet_id, __be32 net_ip, __be32 pod_ip,
 				__u32 ifindex, const union macaddr *mac)
 {
-	__privnet_fib_v4_add_entry(net_id, subnet_id, net_ip, pod_ip,
+	__privnet_fib_v4_add_entry(net_id, subnet_id, net_ip, V4_PRIVNET_KEY_LEN, pod_ip,
 				   PRIVNET_FIB_VAL_TYPE_ENDPOINT, true, ifindex, mac);
 	__privnet_pip_v4_add_entry(pod_ip, net_id, net_ip);
 }
@@ -163,30 +163,30 @@ privnet_v4_add_endpoint_entry(__u16 net_id, __u16 subnet_id, __be32 net_ip, __be
 static __always_inline void
 privnet_v4_del_endpoint_entry(__u16 net_id, __u16 subnet_id, __be32 net_ip, __be32 pod_ip)
 {
-	__privnet_fib_v4_del_entry(net_id, subnet_id, net_ip);
+	__privnet_fib_v4_del_entry(net_id, subnet_id, net_ip, V4_PRIVNET_KEY_LEN);
 	__privnet_pip_v4_del_entry(pod_ip);
 }
 
 static __always_inline void
-privnet_v4_add_subnet_route(__u16 net_id, __u16 subnet_id, __be32 prefix, __be32 nexthop,
-			    __u32 ifindex)
+privnet_v4_add_subnet_route(__u16 net_id, __u16 subnet_id, __be32 prefix, __u8 prefix_len,
+			    __be32 nexthop, __u32 ifindex)
 {
-	__privnet_fib_v4_add_entry(net_id, subnet_id, prefix, nexthop,
+	__privnet_fib_v4_add_entry(net_id, subnet_id, prefix, prefix_len, nexthop,
 				   PRIVNET_FIB_VAL_TYPE_SUBNET_ROUTE, false, ifindex, NULL);
 }
 
 static __always_inline void
-privnet_v4_add_static_route(__u16 net_id, __u16 subnet_id, __be32 prefix, __be32 nexthop,
-			    __u32 ifindex)
+privnet_v4_add_static_route(__u16 net_id, __u16 subnet_id, __be32 prefix, __u8 prefix_len,
+			    __be32 nexthop, __u32 ifindex)
 {
-	__privnet_fib_v4_add_entry(net_id, subnet_id, prefix, nexthop,
+	__privnet_fib_v4_add_entry(net_id, subnet_id, prefix, prefix_len, nexthop,
 				   PRIVNET_FIB_VAL_TYPE_STATIC_ROUTE, false, ifindex, NULL);
 }
 
 static __always_inline void
-privnet_v4_del_route(__u16 net_id, __u16 subnet_id, __be32 prefix)
+privnet_v4_del_route(__u16 net_id, __u16 subnet_id, __be32 prefix, __u8 prefix_len)
 {
-	__privnet_fib_v4_del_entry(net_id, subnet_id, prefix);
+	__privnet_fib_v4_del_entry(net_id, subnet_id, prefix, prefix_len);
 }
 
 static __always_inline void

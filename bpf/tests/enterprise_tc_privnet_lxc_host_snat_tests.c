@@ -177,3 +177,65 @@ int host_rev_snat_egress_check(struct __ctx_buff *ctx)
 
 	test_finish();
 }
+
+/* The test case depends on the CT / NAT map entries created by
+ * the previous test cases.
+ */
+PKTGEN("tc", "03_tcp_from_privnet_to_host_rev_snat_default_route")
+int host_rev_snat_egress_default_route_pktgen(struct __ctx_buff *ctx)
+{
+	build_privnet_packet(ctx, privnet_pod_to_host_tcp_synack);
+	return 0;
+}
+
+SETUP("tc", "03_tcp_from_privnet_to_host_rev_snat_default_route")
+int host_rev_snat_egress_default_route_setup(struct __ctx_buff *ctx)
+{
+	privnet_add_device_entry(IFINDEX, NET_ID, &lxc_privnet_ipv4, &lxc_privnet_ipv6);
+	privnet_v4_add_subnet_entry(NET_ID, SUBNET_V4, SUBNET_V4_LEN, SUBNET_ID);
+	privnet_v4_add_endpoint_entry(NET_ID, SUBNET_ID, V4_NET_IP_1, V4_POD_IP_1);
+
+	privnet_v4_add_static_route(NET_ID, SUBNET_ID, 0, 0, GATEWAY_IP, 0);
+
+	ipcache_v4_add_entry(HOST_IP, 0, HOST_ID, 0, 0);
+
+	policy_add_egress_allow_all_entry();
+
+	return pod_send_packet(ctx);
+}
+
+CHECK("tc", "03_tcp_from_privnet_to_host_rev_snat_default_route")
+int host_rev_snat_egress_default_route_check(struct __ctx_buff *ctx)
+{
+	test_init();
+
+	assert_status_code(ctx, TC_ACT_OK);
+
+	void *data = (void *)(long)ctx->data;
+	void *data_end = (void *)(long)ctx->data_end;
+	struct iphdr *ip4;
+
+	data += sizeof(__u32);
+	data += sizeof(struct ethhdr);
+
+	if (data + sizeof(struct iphdr) > data_end)
+		test_fatal("packet too short for IP header");
+
+	ip4 = data;
+
+	if (ip4->saddr != V4_POD_IP_1)
+		test_fatal("expected src PIP (0x%x), got 0x%x",
+			   V4_POD_IP_1, ip4->saddr);
+
+	if (ip4->daddr != HOST_IP)
+		test_fatal("expected dst HOST_IP (0x%x), got 0x%x",
+			   HOST_IP, ip4->daddr);
+
+	privnet_v4_del_endpoint_entry(NET_ID, SUBNET_ID, V4_NET_IP_1, V4_POD_IP_1);
+	privnet_v4_del_subnet_entry(NET_ID, SUBNET_V4, SUBNET_V4_LEN);
+	privnet_del_device_entry(IFINDEX);
+
+	privnet_v4_del_route(NET_ID, SUBNET_ID, 0, 0);
+
+	test_finish();
+}

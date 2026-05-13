@@ -1026,7 +1026,16 @@ static __always_inline int privnet_egress_ipv4(struct __ctx_buff *ctx,
 	if (!revalidate_data(ctx, &data, &data_end, &ip4))
 		return DROP_INVALID;
 
-	dip_val = privnet_fib_lookup4(net_id, subnet_id, ip4->daddr);
+	host_traffic = is_defined(IS_BPF_LXC) && CONFIG(privnet_host_reachability) &&
+		ip4->daddr == CONFIG(privnet_host_snat_ipv4).be32;
+
+	/* Don't lookup destination FIB entry for traffic to the host SNAT IP.
+	 * The configured routes should not never apply to this traffic and the
+	 * packet will be dropped if there is no SNAT entry.
+	 */
+	if (!host_traffic)
+		dip_val = privnet_fib_lookup4(net_id, subnet_id, ip4->daddr);
+
 	if (dip_val) {
 		if (dst_privnet_entry)
 			*dst_privnet_entry = dip_val;
@@ -1105,8 +1114,7 @@ static __always_inline int privnet_egress_ipv4(struct __ctx_buff *ctx,
 	if (!revalidate_data(ctx, &data, &data_end, &ip4))
 		return DROP_INVALID;
 
-	if (is_defined(IS_BPF_LXC) && CONFIG(privnet_host_reachability) &&
-	    ip4->daddr == CONFIG(privnet_host_snat_ipv4).be32 && sip_val && !dip_val) {
+	if (host_traffic && sip_val) {
 		const struct remote_endpoint_info *info;
 		__u32 dst_sec_identity;
 
@@ -1120,7 +1128,6 @@ static __always_inline int privnet_egress_ipv4(struct __ctx_buff *ctx,
 		dst_sec_identity = info ? info->sec_identity : UNKNOWN_ID;
 		if (!privnet_is_identity_any_host(dst_sec_identity))
 			return DROP_UNROUTABLE;
-		host_traffic = true;
 
 		/* Set net id to default network.*/
 		set_privnet_net_dst_id(PRIVNET_PIP_NET_ID);
@@ -1289,7 +1296,21 @@ static __always_inline int privnet_egress_ipv6(struct __ctx_buff *ctx,
 	ipv6_addr_copy(&orig_sip, (union v6addr *)&ip6->saddr);
 	ipv6_addr_copy(&orig_dip, (union v6addr *)&ip6->daddr);
 
-	dip_val = privnet_fib_lookup6(net_id, subnet_id, orig_dip);
+	/* Host reachability is disabled for v6 due to BPF complexity limits */
+	if (is_defined(WIP) && is_defined(IS_BPF_LXC) && CONFIG(privnet_host_reachability)) {
+		union v6addr snat_ipv6 = CONFIG(privnet_host_snat_ipv6);
+
+		if (ipv6_addr_equals((union v6addr *)&ip6->daddr, &snat_ipv6))
+			host_traffic = true;
+	}
+
+	/* Don't lookup destination FIB entry for traffic to the host SNAT IP.
+	 * The configured routes should not never apply to this traffic and the
+	 * packet will be dropped if there is no SNAT entry.
+	 */
+	if (!host_traffic)
+		dip_val = privnet_fib_lookup6(net_id, subnet_id, orig_dip);
+
 	if (dip_val) {
 		if (dst_privnet_entry)
 			*dst_privnet_entry = dip_val;
@@ -1338,34 +1359,27 @@ static __always_inline int privnet_egress_ipv6(struct __ctx_buff *ctx,
 	}
 
 	/* Host reachability is disabled for v6 due to BPF complexity limits */
-	if (is_defined(WIP) &&
-	    is_defined(IS_BPF_LXC) && CONFIG(privnet_host_reachability)) {
+	if (is_defined(WIP) && host_traffic && sip_val) {
 		const struct remote_endpoint_info *info;
 		__u32 dst_sec_identity;
 
 		if (!revalidate_data(ctx, &data, &data_end, &ip6))
 			return DROP_INVALID;
 
-		union v6addr snat_ipv6 = CONFIG(privnet_host_snat_ipv6);
+		ret = privnet_host_rev_snat_egress6(ctx);
+		if (IS_ERR(ret))
+			return ret;
+		if (!revalidate_data(ctx, &data, &data_end, &ip6))
+			return DROP_INVALID;
+		ipv6_addr_copy(&orig_dip, (union v6addr *)&ip6->daddr);
 
-		if (ipv6_addr_equals((union v6addr *)&ip6->daddr, &snat_ipv6) &&
-		    !dip_val && sip_val) {
-			ret = privnet_host_rev_snat_egress6(ctx);
-			if (IS_ERR(ret))
-				return ret;
-			if (!revalidate_data(ctx, &data, &data_end, &ip6))
-				return DROP_INVALID;
-			ipv6_addr_copy(&orig_dip, (union v6addr *)&ip6->daddr);
+		info = lookup_ip6_remote_endpoint(&orig_dip, 0);
+		dst_sec_identity = info ? info->sec_identity : UNKNOWN_ID;
+		if (!privnet_is_identity_any_host(dst_sec_identity))
+			return DROP_UNROUTABLE;
 
-			info = lookup_ip6_remote_endpoint(&orig_dip, 0);
-			dst_sec_identity = info ? info->sec_identity : UNKNOWN_ID;
-			if (!privnet_is_identity_any_host(dst_sec_identity))
-				return DROP_UNROUTABLE;
-			host_traffic = true;
-
-			/* Set net id to default network.*/
-			set_privnet_net_dst_id(PRIVNET_PIP_NET_ID);
-		}
+		/* Set net id to default network.*/
+		set_privnet_net_dst_id(PRIVNET_PIP_NET_ID);
 	}
 
 	return enforce_privnet_egress_segmentation(sip_val, dip_val, host_traffic);

@@ -123,11 +123,12 @@ int privnet_evpn_ingress_v4_check(struct __ctx_buff *ctx)
 		__u32 status_code;
 
 		privnet_v4_add_subnet_entry(NET_ID, SUBNET_V4, SUBNET_V4_LEN, SUBNET_ID);
-		privnet_v4_add_subnet_route(NET_ID, SUBNET_ID, V4_NET_IP_2, INB_IP, 0);
+		privnet_v4_add_subnet_route(NET_ID, SUBNET_ID, V4_NET_IP_2, V4_PRIVNET_KEY_LEN,
+					    INB_IP, 0);
 
 		status_code = __privnet_evpn_ingress(ctx, NET_ID);
 
-		privnet_v4_del_route(NET_ID, SUBNET_ID, V4_NET_IP_2);
+		privnet_v4_del_route(NET_ID, SUBNET_ID, V4_NET_IP_2, V4_PRIVNET_KEY_LEN);
 		privnet_v4_del_subnet_entry(NET_ID, SUBNET_V4, SUBNET_V4_LEN);
 
 		if (status_code != (__u32)DROP_UNROUTABLE)

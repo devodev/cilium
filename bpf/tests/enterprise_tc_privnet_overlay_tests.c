@@ -358,7 +358,7 @@ int privnet_icmp_from_overlay_nat_src_unknown_dst_v4_setup(struct __ctx_buff *ct
 	privnet_v4_add_subnet_entry(NET_ID, SUBNET_V4, SUBNET_V4_LEN, SUBNET_ID);
 	__privnet_v4_add_endpoint_entry(NET_ID, SUBNET_ID, V4_NET_IP_1, V4_POD_IP_1,
 					NETDEV_IFINDEX, (const union macaddr *)mac_one);
-	privnet_v4_add_subnet_route(NET_ID, SUBNET_ID, V4_NET_IP_2, GATEWAY_IP,
+	privnet_v4_add_subnet_route(NET_ID, SUBNET_ID, V4_NET_IP_2, V4_PRIVNET_KEY_LEN, GATEWAY_IP,
 				    NETDEV_IFINDEX);
 
 	return overlay_receive_packet(ctx);

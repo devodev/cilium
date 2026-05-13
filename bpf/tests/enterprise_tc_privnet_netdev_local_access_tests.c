@@ -137,7 +137,8 @@ int privnet_local_access_ingress_from_netdev_setup(struct __ctx_buff *ctx)
 	privnet_add_device_entry(IFINDEX, NET_ID, NULL, NULL);
 	privnet_add_device_entry(LXC_IFINDEX, NET_ID, NULL, NULL);
 	privnet_v4_add_subnet_entry(NET_ID, SUBNET_V4, SUBNET_V4_LEN, SUBNET_ID);
-	privnet_v4_add_subnet_route(NET_ID, SUBNET_ID, V4_NET_IP_1, GATEWAY_IP, IFINDEX);
+	privnet_v4_add_subnet_route(NET_ID, SUBNET_ID, V4_NET_IP_1, V4_PRIVNET_KEY_LEN, GATEWAY_IP,
+				    IFINDEX);
 	__privnet_v4_add_endpoint_entry(NET_ID, SUBNET_ID, V4_NET_IP_2, V4_POD_IP_2, IFINDEX, NULL);
 
 	return netdev_receive_packet(ctx);
@@ -160,7 +161,7 @@ int privnet_local_access_ingress_from_netdev_check(struct __ctx_buff *ctx)
 	assert_privnet_net_ids(NET_ID, NET_ID);
 
 	privnet_v4_del_endpoint_entry(NET_ID, SUBNET_ID, V4_NET_IP_2, V4_POD_IP_2);
-	privnet_v4_del_route(NET_ID, SUBNET_ID, V4_NET_IP_1);
+	privnet_v4_del_route(NET_ID, SUBNET_ID, V4_NET_IP_1, V4_PRIVNET_KEY_LEN);
 	privnet_v4_del_subnet_entry(NET_ID, SUBNET_V4, SUBNET_V4_LEN);
 	privnet_del_device_entry(LXC_IFINDEX);
 	privnet_del_device_entry(IFINDEX);
