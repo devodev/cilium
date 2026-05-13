@@ -157,7 +157,9 @@
       ],
       "allowedVersions": "<1.26",
       "matchBaseBranches": [
-        "v1.19-ce"
+        "v1.19-ce",
+        'v1.18-ce',
+        'v1.17-ce',
       ]
     },
     {
@@ -168,8 +170,6 @@
       allowedVersions: '<1.25',
       matchBaseBranches: [
         'v1.16-ce',
-        'v1.17-ce',
-        'v1.18-ce',
       ],
     },
     {
