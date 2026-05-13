@@ -513,7 +513,7 @@ github.com/davecgh/go-spew/spew
 # github.com/decred/dcrd/dcrec/secp256k1/v4 v4.4.0
 ## explicit; go 1.17
 github.com/decred/dcrd/dcrec/secp256k1/v4
-# github.com/dgryski/go-farm v0.0.0-20200201041132-a6ae2369ad13
+# github.com/dgryski/go-farm v0.0.0-20240924180020-3414d57e47da
 ## explicit
 github.com/dgryski/go-farm
 # github.com/distribution/reference v0.6.0
@@ -912,7 +912,7 @@ github.com/fluxcd/cli-utils/pkg/object
 ## explicit; go 1.23
 github.com/fsnotify/fsnotify
 github.com/fsnotify/fsnotify/internal
-# github.com/fxamacker/cbor/v2 v2.9.0
+# github.com/fxamacker/cbor/v2 v2.9.1
 ## explicit; go 1.20
 github.com/fxamacker/cbor/v2
 # github.com/gabriel-vasile/mimetype v1.4.12
@@ -924,6 +924,18 @@ github.com/gabriel-vasile/mimetype/internal/json
 github.com/gabriel-vasile/mimetype/internal/magic
 github.com/gabriel-vasile/mimetype/internal/markup
 github.com/gabriel-vasile/mimetype/internal/scan
+# github.com/gaissmai/bart v0.26.1
+## explicit; go 1.24.0
+github.com/gaissmai/bart
+github.com/gaissmai/bart/internal/allot
+github.com/gaissmai/bart/internal/art
+github.com/gaissmai/bart/internal/bitset
+github.com/gaissmai/bart/internal/lpm
+github.com/gaissmai/bart/internal/nodes
+github.com/gaissmai/bart/internal/sparse
+github.com/gaissmai/bart/internal/tests/golden
+github.com/gaissmai/bart/internal/tests/random
+github.com/gaissmai/bart/internal/value
 # github.com/go-errors/errors v1.5.1
 ## explicit; go 1.14
 github.com/go-errors/errors
@@ -1547,7 +1559,7 @@ github.com/onsi/ginkgo/v2/internal/reporters
 github.com/onsi/ginkgo/v2/internal/testingtproxy
 github.com/onsi/ginkgo/v2/reporters
 github.com/onsi/ginkgo/v2/types
-# github.com/onsi/gomega v1.39.1
+# github.com/onsi/gomega v1.40.0
 ## explicit; go 1.24.0
 github.com/onsi/gomega
 github.com/onsi/gomega/format
@@ -1575,20 +1587,26 @@ github.com/openshift/custom-resource-status/conditions/v1
 github.com/opentracing/opentracing-go
 github.com/opentracing/opentracing-go/ext
 github.com/opentracing/opentracing-go/log
+# github.com/orcaman/concurrent-map/v2 v2.0.1
+## explicit; go 1.18
+github.com/orcaman/concurrent-map/v2
 # github.com/osrg/gobgp/v3 v3.37.0 => github.com/isovalent/gobgp/v3 v3.0.0-20260116195249-1eca87faca1a
 ## explicit; go 1.23.0
-github.com/osrg/gobgp/v3/api
-github.com/osrg/gobgp/v3/internal/pkg/table
-github.com/osrg/gobgp/v3/internal/pkg/version
-github.com/osrg/gobgp/v3/pkg/apiutil
-github.com/osrg/gobgp/v3/pkg/config/oc
-github.com/osrg/gobgp/v3/pkg/log
 github.com/osrg/gobgp/v3/pkg/packet/bgp
-github.com/osrg/gobgp/v3/pkg/packet/bmp
-github.com/osrg/gobgp/v3/pkg/packet/mrt
-github.com/osrg/gobgp/v3/pkg/packet/rtr
-github.com/osrg/gobgp/v3/pkg/server
-github.com/osrg/gobgp/v3/pkg/zebra
+# github.com/osrg/gobgp/v4 v4.5.0
+## explicit; go 1.24.5
+github.com/osrg/gobgp/v4/api
+github.com/osrg/gobgp/v4/internal/pkg/netutils
+github.com/osrg/gobgp/v4/internal/pkg/table
+github.com/osrg/gobgp/v4/internal/pkg/version
+github.com/osrg/gobgp/v4/pkg/apiutil
+github.com/osrg/gobgp/v4/pkg/config/oc
+github.com/osrg/gobgp/v4/pkg/packet/bgp
+github.com/osrg/gobgp/v4/pkg/packet/bmp
+github.com/osrg/gobgp/v4/pkg/packet/mrt
+github.com/osrg/gobgp/v4/pkg/packet/rtr
+github.com/osrg/gobgp/v4/pkg/server
+github.com/osrg/gobgp/v4/pkg/zebra
 # github.com/pelletier/go-toml v1.9.5
 ## explicit; go 1.12
 github.com/pelletier/go-toml
@@ -1719,6 +1737,9 @@ github.com/segmentio/asm/cpu/arm64
 github.com/segmentio/asm/cpu/cpuid
 github.com/segmentio/asm/cpu/x86
 github.com/segmentio/asm/internal/unsafebytes
+# github.com/segmentio/fasthash v1.0.3
+## explicit; go 1.11
+github.com/segmentio/fasthash/fnv1a
 # github.com/sergi/go-diff v1.4.0
 ## explicit; go 1.13
 github.com/sergi/go-diff/diffmatchpatch
