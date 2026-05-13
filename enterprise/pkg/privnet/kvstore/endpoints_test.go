@@ -125,6 +125,17 @@ func TestEndpointEqual(t *testing.T) {
 			}(ep),
 			assert: assert.False,
 		},
+		{
+			name: "different previous addressing",
+			a:    &ep,
+			b: func(cpy kvstore.Endpoint) *kvstore.Endpoint {
+				cpy.PreviousAddressing = []kvstore.PreviousAddressing{
+					{IP: netip.MustParseAddr("1.2.3.4"), LastSeen: time.Now().UTC()},
+				}
+				return &cpy
+			}(ep),
+			assert: assert.False,
+		},
 	}
 
 	for _, tt := range tests {
@@ -287,6 +298,7 @@ func TestEndpointsFromEndpointSlice(t *testing.T) {
 		EP   = iso_v1alpha1.PrivateNetworkEndpointSliceEndpoint
 		IF   = iso_v1alpha1.PrivateNetworkEndpointSliceInterface
 		FL   = iso_v1alpha1.PrivateNetworkEndpointSliceFlags
+		PA   = iso_v1alpha1.PrivateNetworkEndpointSlicePreviousAddressing
 	)
 
 	var (
@@ -329,6 +341,13 @@ func TestEndpointsFromEndpointSlice(t *testing.T) {
 					Endpoint:  EP{Name: "invalid-ips", Addressing: Addr{IPv4: "192.168.0.3", IPv6: "__invalid__"}},
 					Interface: IF{Network: "net-5", Addressing: Addr{IPv6: "10.0.0.3"}, MAC: "00:11:22:33:44:88"},
 				},
+				{
+					Endpoint: EP{
+						Name:               "previous",
+						Addressing:         Addr{IPv4: "192.168.0.4", IPv6: "fc00::4"},
+						PreviousAddressing: []PA{{IPv4: "192.168.0.2", IPv6: "fc00::2", LastSeen: metav1.MicroTime{Time: now}}}},
+					Interface: IF{Network: "net-3", Addressing: Addr{IPv4: "10.0.0.2", IPv6: "fd00::2"}, MAC: "00:11:22:33:44:77"},
+				},
 			},
 			NodeName: "__node__",
 		}
@@ -338,6 +357,8 @@ func TestEndpointsFromEndpointSlice(t *testing.T) {
 			{Source: source, Name: "ipv6-only", IP: MPA("fc00::1"), Network: kvstore.Network{Name: "net-2", IP: MPA("fd00::1"), MAC: MPM("00:11:22:33:44:66")}, NodeName: "__node__", Flags: kvstore.Flags{External: true}},
 			{Source: source, Name: "dual", IP: MPA("192.168.0.2"), Network: kvstore.Network{Name: "net-3", IP: MPA("10.0.0.2"), MAC: MPM("00:11:22:33:44:77")}, NodeName: "__node__", ActivatedAt: now},
 			{Source: source, Name: "dual", IP: MPA("fc00::2"), Network: kvstore.Network{Name: "net-3", IP: MPA("fd00::2"), MAC: MPM("00:11:22:33:44:77")}, NodeName: "__node__", ActivatedAt: now},
+			{Source: source, Name: "previous", IP: MPA("192.168.0.4"), Network: kvstore.Network{Name: "net-3", IP: MPA("10.0.0.2"), MAC: MPM("00:11:22:33:44:77")}, NodeName: "__node__", PreviousAddressing: []kvstore.PreviousAddressing{{IP: MPA("192.168.0.2"), LastSeen: now}}},
+			{Source: source, Name: "previous", IP: MPA("fc00::4"), Network: kvstore.Network{Name: "net-3", IP: MPA("fd00::2"), MAC: MPM("00:11:22:33:44:77")}, NodeName: "__node__", PreviousAddressing: []kvstore.PreviousAddressing{{IP: MPA("fc00::2"), LastSeen: now}}},
 		}
 
 		actual = slices.Collect(kvstore.EndpointsFromEndpointSlice(hivetest.Logger(t), source.Cluster, input))

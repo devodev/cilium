@@ -18,6 +18,7 @@ import (
 	"log/slog"
 	"net/netip"
 	"path"
+	"slices"
 
 	iso_v1alpha1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
 	"github.com/cilium/cilium/pkg/kvstore"
@@ -56,6 +57,9 @@ type Endpoint struct {
 
 	// Source identifies the resource propagating the endpoint information.
 	Source Source `json:"source" validate:"required"`
+
+	// PreviousAddressing is an optional field containing the previous addressing information if available.
+	PreviousAddressing []PreviousAddressing `json:"previousAddressing,omitempty"`
 }
 
 // Network contains the identifiers from the private network point of view.
@@ -68,6 +72,16 @@ type Network struct {
 
 	// MAC is the MAC address of the endpoint.
 	MAC mac.MAC `json:"mac" validate:"required,len=6"`
+}
+
+// PreviousAddressing contains the previous endpoint IP if the endpoint migrated,
+// which caused the endpoint IP to change.
+type PreviousAddressing struct {
+	// IP is the previous endpoint IP from the pod network point of view.
+	IP netip.Addr `json:"ip" validate:"required"`
+
+	// The instant in time when above address was last known to be valid.
+	LastSeen time.Time `json:"lastSeen" validate:"required"`
 }
 
 // Equal returns whether two Network objects are identical.
@@ -132,7 +146,8 @@ func (e *Endpoint) Equal(other *Endpoint) bool {
 	return e.ActivatedAt.Equal(other.ActivatedAt) &&
 		e.IP == other.IP && e.Name == other.Name &&
 		e.Network.Equal(other.Network) && e.Source == other.Source &&
-		e.NodeName == other.NodeName && e.Flags == other.Flags
+		e.NodeName == other.NodeName && e.Flags == other.Flags &&
+		slices.Equal(e.PreviousAddressing, other.PreviousAddressing)
 }
 
 func (e *Endpoint) validate(key string) error {
@@ -157,7 +172,7 @@ var (
 func EndpointsFromEndpointSlice(logger *slog.Logger, clusterName string, slice *iso_v1alpha1.PrivateNetworkEndpointSlice) iter.Seq[*Endpoint] {
 	return func(yield func(*Endpoint) bool) {
 		for _, ep := range slice.Endpoints {
-			newEndpoint := func(epAddr string, netAddr string) (*Endpoint, error) {
+			newEndpoint := func(epAddr, netAddr string) (*Endpoint, error) {
 				mac, err := mac.ParseMAC(ep.Interface.MAC)
 				if err != nil {
 					return nil, err
@@ -171,6 +186,25 @@ func EndpointsFromEndpointSlice(logger *slog.Logger, clusterName string, slice *
 				epAddrParsed, err := netip.ParseAddr(epAddr)
 				if err != nil {
 					return nil, err
+				}
+
+				var prevAddressing []PreviousAddressing
+				for _, prevAddr := range ep.Endpoint.PreviousAddressing {
+					var prevAddrStr string
+					if epAddrParsed.Is4() {
+						prevAddrStr = prevAddr.IPv4
+					} else if epAddrParsed.Is6() {
+						prevAddrStr = prevAddr.IPv6
+					}
+
+					prevAddrParsed, err := netip.ParseAddr(prevAddrStr)
+					if err != nil {
+						return nil, err
+					}
+					prevAddressing = append(prevAddressing, PreviousAddressing{
+						IP:       prevAddrParsed,
+						LastSeen: prevAddr.LastSeen.UTC(),
+					})
 				}
 
 				return &Endpoint{
@@ -196,6 +230,8 @@ func EndpointsFromEndpointSlice(logger *slog.Logger, clusterName string, slice *
 						Namespace: slice.GetNamespace(),
 						Name:      slice.GetName(),
 					},
+
+					PreviousAddressing: prevAddressing,
 				}, nil
 			}
 
