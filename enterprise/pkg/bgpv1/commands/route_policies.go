@@ -13,12 +13,12 @@ package commands
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"maps"
 	"net/netip"
 	"slices"
 	"sort"
 	"strings"
-	"text/tabwriter"
 
 	"github.com/cilium/hive/script"
 	"github.com/spf13/pflag"
@@ -76,6 +76,7 @@ func BGPPRoutePolicies(bgpMgr agent.EnterpriseBGPRouterManager) script.Cmd {
 						return "", "", err
 					}
 					PrintBGPRoutePoliciesTable(tw, policies)
+					tw.Flush()
 				case "json":
 					out, err := json.MarshalIndent(policies, "", "  ")
 					if err != nil {
@@ -94,7 +95,7 @@ func BGPPRoutePolicies(bgpMgr agent.EnterpriseBGPRouterManager) script.Cmd {
 }
 
 // PrintBGPRoutePoliciesTable prints table of provided BGP route policies in the provided tab writer.
-func PrintBGPRoutePoliciesTable(w *tabwriter.Writer, instancePolicies map[string][]*types.ExtendedRoutePolicy) {
+func PrintBGPRoutePoliciesTable(w io.Writer, instancePolicies map[string][]*types.ExtendedRoutePolicy) {
 	fmt.Fprintln(w, "Instance\tPolicy Name\tType\tMatch Peers\tMatch Families\tMatch Prefixes (Min..Max Len)\tMatch Communities\tRIB Action\tPath Actions")
 
 	instances := slices.Collect(maps.Keys(instancePolicies))
@@ -129,7 +130,6 @@ func PrintBGPRoutePoliciesTable(w *tabwriter.Writer, instancePolicies map[string
 			}
 		}
 	}
-	w.Flush()
 }
 
 func formatPolicyType(t ossTypes.RoutePolicyType) string {
