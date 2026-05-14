@@ -500,6 +500,7 @@ kind-privnet-test-run-local: kind-privnet-test-build-cilium-cli
 		--inb-contexts=kind-privnet-inb0,kind-privnet-inb1 \
 		--test-namespace=$(PRIVNET_TEST_NAMESPACE) \
 		$(if $(strip $(PRIVNET_VM_IMAGE)),--vm-image=$(PRIVNET_VM_IMAGE),) \
+		--mock-vm-image=$(PRIVNET_CONTAINER_IMAGE) \
 		privnet test
 
 .PHONY: kind-privnet-test-run-docker
@@ -517,6 +518,7 @@ kind-privnet-test-run-docker:
 		--inb-contexts=kind-privnet-inb0,kind-privnet-inb1 \
 		--test-namespace=$(PRIVNET_TEST_NAMESPACE) \
 		$(if $(strip $(PRIVNET_VM_IMAGE)),--vm-image=$(PRIVNET_VM_IMAGE),) \
+		--mock-vm-image=$(PRIVNET_CONTAINER_IMAGE) \
 		privnet test
 
 .PHONY: kind-privnet-test-run
