@@ -1,0 +1,66 @@
+[
+  {
+    "spec": {
+      "flags": {
+        "name": "lbfe-api",
+        "namespace": "default"
+      },
+      "frontend-address": {
+        "ip": "100.64.0.40",
+        "port": 8080
+      }
+    },
+    "status": {
+      "realized": {
+        "flags": {
+          "name": "lbfe-api",
+          "namespace": "default",
+          "type": "LoadBalancer"
+        },
+        "frontend-address": {
+          "ip": "100.64.0.40",
+          "port": 8080
+        },
+        "backend-addresses": [
+          {
+            "ip": "10.0.1.20",
+            "port": 9090,
+            "state": "active"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "spec": {
+      "flags": {
+        "name": "lbfe-web",
+        "namespace": "default"
+      },
+      "frontend-address": {
+        "ip": "100.64.0.41",
+        "port": 80
+      }
+    },
+    "status": {
+      "realized": {
+        "flags": {
+          "name": "lbfe-web",
+          "namespace": "default",
+          "type": "LoadBalancer"
+        },
+        "frontend-address": {
+          "ip": "100.64.0.41",
+          "port": 80
+        },
+        "backend-addresses": [
+          {
+            "ip": "10.0.1.10",
+            "port": 8080,
+            "state": "active"
+          }
+        ]
+      }
+    }
+  }
+]

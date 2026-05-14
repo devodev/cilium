@@ -1,0 +1,34 @@
+[
+  {
+    "spec": {
+      "flags": {
+        "name": "lbfe-web",
+        "namespace": "default"
+      },
+      "frontend-address": {
+        "ip": "100.64.0.10",
+        "port": 80
+      }
+    },
+    "status": {
+      "realized": {
+        "flags": {
+          "name": "lbfe-web",
+          "namespace": "default",
+          "type": "LoadBalancer"
+        },
+        "frontend-address": {
+          "ip": "100.64.0.10",
+          "port": 80
+        },
+        "backend-addresses": [
+          {
+            "ip": "10.0.1.10",
+            "port": 8080,
+            "state": "active"
+          }
+        ]
+      }
+    }
+  }
+]

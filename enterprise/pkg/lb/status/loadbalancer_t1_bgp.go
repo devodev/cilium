@@ -151,7 +151,7 @@ func (s *LoadbalancerClient) fetchBGPRoutesConcurrently(ctx context.Context) (ma
 }
 
 func (s *LoadbalancerClient) fetchBGPRoutesFromPod(ctx context.Context, fetchCmd []string, pod *Pod) ([]*models.BgpRoute, error) {
-	output, errOutput, err := s.client.ExecInPod(ctx, pod.Namespace, pod.Name, "cilium-agent", fetchCmd)
+	output, errOutput, err := s.execInPod(ctx, pod.Namespace, pod.Name, "cilium-agent", fetchCmd)
 	if err != nil {
 		var errStr string
 		if errOutput.String() != "" {
@@ -242,7 +242,7 @@ func (s *LoadbalancerClient) fetchBGPPeersConcurrently(ctx context.Context) (map
 }
 
 func (s *LoadbalancerClient) fetchBGPPeersFromPod(ctx context.Context, fetchCmd []string, pod *Pod) ([]*models.BgpPeer, error) {
-	output, errOutput, err := s.client.ExecInPod(ctx, pod.Namespace, pod.Name, "cilium-agent", fetchCmd)
+	output, errOutput, err := s.execInPod(ctx, pod.Namespace, pod.Name, "cilium-agent", fetchCmd)
 	if err != nil {
 		var errStr string
 		if errOutput.String() != "" {

@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: cilium-control-plane
+  namespace: kube-system
+  labels:
+    k8s-app: cilium
+spec:
+  nodeName: kind-control-plane

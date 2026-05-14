@@ -1,0 +1,148 @@
+{
+  "summary": {
+    "nrOfT1Nodes": 1,
+    "nrOfT2Nodes": 1,
+    "nrOfServices": 2,
+    "nrOfVips": 2
+  },
+  "services": [
+    {
+      "namespace": "default",
+      "name": "api",
+      "vip": "100.64.0.40",
+      "port": 8080,
+      "type": "HTTP Proxy",
+      "deploymentMode": "T1-T2",
+      "bgpPeerStatus": {
+        "status": "OK",
+        "ok": 1,
+        "total": 1,
+        "peers": [
+          {
+            "name": "10.0.0.1-65001",
+            "healthy": true
+          }
+        ]
+      },
+      "bgpRouteStatus": {
+        "status": "OK",
+        "ok": 1,
+        "total": 1
+      },
+      "t1NodeStatus": {
+        "status": "OK",
+        "ok": 1,
+        "total": 1
+      },
+      "t1t2HealthcheckStatus": {
+        "status": "OK",
+        "ok": 1,
+        "total": 1,
+        "endpoints": [
+          {
+            "from": "kind-control-plane",
+            "endpoint": "100.64.0.40:8080",
+            "healthy": true
+          }
+        ]
+      },
+      "t2NodeStatus": {
+        "status": "OK",
+        "ok": 1,
+        "total": 1
+      },
+      "t2BackendHealthcheckStatus": {
+        "status": "OK",
+        "ok": 1,
+        "total": 1,
+        "endpoints": [
+          {
+            "from": "kind-control-plane",
+            "endpoint": "10.0.1.20:9090",
+            "healthy": true
+          }
+        ]
+      },
+      "backendpoolStatus": {
+        "status": "OK",
+        "groups": [
+          {
+            "status": "OK",
+            "ok": 1,
+            "total": 1
+          }
+        ]
+      },
+      "status": "ONLINE"
+    },
+    {
+      "namespace": "default",
+      "name": "web",
+      "vip": "100.64.0.41",
+      "port": 80,
+      "type": "HTTP Proxy",
+      "deploymentMode": "T1-T2",
+      "bgpPeerStatus": {
+        "status": "OK",
+        "ok": 1,
+        "total": 1,
+        "peers": [
+          {
+            "name": "10.0.0.1-65001",
+            "healthy": true
+          }
+        ]
+      },
+      "bgpRouteStatus": {
+        "status": "OK",
+        "ok": 1,
+        "total": 1
+      },
+      "t1NodeStatus": {
+        "status": "OK",
+        "ok": 1,
+        "total": 1
+      },
+      "t1t2HealthcheckStatus": {
+        "status": "OK",
+        "ok": 1,
+        "total": 1,
+        "endpoints": [
+          {
+            "from": "kind-control-plane",
+            "endpoint": "100.64.0.41:80",
+            "healthy": true
+          }
+        ]
+      },
+      "t2NodeStatus": {
+        "status": "OK",
+        "ok": 1,
+        "total": 1
+      },
+      "t2BackendHealthcheckStatus": {
+        "status": "OK",
+        "ok": 1,
+        "total": 1,
+        "endpoints": [
+          {
+            "from": "kind-control-plane",
+            "endpoint": "10.0.1.10:8080",
+            "healthy": true
+          }
+        ]
+      },
+      "backendpoolStatus": {
+        "status": "OK",
+        "groups": [
+          {
+            "status": "OK",
+            "ok": 1,
+            "total": 1
+          }
+        ]
+      },
+      "status": "ONLINE"
+    }
+  ]
+}

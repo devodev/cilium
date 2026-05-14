@@ -1,0 +1,17 @@
+=========
+Summary
+=========
+
+T1 Nodes:   1
+T2 Nodes:   1
+Services:   2
+VIPs:       2
+
+=========
+Services
+=========
+
+Namespace   Name   VIP           Port   Type         D-Mode   BGP Peers   BGP Routes   T1          HC T1->[T2|B]   T2          HC T2->B    Backendpools   Status
+---------   ----   ---           ----   ----         ------   ---------   ----------   --          -------------   --          --------    ------------   ------
+default     api    100.64.0.40   8080   HTTP Proxy   T1-T2    OK  [1/1]   OK  [1/1]    OK  [1/1]   OK  [1/1]       OK  [1/1]   OK  [1/1]   OK  [1/1]      ONLINE
+default     web    100.64.0.41   80     HTTP Proxy   T1-T2    OK  [1/1]   OK  [1/1]    OK  [1/1]   OK  [1/1]       OK  [1/1]   OK  [1/1]   OK  [1/1]      ONLINE

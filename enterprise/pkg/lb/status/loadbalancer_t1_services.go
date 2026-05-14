@@ -85,7 +85,7 @@ func (s *LoadbalancerClient) fetchServiceStatusConcurrently(ctx context.Context)
 }
 
 func (s *LoadbalancerClient) fetchServiceStatusFromPod(ctx context.Context, fetchCmd []string, pod *Pod) ([]*models.Service, error) {
-	output, errOutput, err := s.client.ExecInPod(ctx, pod.Namespace, pod.Name, "cilium-agent", fetchCmd)
+	output, errOutput, err := s.execInPod(ctx, pod.Namespace, pod.Name, "cilium-agent", fetchCmd)
 	if err != nil {
 		var errStr string
 		if errOutput.String() != "" {

@@ -82,7 +82,7 @@ func (s *LoadbalancerClient) fetchEnvoyConfigConcurrently(ctx context.Context) (
 }
 
 func (s *LoadbalancerClient) fetchEnvoyConfigFromPod(ctx context.Context, fetchCmd []string, pod *Pod) (*EnvoyConfigModel, error) {
-	output, errOutput, err := s.client.ExecInPod(ctx, pod.Namespace, pod.Name, "cilium-agent", fetchCmd)
+	output, errOutput, err := s.execInPod(ctx, pod.Namespace, pod.Name, "cilium-agent", fetchCmd)
 	if err != nil {
 		var errStr string
 		if errOutput.String() != "" {

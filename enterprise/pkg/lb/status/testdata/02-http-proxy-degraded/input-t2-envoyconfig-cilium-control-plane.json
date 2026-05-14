@@ -1,0 +1,31 @@
+{
+  "configs": [
+    {
+      "@type": "type.googleapis.com/envoy.admin.v3.EndpointsConfigDump",
+      "dynamic_endpoint_configs": [
+        {
+          "endpoint_config": {
+            "cluster_name": "default/lbfe-web-degraded/backend_cluster_http_0",
+            "endpoints": [
+              {
+                "lb_endpoints": [
+                  {
+                    "endpoint": {
+                      "address": {
+                        "socket_address": {
+                          "address": "10.0.1.20",
+                          "port_value": 8080
+                        }
+                      }
+                    },
+                    "health_status": "HEALTHY"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

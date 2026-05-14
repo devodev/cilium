@@ -1,0 +1,19 @@
+apiVersion: isovalent.com/v1alpha1
+kind: LBService
+metadata:
+  namespace: default
+  name: web-degraded
+  labels:
+    app: web-degraded
+spec:
+  vipRef:
+    name: web-degraded
+  port: 80
+  applications:
+    httpProxy:
+      routes:
+        - backendRef:
+            name: web-degraded
+status:
+  addresses:
+    ipv4: 100.64.0.20

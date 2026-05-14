@@ -1,0 +1,52 @@
+{
+  "summary": {
+    "nrOfT1Nodes": 1,
+    "nrOfT2Nodes": 1,
+    "nrOfServices": 1,
+    "nrOfVips": 1
+  },
+  "services": [
+    {
+      "namespace": "default",
+      "name": "web-no-vip",
+      "vip": "N/A",
+      "port": 80,
+      "type": "HTTP Proxy",
+      "deploymentMode": "T1-T2",
+      "bgpPeerStatus": {
+        "status": "N/A",
+        "ok": 0,
+        "total": 0
+      },
+      "bgpRouteStatus": {
+        "status": "N/A",
+        "ok": 0,
+        "total": 0
+      },
+      "t1NodeStatus": {
+        "status": "N/A",
+        "ok": 0,
+        "total": 0
+      },
+      "t1t2HealthcheckStatus": {
+        "status": "N/A",
+        "ok": 0,
+        "total": 0
+      },
+      "t2NodeStatus": {
+        "status": "N/A",
+        "ok": 0,
+        "total": 0
+      },
+      "t2BackendHealthcheckStatus": {
+        "status": "N/A",
+        "ok": 0,
+        "total": 0
+      },
+      "backendpoolStatus": {
+        "status": "N/A"
+      },
+      "status": "OFFLINE"
+    }
+  ]
+}

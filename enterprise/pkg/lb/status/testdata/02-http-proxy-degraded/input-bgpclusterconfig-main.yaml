@@ -1,0 +1,17 @@
+apiVersion: isovalent.com/v1
+kind: IsovalentBGPClusterConfig
+metadata:
+  name: main
+spec:
+  nodeSelector:
+    matchLabels:
+      service.cilium.io/node: t1-t2
+  bgpInstances:
+    - name: instance-1
+      localASN: 65000
+      peers:
+        - name: web-peer
+          peerAddress: 10.0.0.1
+          peerASN: 65001
+          peerConfigRef:
+            name: web-peer

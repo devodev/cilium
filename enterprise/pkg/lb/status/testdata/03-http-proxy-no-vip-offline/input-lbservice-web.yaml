@@ -1,0 +1,16 @@
+apiVersion: isovalent.com/v1alpha1
+kind: LBService
+metadata:
+  namespace: default
+  name: web-no-vip
+  labels:
+    app: web-no-vip
+spec:
+  vipRef:
+    name: web-no-vip
+  port: 80
+  applications:
+    httpProxy:
+      routes:
+        - backendRef:
+            name: web-no-vip

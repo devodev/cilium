@@ -4,6 +4,7 @@
 package status
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"slices"
@@ -38,12 +39,16 @@ type Parameters struct {
 	Verbose bool
 }
 
+type execInPodFunc func(ctx context.Context, namespace, pod, container string, command []string) (bytes.Buffer, bytes.Buffer, error)
+
 type LoadbalancerClient struct {
 	params      Parameters
 	client      execClient
 	t1AgentPods []*Pod
 	t2AgentPods []*Pod
 	t1NodeZones map[string]string
+
+	execInPodOverride execInPodFunc
 }
 
 type Pod struct {
@@ -61,6 +66,14 @@ func NewLoadbalancerClient(k8sClient kubernetes.Interface, ciliumClient ciliumCl
 			restConfig:   restConfig,
 		},
 	}
+}
+
+func (s *LoadbalancerClient) execInPod(ctx context.Context, namespace, pod, container string, command []string) (bytes.Buffer, bytes.Buffer, error) {
+	if s.execInPodOverride != nil {
+		return s.execInPodOverride(ctx, namespace, pod, container, command)
+	}
+
+	return s.client.ExecInPod(ctx, namespace, pod, container, command)
 }
 
 func (s *LoadbalancerClient) InitNodeAgentPods(ctx context.Context) error {

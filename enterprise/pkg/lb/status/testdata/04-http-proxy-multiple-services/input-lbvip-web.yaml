@@ -1,0 +1,5 @@
+apiVersion: isovalent.com/v1alpha1
+kind: LBVIP
+metadata:
+  namespace: default
+  name: web

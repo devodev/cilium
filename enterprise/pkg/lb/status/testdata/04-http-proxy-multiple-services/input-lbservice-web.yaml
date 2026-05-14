@@ -1,0 +1,19 @@
+apiVersion: isovalent.com/v1alpha1
+kind: LBService
+metadata:
+  namespace: default
+  name: web
+  labels:
+    expose: shared
+spec:
+  vipRef:
+    name: web
+  port: 80
+  applications:
+    httpProxy:
+      routes:
+        - backendRef:
+            name: web
+status:
+  addresses:
+    ipv4: 100.64.0.41
