@@ -191,7 +191,7 @@ func (ec *EnterpriseConnectivity) addEgressGatewayHATests(ct *check.Connectivity
 				PodSelectorKind: "client",
 				EgressGroup:     enterpriseCheck.AllCiliumNodes,
 			}).
-			WithScenarios(enterpriseTests.EgressGatewayHABGPAdvertisement(bfdEnabled))
+			WithScenarios(enterpriseTests.EgressGatewayHABGPAdvertisement(bfdEnabled, false))
 	}
 
 	if versioncheck.MustCompile(">=1.18.1")(ct.CiliumVersion) {
@@ -213,7 +213,25 @@ func (ec *EnterpriseConnectivity) addEgressGatewayHATests(ct *check.Connectivity
 			WithCiliumPolicy(clientEgressICMPYAML).
 			WithCiliumPolicy(templates["clientEgressOnlyDNSPolicyYAML"]).  // DNS resolution only
 			WithCiliumPolicy(templates["clientEgressL7HTTPAnywhereYAML"]). // L7 allow policy with HTTP introspection
-			WithScenarios(enterpriseTests.EgressGatewayHABGPAdvertisement(bfdEnabled))
+			WithScenarios(enterpriseTests.EgressGatewayHABGPAdvertisement(bfdEnabled, false))
+	}
+
+	if versioncheck.MustCompile(">=1.20.0")(ct.CiliumVersion) {
+		bfdEnabled, _ := ct.Features.MatchRequirements(features.RequireEnabled(enterpriseFeatures.BFD))
+		// prefix the test name with `seq-` to run it sequentially
+		newIPAMTest(ct, "seq-egress-gateway-ha-ipam-bgp-advertisement-virtual-ip").
+			WithFeatureRequirements(
+				features.RequireEnabled(enterpriseFeatures.EnterpriseBGPControlPlane),
+			).
+			WithCondition(func() bool { return len(enterpriseTests.Params.EgressGateway.PeerAddresses) != 0 }).
+			WithIsovalentEgressGatewayPolicy(enterpriseCheck.IsovalentEgressGatewayPolicyParams{
+				Name:            "iegp-sample-client",
+				Labels:          map[string]string{"egw": "bgp-advertise"},
+				Annotations:     map[string]string{"egw.isovalent.com/virtual-ip": "true"},
+				PodSelectorKind: "client",
+				EgressGroup:     enterpriseCheck.AllCiliumNodes,
+			}).
+			WithScenarios(enterpriseTests.EgressGatewayHABGPAdvertisement(bfdEnabled, true))
 	}
 
 	return nil

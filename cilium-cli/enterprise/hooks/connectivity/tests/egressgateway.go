@@ -1400,16 +1400,18 @@ func getTargetEntriesForEmptyMultipleGateways(t *check.Test, ciliumPod check.Pod
 	return targetEntries
 }
 
-func EgressGatewayHABGPAdvertisement(bfdEnabled bool) check.Scenario {
+func EgressGatewayHABGPAdvertisement(bfdEnabled bool, virtualIP bool) check.Scenario {
 	return &egressGatewayHABGPAdvertisement{
 		ScenarioBase: check.NewScenarioBase(),
 		bfdEnabled:   bfdEnabled,
+		virtualIP:    virtualIP,
 	}
 }
 
 type egressGatewayHABGPAdvertisement struct {
 	check.ScenarioBase
 	bfdEnabled bool
+	virtualIP  bool
 }
 
 func (s *egressGatewayHABGPAdvertisement) Name() string {
@@ -1461,6 +1463,10 @@ func (s *egressGatewayHABGPAdvertisement) Run(ctx context.Context, t *check.Test
 	}
 
 	waitforGwNetworkConfig(ctx, t, func(ciliumPod check.Pod) *net.IP {
+		if s.virtualIP {
+			return nil
+		}
+
 		for gatewayIP, nodeName := range gatewayIPsToNames {
 			if ciliumPod.Pod.Spec.NodeName == nodeName {
 				masqueradeIP := gatewayIPsToMasqueradeIPs[gatewayIP]
