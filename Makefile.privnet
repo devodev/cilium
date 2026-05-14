@@ -11,7 +11,6 @@
 ##@ Private Networks
 
 CONTAINERLAB ?= containerlab
-GOVC ?= $(CONTAINER_ENGINE) exec privnet-vcsim govc
 
 PRIVNET_CILIUM_CLI_PATH ?=
 PRIVNET_CILIUM_CLI_VERSION ?= $(or \
@@ -21,7 +20,6 @@ PRIVNET_CILIUM_CLI_VERSION ?= $(or \
 PRIVNET_CILIUM_CLI_IMAGE ?= quay.io/isovalent/cilium-cli:$(PRIVNET_CILIUM_CLI_VERSION)
 
 PRIVNET_KIND_IMAGE ?=
-PRIVNET_GOVMOMI_IMAGE ?= $(DOCKER_REGISTRY)/$(DOCKER_DEV_ACCOUNT)/govmomi:$(LOCAL_IMAGE_TAG)
 PRIVNET_ENVOY_IMAGE = $(shell yq '.envoy.image | .repository + ":" + .tag' install/kubernetes/cilium/values.yaml)
 PRIVNET_VM_IMAGE ?=
 
@@ -52,15 +50,8 @@ kind-privnet-all:  ## Setup the privnet environment, install Cilium and kubevirt
 	$(MAKE) kind-privnet-install-fast
 	$(MAKE) kind-privnet-kubevirt
 
-.PHONY: kind-privnet-govmomi-image
-kind-privnet-govmomi-image:  ## Build the Docker image with the govmomi tools
-	$(QUIET) $(CONTAINER_ENGINE) buildx build --quiet \
-		./contrib/testing/privnet/govmomi \
-		$(DOCKER_BUILD_FLAGS) $(DOCKER_FLAGS) \
-		-t $(PRIVNET_GOVMOMI_IMAGE)
-
 .PHONY: kind-privnet-up
-kind-privnet-up: kind-privnet-govmomi-image  ## Setup the privnet environment
+kind-privnet-up:  ## Setup the privnet environment
 	$(QUIET) ip link sh dev privnet-sgmnts >/dev/null 2>/dev/null || \
 		sudo ip link add privnet-sgmnts type bridge vlan_filtering 1 vlan_default_pvid 0
 	$(QUIET) sudo ip link set privnet-sgmnts up
@@ -83,7 +74,6 @@ kind-privnet-up: kind-privnet-govmomi-image  ## Setup the privnet environment
 		PRIVNET_KIND_IMAGE=$(PRIVNET_KIND_IMAGE) \
 		PRIVNET_CONTAINER_IMAGE=$(PRIVNET_CONTAINER_IMAGE) \
 		PRIVNET_DNSMASQ_IMAGE=$(PRIVNET_DNSMASQ_IMAGE) \
-		PRIVNET_GOVMOMI_IMAGE=$(PRIVNET_GOVMOMI_IMAGE) \
 		PRIVNET_DNS_SERVER=$(PRIVNET_DNS_SERVER) \
 		PRIVNET_FAKE_VM_SCRIPT=$(ROOT_DIR)/contrib/testing/privnet/vm-echo-script.py \
 		PRIVNET_INVENTORY_SCRIPT=$(ROOT_DIR)/contrib/testing/privnet/mock-inventory.py \
@@ -102,51 +92,6 @@ kind-privnet-up: kind-privnet-govmomi-image  ## Setup the privnet environment
 
 	# Label nodes so that in-cluster ILB can run on them
 	kind get nodes --name privnet-cluster | xargs -IX kubectl --context=kind-privnet-cluster label node X service.cilium.io/node=t1-t2
-
-	$(MAKE) kind-privnet-populate-vcsim
-
-PRIVNET_VM_FOLDER ?= /DC0/vm/testing
-
-# $(1): name, $(2): network
-define privnet_vcsim_create_vm_auto
-	$(call privnet_vcsim_create_vm,$(1),$(2), \
-		$(shell docker exec $(1) cat /sys/class/net/eth0/address), \
-		$(shell docker exec $(1) ip -br -4 a sh dev eth0 scope global | awk '{split($$3,out,"/"); print out[1]}'), \
-		$(shell docker exec $(1) ip -br -6 a sh dev eth0 scope global | awk '{print $$3}')
-	)
-endef
-
-# $(1): name, $(2): network, $(3): MAC, $(4): IP4, $(5): IP6
-# Note that both the IPv4 netmask and the IP6 address are ignored by vcsim at the moment.
-define privnet_vcsim_create_vm
-	$(GOVC) vm.create -ds LocalDS_0 -cluster DC0_C0 --folder $(PRIVNET_VM_FOLDER) -on=false --net=$(2) --net.address=$(strip $3) $(1)
-	$(GOVC) vm.customize -vm $(1) --name $(1) -ip $(strip $4) --netmask 255.255.255.0 --ip6 $(strip $5)
-	$(GOVC) vm.power -on $(1)
-endef
-
-.PHONY kind-privnet-populate-vcsim:
-kind-privnet-populate-vcsim:  ## Populate the information inside vcsim
-	# Clean stale entries
-	-$(GOVC) find -type m $(PRIVNET_VM_FOLDER) | \
-		$(SED) 's|$(PRIVNET_VM_FOLDER)/||' | xargs -t -I {} $(GOVC) vm.destroy {};
-	-$(GOVC) object.destroy $(PRIVNET_VM_FOLDER)
-
-	-$(GOVC) find -type g /DC0/network | xargs -t -I {} $(GOVC) object.destroy {};
-	-$(GOVC) object.destroy /DC0/network/privnet-sgmnts
-
-	# Populate the network entries
-	$(GOVC) dvs.create privnet-sgmnts
-	$(GOVC) dvs.add -dvs privnet-sgmnts -pnic vmnic1 DC0_C0_H0 DC0_C0_H1 DC0_C0_H2
-	$(foreach net,network-a network-b network-c network-d,$(GOVC) dvs.portgroup.add -dvs privnet-sgmnts $(net);)
-
-	# Populate the VM entries
-	-$(GOVC) folder.create $(PRIVNET_VM_FOLDER)
-	$(call privnet_vcsim_create_vm_auto,privnet-vm-net-a1,network-a)
-	$(call privnet_vcsim_create_vm_auto,privnet-vm-net-a2,network-a)
-	$(call privnet_vcsim_create_vm_auto,privnet-vm-net-b1,network-b)
-
-	$(call privnet_vcsim_create_vm_auto,privnet-vm-net-c1,network-c)
-	$(call privnet_vcsim_create_vm_auto,privnet-vm-net-d1,network-d)
 
 .PHONY: kind-privnet-down
 kind-privnet-down:  ## Tear down the privnet environment

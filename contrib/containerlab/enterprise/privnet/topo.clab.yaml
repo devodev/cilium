@@ -460,14 +460,6 @@ topology:
       env:
         CILIUM_PRIVNET_PORT: 8000
 
-    # vSphere API simulator
-    vcsim:
-      kind: linux
-      image: ${PRIVNET_GOVMOMI_IMAGE}
-      cmd: vcsim -l 0.0.0.0:8989 -vm 0 -standalone-host=0 -pg=0 --username user --password pass --tls=false
-      env:
-        GOVC_URL: http://user:pass@localhost:8989/sdk
-
     # Routers
     router-net-abc:
       kind: linux
