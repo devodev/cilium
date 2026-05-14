@@ -13,13 +13,16 @@
 #define ENABLE_HOST_FIREWALL		1
 #define ENCAP_IFINDEX 0
 
+#define PRIMARY_IFACE			21
+#define EGRESS_IFACE			22
+
 #define VRF_ID				2
 #define RT_TBID				3
 
 #define fib_lookup mock_fib_lookup
 static __always_inline __maybe_unused long
 mock_fib_lookup(void *ctx __maybe_unused,
-		const struct bpf_fib_lookup *params __maybe_unused,
+		struct bpf_fib_lookup *params __maybe_unused,
 		int plen __maybe_unused, __u32 flags __maybe_unused);
 
 #include "lib/bpf_host.h"
@@ -31,6 +34,7 @@ mock_fib_lookup(void *ctx __maybe_unused,
 #include "lib/ipcache.h"
 
 ASSIGN_CONFIG(__u8, tunnel_protocol, TUNNEL_PROTOCOL_VXLAN)
+ASSIGN_CONFIG(__u32, interface_ifindex, PRIMARY_IFACE)
 
 struct fib_lookup_settings {
 	__u32 tbid;
@@ -46,7 +50,7 @@ struct {
 
 static __always_inline __maybe_unused long
 mock_fib_lookup(void *ctx __maybe_unused,
-		const struct bpf_fib_lookup *params __maybe_unused,
+		struct bpf_fib_lookup *params __maybe_unused,
 		int plen __maybe_unused, __u32 flags __maybe_unused)
 {
 	__u32 key = 0;
@@ -64,7 +68,106 @@ mock_fib_lookup(void *ctx __maybe_unused,
 		}
 	}
 
+	params->ifindex = EGRESS_IFACE;
 	return 0;
+}
+
+/* Test that a packet matching an egress gateway policy on the to-netdev
+ * program egresses locally.
+ */
+PKTGEN("tc", "tc_egressgw_ha_egress1")
+int egressgw_ha_egress1_pktgen(struct __ctx_buff *ctx)
+{
+	return egressgw_pktgen(ctx, (struct egressgw_test_ctx) {
+			.test = TEST_SNAT1,
+		});
+}
+
+SETUP("tc", "tc_egressgw_ha_egress1")
+int egressgw_ha_egress1_setup(struct __ctx_buff *ctx)
+{
+	__u32 key = 0;
+	struct fib_lookup_settings *settings = map_lookup_elem(&fib_lookup_settings_map, &key);
+
+	if (!settings)
+		return TEST_ERROR;
+
+	settings->fib_lookup_called = false;
+
+	endpoint_v4_add_entry(GATEWAY_NODE_IP, 0, 0, ENDPOINT_F_HOST,
+			      0, 0, NULL, NULL);
+	endpoint_v4_add_entry(EGRESS_IP, 0, 0, ENDPOINT_F_HOST,
+			      0, 0, NULL, NULL);
+
+	create_ct_entry(ctx, client_port(TEST_SNAT1));
+
+	ipcache_v4_add_entry(EGRESS_IP, 0, HOST_ID, 0, 0);
+	ipcache_v4_add_world_entry();
+
+	add_egressgw_ha_policy_entry(CLIENT_IP, EXTERNAL_SVC_IP & 0xffffff, 24, 1,
+				     { GATEWAY_NODE_IP }, EGRESS_IP, 0);
+
+	return netdev_send_packet(ctx);
+}
+
+CHECK("tc", "tc_egressgw_ha_egress1")
+int egressgw_ha_egress1_check(const struct __ctx_buff *ctx)
+{
+	__u32 key = 0;
+	struct fib_lookup_settings *settings = map_lookup_elem(&fib_lookup_settings_map, &key);
+
+	if (!settings || !settings->fib_lookup_called)
+		return TEST_ERROR;
+
+	int ret = egressgw_status_check(ctx, (struct egressgw_test_ctx) {
+			.status_code = CTX_ACT_REDIRECT,
+	});
+
+	return ret;
+}
+
+/* Test that a packet matching an egress gateway policy on the to-netdev
+ * program egresses locally. Using the ifindex in the policy.
+ */
+PKTGEN("tc", "tc_egressgw_ha_egress1_ifindex")
+int egressgw_ha_egress1_ifindex_pktgen(struct __ctx_buff *ctx)
+{
+	return egressgw_pktgen(ctx, (struct egressgw_test_ctx) {
+			.test = TEST_SNAT1,
+		});
+}
+
+SETUP("tc", "tc_egressgw_ha_egress1_ifindex")
+int egressgw_ha_egress1_ifindex_setup(struct __ctx_buff *ctx)
+{
+	__u32 key = 0;
+	struct fib_lookup_settings *settings = map_lookup_elem(&fib_lookup_settings_map, &key);
+
+	if (!settings)
+		return TEST_ERROR;
+
+	settings->fib_lookup_called = false;
+
+	add_egressgw_ha_policy_entry(CLIENT_IP, EXTERNAL_SVC_IP & 0xffffff, 24, 1,
+				     { GATEWAY_NODE_IP }, EGRESS_IP, PRIMARY_IFACE);
+
+	return netdev_send_packet(ctx);
+}
+
+CHECK("tc", "tc_egressgw_ha_egress1_ifindex")
+int egressgw_ha_egress1_ifindex_check(const struct __ctx_buff *ctx)
+{
+	__u32 key = 0;
+	struct fib_lookup_settings *settings = map_lookup_elem(&fib_lookup_settings_map, &key);
+
+	if (!settings || settings->fib_lookup_called)
+		return TEST_ERROR;
+
+	int ret = egressgw_status_check(ctx, (struct egressgw_test_ctx) {
+			.status_code = CTX_ACT_OK,
+	});
+
+	return ret;
 }
 
 /* Test that a packet matching an egress gateway policy on the to-netdev
@@ -94,15 +197,6 @@ int egressgw_ha_egress1_vrf_setup(struct __ctx_buff *ctx)
 
 	endpoint_v4_add_entry_with_rt_info(CLIENT_IP, 0, 0, 0, 0, 0, VRF_ID,
 					   NULL, NULL);
-	endpoint_v4_add_entry(GATEWAY_NODE_IP, 0, 0, ENDPOINT_F_HOST,
-			      0, 0, NULL, NULL);
-	endpoint_v4_add_entry(EGRESS_IP, 0, 0, ENDPOINT_F_HOST,
-			      0, 0, NULL, NULL);
-
-	create_ct_entry(ctx, client_port(TEST_SNAT1));
-
-	ipcache_v4_add_entry(EGRESS_IP, 0, HOST_ID, 0, 0);
-	ipcache_v4_add_world_entry();
 
 	add_egressgw_ha_policy_entry(CLIENT_IP, EXTERNAL_SVC_IP & 0xffffff, 24, 1,
 				     { GATEWAY_NODE_IP }, EGRESS_IP, 0);
@@ -114,7 +208,7 @@ CHECK("tc", "tc_egressgw_ha_egress1_vrf")
 int egressgw_ha_egress1_vrf_check(const struct __ctx_buff *ctx)
 {
 	int ret = egressgw_status_check(ctx, (struct egressgw_test_ctx) {
-			.status_code = CTX_ACT_OK,
+			.status_code = CTX_ACT_REDIRECT,
 	});
 	__u32 key = 0;
 
