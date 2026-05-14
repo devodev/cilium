@@ -381,22 +381,13 @@ jobs:
         run: |
           PRIVNET_KIND_IMAGE_LOAD_IMAGE_ARCHIVE=true make kind-privnet-kubevirt
 
-      - name: Setup the dependencies
-        run: |
-          make kind-privnet-test-namespace
-          make kind-privnet-deploy-external-endpoints
-          make kind-privnet-deploy-forklift-resources
-
       - name: Run Private Network connectivity tests
         shell: bash
         run: |
           # The privnet tests don't create any junit artifacts, but the regular connectivity tests will
           mkdir -p cilium-junits
 
-          cilium --context=kind-privnet-cluster \
-            --inb-contexts=kind-privnet-inb0,kind-privnet-inb1 \
-            --test-namespace=cilium-test \
-            privnet test
+          PRIVNET_CILIUM_CLI_PATH=cilium make kind-privnet-test
 
       - name: Run Cilium connectivity tests - cluster (${{ join(matrix.*, ', ') }})
         run: |
