@@ -288,10 +288,11 @@
       matchFileNames: [
         'enterprise/**',
         '.github/workflows/enterprise-build-image**',
+        'cilium-cli/enterprise/Dockerfile-ubi',
       ],
       matchDepNames: [
-        'registry.redhat.io/ubi9**',
-        'quay.io/isovalent-dev**',
+        'registry.redhat.io/ubi9/**',
+        'quay.io/isovalent-dev/**',
         'quay.io/cilium/certgen',
         'docker.io/library/golang',
         'quay.io/cilium/image-tester',
