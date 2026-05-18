@@ -206,3 +206,7 @@ feedback:
 
 rerun:
   max-retries: 5
+
+replace-depends-on:
+  /build-images-dependency:
+  - /build-images

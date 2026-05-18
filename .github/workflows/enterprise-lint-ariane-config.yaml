@@ -89,7 +89,7 @@ jobs:
           GOPRIVATE: github.com/isovalent
           GONOSUMDB: github.com/isovalent
         run: |
-          go install github.com/isovalent/ariane/linter@1d985d03158904b8acb88fb4d31fc0cff4ada846
+          go install github.com/isovalent/ariane/linter@587090a25b7c1b5bf3b5205ed45819d74d62457f
 
       - name: Lint Ariane config
         shell: bash
