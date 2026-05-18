@@ -129,6 +129,7 @@ func newCmdLoadbalancerTest() *cobra.Command {
 	cmd.Flags().IntVar(&ilbCli.FlagXffNumTrustedHops, "xff-num-trusted-hops", 2, "Number of trusted hops in X-Forwarded-For header")
 
 	cmd.Flags().StringSliceVar(&ilbCli.FlagRun, "run", []string{}, "Run tests that match one of the given regular expressions. If an expression starts with '!', then instead, it specifies tests to be skipped. Provide multiple expressions by providing this flag multiple times.")
+	cmd.Flags().Var(&ilbCli.FlagShard, "shard", "Run only the tests assigned to the given shard in the form CURRENT-of-TOTAL, for example 1-of-2 or 3-of-4.")
 
 	cmd.AddCommand(newCmdLoadbalancerTestList())
 	cmd.AddCommand(newCmdLoadbalancerTestCleanup())

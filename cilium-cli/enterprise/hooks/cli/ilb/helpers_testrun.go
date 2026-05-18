@@ -151,6 +151,11 @@ func (r *lbTestRun) testsToExecute(ctx context.Context) ([]*LbTestFunc, error) {
 			}
 		}
 	}
+
+	if FlagShard.TotalShards > 0 {
+		testsToExecute = shardLBTests(testsToExecute, FlagShard)
+	}
+
 	return testsToExecute, nil
 }
 

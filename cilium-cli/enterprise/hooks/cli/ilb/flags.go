@@ -38,7 +38,8 @@ var (
 	FlagSingleNodeIPv6Addr string
 	FlagNetworkName        string
 
-	FlagRun []string
+	FlagRun   []string
+	FlagShard TestShard
 
 	// TODO (sayboras): Remove these flags once we have feature auto-detection
 	FlagUseRemoteAddress  bool

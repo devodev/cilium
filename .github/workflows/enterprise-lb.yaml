@@ -79,13 +79,28 @@ jobs:
 
   setup-and-test:
     runs-on: ${{ vars.GH_RUNNER_EXTRA_POWER }}
-    name: "Setup & Test"
+    name: "Setup & Test (${{ matrix.name }}, ${{ matrix.shard }})"
     env:
       job_name: "Setup & Test"
     strategy:
       fail-fast: false
-      max-parallel: 10
+      max-parallel: 24
       matrix:
+        name:
+          - "0"
+          - "1"
+          - "2"
+          - "3"
+          - "4"
+          - "5"
+          - "6"
+          - "7"
+          - "8"
+          - "9"
+          - "10"
+        shard:
+          - "1-of-2"
+          - "2-of-2"
         include:
           - name: "0"
             mode: "multi-node"
@@ -213,6 +228,13 @@ jobs:
     timeout-minutes: 120
 
     steps:
+      - name: Print matrix variables
+        shell: bash
+        run: |
+          cat <<'EOF'
+          ${{ toJson(matrix) }}
+          EOF
+
       - name: Collect Workflow Telemetry
         uses: cilium/workflow-telemetry-action@b1a318f80a08acede58027afe1455d037379966f # v2.2.0
         with:
@@ -420,7 +442,8 @@ jobs:
         shell: bash
         run: |
           PARAMS="--sysdump-on-failure=true"
-          PARAMS+=" --sysdump-output-filename=cilium-sysdump-${{ matrix.name }}.zip"
+          PARAMS+=" --sysdump-output-filename=cilium-sysdump-${{ matrix.name }}-${{ matrix.shard }}.zip"
+          PARAMS+=" --shard=${{ matrix.shard }}"
           if [ "${{ matrix.mode }}" == "single-node" ]; then
             export DOCKER_HOST="tcp://127.0.0.1:22376"
             PARAMS+=" --mode=single-node"
@@ -461,7 +484,7 @@ jobs:
         if: ${{ !success() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: cilium-envoy-accesslogs-${{ matrix.name }}
+          name: cilium-envoy-accesslogs-${{ matrix.name }}-${{ matrix.shard }}
           path: cilium-envoy-accesslog-*.log
           retention-days: 5
 
@@ -469,7 +492,7 @@ jobs:
         if: ${{ always() }}
         uses: ./.github/actions/post-logic
         with:
-          artifacts_suffix: "${{ matrix.name }}"
+          artifacts_suffix: "${{ matrix.name }}-${{ matrix.shard }}"
           job_status: "${{ job.status }}"
 
   merge-upload-and-status:
