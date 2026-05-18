@@ -252,15 +252,15 @@ func wafPolicy(name, selectorValue string, opts ...wafPolicyOption) *isovalentv1
 			Labels: map[string]string{TestResourceLabelName: "true"},
 		},
 		Spec: isovalentv1alpha1.IsovalentWAFPolicySpec{
-			Targets: isovalentv1alpha1.IsovalentWAFPolicyTargets{
-				LBServices: &isovalentv1alpha1.IsovalentWAFPolicyLBServices{
-					LabelSelector: &slim_metav1.LabelSelector{
-						MatchLabels: map[string]slim_metav1.MatchLabelsValue{
-							wafLabelKey: selectorValue,
-						},
+			Targets: []isovalentv1alpha1.IsovalentWAFPolicyTarget{{
+				APIGroup: isovalentv1alpha1.CustomResourceDefinitionGroup,
+				Kind:     isovalentv1alpha1.LBServiceKindDefinition,
+				LabelSelector: &slim_metav1.LabelSelector{
+					MatchLabels: map[string]slim_metav1.MatchLabelsValue{
+						wafLabelKey: selectorValue,
 					},
 				},
-			},
+			}},
 		},
 	}
 

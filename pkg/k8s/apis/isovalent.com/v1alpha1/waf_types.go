@@ -37,12 +37,13 @@ type IsovalentWAFPolicy struct {
 	Status IsovalentWAFPolicyStatus `json:"status,omitempty"`
 }
 
-// +kubebuilder:validation:XValidation:message="spec.targets.lbServices must be specified",rule="has(self.targets.lbServices)"
 type IsovalentWAFPolicySpec struct {
 	// Targets defines the resources that this WAF policy should apply to.
 	//
 	// +kubebuilder:validation:Required
-	Targets IsovalentWAFPolicyTargets `json:"targets"`
+	// +kubebuilder:validation:MinItems=1
+	// +listType=atomic
+	Targets []IsovalentWAFPolicyTarget `json:"targets"`
 
 	// Enabled explicitly enables or disables WAF for the selected resources.
 	//
@@ -73,23 +74,23 @@ type IsovalentWAFPolicySpec struct {
 	Handling *IsovalentWAFPolicyHandling `json:"handling,omitempty"`
 }
 
-type IsovalentWAFPolicyTargets struct {
-	// LBServices selects the LBServices that should be handled by this
-	// IsovalentWAFPolicy.
+type IsovalentWAFPolicyTarget struct {
+	// APIGroup is the API group of the selected resource kind.
 	//
-	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:AnyOf
-	LBServices *IsovalentWAFPolicyLBServices `json:"lbServices,omitempty"`
-}
+	// +kubebuilder:validation:Required
+	APIGroup string `json:"apiGroup"`
 
-type IsovalentWAFPolicyLBServices struct {
-	// LabelSelector is a label selector that selects the LBServices within the same namespace.
+	// Kind is the resource kind selected by this target.
+	//
+	// +kubebuilder:validation:Required
+	Kind string `json:"kind"`
+
+	// LabelSelector selects matching resources within the same namespace.
 	//
 	// Note: An empty label selector (neither MatchLabels nor MatchExpressions defined)
-	// matches all LBServices in the same namespace.
+	// matches all resources of the target kind in the same namespace.
 	//
 	// +kubebuilder:validation:Optional
-	// +kubebuilder:validation:AnyOf
 	LabelSelector *slim_metav1.LabelSelector `json:"labelSelector,omitempty"`
 }
 
@@ -347,7 +348,13 @@ func (in *IsovalentWAFPolicyList) DeepCopy() *IsovalentWAFPolicyList {
 
 func (in *IsovalentWAFPolicySpec) DeepCopyInto(out *IsovalentWAFPolicySpec) {
 	*out = *in
-	in.Targets.DeepCopyInto(&out.Targets)
+	if in.Targets != nil {
+		in, out := &in.Targets, &out.Targets
+		*out = make([]IsovalentWAFPolicyTarget, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
 	if in.Mode != nil {
 		in, out := &in.Mode, &out.Mode
 		*out = new(IsovalentWAFPolicyModeType)
@@ -379,25 +386,7 @@ func (in *IsovalentWAFPolicySpec) DeepCopy() *IsovalentWAFPolicySpec {
 	return out
 }
 
-func (in *IsovalentWAFPolicyTargets) DeepCopyInto(out *IsovalentWAFPolicyTargets) {
-	*out = *in
-	if in.LBServices != nil {
-		in, out := &in.LBServices, &out.LBServices
-		*out = new(IsovalentWAFPolicyLBServices)
-		(*in).DeepCopyInto(*out)
-	}
-}
-
-func (in *IsovalentWAFPolicyTargets) DeepCopy() *IsovalentWAFPolicyTargets {
-	if in == nil {
-		return nil
-	}
-	out := new(IsovalentWAFPolicyTargets)
-	in.DeepCopyInto(out)
-	return out
-}
-
-func (in *IsovalentWAFPolicyLBServices) DeepCopyInto(out *IsovalentWAFPolicyLBServices) {
+func (in *IsovalentWAFPolicyTarget) DeepCopyInto(out *IsovalentWAFPolicyTarget) {
 	*out = *in
 	if in.LabelSelector != nil {
 		in, out := &in.LabelSelector, &out.LabelSelector
@@ -406,11 +395,11 @@ func (in *IsovalentWAFPolicyLBServices) DeepCopyInto(out *IsovalentWAFPolicyLBSe
 	}
 }
 
-func (in *IsovalentWAFPolicyLBServices) DeepCopy() *IsovalentWAFPolicyLBServices {
+func (in *IsovalentWAFPolicyTarget) DeepCopy() *IsovalentWAFPolicyTarget {
 	if in == nil {
 		return nil
 	}
-	out := new(IsovalentWAFPolicyLBServices)
+	out := new(IsovalentWAFPolicyTarget)
 	in.DeepCopyInto(out)
 	return out
 }

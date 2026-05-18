@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ctrlClient "sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlFakeClient "sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -34,8 +35,11 @@ func TestResolverResolveConfig(t *testing.T) {
 	}
 
 	target := PolicyTarget{
-		Name:      "api",
-		Namespace: "team-a",
+		GroupKind: isovalentv1alpha1.SchemeGroupVersion.WithKind(isovalentv1alpha1.LBServiceKindDefinition).GroupKind(),
+		NamespacedName: types.NamespacedName{
+			Name:      "api",
+			Namespace: "team-a",
+		},
 		Labels: map[string]string{
 			"app": "api",
 		},
@@ -88,6 +92,35 @@ func TestResolverResolveConfig(t *testing.T) {
 				StatusCode: &blockStatusCode,
 				Body:       &blockBody,
 			},
+		},
+	}
+	matchAllPolicy := acceptedPolicy(
+		"team-a",
+		"match-all",
+		nil,
+	)
+	matchAllPolicy.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{
+		Managed: &isovalentv1alpha1.IsovalentWAFManagedRules{
+			Profile: profile,
+		},
+	}
+	orSemanticsPolicy := acceptedPolicy(
+		"team-a",
+		"or-semantics",
+		&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "other"}},
+	)
+	orSemanticsPolicy.Spec.Targets = append(orSemanticsPolicy.Spec.Targets,
+		isovalentv1alpha1.IsovalentWAFPolicyTarget{
+			APIGroup: isovalentv1alpha1.CustomResourceDefinitionGroup,
+			Kind:     isovalentv1alpha1.LBServiceKindDefinition,
+			LabelSelector: &slim_metav1.LabelSelector{
+				MatchLabels: map[string]string{"app": "api"},
+			},
+		},
+	)
+	orSemanticsPolicy.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{
+		Managed: &isovalentv1alpha1.IsovalentWAFManagedRules{
+			Profile: profile,
 		},
 	}
 
@@ -173,6 +206,32 @@ func TestResolverResolveConfig(t *testing.T) {
 			},
 		},
 		{
+			desc:    "matches all LBServices in namespace when selector is omitted",
+			objects: []ctrlClient.Object{&matchAllPolicy},
+			expected: &EffectiveConfig{
+				Enabled:     true,
+				Mode:        defaults.Mode,
+				FailureMode: defaults.FailureMode,
+				Rules: EffectiveRules{
+					Source:        EffectiveRuleSourceManaged,
+					PolicyProfile: profile,
+				},
+			},
+		},
+		{
+			desc:    "multiple targets are ORed",
+			objects: []ctrlClient.Object{&orSemanticsPolicy},
+			expected: &EffectiveConfig{
+				Enabled:     true,
+				Mode:        defaults.Mode,
+				FailureMode: defaults.FailureMode,
+				Rules: EffectiveRules{
+					Source:        EffectiveRuleSourceManaged,
+					PolicyProfile: profile,
+				},
+			},
+		},
+		{
 			desc:     "multiple accepted matches return nil",
 			objects:  []ctrlClient.Object{&conflictFirst, &conflictSecond},
 			expected: nil,
@@ -216,6 +275,15 @@ func TestValidate(t *testing.T) {
 				"team-a",
 				"valid",
 				&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}},
+			),
+			expectError: false,
+		},
+		{
+			desc: "valid policy without selector",
+			policy: acceptedPolicy(
+				"team-a",
+				"valid-without-selector",
+				nil,
 			),
 			expectError: false,
 		},
@@ -293,6 +361,19 @@ func TestValidate(t *testing.T) {
 			}(),
 			expectError: true,
 		},
+		{
+			desc: "rejects unsupported target kinds",
+			policy: func() isovalentv1alpha1.IsovalentWAFPolicy {
+				policy := acceptedPolicy(
+					"team-a",
+					"unsupported-target",
+					&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}},
+				)
+				policy.Spec.Targets[0].Kind = isovalentv1alpha1.LBVIPKindDefinition
+				return policy
+			}(),
+			expectError: true,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -318,11 +399,11 @@ func acceptedPolicy(
 			Name:      name,
 		},
 		Spec: isovalentv1alpha1.IsovalentWAFPolicySpec{
-			Targets: isovalentv1alpha1.IsovalentWAFPolicyTargets{
-				LBServices: &isovalentv1alpha1.IsovalentWAFPolicyLBServices{
-					LabelSelector: selector,
-				},
-			},
+			Targets: []isovalentv1alpha1.IsovalentWAFPolicyTarget{{
+				APIGroup:      isovalentv1alpha1.CustomResourceDefinitionGroup,
+				Kind:          isovalentv1alpha1.LBServiceKindDefinition,
+				LabelSelector: selector,
+			}},
 			Enabled: true,
 		},
 	}

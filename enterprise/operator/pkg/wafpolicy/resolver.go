@@ -17,6 +17,8 @@ import (
 	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	isovalentv1alpha1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
@@ -57,9 +59,9 @@ type EffectiveConfig struct {
 }
 
 type PolicyTarget struct {
-	Name      string
-	Namespace string
-	Labels    map[string]string
+	GroupKind      schema.GroupKind
+	NamespacedName types.NamespacedName
+	Labels         map[string]string
 }
 
 type Resolver struct {
@@ -77,13 +79,19 @@ const (
 )
 
 func Validate(policy *isovalentv1alpha1.IsovalentWAFPolicy) error {
-	if policy.Spec.Targets.LBServices == nil {
-		return fmt.Errorf("spec.targets.lbServices must be specified")
+	if len(policy.Spec.Targets) == 0 {
+		return fmt.Errorf("spec.targets must contain at least one target")
 	}
 
-	_, err := slim_metav1.LabelSelectorAsSelector(policy.Spec.Targets.LBServices.LabelSelector)
-	if err != nil {
-		return fmt.Errorf("invalid spec.targets.lbServices.labelSelector: %w", err)
+	for i, target := range policy.Spec.Targets {
+		if err := validateTarget(i, target); err != nil {
+			return err
+		}
+
+		_, err := slim_metav1.LabelSelectorAsSelector(target.LabelSelector)
+		if err != nil {
+			return fmt.Errorf("invalid spec.targets[%d].labelSelector: %w", i, err)
+		}
 	}
 
 	if policy.Spec.Rules == nil {
@@ -155,7 +163,7 @@ func (r *Resolver) ResolveConfig(ctx context.Context, target PolicyTarget) (*Eff
 		return nil, nil
 	}
 
-	policies, err := r.loadPolicies(ctx, target.Namespace)
+	policies, err := r.loadPolicies(ctx, target.NamespacedName.Namespace)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load IsovalentWAFPolicies: %w", err)
 	}
@@ -172,8 +180,8 @@ func (r *Resolver) ResolveConfig(ctx context.Context, target PolicyTarget) (*Eff
 	if len(pending) > 0 {
 		r.logger.Debug(
 			"matching WAF policies are still pending validation, deferring WAF config resolution",
-			logfields.K8sNamespace, target.Namespace,
-			logfields.Service, target.Name,
+			logfields.K8sNamespace, target.NamespacedName.Namespace,
+			logfields.Service, target.NamespacedName.Name,
 			logfields.PolicyLogString, policiesToString(pending),
 		)
 		return nil, nil
@@ -182,8 +190,8 @@ func (r *Resolver) ResolveConfig(ctx context.Context, target PolicyTarget) (*Eff
 	if len(matches) == 0 {
 		r.logger.Debug(
 			"no accepted WAF policy matches LBService, skipping WAF config resolution for this reconcile",
-			logfields.K8sNamespace, target.Namespace,
-			logfields.Service, target.Name,
+			logfields.K8sNamespace, target.NamespacedName.Namespace,
+			logfields.Service, target.NamespacedName.Name,
 		)
 		return nil, nil
 	}
@@ -191,8 +199,8 @@ func (r *Resolver) ResolveConfig(ctx context.Context, target PolicyTarget) (*Eff
 	if len(matches) > 1 {
 		r.logger.Warn(
 			"multiple accepted WAF policies match LBService, skipping WAF config resolution for this reconcile",
-			logfields.K8sNamespace, target.Namespace,
-			logfields.Service, target.Name,
+			logfields.K8sNamespace, target.NamespacedName.Namespace,
+			logfields.Service, target.NamespacedName.Name,
 			logfields.PolicyLogString, policiesToString(matches),
 		)
 		return nil, nil
@@ -205,8 +213,8 @@ func (r *Resolver) ResolveConfig(ctx context.Context, target PolicyTarget) (*Eff
 
 	r.logger.Debug(
 		"resolved effective WAF config for LBService",
-		logfields.K8sNamespace, target.Namespace,
-		logfields.Service, target.Name,
+		logfields.K8sNamespace, target.NamespacedName.Namespace,
+		logfields.Service, target.NamespacedName.Name,
 		logfields.PolicyLogString, policiesToString(matches),
 	)
 	return &config, nil
@@ -225,25 +233,19 @@ func matchPolicies(
 	target PolicyTarget,
 	policies []isovalentv1alpha1.IsovalentWAFPolicy,
 ) ([]*isovalentv1alpha1.IsovalentWAFPolicy, []*isovalentv1alpha1.IsovalentWAFPolicy, error) {
-	serviceLabels := labels.Set(target.Labels)
-
 	matches := make([]*isovalentv1alpha1.IsovalentWAFPolicy, 0)
 	pending := make([]*isovalentv1alpha1.IsovalentWAFPolicy, 0)
 
 	for i := range policies {
 		policy := &policies[i]
-		if policy.Namespace != target.Namespace {
+		if policy.Namespace != target.NamespacedName.Namespace {
 			continue
 		}
-		if policy.Spec.Targets.LBServices == nil {
-			continue
-		}
-
-		selector, err := slim_metav1.LabelSelectorAsSelector(policy.Spec.Targets.LBServices.LabelSelector)
+		match, err := matchesTarget(policy.Spec.Targets, target)
 		if err != nil {
-			return nil, nil, fmt.Errorf("policy %s/%s has invalid label selector: %w", policy.Namespace, policy.Name, err)
+			return nil, nil, fmt.Errorf("policy %s/%s has invalid target selector: %w", policy.Namespace, policy.Name, err)
 		}
-		if !selector.Matches(serviceLabels) {
+		if !match {
 			continue
 		}
 
@@ -315,4 +317,54 @@ func policiesToString(policies []*isovalentv1alpha1.IsovalentWAFPolicy) string {
 		names = append(names, p.Name)
 	}
 	return strings.Join(names, ",")
+}
+
+func matchesTarget(
+	policyTargets []isovalentv1alpha1.IsovalentWAFPolicyTarget,
+	target PolicyTarget,
+) (bool, error) {
+	labels := labels.Set(target.Labels)
+
+	for _, pt := range policyTargets {
+		if pt.APIGroup != target.GroupKind.Group || pt.Kind != target.GroupKind.Kind {
+			continue
+		}
+		if pt.LabelSelector == nil {
+			return true, nil
+		}
+
+		selector, err := slim_metav1.LabelSelectorAsSelector(pt.LabelSelector)
+		if err != nil {
+			return false, err
+		}
+		if selector.Matches(labels) {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+var supportedTargets = map[string]struct{}{
+	isovalentv1alpha1.CustomResourceDefinitionGroup + isovalentv1alpha1.LBServiceKindDefinition: {},
+}
+
+func validateTarget(idx int, target isovalentv1alpha1.IsovalentWAFPolicyTarget) error {
+	if target.APIGroup == "" {
+		return fmt.Errorf("spec.targets[%d].apiGroup must be specified", idx)
+	}
+	if target.Kind == "" {
+		return fmt.Errorf("spec.targets[%d].kind must be specified", idx)
+	}
+	if _, ok := supportedTargets[target.APIGroup+target.Kind]; !ok {
+		return fmt.Errorf(
+			"unsupported spec.targets[%d] target %q/%q; only %q/%q is currently supported",
+			idx,
+			target.APIGroup,
+			target.Kind,
+			isovalentv1alpha1.CustomResourceDefinitionGroup,
+			isovalentv1alpha1.LBServiceKindDefinition,
+		)
+	}
+	return nil
 }

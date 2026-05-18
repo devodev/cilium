@@ -334,9 +334,12 @@ func (r *lbServiceReconciler) reconcileResources(ctx context.Context, lbsvc *iso
 	var wafConfig *wafpolicy.EffectiveConfig
 	if lbsvc.IsL7Proxy() {
 		wafConfig, err = r.wafResolver.ResolveConfig(ctx, wafpolicy.PolicyTarget{
-			Name:      lbsvc.Name,
-			Namespace: lbsvc.Namespace,
-			Labels:    lbsvc.Labels,
+			GroupKind: isovalentv1alpha1.SchemeGroupVersion.WithKind(isovalentv1alpha1.LBServiceKindDefinition).GroupKind(),
+			NamespacedName: types.NamespacedName{
+				Name:      lbsvc.Name,
+				Namespace: lbsvc.Namespace,
+			},
+			Labels: lbsvc.Labels,
 		})
 		if err != nil {
 			return err

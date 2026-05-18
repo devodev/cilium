@@ -46,13 +46,9 @@ func TestReconcilerSetsAcceptedCondition(t *testing.T) {
 					Name:      "policy1",
 				},
 				Spec: isovalentv1alpha1.IsovalentWAFPolicySpec{
-					Targets: isovalentv1alpha1.IsovalentWAFPolicyTargets{
-						LBServices: &isovalentv1alpha1.IsovalentWAFPolicyLBServices{
-							LabelSelector: &slim_metav1.LabelSelector{
-								MatchLabels: map[string]string{"app": "api"},
-							},
-						},
-					},
+					Targets: lbServiceTargets(&slim_metav1.LabelSelector{
+						MatchLabels: map[string]string{"app": "api"},
+					}),
 					Enabled: true,
 				},
 			},
@@ -66,16 +62,12 @@ func TestReconcilerSetsAcceptedCondition(t *testing.T) {
 					Name:      "policy1",
 				},
 				Spec: isovalentv1alpha1.IsovalentWAFPolicySpec{
-					Targets: isovalentv1alpha1.IsovalentWAFPolicyTargets{
-						LBServices: &isovalentv1alpha1.IsovalentWAFPolicyLBServices{
-							LabelSelector: &slim_metav1.LabelSelector{
-								MatchExpressions: []slim_metav1.LabelSelectorRequirement{{
-									Key:      "app",
-									Operator: "InvalidOperator",
-								}},
-							},
-						},
-					},
+					Targets: lbServiceTargets(&slim_metav1.LabelSelector{
+						MatchExpressions: []slim_metav1.LabelSelectorRequirement{{
+							Key:      "app",
+							Operator: "InvalidOperator",
+						}},
+					}),
 					Enabled: true,
 				},
 			},
@@ -89,13 +81,9 @@ func TestReconcilerSetsAcceptedCondition(t *testing.T) {
 					Name:      "policy1",
 				},
 				Spec: isovalentv1alpha1.IsovalentWAFPolicySpec{
-					Targets: isovalentv1alpha1.IsovalentWAFPolicyTargets{
-						LBServices: &isovalentv1alpha1.IsovalentWAFPolicyLBServices{
-							LabelSelector: &slim_metav1.LabelSelector{
-								MatchLabels: map[string]string{"app": "api"},
-							},
-						},
-					},
+					Targets: lbServiceTargets(&slim_metav1.LabelSelector{
+						MatchLabels: map[string]string{"app": "api"},
+					}),
 					Enabled: true,
 					Rules: &isovalentv1alpha1.IsovalentWAFPolicyRules{
 						Custom: &isovalentv1alpha1.IsovalentWAFCustomRules{
@@ -114,13 +102,9 @@ func TestReconcilerSetsAcceptedCondition(t *testing.T) {
 					Name:      "policy1",
 				},
 				Spec: isovalentv1alpha1.IsovalentWAFPolicySpec{
-					Targets: isovalentv1alpha1.IsovalentWAFPolicyTargets{
-						LBServices: &isovalentv1alpha1.IsovalentWAFPolicyLBServices{
-							LabelSelector: &slim_metav1.LabelSelector{
-								MatchLabels: map[string]string{"app": "api"},
-							},
-						},
-					},
+					Targets: lbServiceTargets(&slim_metav1.LabelSelector{
+						MatchLabels: map[string]string{"app": "api"},
+					}),
 					Enabled: true,
 					Rules: &isovalentv1alpha1.IsovalentWAFPolicyRules{
 						Custom: &isovalentv1alpha1.IsovalentWAFCustomRules{
@@ -139,13 +123,9 @@ func TestReconcilerSetsAcceptedCondition(t *testing.T) {
 					Name:      "policy1",
 				},
 				Spec: isovalentv1alpha1.IsovalentWAFPolicySpec{
-					Targets: isovalentv1alpha1.IsovalentWAFPolicyTargets{
-						LBServices: &isovalentv1alpha1.IsovalentWAFPolicyLBServices{
-							LabelSelector: &slim_metav1.LabelSelector{
-								MatchLabels: map[string]string{"app": "api"},
-							},
-						},
-					},
+					Targets: lbServiceTargets(&slim_metav1.LabelSelector{
+						MatchLabels: map[string]string{"app": "api"},
+					}),
 					Enabled: true,
 					Rules: &isovalentv1alpha1.IsovalentWAFPolicyRules{
 						Managed: &isovalentv1alpha1.IsovalentWAFManagedRules{
@@ -362,13 +342,9 @@ func newInlineBundlePolicy() *isovalentv1alpha1.IsovalentWAFPolicy {
 			Name:      "policy-inline",
 		},
 		Spec: isovalentv1alpha1.IsovalentWAFPolicySpec{
-			Targets: isovalentv1alpha1.IsovalentWAFPolicyTargets{
-				LBServices: &isovalentv1alpha1.IsovalentWAFPolicyLBServices{
-					LabelSelector: &slim_metav1.LabelSelector{
-						MatchLabels: map[string]string{"app": "api"},
-					},
-				},
-			},
+			Targets: lbServiceTargets(&slim_metav1.LabelSelector{
+				MatchLabels: map[string]string{"app": "api"},
+			}),
 			Enabled: true,
 			Rules: &isovalentv1alpha1.IsovalentWAFPolicyRules{
 				Custom: &isovalentv1alpha1.IsovalentWAFCustomRules{
@@ -377,4 +353,12 @@ func newInlineBundlePolicy() *isovalentv1alpha1.IsovalentWAFPolicy {
 			},
 		},
 	}
+}
+
+func lbServiceTargets(selector *slim_metav1.LabelSelector) []isovalentv1alpha1.IsovalentWAFPolicyTarget {
+	return []isovalentv1alpha1.IsovalentWAFPolicyTarget{{
+		APIGroup:      isovalentv1alpha1.CustomResourceDefinitionGroup,
+		Kind:          isovalentv1alpha1.LBServiceKindDefinition,
+		LabelSelector: selector,
+	}}
 }
