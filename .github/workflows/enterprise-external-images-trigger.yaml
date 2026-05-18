@@ -57,33 +57,12 @@ jobs:
             docker-context: enterprise/images/certgen
             dockerfile: enterprise/images/certgen/Dockerfile
             base-image: ${{ needs.load-versions.outputs.ubi-micro }}
-            build-from-source: false
 
           - component: CILIUM_NODEINIT
             image-name: startup-script-ubi-ci
             docker-context: enterprise/images/startup-script
             dockerfile: enterprise/images/startup-script/Dockerfile
             base-image: ${{ needs.load-versions.outputs.ubi-minimal }}
-            build-from-source: false
-
-          - component: HUBBLE_UI_BACKEND
-            image-name: hubble-ui-backend-ubi-ci
-            docker-context: hubble-ui-backend/backend
-            dockerfile: hubble-ui-backend/backend/Dockerfile
-            base-image: ${{ needs.load-versions.outputs.ubi-micro }}
-            build-from-source: true
-            source-repo: isovalent/hubble-ui-enterprise
-            source-path: hubble-ui-backend
-
-          - component: HUBBLE_UI_FRONTEND
-            image-name: hubble-ui-frontend-ubi-ci
-            docker-context: hubble-ui-frontend
-            dockerfile: hubble-ui-frontend/Dockerfile
-            # renovate: datasource=docker
-            base-image: quay.io/isovalent-dev/nginx-unprivileged-ubi:1773387217-c133d26@sha256:e71257cfb5a0a26666fc77eb3789f40d43a298fef2174929853edc99e7b3787b
-            build-from-source: true
-            source-repo: isovalent/hubble-ui-enterprise
-            source-path: hubble-ui-frontend
 
           - component: KUBECTL
             image-name: kubectl-ubi-ci
@@ -91,7 +70,6 @@ jobs:
             docker-context: enterprise/images/kubectl
             dockerfile: enterprise/images/kubectl/Dockerfile
             base-image: ${{ needs.load-versions.outputs.ubi-minimal }}
-            build-from-source: false
 
           - component: KUBECTL
             image-name: kubectl-ci
@@ -100,7 +78,6 @@ jobs:
             dockerfile: enterprise/images/kubectl/Dockerfile
             # renovate: datasource=docker
             base-image: debian:13.3-slim@sha256:f6e2cfac5cf956ea044b4bd75e6397b4372ad88fe00908045e9a0d21712ae3ba
-            build-from-source: false
 
     uses: ./.github/workflows/enterprise-external-images.yaml
     secrets: inherit
@@ -111,6 +88,3 @@ jobs:
       docker-context: ${{ matrix.docker-context }}
       dockerfile: ${{ matrix.dockerfile }}
       base-image: ${{ matrix.base-image }}
-      build-from-source: ${{ matrix.build-from-source }}
-      source-repo: ${{ matrix.source-repo }}
-      source-path: ${{ matrix.source-path }}

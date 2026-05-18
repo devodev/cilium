@@ -90,41 +90,18 @@ jobs:
             docker-context: enterprise/images/certgen
             dockerfile: enterprise/images/certgen/Dockerfile
             base-image: ${{ needs.load-versions.outputs.ubi-micro }}
-            build-from-source: false
 
           - component: CILIUM_NODEINIT
             image-name: startup-script-ubi
             docker-context: enterprise/images/startup-script
             dockerfile: enterprise/images/startup-script/Dockerfile
             base-image: ${{ needs.load-versions.outputs.ubi-minimal }}
-            build-from-source: false
-
-          - component: HUBBLE_UI_BACKEND
-            image-name: hubble-ui-backend-ubi
-            docker-context: hubble-ui-backend/backend
-            dockerfile: hubble-ui-backend/backend/Dockerfile
-            base-image: ${{ needs.load-versions.outputs.ubi-minimal }}
-            build-from-source: true
-            source-repo: isovalent/hubble-ui-enterprise
-            directory: hubble-ui-backend
-
-          - component: HUBBLE_UI_FRONTEND
-            image-name: hubble-ui-frontend-ubi
-            docker-context: hubble-ui-frontend
-            dockerfile: hubble-ui-frontend/Dockerfile
-            # TODO: Renovate won't help here if the tag is pinning a single version
-            # renovate: datasource=docker
-            base-image: quay.io/isovalent-dev/nginx-unprivileged-ubi:1773387217-c133d26@sha256:e71257cfb5a0a26666fc77eb3789f40d43a298fef2174929853edc99e7b3787b
-            build-from-source: true
-            source-repo: isovalent/hubble-ui-enterprise
-            directory: hubble-ui-frontend
 
           - component: KUBECTL
             image-name: kubectl-ubi
             docker-context: enterprise/images/kubectl
             dockerfile: enterprise/images/kubectl/Dockerfile
             base-image: ${{ needs.load-versions.outputs.ubi-minimal }}
-            build-from-source: false
 
           - component: KUBECTL
             image-name: kubectl
@@ -132,7 +109,6 @@ jobs:
             dockerfile: enterprise/images/kubectl/Dockerfile
             # renovate: datasource=docker
             base-image: debian:13.3-slim@sha256:f6e2cfac5cf956ea044b4bd75e6397b4372ad88fe00908045e9a0d21712ae3ba
-            build-from-source: false
 
     steps:
       - name: Checkout code
@@ -180,31 +156,6 @@ jobs:
           registry: registry.redhat.io
           username: ${{ secrets.REDHAT_USERNAME_CI }}
           password: ${{ secrets.REDHAT_PASSWORD_CI }}
-
-      - name: Get GitHub Token [read-only]
-        if: ${{ matrix.build-from-source == true }}
-        id: gh-ro-token
-        uses: getsentry/action-github-app-token@5c1e90706fe007857338ac1bfbd7a4177db2f789 # v4.0.0
-        with:
-          app_id: ${{ secrets.ISOVALENT_READONLY_GH_APP_ID }}
-          private_key: ${{ secrets.ISOVALENT_READONLY_GH_APP_PEM }}
-
-      - name: Checkout source repo
-        if: ${{ matrix.build-from-source == true }}
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          repository: ${{ matrix.source-repo }}
-          token: ${{ steps.gh-ro-token.outputs.token }}
-          persist-credentials: false
-          path: ${{ matrix.directory }}
-          fetch-tags: true
-          fetch-depth: 0
-
-      - name: Checkout source version
-        if: ${{ matrix.build-from-source == true }}
-        working-directory: ${{ matrix.directory }}
-        run: |
-          git checkout ${{ steps.version.outputs.upstream_version }}
 
       - name: Build and push ${{ matrix.component }} image
         if: ${{ steps.version.outputs.rebuild == 'true' }}

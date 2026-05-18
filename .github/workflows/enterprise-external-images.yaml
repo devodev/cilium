@@ -24,16 +24,6 @@ on:
       base-image:
         required: true
         type: string
-      build-from-source:
-        required: false
-        type: boolean
-        default: false
-      source-repo:
-        required: false
-        type: string
-      source-path:
-        required: false
-        type: string
 
 permissions: read-all
 
@@ -105,31 +95,6 @@ jobs:
           registry: registry.redhat.io
           username: ${{ secrets.REDHAT_USERNAME_CI }}
           password: ${{ secrets.REDHAT_PASSWORD_CI }}
-
-      - name: Get GitHub Token [read-only]
-        if: ${{ inputs.build-from-source == true }}
-        id: gh-ro-token
-        uses: getsentry/action-github-app-token@5c1e90706fe007857338ac1bfbd7a4177db2f789 # v4.0.0
-        with:
-          app_id: ${{ secrets.ISOVALENT_READONLY_GH_APP_ID }}
-          private_key: ${{ secrets.ISOVALENT_READONLY_GH_APP_PEM }}
-
-      - name: Checkout source repo
-        if: ${{ inputs.build-from-source == true }}
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          repository: ${{ inputs.source-repo }}
-          token: ${{ steps.gh-ro-token.outputs.token }}
-          persist-credentials: false
-          path: ${{ inputs.source-path }}
-          fetch-tags: true
-          fetch-depth: 0
-
-      - name: Checkout source version
-        if: ${{ inputs.build-from-source == true }}
-        working-directory: ${{ inputs.source-path }}
-        run: |
-          git checkout ${{ needs.check-changes.outputs.version }}
 
       - name: Build and push ${{ inputs.component }} image
         uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
