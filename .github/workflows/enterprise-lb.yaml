@@ -87,22 +87,22 @@ jobs:
       max-parallel: 24
       matrix:
         name:
-          - "0"
-          - "1"
-          - "2"
-          - "3"
-          - "4"
-          - "5"
-          - "6"
-          - "7"
-          - "8"
-          - "9"
-          - "10"
+          - "multi-node-ipv4"
+          - "single-node-ipv4"
+          - "single-node-ipv4-xff"
+          - "multi-node-ipv4-all-t1t2"
+          - "multi-node-ipv4-single-node-t1t2"
+          - "multi-node-dual"
+          - "multi-node-ipv6"
+          - "multi-node-ipv4-extlb"
+          - "multi-node-dual-extlb"
+          - "multi-node-ipv4-hc-push"
+          - "multi-node-ipv4-zones"
         shard:
           - "1-of-2"
           - "2-of-2"
         include:
-          - name: "0"
+          - name: "multi-node-ipv4"
             mode: "multi-node"
             kind-ip-family: "ipv4"
             kernel: "6.1-20240710.064909"
@@ -111,9 +111,8 @@ jobs:
             nr-of-worker-nodes: 4
             t1-nodes: "kind-control-plane kind-worker"
             t2-nodes: "kind-worker2 kind-worker3 kind-worker4"
-            # Don't run the extlb tests, those are run in a separate matrix entry
             run-tests: "!LBK8sBackendCluster"
-          - name: "1"
+          - name: "single-node-ipv4"
             mode: "single-node"
             kind-ip-family: "ipv4"
             kernel: "6.1-20240710.064909"
@@ -122,9 +121,8 @@ jobs:
             nr-of-worker-nodes: 4
             t1-nodes: "kind-control-plane kind-worker"
             t2-nodes: "kind-worker2 kind-worker3 kind-worker4"
-            # Don't run the extlb tests, those are run in a separate matrix entry
             run-tests: "!LBK8sBackendCluster"
-          - name: "2"
+          - name: "single-node-ipv4-xff"
             mode: "single-node"
             kind-ip-family: "ipv4"
             kernel: "6.1-20240710.064909"
@@ -133,9 +131,8 @@ jobs:
             nr-of-worker-nodes: 4
             t1-nodes: "kind-control-plane kind-worker"
             t2-nodes: "kind-worker2 kind-worker3 kind-worker4"
-            # Don't run the extlb tests, those are run in a separate matrix entry
             run-tests: "!LBK8sBackendCluster"
-          - name: "3" # in-cluster where all nodes are T1 & T2
+          - name: "multi-node-ipv4-all-t1t2"
             mode: "multi-node"
             kind-ip-family: "ipv4"
             kernel: "6.1-20240710.064909"
@@ -143,9 +140,8 @@ jobs:
             xff-num-trusted-hops: 0
             nr-of-worker-nodes: 4
             t1t2-nodes: "kind-control-plane kind-worker kind-worker2 kind-worker3 kind-worker4"
-            # Don't run the extlb tests, those are run in a separate matrix entry
             run-tests: "!LBK8sBackendCluster"
-          - name: "4" # single k8s node deployment where the single node is T1 & T2
+          - name: "multi-node-ipv4-single-node-t1t2"
             mode: "multi-node"
             kind-ip-family: "ipv4"
             kernel: "6.1-20240710.064909"
@@ -153,9 +149,8 @@ jobs:
             xff-num-trusted-hops: 0
             nr-of-worker-nodes: 0
             t1t2-nodes: "kind-control-plane"
-            # Don't run the extlb tests, those are run in a separate matrix entry
             run-tests: "!LBK8sBackendCluster"
-          - name: "5"
+          - name: "multi-node-dual"
             mode: "multi-node"
             kind-ip-family: "dual"
             kernel: "6.1-20240710.064909"
@@ -164,9 +159,8 @@ jobs:
             nr-of-worker-nodes: 4
             t1-nodes: "kind-control-plane kind-worker"
             t2-nodes: "kind-worker2 kind-worker3 kind-worker4"
-            # Don't run the extlb tests, those are run in a separate matrix entry
             run-tests: "!LBK8sBackendCluster"
-          - name: "6"
+          - name: "multi-node-ipv6"
             mode: "multi-node"
             kind-ip-family: "ipv6"
             kernel: "6.1-20240710.064909"
@@ -175,10 +169,8 @@ jobs:
             nr-of-worker-nodes: 4
             t1-nodes: "kind-control-plane kind-worker"
             t2-nodes: "kind-worker2 kind-worker3 kind-worker4"
-            # Only execute ipv6 only tests (vip & backend).
-            # Most tests still use ipv4 addresses.
             run-tests: ".*IPv6VIPIPv6Backend.*"
-          - name: "7"
+          - name: "multi-node-ipv4-extlb"
             mode: "multi-node"
             kind-ip-family: "ipv4"
             kernel: "6.1-20240710.064909"
@@ -187,9 +179,8 @@ jobs:
             nr-of-worker-nodes: 4
             t1-nodes: "kind-control-plane kind-worker"
             t2-nodes: "kind-worker2 kind-worker3 kind-worker4"
-            # Only run the extlb tests
             run-tests: "LBK8sBackendCluster"
-          - name: "8"
+          - name: "multi-node-dual-extlb"
             mode: "multi-node"
             kind-ip-family: "dual"
             kernel: "6.1-20240710.064909"
@@ -198,9 +189,8 @@ jobs:
             nr-of-worker-nodes: 4
             t1-nodes: "kind-control-plane kind-worker"
             t2-nodes: "kind-worker2 kind-worker3 kind-worker4"
-            # Only run the extlb tests
             run-tests: "LBK8sBackendCluster"
-          - name: "9"
+          - name: "multi-node-ipv4-hc-push"
             mode: "multi-node"
             kind-ip-family: "ipv4"
             kernel: "6.1-20240710.064909"
@@ -209,10 +199,9 @@ jobs:
             nr-of-worker-nodes: 4
             t1-nodes: "kind-control-plane kind-worker"
             t2-nodes: "kind-worker2 kind-worker3 kind-worker4"
-            # Don't run the extlb tests, those are run in a separate matrix entry
             run-tests: "!LBK8sBackendCluster"
             t2-hc-push: "true"
-          - name: "10"
+          - name: "multi-node-ipv4-zones"
             mode: "multi-node"
             kind-ip-family: "ipv4"
             kernel: "6.1-20240710.064909"
@@ -222,7 +211,6 @@ jobs:
             t1-nodes: "kind-control-plane kind-worker"
             t2-nodes: "kind-worker2 kind-worker3"
             zones: "zone-a zone-b"
-            # Don't run the extlb tests, those are run in a separate matrix entry
             run-tests: "!LBK8sBackendCluster"
 
     timeout-minutes: 120
