@@ -342,6 +342,9 @@ jobs:
           if [ -n "${floating_tag}" ]; then
             floating_normal_tag="quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/${{ matrix.image_name }}-ci:${floating_tag}"
             extra_tags="${extra_tags} --tag ${floating_normal_tag}"
+            if [[ "${{ matrix.distro }}" != "ubi" ]]; then
+              normal_tag="${normal_tag},${floating_normal_tag}"
+            fi
           fi
 
           if [[ "${{ github.event_name }}" == 'merge_group' || "${{ github.event_name }}" == 'push' ]]; then
