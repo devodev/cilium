@@ -197,6 +197,7 @@ jobs:
             --include-unsafe-tests \
             --test='seq-egress-gateway-ha-ipam-bgp-advertisement' \
             --test='seq-egress-gateway-ha-ipam-bgp-advertisement-with-l7-policy' \
+            --test='seq-egress-gateway-ha-ipam-bgp-advertisement-virtual-ip' \
             --test='check-log-errors' \
             --collect-sysdump-on-failure
           "
