@@ -8,7 +8,7 @@
 //  or reproduction of this material is strictly forbidden unless prior written
 //  permission is obtained from Isovalent Inc.
 
-package wafpolicy
+package waf
 
 import (
 	"testing"
@@ -23,6 +23,8 @@ import (
 
 	"github.com/cilium/hive/hivetest"
 	"github.com/stretchr/testify/require"
+
+	"github.com/cilium/cilium/enterprise/operator/pkg/waf/policy"
 )
 
 func TestConfigMapNeedsUpdate(t *testing.T) {
@@ -75,10 +77,10 @@ func TestConfigMapNeedsUpdate(t *testing.T) {
 }
 
 func TestConfigMapReconcileInlineBundleCM(t *testing.T) {
-	firstInline, err := BuildInlineRules(`SecAction "id:1000,phase:1,pass,nolog"`)
+	firstInline, err := policy.BuildInlineRules(`SecAction "id:1000,phase:1,pass,nolog"`)
 	require.NoError(t, err)
 
-	secondInline, err := BuildInlineRules(`SecAction "id:1001,phase:1,pass,nolog"`)
+	secondInline, err := policy.BuildInlineRules(`SecAction "id:1001,phase:1,pass,nolog"`)
 	require.NoError(t, err)
 
 	testCases := []struct {
@@ -130,10 +132,10 @@ func TestConfigMapReconcileInlineBundleCM(t *testing.T) {
 }
 
 func TestConfigMapRemovePolicyInlineRules(t *testing.T) {
-	firstInline, err := BuildInlineRules(`SecAction "id:1000,phase:1,pass,nolog"`)
+	firstInline, err := policy.BuildInlineRules(`SecAction "id:1000,phase:1,pass,nolog"`)
 	require.NoError(t, err)
 
-	secondInline, err := BuildInlineRules(`SecAction "id:1001,phase:1,pass,nolog"`)
+	secondInline, err := policy.BuildInlineRules(`SecAction "id:1001,phase:1,pass,nolog"`)
 	require.NoError(t, err)
 
 	testCases := []struct {

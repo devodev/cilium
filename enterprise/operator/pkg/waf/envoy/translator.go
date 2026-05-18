@@ -8,7 +8,7 @@
 //  or reproduction of this material is strictly forbidden unless prior written
 //  permission is obtained from Isovalent Inc.
 
-package wafpolicy
+package envoy
 
 import (
 	"encoding/json"
@@ -22,6 +22,7 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/structpb"
 
+	"github.com/cilium/cilium/enterprise/operator/pkg/waf/policy"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 )
 
@@ -51,7 +52,7 @@ func NewTranslator(logger *slog.Logger, builder ProxyConfigBuilder) *Translator 
 }
 
 // HTTPFilter builds the Coraza dynamic-module HTTP filter that inspects requests.
-func (t *Translator) HTTPFilter(svcName, svcNs string, config *EffectiveConfig) (*envoy_extensions_filters_network_hcm_v3.HttpFilter, error) {
+func (t *Translator) HTTPFilter(svcName, svcNs string, config *policy.EffectiveConfig) (*envoy_extensions_filters_network_hcm_v3.HttpFilter, error) {
 	proxyConfig, err := t.proxyConfig(config)
 	if err != nil {
 		return nil, err
@@ -80,7 +81,7 @@ func (t *Translator) HTTPFilter(svcName, svcNs string, config *EffectiveConfig) 
 }
 
 // BlockRoute builds the synthetic direct-response route used for request-phase blocking.
-func (t *Translator) BlockRoute(svcName, svcNs string, config *EffectiveConfig) (*envoy_config_route_v3.Route, error) {
+func (t *Translator) BlockRoute(svcName, svcNs string, config *policy.EffectiveConfig) (*envoy_config_route_v3.Route, error) {
 	proxyConfig, err := t.proxyConfig(config)
 	if err != nil {
 		t.logger.Error(
@@ -120,7 +121,7 @@ func (t *Translator) BlockRoute(svcName, svcNs string, config *EffectiveConfig) 
 	}, nil
 }
 
-func (t *Translator) proxyConfig(config *EffectiveConfig) (*ProxyConfig, error) {
+func (t *Translator) proxyConfig(config *policy.EffectiveConfig) (*ProxyConfig, error) {
 	if config == nil {
 		return nil, nil
 	}

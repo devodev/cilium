@@ -8,13 +8,14 @@
 //  or reproduction of this material is strictly forbidden unless prior written
 //  permission is obtained from Isovalent Inc.
 
-package wafpolicy
+package envoy
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/cilium/cilium/enterprise/operator/pkg/waf/policy"
 	isovalentv1alpha1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
 )
 
@@ -25,35 +26,35 @@ func TestProxyConfigBuilderBuild(t *testing.T) {
 
 	testCases := []struct {
 		name          string
-		config        EffectiveConfig
+		config        policy.EffectiveConfig
 		expected      *ProxyConfig
 		expectedError string
 	}{
 		{
 			name: "disabled WAF returns nil",
-			config: EffectiveConfig{
+			config: policy.EffectiveConfig{
 				Enabled: false,
 			},
 			expected: nil,
 		},
 		{
 			name: "inline rules return nil",
-			config: EffectiveConfig{
+			config: policy.EffectiveConfig{
 				Enabled: true,
-				Rules: EffectiveRules{
-					Source: EffectiveRuleSourceInline,
+				Rules: policy.EffectiveRules{
+					Source: policy.EffectiveRuleSourceInline,
 				},
 			},
 			expected: nil,
 		},
 		{
 			name: "default rules build proxy config with defaults",
-			config: EffectiveConfig{
+			config: policy.EffectiveConfig{
 				Enabled:     true,
 				Mode:        isovalentv1alpha1.IsovalentWAFPolicyModeMonitor,
 				FailureMode: isovalentv1alpha1.WAFFailureModeOpen,
-				Rules: EffectiveRules{
-					Source:        EffectiveRuleSourceDefault,
+				Rules: policy.EffectiveRules{
+					Source:        policy.EffectiveRuleSourceDefault,
 					PolicyProfile: isovalentv1alpha1.IsovalentWAFPolicyProfileBalanced,
 				},
 			},
@@ -70,15 +71,15 @@ func TestProxyConfigBuilderBuild(t *testing.T) {
 		},
 		{
 			name: "managed rules apply overrides",
-			config: EffectiveConfig{
+			config: policy.EffectiveConfig{
 				Enabled:     true,
 				Mode:        isovalentv1alpha1.IsovalentWAFPolicyModeEnforce,
 				FailureMode: isovalentv1alpha1.WAFFailureModeClose,
-				Rules: EffectiveRules{
-					Source:        EffectiveRuleSourceManaged,
+				Rules: policy.EffectiveRules{
+					Source:        policy.EffectiveRuleSourceManaged,
 					PolicyProfile: isovalentv1alpha1.IsovalentWAFPolicyProfileHighSecurity,
 				},
-				HandlingOverrides: EffectiveHandlingOverrides{
+				HandlingOverrides: policy.EffectiveHandlingOverrides{
 					BodyLimitBytes:          &bodyLimitBytes,
 					BlockResponseStatusCode: &blockStatusCode,
 					BlockResponseBody:       &blockBody,
@@ -97,10 +98,10 @@ func TestProxyConfigBuilderBuild(t *testing.T) {
 		},
 		{
 			name: "unsupported rules source returns error",
-			config: EffectiveConfig{
+			config: policy.EffectiveConfig{
 				Enabled: true,
-				Rules: EffectiveRules{
-					Source: EffectiveRuleSource("Unsupported"),
+				Rules: policy.EffectiveRules{
+					Source: policy.EffectiveRuleSource("Unsupported"),
 				},
 			},
 			expectedError: `unsupported WAF rules source "Unsupported"`,

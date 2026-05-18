@@ -8,11 +8,12 @@
 //  or reproduction of this material is strictly forbidden unless prior written
 //  permission is obtained from Isovalent Inc.
 
-package wafpolicy
+package envoy
 
 import (
 	"fmt"
 
+	"github.com/cilium/cilium/enterprise/operator/pkg/waf/policy"
 	isovalentv1alpha1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
 )
 
@@ -41,14 +42,14 @@ func NewProxyConfigBuilder() ProxyConfigBuilder {
 	return ProxyConfigBuilder{}
 }
 
-func (ProxyConfigBuilder) Build(cfg EffectiveConfig) (*ProxyConfig, error) {
+func (ProxyConfigBuilder) Build(cfg policy.EffectiveConfig) (*ProxyConfig, error) {
 	if !cfg.Enabled {
 		return nil, nil
 	}
 
 	switch cfg.Rules.Source {
-	case EffectiveRuleSourceDefault, EffectiveRuleSourceManaged:
-	case EffectiveRuleSourceInline:
+	case policy.EffectiveRuleSourceDefault, policy.EffectiveRuleSourceManaged:
+	case policy.EffectiveRuleSourceInline:
 		return nil, nil
 	default:
 		return nil, fmt.Errorf("unsupported WAF rules source %q", cfg.Rules.Source)
@@ -61,12 +62,12 @@ func (ProxyConfigBuilder) Build(cfg EffectiveConfig) (*ProxyConfig, error) {
 
 	return &ProxyConfig{
 		DefaultMode:         toWAFDefaultMode(cfg.Mode),
-		BodyLimitBytes:      valueOrDefault(cfg.HandlingOverrides.BodyLimitBytes, int64(wafBodyLimitBytes)),
+		BodyLimitBytes:      policy.ValueOrDefault(cfg.HandlingOverrides.BodyLimitBytes, int64(wafBodyLimitBytes)),
 		FailPolicy:          toWAFFailPolicy(cfg.FailureMode),
 		RouteModeHeader:     "",
 		BlockPath:           wafBlockPath,
-		ResponseBlockStatus: int(valueOrDefault(cfg.HandlingOverrides.BlockResponseStatusCode, int32(wafResponseBlockStatus))),
-		ResponseBlockBody:   valueOrDefault(cfg.HandlingOverrides.BlockResponseBody, wafResponseBlockBody),
+		ResponseBlockStatus: int(policy.ValueOrDefault(cfg.HandlingOverrides.BlockResponseStatusCode, int32(wafResponseBlockStatus))),
+		ResponseBlockBody:   policy.ValueOrDefault(cfg.HandlingOverrides.BlockResponseBody, wafResponseBlockBody),
 		Directives:          directives,
 	}, nil
 }
@@ -87,18 +88,11 @@ func toWAFFailPolicy(mode isovalentv1alpha1.WAFFailureModeType) string {
 	return "open"
 }
 
-func directivesForWAFConfig(config EffectiveConfig) (string, error) {
+func directivesForWAFConfig(config policy.EffectiveConfig) (string, error) {
 	switch config.Rules.Source {
-	case EffectiveRuleSourceDefault, EffectiveRuleSourceManaged:
+	case policy.EffectiveRuleSourceDefault, policy.EffectiveRuleSourceManaged:
 		return fmt.Sprintf("Include %s/%s.conf", wafProfilesPath, config.Rules.PolicyProfile), nil
 	default:
 		return "", fmt.Errorf("unsupported WAF rules source %q", config.Rules.Source)
 	}
-}
-
-func valueOrDefault[T any](v *T, def T) T {
-	if v == nil {
-		return def
-	}
-	return *v
 }

@@ -31,7 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/cilium/cilium/enterprise/operator/pkg/wafpolicy"
+	wafpolicy "github.com/cilium/cilium/enterprise/operator/pkg/waf/policy"
 	controllerruntime "github.com/cilium/cilium/operator/pkg/controller-runtime"
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	isovalentv1alpha1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"

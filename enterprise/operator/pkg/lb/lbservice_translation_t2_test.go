@@ -17,7 +17,8 @@ import (
 	envoy_config_route_v3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 	"github.com/stretchr/testify/require"
 
-	"github.com/cilium/cilium/enterprise/operator/pkg/wafpolicy"
+	wafenvoy "github.com/cilium/cilium/enterprise/operator/pkg/waf/envoy"
+	wafpolicy "github.com/cilium/cilium/enterprise/operator/pkg/waf/policy"
 	isovalentv1alpha1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
 )
 
@@ -80,7 +81,7 @@ func TestDesiredManagedWAFHTTPRouteConfig(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			translator := &lbServiceT2Translator{
 				logger:        hivetest.Logger(t),
-				wafTranslator: wafpolicy.NewTranslator(hivetest.Logger(t), wafpolicy.NewProxyConfigBuilder()),
+				wafTranslator: wafenvoy.NewTranslator(hivetest.Logger(t), wafenvoy.NewProxyConfigBuilder()),
 			}
 			model := newManagedWAFHTTPRouteModel(tc.config)
 

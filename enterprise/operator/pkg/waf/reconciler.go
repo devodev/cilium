@@ -8,7 +8,7 @@
 //  or reproduction of this material is strictly forbidden unless prior written
 //  permission is obtained from Isovalent Inc.
 
-package wafpolicy
+package waf
 
 import (
 	"context"
@@ -20,6 +20,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	wafpolicy "github.com/cilium/cilium/enterprise/operator/pkg/waf/policy"
 	controllerruntime "github.com/cilium/cilium/operator/pkg/controller-runtime"
 	isovalentv1alpha1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
 	"github.com/cilium/cilium/pkg/logging/logfields"
@@ -88,7 +89,7 @@ func (r *reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		return controllerruntime.Success()
 	}
 
-	validationErr := Validate(policy)
+	validationErr := wafpolicy.Validate(policy)
 	if err := r.reconcilePolicyStatus(ctx, policy, validationErr); err != nil {
 		return controllerruntime.Fail(err)
 	}
@@ -106,8 +107,8 @@ func (r *reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 }
 
 func (r *reconciler) reconcilePolicyStatus(ctx context.Context, policy *isovalentv1alpha1.IsovalentWAFPolicy, validationErr error) error {
-	condition := Condition(policy, validationErr)
-	if !SetCondition(policy, condition) {
+	condition := wafpolicy.Condition(policy, validationErr)
+	if !wafpolicy.SetCondition(policy, condition) {
 		return nil
 	}
 	if err := r.client.Status().Update(ctx, policy); err != nil {
@@ -119,7 +120,7 @@ func (r *reconciler) reconcilePolicyStatus(ctx context.Context, policy *isovalen
 func (r *reconciler) reconcilePolicyInlineRules(ctx context.Context, policyRef string, policy *isovalentv1alpha1.IsovalentWAFPolicy) error {
 	var desiredHashKey, desiredInline string
 	if policy != nil && policy.Spec.Rules != nil && policy.Spec.Rules.Custom != nil {
-		rules, err := BuildInlineRules(policy.Spec.Rules.Custom.Inline)
+		rules, err := wafpolicy.BuildInlineRules(policy.Spec.Rules.Custom.Inline)
 		if err != nil {
 			return fmt.Errorf("failed to build WAF inline bundle data: %w", err)
 		}

@@ -66,7 +66,7 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/cilium/cilium/enterprise/operator/pkg/wafpolicy"
+	wafenvoy "github.com/cilium/cilium/enterprise/operator/pkg/waf/envoy"
 	"github.com/cilium/cilium/pkg/annotation"
 	"github.com/cilium/cilium/pkg/envoy"
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
@@ -82,7 +82,7 @@ const (
 type lbServiceT2Translator struct {
 	logger        *slog.Logger
 	config        reconcilerConfig
-	wafTranslator *wafpolicy.Translator
+	wafTranslator *wafenvoy.Translator
 }
 
 func (r *lbServiceT2Translator) DesiredCiliumEnvoyConfig(model *lbService) (*ciliumv2.CiliumEnvoyConfig, error) {

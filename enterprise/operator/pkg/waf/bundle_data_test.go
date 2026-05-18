@@ -8,20 +8,22 @@
 //  or reproduction of this material is strictly forbidden unless prior written
 //  permission is obtained from Isovalent Inc.
 
-package wafpolicy
+package waf
 
 import (
 	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/cilium/cilium/enterprise/operator/pkg/waf/policy"
 )
 
 func TestReconcileInlineBundleData(t *testing.T) {
-	expectedInline, err := BuildInlineRules(`SecAction "id:1000,phase:1,pass,nolog"`)
+	expectedInline, err := policy.BuildInlineRules(`SecAction "id:1000,phase:1,pass,nolog"`)
 	require.NoError(t, err)
 
-	otherInline, err := BuildInlineRules(`SecAction "id:1001,phase:1,pass,nolog"`)
+	otherInline, err := policy.BuildInlineRules(`SecAction "id:1001,phase:1,pass,nolog"`)
 	require.NoError(t, err)
 
 	testCases := []struct {
@@ -72,10 +74,10 @@ func TestReconcileInlineBundleData(t *testing.T) {
 }
 
 func TestRemovePolicyInlineRulesData(t *testing.T) {
-	expectedInline, err := BuildInlineRules(`SecAction "id:1000,phase:1,pass,nolog"`)
+	expectedInline, err := policy.BuildInlineRules(`SecAction "id:1000,phase:1,pass,nolog"`)
 	require.NoError(t, err)
 
-	otherInline, err := BuildInlineRules(`SecAction "id:1001,phase:1,pass,nolog"`)
+	otherInline, err := policy.BuildInlineRules(`SecAction "id:1001,phase:1,pass,nolog"`)
 	require.NoError(t, err)
 
 	testCases := []struct {

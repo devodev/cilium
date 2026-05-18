@@ -8,7 +8,7 @@
 //  or reproduction of this material is strictly forbidden unless prior written
 //  permission is obtained from Isovalent Inc.
 
-package wafpolicy
+package envoy
 
 import (
 	"testing"
@@ -19,13 +19,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/cilium/cilium/enterprise/operator/pkg/waf/policy"
 	isovalentv1alpha1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
 )
 
 func TestHTTPFilter(t *testing.T) {
 	testCases := []struct {
 		name           string
-		config         *EffectiveConfig
+		config         *policy.EffectiveConfig
 		expectedFilter bool
 	}{
 		{
@@ -35,22 +36,22 @@ func TestHTTPFilter(t *testing.T) {
 		},
 		{
 			name: "inline rules skip managed filter",
-			config: &EffectiveConfig{
+			config: &policy.EffectiveConfig{
 				Enabled: true,
-				Rules: EffectiveRules{
-					Source: EffectiveRuleSourceInline,
+				Rules: policy.EffectiveRules{
+					Source: policy.EffectiveRuleSourceInline,
 				},
 			},
 			expectedFilter: false,
 		},
 		{
 			name: "managed monitor defaults",
-			config: &EffectiveConfig{
+			config: &policy.EffectiveConfig{
 				Enabled:     true,
 				Mode:        isovalentv1alpha1.IsovalentWAFPolicyModeMonitor,
 				FailureMode: isovalentv1alpha1.WAFFailureModeOpen,
-				Rules: EffectiveRules{
-					Source:        EffectiveRuleSourceManaged,
+				Rules: policy.EffectiveRules{
+					Source:        policy.EffectiveRuleSourceManaged,
 					PolicyProfile: isovalentv1alpha1.IsovalentWAFPolicyProfileBalanced,
 				},
 			},
@@ -58,12 +59,12 @@ func TestHTTPFilter(t *testing.T) {
 		},
 		{
 			name: "managed enforce close with overrides",
-			config: &EffectiveConfig{
+			config: &policy.EffectiveConfig{
 				Enabled:     true,
 				Mode:        isovalentv1alpha1.IsovalentWAFPolicyModeEnforce,
 				FailureMode: isovalentv1alpha1.WAFFailureModeClose,
-				Rules: EffectiveRules{
-					Source:        EffectiveRuleSourceManaged,
+				Rules: policy.EffectiveRules{
+					Source:        policy.EffectiveRuleSourceManaged,
 					PolicyProfile: isovalentv1alpha1.IsovalentWAFPolicyProfileBalanced,
 				},
 			},
@@ -96,7 +97,7 @@ func TestBlockRoute(t *testing.T) {
 
 	testCases := []struct {
 		name     string
-		config   *EffectiveConfig
+		config   *policy.EffectiveConfig
 		expected *envoy_config_route_v3.Route
 	}{
 		{
@@ -106,20 +107,20 @@ func TestBlockRoute(t *testing.T) {
 		},
 		{
 			name: "inline rules skip block route",
-			config: &EffectiveConfig{
+			config: &policy.EffectiveConfig{
 				Enabled: true,
-				Rules: EffectiveRules{
-					Source: EffectiveRuleSourceInline,
+				Rules: policy.EffectiveRules{
+					Source: policy.EffectiveRuleSourceInline,
 				},
 			},
 			expected: nil,
 		},
 		{
 			name: "managed defaults",
-			config: &EffectiveConfig{
+			config: &policy.EffectiveConfig{
 				Enabled: true,
-				Rules: EffectiveRules{
-					Source: EffectiveRuleSourceManaged,
+				Rules: policy.EffectiveRules{
+					Source: policy.EffectiveRuleSourceManaged,
 				},
 			},
 			expected: &envoy_config_route_v3.Route{
@@ -142,12 +143,12 @@ func TestBlockRoute(t *testing.T) {
 		},
 		{
 			name: "managed overrides",
-			config: &EffectiveConfig{
+			config: &policy.EffectiveConfig{
 				Enabled: true,
-				Rules: EffectiveRules{
-					Source: EffectiveRuleSourceManaged,
+				Rules: policy.EffectiveRules{
+					Source: policy.EffectiveRuleSourceManaged,
 				},
-				HandlingOverrides: EffectiveHandlingOverrides{
+				HandlingOverrides: policy.EffectiveHandlingOverrides{
 					BlockResponseStatusCode: &blockStatusCode,
 					BlockResponseBody:       &blockBody,
 				},

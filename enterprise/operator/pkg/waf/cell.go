@@ -8,7 +8,7 @@
 //  or reproduction of this material is strictly forbidden unless prior written
 //  permission is obtained from Isovalent Inc.
 
-package wafpolicy
+package waf
 
 import (
 	"errors"
@@ -20,20 +20,22 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrlRuntime "sigs.k8s.io/controller-runtime"
 
+	"github.com/cilium/cilium/enterprise/operator/pkg/waf/envoy"
+	"github.com/cilium/cilium/enterprise/operator/pkg/waf/policy"
 	isovalentv1alpha1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
 	"github.com/cilium/cilium/pkg/option"
 )
 
 var Cell = cell.Module(
-	"wafpolicy",
+	"waf",
 	"Manages IsovalentWAFPolicy validation and shared defaults",
 
 	//exhaustruct:ignore
 	cell.Config(Config{}),
 	cell.Provide(newGlobalDefaults),
 	cell.Provide(newResolver),
-	cell.Provide(NewProxyConfigBuilder),
-	cell.Provide(NewTranslator),
+	cell.Provide(envoy.NewProxyConfigBuilder),
+	cell.Provide(envoy.NewTranslator),
 	cell.Invoke(registerReconcilers),
 )
 
@@ -55,50 +57,13 @@ func (cfg Config) Flags(flags *pflag.FlagSet) {
 	flags.String("waf-inline-rules-config-map", DefaultInlineRulesCM, "Name of the ConfigMap used to publish shared WAF inline rule bundles.")
 }
 
-type GlobalDefaults struct {
-	Enabled       bool
-	Mode          isovalentv1alpha1.IsovalentWAFPolicyModeType
-	PolicyProfile isovalentv1alpha1.IsovalentWAFPolicyProfileType
-	FailureMode   isovalentv1alpha1.WAFFailureModeType
-}
-
-func newGlobalDefaults(config Config) (GlobalDefaults, error) {
-	defaults := GlobalDefaults{
-		Enabled:       config.WAFEnabled,
-		Mode:          isovalentv1alpha1.IsovalentWAFPolicyModeType(config.WAFMode),
-		PolicyProfile: isovalentv1alpha1.IsovalentWAFPolicyProfileType(config.WAFPolicyProfile),
-		FailureMode:   isovalentv1alpha1.WAFFailureModeType(config.WAFFailureMode),
-	}
-
-	switch defaults.Mode {
-	case isovalentv1alpha1.IsovalentWAFPolicyModeMonitor, isovalentv1alpha1.IsovalentWAFPolicyModeEnforce:
-	default:
-		return GlobalDefaults{}, fmt.Errorf("unsupported waf-mode %q", config.WAFMode)
-	}
-
-	switch defaults.PolicyProfile {
-	case isovalentv1alpha1.IsovalentWAFPolicyProfileMaxSecurity,
-		isovalentv1alpha1.IsovalentWAFPolicyProfileHighSecurity,
-		isovalentv1alpha1.IsovalentWAFPolicyProfileBalanced,
-		isovalentv1alpha1.IsovalentWAFPolicyProfileLowFriction,
-		isovalentv1alpha1.IsovalentWAFPolicyProfileMinFriction:
-	default:
-		return GlobalDefaults{}, fmt.Errorf(
-			"unsupported waf-policy-profile %q",
-			config.WAFPolicyProfile,
-		)
-	}
-
-	switch defaults.FailureMode {
-	case isovalentv1alpha1.WAFFailureModeOpen, isovalentv1alpha1.WAFFailureModeClose:
-	default:
-		return GlobalDefaults{}, fmt.Errorf(
-			"unsupported waf-failure-mode %q",
-			config.WAFFailureMode,
-		)
-	}
-
-	return defaults, nil
+func newGlobalDefaults(config Config) (policy.GlobalDefaults, error) {
+	return policy.NewGlobalDefaults(
+		config.WAFEnabled,
+		config.WAFMode,
+		config.WAFPolicyProfile,
+		config.WAFFailureMode,
+	)
 }
 
 type resolverParams struct {
@@ -106,21 +71,21 @@ type resolverParams struct {
 
 	CtrlRuntimeManager ctrlRuntime.Manager
 	Logger             *slog.Logger
-	Defaults           GlobalDefaults
+	Defaults           policy.GlobalDefaults
 }
 
-func newResolver(params resolverParams) (*Resolver, error) {
+func newResolver(params resolverParams) (*policy.Resolver, error) {
 	if params.Defaults.Enabled && params.CtrlRuntimeManager == nil {
 		return nil, errors.New("waf requires Kubernetes support to be enabled")
 	}
 
 	if params.CtrlRuntimeManager != nil {
-		return NewResolver(params.CtrlRuntimeManager.GetClient(), params.Logger, params.Defaults), nil
+		return policy.NewResolver(params.CtrlRuntimeManager.GetClient(), params.Logger, params.Defaults), nil
 	}
 
 	// Hive inspection can populate this cell without a controller-runtime
 	// manager, so tolerate the nil manager on non-runtime paths.
-	return NewResolver(nil, params.Logger, params.Defaults), nil
+	return policy.NewResolver(nil, params.Logger, params.Defaults), nil
 }
 
 type reconcilerParams struct {

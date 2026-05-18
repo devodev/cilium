@@ -8,7 +8,7 @@
 //  or reproduction of this material is strictly forbidden unless prior written
 //  permission is obtained from Isovalent Inc.
 
-package wafpolicy
+package waf
 
 import (
 	"encoding/json"
@@ -26,6 +26,7 @@ import (
 	"github.com/cilium/hive/hivetest"
 	"github.com/stretchr/testify/require"
 
+	"github.com/cilium/cilium/enterprise/operator/pkg/waf/policy"
 	isovalentv1alpha1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
 	slim_metav1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
 )
@@ -152,10 +153,10 @@ func TestReconcilerSetsAcceptedCondition(t *testing.T) {
 }
 
 func TestReconcilePolicyInlineRules(t *testing.T) {
-	expectedInline, err := BuildInlineRules(`SecAction "id:1000,phase:1,pass,nolog"`)
+	expectedInline, err := policy.BuildInlineRules(`SecAction "id:1000,phase:1,pass,nolog"`)
 	require.NoError(t, err)
 
-	otherInline, err := BuildInlineRules(`SecAction "id:1001,phase:1,pass,nolog"`)
+	otherInline, err := policy.BuildInlineRules(`SecAction "id:1001,phase:1,pass,nolog"`)
 	require.NoError(t, err)
 
 	scheme := newTestWAFScheme(t)

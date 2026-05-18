@@ -11,7 +11,7 @@
 package lb
 
 import (
-	"github.com/cilium/cilium/enterprise/operator/pkg/wafpolicy"
+	wafpolicy "github.com/cilium/cilium/enterprise/operator/pkg/waf/policy"
 	"github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/labels"
 	"github.com/cilium/cilium/pkg/shortener"
 )

@@ -24,7 +24,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8syaml "sigs.k8s.io/yaml"
 
-	"github.com/cilium/cilium/enterprise/operator/pkg/wafpolicy"
+	wafenvoy "github.com/cilium/cilium/enterprise/operator/pkg/waf/envoy"
 	ossannotation "github.com/cilium/cilium/pkg/annotation"
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	isovalentv1alpha1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
@@ -146,9 +146,9 @@ func testTranslationSingle(tc testcase) func(t *testing.T) {
 		t2Translator := &lbServiceT2Translator{
 			logger: hivetest.Logger(t),
 			config: config,
-			wafTranslator: wafpolicy.NewTranslator(
+			wafTranslator: wafenvoy.NewTranslator(
 				hivetest.Logger(t),
-				wafpolicy.NewProxyConfigBuilder(),
+				wafenvoy.NewProxyConfigBuilder(),
 			),
 		}
 

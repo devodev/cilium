@@ -8,7 +8,7 @@
 //  or reproduction of this material is strictly forbidden unless prior written
 //  permission is obtained from Isovalent Inc.
 
-package wafpolicy
+package policy
 
 import (
 	"context"
@@ -367,4 +367,11 @@ func validateTarget(idx int, target isovalentv1alpha1.IsovalentWAFPolicyTarget) 
 		)
 	}
 	return nil
+}
+
+func valueOrDefault[T any](v *T, def T) T {
+	if v == nil {
+		return def
+	}
+	return *v
 }
