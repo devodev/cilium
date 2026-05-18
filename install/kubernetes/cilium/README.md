@@ -368,7 +368,7 @@ contributors across the globe, there is almost always someone available to help.
 | dnsProxy.maxDeferredConnectionDeletes | int | `10000` | Maximum number of IPs to retain for expired DNS lookups with still-active connections. |
 | dnsProxy.minTtl | int | `0` | The minimum time, in seconds, to use DNS data for toFQDNs policies. If the upstream DNS server returns a DNS record with a shorter TTL, Cilium overwrites the TTL with this value. Setting this value to zero means that Cilium will honor the TTLs returned by the upstream DNS server. |
 | dnsProxy.preAllocateIdentities | bool | `true` | Pre-allocate ToFQDN identities. This reduces DNS proxy tail latency, at the potential cost of some unnecessary policymap entries. Disable this if you have a large (200+) number of unique ToFQDN selectors. |
-| dnsProxy.preCache | string | `""` | DNS cache data at this path is preloaded on agent startup. |
+| dnsProxy.preCache | string | `""` | DNS cache data at this path is preloaded on agent startup. (deprecated: will be removed in v1.21) |
 | dnsProxy.proxyPort | int | `0` | Global port on which the in-agent DNS proxy should listen. Default 0 is a OS-assigned port. |
 | dnsProxy.proxyResponseMaxDelay | string | `"100ms"` | The maximum time the DNS proxy holds an allowed DNS response before sending it along. Responses are sent as soon as the datapath is updated with the new IP information. |
 | dnsProxy.socketLingerTimeout | int | `10` | Timeout (in seconds) when closing the connection between the DNS proxy and the upstream server. If set to 0, the connection is closed immediately (with TCP RST). If set to -1, the connection is closed asynchronously in the background. |
@@ -400,7 +400,7 @@ contributors across the globe, there is almost always someone available to help.
 | encryption.strictMode.ingress.enabled | bool | `false` | Enable strict ingress encryption. When enabled, all unencrypted overlay ingress traffic will be dropped. This option is only applicable when WireGuard and tunneling are enabled. |
 | encryption.type | string | `"ipsec"` | Encryption method. Can be one of ipsec, wireguard or ztunnel. |
 | encryption.wireguard.persistentKeepalive | string | `"0s"` | Controls WireGuard PersistentKeepalive option. Set 0s to disable. |
-| encryption.ztunnel | object | `{"affinity":{},"annotations":{},"caAddress":"https://localhost:15012","extraEnv":[],"extraVolumeMounts":[],"extraVolumes":[],"healthPort":15021,"image":{"digest":"sha256:884de5adde400e39f58e36c7a729f7690466ca4a8eb4c2a8daa9c1c025115b24","override":null,"pullPolicy":"Always","repository":"quay.io/cilium/ztunnel","tag":"v1.0.0","useDigest":true},"nodeSelector":{"kubernetes.io/os":"linux"},"podAnnotations":{},"podLabels":{},"priorityClassName":null,"readinessProbe":{"failureThreshold":3,"initialDelaySeconds":0,"periodSeconds":10},"resources":{"requests":{"cpu":"200m","memory":"512Mi"}},"secrets":{"bootstrapRootCert":null},"terminationGracePeriodSeconds":30,"tolerations":[{"effect":"NoSchedule","operator":"Exists"},{"key":"CriticalAddonsOnly","operator":"Exists"},{"effect":"NoExecute","operator":"Exists"}],"updateStrategy":{"rollingUpdate":{"maxSurge":1,"maxUnavailable":0},"type":"RollingUpdate"}}` | ztunnel encryption configuration. ztunnel is Istio's purpose-built, per-node proxy for handling L4 traffic in ambient mesh mode. These settings only apply when encryption.type is set to "ztunnel". |
+| encryption.ztunnel | object | `{"affinity":{},"annotations":{},"caAddress":"https://localhost:15012","extraEnv":[],"extraVolumeMounts":[],"extraVolumes":[],"healthPort":15021,"image":{"digest":"sha256:884de5adde400e39f58e36c7a729f7690466ca4a8eb4c2a8daa9c1c025115b24","override":null,"pullPolicy":"Always","repository":"quay.io/cilium/ztunnel","tag":"v1.0.0","useDigest":true},"minReadySeconds":0,"nodeSelector":{"kubernetes.io/os":"linux"},"podAnnotations":{},"podLabels":{},"priorityClassName":null,"readinessProbe":{"failureThreshold":3,"initialDelaySeconds":0,"periodSeconds":10},"resources":{"requests":{"cpu":"200m","memory":"512Mi"}},"secrets":{"bootstrapRootCert":null},"terminationGracePeriodSeconds":30,"tolerations":[{"effect":"NoSchedule","operator":"Exists"},{"key":"CriticalAddonsOnly","operator":"Exists"},{"effect":"NoExecute","operator":"Exists"}],"updateStrategy":{"rollingUpdate":{"maxSurge":1,"maxUnavailable":0},"type":"RollingUpdate"}}` | ztunnel encryption configuration. ztunnel is Istio's purpose-built, per-node proxy for handling L4 traffic in ambient mesh mode. These settings only apply when encryption.type is set to "ztunnel". |
 | encryption.ztunnel.affinity | object | `{}` | Affinity for ztunnel pods. |
 | encryption.ztunnel.annotations | object | `{}` | Annotations to be added to all ztunnel resources. |
 | encryption.ztunnel.caAddress | string | `"https://localhost:15012"` | CA server address for certificate requests. |
@@ -409,6 +409,7 @@ contributors across the globe, there is almost always someone available to help.
 | encryption.ztunnel.extraVolumes | list | `[]` | Additional ztunnel volumes. |
 | encryption.ztunnel.healthPort | int | `15021` | TCP port for the health API. |
 | encryption.ztunnel.image | object | `{"digest":"sha256:884de5adde400e39f58e36c7a729f7690466ca4a8eb4c2a8daa9c1c025115b24","override":null,"pullPolicy":"Always","repository":"quay.io/cilium/ztunnel","tag":"v1.0.0","useDigest":true}` | ztunnel container image. |
+| encryption.ztunnel.minReadySeconds | int | `0` | Minimum number of seconds for which a newly created ztunnel pod should be ready before it is considered available. |
 | encryption.ztunnel.nodeSelector | object | `{"kubernetes.io/os":"linux"}` | Node selector for ztunnel pods. |
 | encryption.ztunnel.podAnnotations | object | `{}` | Annotations to be added to ztunnel pods. |
 | encryption.ztunnel.podLabels | object | `{}` | Labels to be added to ztunnel pods. |
@@ -565,7 +566,7 @@ contributors across the globe, there is almost always someone available to help.
 | envoy.httpRetryCount | int | `3` | Maximum number of retries for each HTTP request |
 | envoy.httpUpstreamLingerTimeout | string | `nil` | Time in seconds to block Envoy worker thread while an upstream HTTP connection is closing. If set to 0, the connection is closed immediately (with TCP RST). If set to -1, the connection is closed asynchronously in the background. |
 | envoy.idleTimeoutDurationSeconds | int | `60` | Set Envoy upstream HTTP idle connection timeout seconds. Does not apply to connections with pending requests. Default 60s |
-| envoy.image | object | `{"digest":"sha256:8994e3064f463087bbfae1daeecd082840ccb0e2addb92979d4da61252764555","override":null,"pullPolicy":"Always","repository":"quay.io/cilium/cilium-envoy","tag":"v1.36.6-1776352947-78da350f53f63526ff6487f2e1f3b14d2062ce17","useDigest":true}` | Envoy container image. |
+| envoy.image | object | `{"digest":"sha256:c5fd228f5f6f72c21341384ac7ba9654db73b0931f5c6ac0c505960975f56f48","override":null,"pullPolicy":"Always","repository":"quay.io/cilium/cilium-envoy","tag":"v1.37.2-1778236003-7c2f6580d32e50f1a6866c12122662856f54eec2","useDigest":true}` | Envoy container image. |
 | envoy.initContainers | list | `[]` | Init containers added to the cilium Envoy DaemonSet. |
 | envoy.initialFetchTimeoutSeconds | int | `30` | Time in seconds after which the initial fetch on an xDS stream is considered timed out |
 | envoy.kubectl.image.digest | string | `""` |  |
@@ -589,6 +590,7 @@ contributors across the globe, there is almost always someone available to help.
 | envoy.maxConnectionDurationSeconds | int | `0` | Set Envoy HTTP option max_connection_duration seconds. Default 0 (disable) |
 | envoy.maxGlobalDownstreamConnections | int | `50000` | Maximum number of global downstream connections |
 | envoy.maxRequestsPerConnection | int | `0` | ProxyMaxRequestsPerConnection specifies the max_requests_per_connection setting for Envoy |
+| envoy.minReadySeconds | int | `0` | Minimum number of seconds for which a newly created envoy pod should be ready before it is considered available. |
 | envoy.nodeLocality.enabled | bool | `false` | Enable node-locality support for cilium-envoy. When enabled, Cilium looks up the node zone from the topology label and passes it to the Envoy process via `--service-zone`. Startup fails if the zone cannot be resolved or the label is empty. |
 | envoy.nodeSelector | object | `{"kubernetes.io/os":"linux"}` | Node selector for cilium-envoy. |
 | envoy.podAnnotations | object | `{}` | Annotations to be added to envoy pods |
@@ -1078,6 +1080,7 @@ contributors across the globe, there is almost always someone available to help.
 | localRedirectPolicy | bool | `false` | Enable Local Redirect Policy (deprecated, please use 'localRedirectPolicies.enabled' instead) |
 | logSystemLoad | bool | `false` | Enables periodic logging of system load |
 | maglev | object | `{}` | Configure maglev consistent hashing |
+| minReadySeconds | int | `0` | Minimum number of seconds for which a newly created agent pod should be ready before it is considered available. Defaults to 0 (pod is considered available as soon as it is ready). ref: https://kubernetes.io/docs/tasks/manage-daemon/update-daemon-set/ |
 | monitor | object | `{"enabled":false}` | cilium-monitor sidecar. |
 | monitor.enabled | bool | `false` | Enable the cilium-monitor sidecar. |
 | name | string | `"cilium"` | Agent daemonset name. |
@@ -1104,6 +1107,7 @@ contributors across the globe, there is almost always someone available to help.
 | nodeinit.extraVolumeMounts | list | `[]` | Additional nodeinit volumeMounts. |
 | nodeinit.extraVolumes | list | `[]` | Additional nodeinit volumes. |
 | nodeinit.image | object | `{"digest":"sha256:bf1944bbdfd073bbb2b8d9c5baa315267a552aec6942102f930d2a7aa7ddc0e1","override":null,"pullPolicy":"Always","repository":"quay.io/cilium/startup-script","tag":"1773335249-e45b074","useDigest":true}` | node-init image. |
+| nodeinit.minReadySeconds | int | `0` | Minimum number of seconds for which a newly created node-init pod should be ready before it is considered available. |
 | nodeinit.nodeSelector | object | `{"kubernetes.io/os":"linux"}` | Node labels for nodeinit pod assignment ref: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector |
 | nodeinit.podAnnotations | object | `{}` | Annotations to be added to node-init pods. |
 | nodeinit.podLabels | object | `{}` | Labels to be added to node-init pods. |
@@ -1191,7 +1195,7 @@ contributors across the globe, there is almost always someone available to help.
 | preflight.affinity | object | `{"podAffinity":{"requiredDuringSchedulingIgnoredDuringExecution":[{"labelSelector":{"matchLabels":{"k8s-app":"cilium"}},"topologyKey":"kubernetes.io/hostname"}]}}` | Affinity for cilium-preflight |
 | preflight.annotations | object | `{}` | Annotations to be added to all top-level preflight objects (resources under templates/cilium-preflight) |
 | preflight.enabled | bool | `false` | Enable Cilium pre-flight resources (required for upgrade) |
-| preflight.envoy.image | object | `{"digest":"sha256:8994e3064f463087bbfae1daeecd082840ccb0e2addb92979d4da61252764555","override":null,"pullPolicy":"Always","repository":"quay.io/cilium/cilium-envoy","tag":"v1.36.6-1776352947-78da350f53f63526ff6487f2e1f3b14d2062ce17","useDigest":true}` | Envoy pre-flight image. |
+| preflight.envoy.image | object | `{"digest":"sha256:c5fd228f5f6f72c21341384ac7ba9654db73b0931f5c6ac0c505960975f56f48","override":null,"pullPolicy":"Always","repository":"quay.io/cilium/cilium-envoy","tag":"v1.37.2-1778236003-7c2f6580d32e50f1a6866c12122662856f54eec2","useDigest":true}` | Envoy pre-flight image. |
 | preflight.extraEnv | list | `[]` | Additional preflight environment variables. |
 | preflight.extraVolumeMounts | list | `[]` | Additional preflight volumeMounts. |
 | preflight.extraVolumes | list | `[]` | Additional preflight volumes. |
@@ -1210,7 +1214,6 @@ contributors across the globe, there is almost always someone available to help.
 | preflight.resources | object | `{}` | preflight resource limits & requests ref: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/ |
 | preflight.securityContext | object | `{"allowPrivilegeEscalation":false}` | Security context to be added to preflight pods |
 | preflight.terminationGracePeriodSeconds | int | `1` | Configure termination grace period for preflight Deployment and DaemonSet. |
-| preflight.tofqdnsPreCache | string | `""` | Path to write the `--tofqdns-pre-cache` file to. |
 | preflight.tolerations | list | `[{"operator":"Exists"}]` | Node tolerations for preflight scheduling to nodes with taints ref: https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/ |
 | preflight.updateStrategy | object | `{"type":"RollingUpdate"}` | preflight update strategy |
 | preflight.validateCNPs | bool | `true` | By default we should always validate the installed CNPs before upgrading Cilium. This will make sure the user will have the policies deployed in the cluster with the right schema. |
@@ -1257,12 +1260,13 @@ contributors across the globe, there is almost always someone available to help.
 | sleepAfterInit | bool | `false` | Do not run Cilium agent when running with clean mode. Useful to completely uninstall Cilium as it will stop Cilium from starting and create artifacts in the node. |
 | socketLB | object | `{"enabled":false}` | Configure socket LB |
 | socketLB.enabled | bool | `false` | Enable socket LB |
-| standaloneDnsProxy | object | `{"annotations":{},"automountServiceAccountToken":false,"debug":false,"enabled":false,"image":{"digest":"","override":null,"pullPolicy":"Always","repository":"","tag":"","useDigest":false},"nodeSelector":{"kubernetes.io/os":"linux"},"rollOutPods":false,"serverPort":10095,"tolerations":[],"updateStrategy":{"rollingUpdate":{"maxSurge":2,"maxUnavailable":0},"type":"RollingUpdate"}}` | Standalone DNS Proxy Configuration Note: The standalone DNS proxy uses the agent's dnsProxy.* configuration for DNS settings (proxyPort, enableDnsCompression) to ensure consistency. |
+| standaloneDnsProxy | object | `{"annotations":{},"automountServiceAccountToken":false,"debug":false,"enabled":false,"image":{"digest":"","override":null,"pullPolicy":"Always","repository":"","tag":"","useDigest":false},"minReadySeconds":5,"nodeSelector":{"kubernetes.io/os":"linux"},"rollOutPods":false,"serverPort":10095,"tolerations":[],"updateStrategy":{"rollingUpdate":{"maxSurge":2,"maxUnavailable":0},"type":"RollingUpdate"}}` | Standalone DNS Proxy Configuration Note: The standalone DNS proxy uses the agent's dnsProxy.* configuration for DNS settings (proxyPort, enableDnsCompression) to ensure consistency. |
 | standaloneDnsProxy.annotations | object | `{}` | Standalone DNS proxy annotations |
 | standaloneDnsProxy.automountServiceAccountToken | bool | `false` | Standalone DNS proxy auto mount service account token |
 | standaloneDnsProxy.debug | bool | `false` | Standalone DNS proxy debug mode |
 | standaloneDnsProxy.enabled | bool | `false` | Enable standalone DNS proxy (alpha feature) |
 | standaloneDnsProxy.image | object | `{"digest":"","override":null,"pullPolicy":"Always","repository":"","tag":"","useDigest":false}` | Standalone DNS proxy image |
+| standaloneDnsProxy.minReadySeconds | int | `5` | Minimum number of seconds for which a newly created standalone DNS proxy pod should be ready before it is considered available. |
 | standaloneDnsProxy.nodeSelector | object | `{"kubernetes.io/os":"linux"}` | Standalone DNS proxy Node Selector |
 | standaloneDnsProxy.rollOutPods | bool | `false` | Roll out Standalone DNS proxy automatically when configmap is updated. |
 | standaloneDnsProxy.serverPort | int | `10095` | Standalone DNS proxy server port |

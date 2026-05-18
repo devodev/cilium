@@ -531,7 +531,7 @@ func (e *Endpoint) regenerateBPF(regenContext *regenerationContext) (revnum uint
 	if !datapathRegenCtxt.policyMapSyncDone {
 		err = e.policyMapSync(datapathRegenCtxt.policyMapDump, stats)
 		if err != nil {
-			return 0, newRegenerationErrorf(regenerationFailureReasonPolicyBPFError, "policy map synchronization failed: %w", err)
+			return 0, newRegenerationErrorf(regenerationFailureReasonPolicyBPFError, "policymap synchronization failed: %w", err)
 		}
 		datapathRegenCtxt.policyMapSyncDone = true
 	}
@@ -766,7 +766,7 @@ func (e *Endpoint) runPreCompilationSteps(regenContext *regenerationContext) (pr
 		}
 		e.policyMap, err = e.policyMapFactory.OpenEndpoint(e.ID)
 		if err != nil {
-			return newRegenerationErrorf(regenerationFailureReasonPolicyBPFError, "failed to open endpoint BPF policy map: %w", err)
+			return newRegenerationErrorf(regenerationFailureReasonPolicyBPFError, "failed to open endpoint BPF policymap: %w", err)
 		}
 	}
 
@@ -953,13 +953,11 @@ type policyMapPressureUpdater interface {
 	Remove(uint16)
 }
 
-func (e *Endpoint) updatePolicyMapPressureMetric(add float64) {
-	// We want to use desiredPolicy, but it can be nil.
-	policyLen := add
-	if e.desiredPolicy != nil {
-		policyLen += float64(e.desiredPolicy.Len())
+func (e *Endpoint) updatePolicyMapPressureMetric(len int) {
+	if e.policyMap == nil {
+		return
 	}
-	value := policyLen / float64(e.policyMap.MaxEntries())
+	value := float64(len) / float64(e.policyMap.MaxEntries())
 	e.PolicyMapPressureUpdater.Update(PolicyMapPressureEvent{
 		Value:      value,
 		EndpointID: e.ID,
@@ -998,8 +996,6 @@ func (e *Endpoint) deletePolicyKey(keyToDelete policy.Key) bool {
 		)
 		return false
 	}
-
-	e.updatePolicyMapPressureMetric(0)
 
 	e.PolicyDebug(
 		"deletePolicyKey",
@@ -1044,8 +1040,6 @@ func (e *Endpoint) addPolicyKey(keyToAdd policy.Key, entry policy.MapStateEntry)
 		)
 		return false
 	}
-
-	e.updatePolicyMapPressureMetric(0)
 
 	e.PolicyDebug(
 		"addPolicyKey",
@@ -1107,9 +1101,10 @@ func (e *Endpoint) applyPolicyMapChangesLocked(regenContext *regenerationContext
 	closer, changes := e.desiredPolicy.ConsumeMapChanges()
 	defer closer()
 
-	changeSize := changes.Size()
-	if e.shouldLockdownLocked(changeSize) {
-		return e.startLockdownLocked(changeSize)
+	e.updatePolicyMapPressureMetric(e.desiredPolicy.Len())
+
+	if e.shouldLockdownLocked() {
+		return e.startLockdownLocked()
 	}
 	if e.stopLockdownLocked() {
 		return ErrComingOutOfLockdown
@@ -1209,16 +1204,19 @@ func (e *Endpoint) applyPolicyMapChangesLocked(regenContext *regenerationContext
 
 // shouldLockdownLockdown returns true if the desiredPolicy, after changes,
 // will be larger than policymap.MaxEntries. The Endpoint must be locked.
-func (e *Endpoint) shouldLockdownLocked(changeSize int) bool {
+func (e *Endpoint) shouldLockdownLocked() bool {
+	if !option.Config.EnableEndpointLockdownOnPolicyOverflow {
+		return false
+	}
 	// The desiredPolicy will be larger than the BPF maximum after
 	// the changes.
 	return e.desiredPolicy != nil && e.policyMap != nil &&
-		e.desiredPolicy.Len()+changeSize > int(e.policyMap.MaxEntries())
+		e.desiredPolicy.Len() > int(e.policyMap.MaxEntries())
 }
 
 // startLockdownLocked initiates an endpoint lockdown, and returns an
 // error if it fails. The Endpoint must be locked.
-func (e *Endpoint) startLockdownLocked(changeSize int) error {
+func (e *Endpoint) startLockdownLocked() error {
 	// We only need to go through the mechanics of
 	// lockdown once.
 	if !e.lockdown {
@@ -1241,7 +1239,6 @@ func (e *Endpoint) startLockdownLocked(changeSize int) error {
 			return err
 		}
 		e.lockdown = true
-		e.updatePolicyMapPressureMetric(float64(changeSize))
 	}
 	return ErrPolicyEntryMaxExceeded
 }
@@ -1323,8 +1320,10 @@ func (e *Endpoint) endpointPolicyLockdown() error {
 func (e *Endpoint) syncPolicyMap() error {
 	addErrors, deleteErrors := 0, 0
 
-	if e.shouldLockdownLocked(0) {
-		return e.startLockdownLocked(0)
+	e.updatePolicyMapPressureMetric(e.desiredPolicy.Len())
+
+	if e.shouldLockdownLocked() {
+		return e.startLockdownLocked()
 	}
 	if e.stopLockdownLocked() {
 		return ErrComingOutOfLockdown
@@ -1368,8 +1367,10 @@ func (e *Endpoint) syncPolicyMap() error {
 func (e *Endpoint) syncPolicyMapWith(realized policy.MapStateMap, withDiffs bool) (diffCount int, diffs []policy.MapChange, err error) {
 	addErrors, deleteErrors := 0, 0
 
-	if e.shouldLockdownLocked(0) {
-		err = e.startLockdownLocked(0)
+	e.updatePolicyMapPressureMetric(e.desiredPolicy.Len())
+
+	if e.shouldLockdownLocked() {
+		err = e.startLockdownLocked()
 		return
 	}
 	if e.stopLockdownLocked() {

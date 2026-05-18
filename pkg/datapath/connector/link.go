@@ -10,6 +10,7 @@ import (
 	"github.com/vishvananda/netlink"
 
 	"github.com/cilium/cilium/pkg/datapath/link"
+	"github.com/cilium/cilium/pkg/datapath/linux/safenetlink"
 	"github.com/cilium/cilium/pkg/datapath/linux/sysctl"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/netns"
@@ -134,19 +135,28 @@ func NewLinkPair(
 	}
 
 	// Rename the peer link, if we generated a temporary name earlier
-	if finalPeerIfName != "" && finalPeerIfName != cfg.PeerIfName {
-		rename := func() error {
-			if err := link.Rename(cfg.PeerIfName, finalPeerIfName); err != nil {
-				return fmt.Errorf("failed to rename link from %s to %s: %w", cfg.PeerIfName, finalPeerIfName, err)
-			}
-			return nil
-		}
+	finalPeerIfName, err = renameIfNeeded(finalPeerIfName, cfg.PeerIfName, cfg.PeerNamespace)
+	if err != nil {
+		return nil, err
+	}
 
-		if cfg.PeerNamespace != nil {
-			err = cfg.PeerNamespace.Do(func() error { return rename() })
-		} else {
-			err = rename()
+	if err := markOwned(cfg.PeerNamespace, finalPeerIfName); err != nil {
+		log.Warn("unable to mark peer link cilium ownership",
+			logfields.Error, err,
+			logfields.Name, finalPeerIfName,
+		)
+	}
+
+	// re-generate the peer Link as the previous one is likely stale
+	if cfg.PeerNamespace != nil {
+		if err := cfg.PeerNamespace.Do(func() error {
+			peerLink, err = safenetlink.LinkByName(finalPeerIfName)
+			return err
+		}); err != nil {
+			return nil, err
 		}
+	} else {
+		peerLink, err = safenetlink.LinkByName(finalPeerIfName)
 		if err != nil {
 			return nil, err
 		}
@@ -263,4 +273,51 @@ func (lp *linkPair) Delete() error {
 		*lp = linkPair{}
 	}
 	return nil
+}
+
+// renameIfNeeded renames the link, if needed. also returns the desired interface name.
+func renameIfNeeded(finalName, currentName string, ns *netns.NetNS) (string, error) {
+	// nsDo runs `f` within namespace context if necessary
+	nsDo := func(f func() error) error {
+		if ns != nil {
+			return ns.Do(f)
+		}
+
+		return f()
+	}
+
+	// if finalName is empty OR it matches currentName, just try returning
+	// the existing link.
+	if finalName == "" || finalName == currentName {
+		return currentName, nil
+	}
+
+	rename := func() error {
+		err := link.Rename(currentName, finalName)
+		if err != nil {
+			return fmt.Errorf("failed to rename link from %s to %s: %w", currentName, finalName, err)
+		}
+
+		return nil
+	}
+
+	if err := nsDo(rename); err != nil {
+		return "", err
+	}
+
+	return finalName, nil
+}
+
+// markOwned marks interface at `ifName` inside `ns` context
+// as cilium owned by writing to the link altname.
+func markOwned(ns *netns.NetNS, ifName string) error {
+	markFunc := func() error {
+		return link.AddAltName(ifName, CniAltName(ifName))
+	}
+
+	if ns != nil {
+		return ns.Do(markFunc)
+	}
+
+	return markFunc()
 }

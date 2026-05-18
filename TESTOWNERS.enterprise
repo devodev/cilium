@@ -383,6 +383,7 @@
 /tools/complexity-diff @isovalent/networking-framework
 /tools/dpgen @isovalent/networking-framework
 /tools/envoy-bootstrap-locality @isovalent/service-mesh
+/tools/statedblint @isovalent/ci-structure
 /.github/**/*enterprise* @isovalent/infrastructure
 /.github/ISSUE_TEMPLATE/enterprise_hubble_cli_release_template.md @isovalent/hubble
 /.github/enterprise/.grype.yaml @isovalent/security
