@@ -117,6 +117,13 @@ func newCmdPrivNetTest() *cobra.Command {
 			externalTarget := params.ExternalTarget
 			externalIPTarget := params.ExternalIPTarget
 
+			// Network E: local-access network (VLAN-attached, no INB).
+			vmClientDHCPE := t.VM(privnet.NetworkE, "client-dhcp-network-e")
+			vmEchoE := t.VM(privnet.NetworkE, privnet.EchoVM(privnet.NetworkE))
+			vmEchoOtherE := t.VM(privnet.NetworkE, privnet.EchoOtherVM(privnet.NetworkE))
+			vmUnknownE1 := t.UnknownVM(privnet.NetworkE, "privnet-vm-net-e1")
+			vmUnknownE2 := t.UnknownVM(privnet.NetworkE, "privnet-vm-net-e2")
+
 			// DHCP validation for network-a and network-b via inb0.
 			for idx, net := range []privnet.NetworkName{privnet.NetworkB, privnet.NetworkA} {
 				t.Run(ctx, privnet.NewDHCP(t,
@@ -204,6 +211,19 @@ func newCmdPrivNetTest() *cobra.Command {
 					t.Run(ctx, privnet.NewClientToEcho(t, t.VM(net, privnet.ClientVM(net)), unk), privnet.ExpectationOK)
 				}
 			}
+
+			// Local access tests without policy - network-e.
+
+			// DHCP validation, check VM gets an IP from local-access based DHCP server.
+			t.Run(ctx, privnet.NewDHCP(t, vmClientDHCPE), privnet.ExpectationOK)
+			// Intra-cluster connectivity within network-e (same node and other node).
+			t.Run(ctx, privnet.NewClientToEcho(t, vmClientDHCPE, vmEchoE), privnet.ExpectationOK)
+			t.Run(ctx, privnet.NewClientToEcho(t, vmClientDHCPE, vmEchoOtherE), privnet.ExpectationOK)
+			// Connectivity to unknown-vms on same network.
+			t.Run(ctx, privnet.NewClientToEcho(t, vmClientDHCPE, vmUnknownE1), privnet.ExpectationOK)
+			t.Run(ctx, privnet.NewClientToEcho(t, vmClientDHCPE, vmUnknownE2), privnet.ExpectationOK)
+			// Connectivity to external target via default gateway.
+			t.Run(ctx, privnet.NewClientToWorld(t, vmClientDHCPE, externalTarget), privnet.ExpectationOK)
 
 			// Policy tests using specific external and unknown VMs
 			vmExtA1 := t.ExternalVM(privnet.NetworkA, "privnet-vm-net-a1")
@@ -341,6 +361,26 @@ func newCmdPrivNetTest() *cobra.Command {
 			)
 			// egress denied by toPorts (unknown flow drops L7)
 			t.Run(ctx, privnet.NewClientToEcho(t, vmClientD, vmUnknownD1), privnet.ExpectationCurlTimeout)
+
+			//
+			// Network E (local-access) tests with policy.
+			//
+			t.ApplyPolicies(ctx,
+				t.PolicyFor(vmClientDHCPE, "allow-egress-cidr.yaml", privnet.WithPolicyCIDRsForVM(vmUnknownE2)),
+				t.PolicyFor(vmEchoOtherE, "allow-ingress-cidr.yaml", privnet.WithPolicyCIDRsForVM(vmUnknownE1)),
+			)
+
+			// egress allowed by toCIDR (vmUnknownE2 in allowed CIDR)
+			t.Run(ctx, privnet.NewClientToEcho(t, vmClientDHCPE, vmUnknownE2), privnet.ExpectationOK)
+			// egress denied by toCIDR (vmUnknownE1 not in allowed CIDR)
+			t.Run(ctx, privnet.NewClientToEcho(t, vmClientDHCPE, vmUnknownE1), privnet.ExpectationCurlTimeout)
+			// egress denied by toCIDR (external target not in allowed CIDR)
+			t.Run(ctx, privnet.NewClientToWorld(t, vmClientDHCPE, externalTarget), privnet.ExpectationCurlTimeout)
+
+			// ingress allowed by fromCIDR (vmUnknownE1 in allowed CIDR)
+			t.Run(ctx, privnet.NewClientToEcho(t, vmUnknownE1, vmEchoOtherE), privnet.ExpectationOK)
+			// ingress denied by fromCIDR (vmUnknownE2 not in allowed CIDR)
+			t.Run(ctx, privnet.NewClientToEcho(t, vmUnknownE2, vmEchoOtherE), privnet.ExpectationCurlTimeout)
 
 			// Remove all policies before proceeding with the INB failover tests,
 			// unless the context got canceled, in which case we let the deferred

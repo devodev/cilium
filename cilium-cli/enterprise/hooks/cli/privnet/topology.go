@@ -154,6 +154,10 @@ type VM struct {
 	Mock bool
 }
 
+func (vm *VM) IsDHCPEnabled(family features.IPFamily) bool {
+	return family == features.IPFamilyV4 && vm.NetIPv4.IsUnspecified()
+}
+
 func (vm *VM) IP(family features.IPFamily) netip.Addr {
 	switch family {
 	case features.IPFamilyV6:
@@ -434,12 +438,18 @@ var networkTopology = struct {
 			},
 			Unknown: []VM{
 				{
-					Name:      "privnet-vm-net-e1",
-					NetName:   NetworkE,
-					Interface: "alt-if",
-					NetIPv4:   netip.MustParseAddr("192.168.10.200"),
-					NetIPv6:   netip.MustParseAddr("fd10:0:10::200"),
-					Kind:      VMKindUnknown,
+					Name:    "privnet-vm-net-e1",
+					NetName: NetworkE,
+					NetIPv4: netip.MustParseAddr("192.168.10.200"),
+					NetIPv6: netip.MustParseAddr("fd10:0:10::200"),
+					Kind:    VMKindUnknown,
+				},
+				{
+					Name:    "privnet-vm-net-e2",
+					NetName: NetworkE,
+					NetIPv4: netip.MustParseAddr("192.168.10.201"),
+					NetIPv6: netip.MustParseAddr("fd10:0:10::201"),
+					Kind:    VMKindUnknown,
 				},
 			},
 			NodeAttachments: []NodeAttachment{{Interface: "eth1", VlanID: 10}},

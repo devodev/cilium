@@ -83,6 +83,14 @@ func (s *clientToEcho) run(ctx context.Context, exp Expectation, family features
 		"network":   cmp.Or(s.opts.network, s.dst.NetName).String(),
 		"client-ip": srcIP.String(),
 	}
+
+	// Source VM uses DHCP for this family; its IP is not known statically,
+	// so ignore client-ip while still comparing other fields strictly.
+	if s.src.IsDHCPEnabled(family) {
+		delete(expected, "client-ip")
+		delete(response, "client-ip")
+	}
+
 	if !maps.Equal(response, expected) {
 		s.fail(family, "unexpected response. got %+v, want %+v", response, expected)
 	}

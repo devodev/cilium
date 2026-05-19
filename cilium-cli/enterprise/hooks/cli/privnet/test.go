@@ -962,7 +962,7 @@ func (t *TestRun) applyObjs(ctx context.Context, client *enterpriseK8s.Enterpris
 }
 
 func (t *TestRun) vmExec(ctx context.Context, vm VM, cmd []string) (stdout, stderr string, err error) {
-	if vm.Kind == VMKindExtern {
+	if vm.Kind == VMKindExtern || vm.Kind == VMKindUnknown {
 		return t.docker.ContainerExec(ctx, vm.Name.String(), cmd)
 	}
 
