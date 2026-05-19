@@ -57,7 +57,7 @@ function yq_get {
 # get_digest gives the digest of the image from the image reference and tag
 get_digest_result=""
 function get_digest {
-  get_digest_result=$(${root_dir}/images/scripts/get-image-digest.sh "$1:$2")
+  get_digest_result=$(${root_dir}/enterprise/olm/bin/crane digest "$1:$2")
 }
 # $tmp_config gets mounted with yq_replace and -i is used
 # Set the image tags

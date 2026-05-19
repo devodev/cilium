@@ -58,7 +58,7 @@ function yq_get {
 # get_digest gives the digest of the image from the image reference and tag
 get_digest_result=""
 function get_digest {
-  get_digest_result=$(${root_dir}/images/scripts/get-image-digest.sh "$1:$2")
+  get_digest_result=$(${root_dir}/enterprise/olm/bin/crane digest "$1:$2")
 }
 
 # Get the image digests and populate related images in the ClusterServiceVersion
