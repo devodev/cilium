@@ -83,6 +83,9 @@ jobs:
           # required for git describe
           fetch-depth: 0
 
+      - name: Cleanup Disk space in runner
+        uses: ./.github/actions/disk-cleanup
+
       - name: Set Environment Variables
         uses: ./.github/actions/set-env-variables
 
