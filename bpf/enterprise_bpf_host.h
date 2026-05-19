@@ -13,7 +13,7 @@
 
 static __always_inline int
 enterprise_privnet_do_netdev(struct __ctx_buff *ctx, __u16 proto, __u32 __maybe_unused identity,
-			     enum trace_point obs_point,  const bool __maybe_unused from_host)
+			     enum trace_point obs_point,  const bool from_host)
 {
 	struct trace_ctx trace = {
 		.reason = TRACE_REASON_UNKNOWN,
