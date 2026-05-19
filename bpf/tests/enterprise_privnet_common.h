@@ -70,6 +70,13 @@ volatile const __u8 v6_ep_ip[] = { 0xfd, 0x10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xf
 					(__u32)(expected), *status_code);		\
 	} while (0)
 
+#define assert_tunnel_id(expected)							\
+	do {										\
+		if (last_tunnel_id != (__u32)(expected))				\
+			test_fatal("unexpected tunnel ID (expected %d, got %d)",	\
+					(__u32)(expected), last_tunnel_id);		\
+	} while (0)
+
 #define assert_privnet_net_ids(expected_src, expected_dst)				\
 	do {										\
 		__u16 actual_src = 0;							\
@@ -90,5 +97,17 @@ int mock_tunnel_key(struct __ctx_buff *ctx __maybe_unused,
 		    __u32 flags __maybe_unused)
 {
 	to->tunnel_id = privnet_tunnel_id;
+	return 0;
+}
+
+__u32 last_tunnel_id;
+
+#define skb_set_tunnel_key mock_set_tunnel_key
+int mock_set_tunnel_key(struct __sk_buff __maybe_unused *ctx,
+			const struct bpf_tunnel_key *to,
+			__u32 __maybe_unused size,
+			__u32 __maybe_unused flags)
+{
+	last_tunnel_id = to->tunnel_id;
 	return 0;
 }

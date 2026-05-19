@@ -151,6 +151,8 @@ int privnet_icmp_from_netdev_nat_src_dst_pktgen(struct __ctx_buff *ctx)
 SETUP("tc", "01_icmp_from_netdev_nat_src_dst")
 int privnet_icmp_from_netdev_nat_src_dst_setup(struct __ctx_buff *ctx)
 {
+	last_tunnel_id = 0;
+
 	privnet_add_device_entry(IFINDEX, NET_ID, NULL, NULL);
 	privnet_v4_add_subnet_entry(NET_ID, SUBNET_V4, SUBNET_V4_LEN, SUBNET_ID);
 	privnet_v4_add_endpoint_entry(NET_ID, SUBNET_ID, V4_NET_IP_1, V4_POD_IP_1);
@@ -169,6 +171,7 @@ int privnet_icmp_from_netdev_nat_src_dst_check(struct __ctx_buff *ctx)
 
 	/* packets are redirected to tunnel device */
 	assert_status_code(ctx, TC_ACT_REDIRECT);
+	assert_tunnel_id(1001);
 
 	ASSERT_CTX_BUF_OFF("privnet_icmp_from_netdev_nat_src_dst", "IP", ctx,
 			   sizeof(__u32), privnet_pod_ip_icmp_req,

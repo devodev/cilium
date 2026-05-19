@@ -12,7 +12,7 @@
 #include "lib/enterprise_privnet.h"
 
 static __always_inline int
-enterprise_privnet_do_netdev(struct __ctx_buff *ctx, __u16 proto, __u32 __maybe_unused identity,
+enterprise_privnet_do_netdev(struct __ctx_buff *ctx, __u16 proto,
 			     enum trace_point obs_point,  const bool from_host)
 {
 	struct trace_ctx trace = {
@@ -27,7 +27,8 @@ enterprise_privnet_do_netdev(struct __ctx_buff *ctx, __u16 proto, __u32 __maybe_
 	union v6addr dip6 __maybe_unused;
 	const struct privnet_fib_val *sip_val __maybe_unused = NULL;
 	const struct privnet_fib_val *dip_val __maybe_unused = NULL;
-	const struct remote_endpoint_info *info __maybe_unused;
+	const struct remote_endpoint_info *sinfo __maybe_unused, *info __maybe_unused;
+	__u32 identity __maybe_unused = UNKNOWN_ID;
 	__s8 __maybe_unused ext_err = 0;
 	int ret = CTX_ACT_OK;
 	const __u16 *net_id;
@@ -107,6 +108,10 @@ enterprise_privnet_do_netdev(struct __ctx_buff *ctx, __u16 proto, __u32 __maybe_
 				info->sec_identity,
 				&trace, proto);
 		}
+
+		sinfo = lookup_ip6_remote_endpoint((union v6addr *)&ip6->saddr, 0);
+		if (sinfo)
+			identity = sinfo->sec_identity;
 
 		ret = privnet_ext_ep_policy_egress6(ctx, ip6, info->sec_identity,
 						    &trace, &ext_err);
@@ -203,6 +208,10 @@ enterprise_privnet_do_netdev(struct __ctx_buff *ctx, __u16 proto, __u32 __maybe_
 				CONFIG(privnet_unknown_sec_id), info->sec_identity,
 				&trace, proto);
 		}
+
+		sinfo = lookup_ip4_remote_endpoint(ip4->saddr, 0);
+		if (sinfo)
+			identity = sinfo->sec_identity;
 
 		/* egress policy check is done after NAT to PIP and concluding that
 		 * it is not an unknown flow.

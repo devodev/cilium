@@ -1029,7 +1029,7 @@ do_netdev(struct __ctx_buff *ctx, __be16 proto, __u32 identity,
 	__s8 __maybe_unused ext_err = 0;
 	int ret;
 
-	ret = enterprise_privnet_do_netdev(ctx, proto, identity, obs_point, from_host);
+	ret = enterprise_privnet_do_netdev(ctx, proto, obs_point, from_host);
 	if (IS_ERR(ret) || ret == CTX_ACT_REDIRECT)
 		return ret;
 
