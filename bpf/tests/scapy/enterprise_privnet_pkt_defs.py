@@ -93,6 +93,13 @@ privnet_pod_ip_icmp_req = (
     Raw(load=b"ping")
 )
 
+privnet_pod_ip_icmpv6_req = (
+    Ether(dst=pd.mac_one, src=pd.mac_two) /
+    IPv6(src=pd.v6_pod_one, dst=pd.v6_pod_two) /
+    ICMPv6EchoRequest(id=1, seq=1) /
+    Raw(load=b"ping")
+)
+
 privnet_net_ip_icmp_req_x_subnet = (
     Ether(src=pd.mac_one, dst=pd.mac_three) /
     IP(src=v4_pod_one_netip, dst=v4_pod_three_netip) /

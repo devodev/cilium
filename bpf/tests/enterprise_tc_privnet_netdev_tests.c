@@ -29,6 +29,14 @@ const __u8 privnet_pod_ip_icmp_req[] = {
 	SCAPY_BUF_BYTES(privnet_pod_ip_icmp_req)
 };
 
+const __u8 privnet_net_ip_icmpv6_req[] = {
+	SCAPY_BUF_BYTES(privnet_net_ip_icmpv6_req)
+};
+
+const __u8 privnet_pod_ip_icmpv6_req[] = {
+	SCAPY_BUF_BYTES(privnet_pod_ip_icmpv6_req)
+};
+
 const __u8 privnet_net_ip_arp_req[] = {
 	SCAPY_BUF_BYTES(privnet_net_ip_arp_req)
 };
@@ -173,7 +181,7 @@ int privnet_icmp_from_netdev_nat_src_dst_check(struct __ctx_buff *ctx)
 	assert_status_code(ctx, TC_ACT_REDIRECT);
 	assert_tunnel_id(1001);
 
-	ASSERT_CTX_BUF_OFF("privnet_icmp_from_netdev_nat_src_dst", "IP", ctx,
+	ASSERT_CTX_BUF_OFF("privnet_icmp_from_netdev_nat_src_dst", "Ether", ctx,
 			   sizeof(__u32), privnet_pod_ip_icmp_req,
 			   sizeof(privnet_pod_ip_icmp_req));
 
@@ -182,6 +190,60 @@ int privnet_icmp_from_netdev_nat_src_dst_check(struct __ctx_buff *ctx)
 	privnet_v4_del_endpoint_entry(NET_ID, SUBNET_ID, V4_NET_IP_1, V4_POD_IP_1);
 	privnet_v4_del_endpoint_entry(NET_ID, SUBNET_ID, V4_NET_IP_2, V4_POD_IP_2);
 	privnet_v4_del_subnet_entry(NET_ID, SUBNET_V4, SUBNET_V4_LEN);
+	privnet_del_device_entry(IFINDEX);
+
+	test_finish();
+}
+
+PKTGEN("tc", "01_bis_icmp_from_netdev_v6_nat_src_dst")
+int privnet_icmp_from_netdev_v6_nat_src_dst_pktgen(struct __ctx_buff *ctx)
+{
+	build_privnet_packet(ctx, privnet_net_ip_icmpv6_req);
+	return 0;
+}
+
+SETUP("tc", "01_bis_icmp_from_netdev_v6_nat_src_dst")
+int privnet_icmp_from_netdev_v6_nat_src_dst_setup(struct __ctx_buff *ctx)
+{
+	last_tunnel_id = 0;
+
+	privnet_add_device_entry(IFINDEX, NET_ID, NULL, NULL);
+	privnet_v6_add_subnet_entry(NET_ID, SUBNET_V6, SUBNET_V6_LEN, SUBNET_ID);
+	privnet_v6_add_endpoint_entry(NET_ID, SUBNET_ID,
+				      (const union v6addr *)V6_NET_IP_1,
+				      (const union v6addr *)V6_POD_IP_1);
+	privnet_v6_add_endpoint_entry(NET_ID, SUBNET_ID,
+				      (const union v6addr *)V6_NET_IP_2,
+				      (const union v6addr *)V6_POD_IP_2);
+
+	ipcache_v6_add_entry((const union v6addr *)V6_POD_IP_1, 0, 1011, INB_IP, 0);
+	ipcache_v6_add_entry((const union v6addr *)V6_POD_IP_2, 0, 1012, NODE_IP, 0);
+
+	return netdev_receive_packet(ctx);
+}
+
+CHECK("tc", "01_bis_icmp_from_netdev_v6_nat_src_dst")
+int privnet_icmp_from_netdev_v6_nat_src_dst_check(struct __ctx_buff *ctx)
+{
+	test_init();
+
+	/* packets are redirected to tunnel device */
+	assert_status_code(ctx, TC_ACT_REDIRECT);
+	assert_tunnel_id(1011);
+
+	ASSERT_CTX_BUF_OFF("privnet_icmp_from_netdev_v6_nat_src_dst", "Ether", ctx,
+			   sizeof(__u32), privnet_pod_ip_icmpv6_req,
+			   sizeof(privnet_pod_ip_icmpv6_req));
+
+	assert_privnet_net_ids(PRIVNET_PIP_NET_ID, PRIVNET_PIP_NET_ID);
+
+	privnet_v6_del_endpoint_entry(NET_ID, SUBNET_ID,
+				      (const union v6addr *)V6_NET_IP_1,
+				      (const union v6addr *)V6_POD_IP_1);
+	privnet_v6_del_endpoint_entry(NET_ID, SUBNET_ID,
+				      (const union v6addr *)V6_NET_IP_2,
+				      (const union v6addr *)V6_POD_IP_2);
+	privnet_v6_del_subnet_entry(NET_ID, SUBNET_V6, SUBNET_V6_LEN);
 	privnet_del_device_entry(IFINDEX);
 
 	test_finish();
