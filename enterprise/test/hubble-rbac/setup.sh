@@ -6,10 +6,16 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 set -x
 
 echo "Installing Cilium"
-helm upgrade --install cilium "$CILIUM_CHART_REPO" \
-  --namespace kube-system \
-  --version "$CILIUM_VERSION" \
+cilium_helm_args=(
+  --namespace kube-system
+  --version "$CILIUM_VERSION"
   --values "$SCRIPT_DIR"/helm/cilium.yaml
+)
+if [ -n "${ARTIFACTORY_PULL_SECRET_NAME:-}" ]; then
+  cilium_helm_args+=(--set "imagePullSecrets[0].name=${ARTIFACTORY_PULL_SECRET_NAME}")
+fi
+helm upgrade --install cilium "$CILIUM_CHART_REPO" \
+  "${cilium_helm_args[@]}"
 
 echo "Installing ingress-nginx"
 # install ingress

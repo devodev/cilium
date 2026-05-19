@@ -175,6 +175,18 @@ jobs:
           echo ${{ secrets.QUAY_CHARTS_DEV_PASSWORD }} | helm registry login quay.io -u ${{ secrets.QUAY_CHARTS_DEV_USERNAME }} --password-stdin
           until helm pull ${{ env.helm_chart_repo }} --version ${{ steps.vars.outputs.version }}; do sleep 30s; done
 
+      - name: Create Artifactory pull secret
+        env:
+          ARTIFACTORY_HOST: ${{ vars.ARTIFACTORY_HOST }}
+          ARTIFACTORY_USERNAME: ${{ vars.ARTIFACTORY_USERNAME }}
+          ARTIFACTORY_ACCESS_TOKEN: ${{ secrets.ARTIFACTORY_ACCESS_TOKEN }}
+        run: |
+          kubectl -n kube-system create secret docker-registry artifactory-pull-secret \
+            --docker-server="${ARTIFACTORY_HOST}" \
+            --docker-username="${ARTIFACTORY_USERNAME}" \
+            --docker-password="${ARTIFACTORY_ACCESS_TOKEN}" \
+            --dry-run=client -o yaml | kubectl apply -f -
+
       - name: Install Cilium
         run: |
           helm install -n kube-system cilium ${{ env.helm_chart_repo }} \
@@ -183,7 +195,8 @@ jobs:
             --set enterprise.featureGate.approved="{HubbleTimescape}" \
             --set hubble.timescape.enabled=true \
             --set hubble.tls.enabled=true \
-            --set hubble.tls.auto.enabled=true
+            --set hubble.tls.auto.enabled=true \
+            --set 'imagePullSecrets[0].name=artifactory-pull-secret'
 
       - name: Port forward Timescape Server
         run: |

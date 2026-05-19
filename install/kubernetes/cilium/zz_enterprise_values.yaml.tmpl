@@ -515,9 +515,9 @@ hubble:
       # type: [null, string]
       # @schema
       override: ~
-      repository: quay.io/isovalent/hubble-timescape-lite
-      tag: v1.19.0-rc.1
-      digest: sha256:fbe5761d6cbdaa8ebc2e6c7dac37fbef3b7b561fd8eefd79b1b822dba71402e1
+      repository: artifactory.devhub-cloud.cisco.com/isovalent-iep-docker/hubble-timescape-lite
+      tag: v1.19.0-rc.3
+      digest: sha256:7a8ed5d61353fd48dea1d73f49b2e51a7cd8f7e49e5d369a0eba32999835d34f
       useDigest: true
       pullPolicy: "Always"
     clickhouse:
@@ -535,8 +535,8 @@ hubble:
         # @schema
         override: ~
         repository: quay.io/isovalent/clickhouse-server
-        tag: 26.3.4.11-alpine-202604081305
-        digest: sha256:f6ad48a62601fc94b15ffb48323772c446a35d4fabb0cfeeea30a6a95c6ec830
+        tag: 26.3.10.62-alpine-202605071406
+        digest: sha256:f55a1dec22cea056abb32eccf4fad01d4561d8fad47f1c116801ec41f9ae2dc4
         useDigest: true
         pullPolicy: "Always"
       resources: {}
