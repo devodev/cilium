@@ -107,7 +107,7 @@ jobs:
       - name: Release enterprise-runtime-base
         if: ${{ steps.runtime-base-tag.outputs.exists == 'false' }}
         id: enterprise-runtime-base-release
-        uses: chainguard-images/actions/apko-publish@2e909a637eb363caeccbe3946fa157abb4a2aa4d # main
+        uses: chainguard-images/actions/apko-publish@ac2ef397bc71340b8ae4b295a023f88628900ac8 # main
         with:
           config: ./enterprise/images/wolfi/runtime-base/image.yaml
           tag: quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/cilium-runtime-base-wfi:${{  steps.runtime-base-tag.outputs.tag }}

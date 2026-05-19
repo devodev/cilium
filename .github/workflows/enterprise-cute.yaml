@@ -41,7 +41,7 @@ env:
   name: ${{ github.run_id }}
   USE_GKE_GCLOUD_AUTH_PLUGIN: True
   # renovate: datasource=github-releases depName=kubernetes/kubernetes
-  kubectl_version: v1.36.0
+  kubectl_version: v1.36.1
   terraform_version: 1.10.5
   upload_dir: github-upload
   artifact_retention_days: 15
@@ -266,7 +266,7 @@ jobs:
           echo "Connectivity tests concurrency: ${{ steps.vars.outputs.test_concurrency }}"
 
       - name: Install Terraform
-        uses: hashicorp/setup-terraform@5e8dbf3c6d9deaf4193ca7a8fb23f2ac83bb6c85 # v4.0.0
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
         with:
           terraform_version: "${{ env.terraform_version }}"
           terraform_wrapper: false

@@ -478,7 +478,7 @@ jobs:
           # renovate: datasource=docker depName=mikefarah/yq
           yq_version: 4.53.2
           # renovate: datasource=github-releases depName=operator-framework/operator-registry
-          opm_version: 1.67.0
+          opm_version: 1.68.0
           VERSION: "${{ steps.tag.outputs.tag }}"
           CATALOG_TAG: "1.0.0"
           IMAGE_TAG_BASE: "${{ steps.tag.outputs.image_tag_base }}"
