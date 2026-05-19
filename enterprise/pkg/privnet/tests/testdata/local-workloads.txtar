@@ -41,7 +41,7 @@ qux/sleepy-sloth     17   2     blue-network    192.168.30.10   fd00:192:168:30:
 
 -- local-workloads.v3.table --
 Endpoint             ID   NIC   Network         NetworkIPv4     NetworkIPv6           PodIPv4        PodIPv6              ActivatedAt
-bar/speedy-cheetah   16   0     green-network   10.20.0.11      fd00:10:20::11        10.244.5.116   fd00:10:244:5::116   <inactive>
+bar/speedy-cheetah   16   0     green-network   10.20.0.11      fd00:10:20::11        10.244.5.116   fd00:10:244:5::116   <blocked: inactive>
 qux/sleepy-sloth     17   2     blue-network    192.168.30.10   fd00:192:168:30::10   10.244.5.117   fd00:10:244:5::117   2025-09-17T12:42:00Z
 
 -- ep-curious-koala.json --

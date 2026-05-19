@@ -32,7 +32,6 @@ var Cell = cell.Group(
 	CTMapsCell,
 	DhcpLeasesCell,
 	ARPMapCell,
-	MigrationsCell,
 
 	// Infrastructure shared between some of the reconcilers
 	cell.Provide(

@@ -315,7 +315,7 @@ func (r *endpointSlicesReconcilerOps) updateEndpointSlice(ctx context.Context, n
 			Endpoint:    lw.Endpoint,
 			Interface:   lw.Interface,
 			Flags:       lw.Flags,
-			ActivatedAt: metav1.NewMicroTime(lw.ActivatedAt),
+			ActivatedAt: metav1.NewMicroTime(lw.GetActivatedAt()),
 		})
 	}
 

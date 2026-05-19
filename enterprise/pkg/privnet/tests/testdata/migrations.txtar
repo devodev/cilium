@@ -1,6 +1,18 @@
 #! --private-networks-enabled
 
+serverpool/new default/source-worker
+k8s/add icpn.yaml
+
 hive/start
+
+# Add the local node and the source node
+clustermesh/nodes/upsert _ node-source.json
+clustermesh/nodes/upsert _ node-local.json
+clustermesh/nodes/sync
+
+# Start a simulated gRPC server. We target a mock migration
+# service defined in '.../privnet/health/grpc/tests/serverpool.go'.
+serverpool/start default/source-worker
 
 # Add a kubevirt VM pod and a plain pod
 cp pod.yaml pod2.yaml
@@ -8,17 +20,33 @@ sed 'kubevirt.io' 'not-kubevirt' pod2.yaml
 sed 'live-migrate-vm' 'normal-pod' pod2.yaml
 k8s/add pod.yaml pod2.yaml
 
+# Create an endpoint. This creates the migration object.
+privnet/epm-create ep.json
+
 # Wait for the migrations to reflect. We should not see the plain
 # pod as migration.
 db/cmp privnet-migrations migration-new.table
 
-# Set the node name to the local name to mark the migration completed.
+# The workload activation should be blocked
+db/cmp privnet-local-workloads workload-blocked.table
+
+# Set the node name to the local name and set the target ready timestamp
+# to mark the migration completed.
 sed 'kubevirt.io/nodeName: source-worker' 'kubevirt.io/nodeName: foobar-worker-1' pod.yaml
+sed 'placeholder-kubevirt.io' 'kubevirt.io' pod.yaml
 k8s/update pod.yaml
+
+# Migration will now be marked resumed and done.
 db/cmp privnet-migrations migration-resumed.table
 
-# Removing the kubevirt pod removes the migration
-k8s/delete pod.yaml
+# The DHCP leases have been migrated from the source node.
+db/cmp privnet-dhcp-leases dhcp-leases.table
+
+# The local workload activation is unblocked.
+db/cmp privnet-local-workloads workload-activated.table
+
+# Removing the endpoint removes the migration
+privnet/epm-delete cilium-test/live-migrate-vm
 
 # Migration table should now be empty
 * db/empty privnet-migrations
@@ -26,12 +54,45 @@ k8s/delete pod.yaml
 # ---
 
 -- migration-new.table --
-Cluster Namespace   PodName         SourceNode    TargetNode      Resumed State Error
-default cilium-test live-migrate-vm source-worker foobar-worker-1 false   New
+Namespace   PodName         MAC                 SourceNode    Resumed  State    Error
+cilium-test live-migrate-vm 02:00:01:e6:bb:ff   source-worker false    Started
 
 -- migration-resumed.table --
-Cluster Namespace   PodName         SourceNode    TargetNode      Resumed State Error
-default cilium-test live-migrate-vm source-worker foobar-worker-1 true    New
+Namespace   PodName         MAC                 SourceNode    Resumed  State  Error
+cilium-test live-migrate-vm 02:00:01:e6:bb:ff   source-worker true     Done
+
+-- workload-blocked.table --
+Endpoint                     ID  Network      ActivatedAt
+cilium-test/live-migrate-vm  123 blue-network <blocked: migration>
+
+-- workload-activated.table --
+Endpoint                     ID  Network      NetworkIPv4 ActivatedAt
+cilium-test/live-migrate-vm  123 blue-network 1.2.3.4     2025-09-17T12:42:00Z
+
+-- dhcp-leases.table --
+Network      EndpointID MAC               IPv4     ServerID
+blue-network 123        02:00:01:e6:bb:ff 1.2.3.4  1.2.3.255
+
+-- ep.json --
+{
+  "ID": 123,
+  "addressing": {
+    "ipv4": "10.244.5.120"
+  },
+  "k8s-pod-name": "live-migrate-vm",
+  "k8s-namespace": "cilium-test",
+  "mac": "02:00:01:e6:bb:ff",
+  "properties": {
+    "isovalent-privnet-network": "blue-network",
+    "isovalent-privnet-subnet": "subnet1",
+    "isovalent-privnet-activated-at": "2025-09-17T12:42:00.000000Z",
+    "isovalent-privnet-ipv4-addr": "0.0.0.0"
+  },
+  "labels": [
+    "k8s:kubevirt.io/nodeName=source-worker",
+    "k8s:kubevirt.io/migrationJobUID=1c404405-f0df-463f-a0c9-60fa8c0f28d0"
+  ]
+}
 
 -- pod.yaml --
 apiVersion: v1
@@ -43,6 +104,7 @@ metadata:
   labels:
     kubevirt.io/nodeName: source-worker
     vm.kubevirt.io/name: live-migrate-vm
+    kubevirt.io/migrationJobUID: 1c404405-f0df-463f-a0c9-60fa8c0f28d0
   ownerReferences:
     - apiVersion: kubevirt.io/v1
       kind: VirtualMachineInstance
@@ -51,7 +113,8 @@ metadata:
   annotations:
     kubevirt.io/domain: live-migrate-vm
     kubevirt.io/migrationJobName: live-migrate-vm-migration-1
-    privnet.isovalent.com/network-attachment: '{"network":"blue-network","ipv4":"10.10.0.20","mac":"02:00:01:e6:bb:ff"}'
+    placeholder-kubevirt.io/migration-target-ready-timestamp: "12345"
+    privnet.isovalent.com/network-attachment: '{"network":"blue-network","subnet": "subnet1", "ipv4":"0.0.0.0","mac":"02:00:01:e6:bb:ff"}'
 spec:
   nodeName: foobar-worker-1
 status:
@@ -59,3 +122,34 @@ status:
   podIPs:
     - ip: 10.244.5.120
 
+
+-- node-source.json --
+{
+    "Cluster": "default",
+    "Name": "source-worker",
+    "IPAddresses": [
+        {"Type": "InternalIP", "IP": "127.0.42.42"}
+    ]
+}
+
+-- node-local.json --
+{
+    "Cluster": "default",
+    "Name": "foobar-worker-1",
+    "IPAddresses": [
+        {"Type": "InternalIP", "IP": "127.0.43.43"}
+    ]
+}
+
+-- icpn.yaml --
+apiVersion: isovalent.com/v1alpha1
+kind: ClusterwidePrivateNetwork
+metadata:
+  name: blue-network
+spec:
+  routes: []
+  subnets:
+  - name: subnet1
+    cidrv4: 1.2.3.0/24
+    dhcp:
+      mode: broadcast

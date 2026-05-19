@@ -72,6 +72,16 @@ func (o *Nodes) List(cluster types.ClusterName) []*types.Node {
 	return slices.Collect(maps.Values(o.cache[cluster]))
 }
 
+// Get a node. Returns nil if not found.
+func (o *Nodes) Get(cluster types.ClusterName, name types.NodeName) *types.Node {
+	o.cacheMu.RLock()
+	defer o.cacheMu.RUnlock()
+	if m := o.cache[cluster]; m != nil {
+		return m[name]
+	}
+	return nil
+}
+
 // NodeUpdated wraps the corresponding [NodeManager] method.
 func (o *Nodes) NodeUpdated(no notypes.Node) {
 	slim := types.NewNode(no, o.ipv6Underlay, o.defGRPCPort)

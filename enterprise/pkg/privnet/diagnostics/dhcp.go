@@ -132,7 +132,7 @@ func (c *dhcpDiagnosticChecker) evalLeasePending(env diagnostics.Environment) (s
 			continue
 		}
 		checked++
-		if lw.ActivatedAt.IsZero() || now.Sub(lw.ActivatedAt) < threshold {
+		if lw.GetActivatedAt().IsZero() || now.Sub(lw.GetActivatedAt()) < threshold {
 			continue
 		}
 		if c.hasUsableLease(txn, lw, now) {
@@ -143,7 +143,7 @@ func (c *dhcpDiagnosticChecker) evalLeasePending(env diagnostics.Environment) (s
 			subnet.Network,
 			subnet.Name,
 			lw.EndpointID,
-			now.Sub(lw.ActivatedAt).Round(time.Second),
+			now.Sub(lw.GetActivatedAt()).Round(time.Second),
 		))
 	}
 	slices.Sort(pending)

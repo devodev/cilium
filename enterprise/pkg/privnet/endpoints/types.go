@@ -67,6 +67,7 @@ type Endpoint interface {
 	GetPropertyValue(key string) any
 	SetPropertyValue(key string, value any) any
 	IsProperty(key string) bool
+	GetPod() *slim_corev1.Pod
 
 	LXCMac() mac.MAC
 	IPv4Address() netip.Addr

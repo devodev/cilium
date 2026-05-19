@@ -35,10 +35,12 @@ import (
 	eptypes "github.com/cilium/cilium/pkg/endpoint/types"
 	"github.com/cilium/cilium/pkg/endpointstate"
 	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
+	slim_metav1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/cilium/pkg/mac"
 	"github.com/cilium/cilium/pkg/maps/policymap"
+	nodeTypes "github.com/cilium/cilium/pkg/node/types"
 	"github.com/cilium/cilium/pkg/promise"
 )
 
@@ -105,6 +107,20 @@ func (f *fakeEP) MarshalJSON() ([]byte, error) {
 			Labels: f.Labels.GetPrintableModel(),
 		},
 	)
+}
+
+// GetPod implements [endpoints.Endpoint].
+func (f *fakeEP) GetPod() *slim_corev1.Pod {
+	return &slim_corev1.Pod{
+		ObjectMeta: slim_metav1.ObjectMeta{
+			Name:      f.PodName,
+			Namespace: f.Namespace,
+			Labels:    f.Labels.K8sStringMap(),
+		},
+		Spec: slim_corev1.PodSpec{
+			NodeName: nodeTypes.GetName(),
+		},
+	}
 }
 
 // GetID16 implements endpoints.Endpoint.

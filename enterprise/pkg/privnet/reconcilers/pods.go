@@ -17,9 +17,11 @@ import (
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/hive/job"
 	"github.com/cilium/statedb"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	"github.com/cilium/cilium/enterprise/pkg/privnet/config"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/endpoints"
+	"github.com/cilium/cilium/enterprise/pkg/privnet/tables"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/types"
 	k8sTables "github.com/cilium/cilium/pkg/k8s/tables"
 	"github.com/cilium/cilium/pkg/logging/logfields"
@@ -48,8 +50,9 @@ type Pods struct {
 	endpointManager           endpoints.EndpointGetter
 	endpointActivationManager *EndpointActivationManager
 
-	db   *statedb.DB
-	pods statedb.Table[k8sTables.LocalPod]
+	db         *statedb.DB
+	pods       statedb.Table[k8sTables.LocalPod]
+	migrations statedb.RWTable[tables.Migration]
 }
 
 func newPods(in struct {
@@ -63,8 +66,9 @@ func newPods(in struct {
 	EndpointManager           endpoints.EndpointGetter
 	EndpointActivationManager *EndpointActivationManager
 
-	DB   *statedb.DB
-	Pods statedb.Table[k8sTables.LocalPod]
+	DB         *statedb.DB
+	Pods       statedb.Table[k8sTables.LocalPod]
+	Migrations statedb.RWTable[tables.Migration]
 }) *Pods {
 	return &Pods{
 		log: in.Log,
@@ -75,8 +79,9 @@ func newPods(in struct {
 		endpointManager:           in.EndpointManager,
 		endpointActivationManager: in.EndpointActivationManager,
 
-		db:   in.DB,
-		pods: in.Pods,
+		db:         in.DB,
+		pods:       in.Pods,
+		migrations: in.Migrations,
 	}
 }
 
@@ -87,7 +92,8 @@ func (p *Pods) registerReconciler() {
 
 	p.jg.Add(job.OneShot("reconcile-pod-activation", func(ctx context.Context, health cell.Health) error {
 		for {
-			pods, watch := p.pods.AllWatch(p.db.ReadTxn())
+			txn := p.db.ReadTxn()
+			pods, watch := p.pods.AllWatch(txn)
 			eventTime := time.Now()
 			for pod := range pods {
 				if !types.HasNetworkAttachmentAnnotation(pod) {
@@ -131,6 +137,26 @@ func (p *Pods) registerReconciler() {
 						}
 						// Update endpoint property and inform subscribers
 						p.endpointActivationManager.SetActivatedAt(ep, newActivatedAt)
+					}
+				}
+
+				// Check if this is a migration and whether the VM has now resumed.
+				if nodeName, exists := pod.Labels[kubevirtv1.NodeNameLabel]; exists && nodeName == pod.Spec.NodeName {
+					if _, exists := pod.Annotations[kubevirtv1.MigrationTargetReadyTimestamp]; exists {
+						wtx := p.db.WriteTxn(p.migrations)
+						for migration := range p.migrations.Prefix(txn, tables.MigrationByKey(tables.MigrationKey{
+							Namespace: pod.Namespace,
+							PodName:   pod.Name,
+							MAC:       "",
+						})) {
+							if !migration.Resumed {
+								if migration, _, found := p.migrations.Get(wtx, tables.MigrationByKey(migration.MigrationKey)); found && !migration.Resumed {
+									migration.Resumed = true
+									p.migrations.Insert(wtx, migration)
+								}
+							}
+						}
+						wtx.Commit()
 					}
 				}
 			}

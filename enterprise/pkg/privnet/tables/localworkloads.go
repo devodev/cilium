@@ -12,8 +12,11 @@ package tables
 
 import (
 	"cmp"
+	"fmt"
 	"net/netip"
+	"slices"
 	"strconv"
+	"strings"
 
 	"github.com/cilium/statedb"
 	"github.com/cilium/statedb/index"
@@ -39,9 +42,6 @@ type LocalWorkload struct {
 	// Interface contains identifiers from the private network point of view.
 	Interface iso_v1alpha1.PrivateNetworkEndpointSliceInterface
 
-	// ActivatedAt is the instant in time in which this entry was marked as active.
-	ActivatedAt time.Time
-
 	// Flags contains additional flags to characterize the endpoint.
 	Flags iso_v1alpha1.PrivateNetworkEndpointSliceFlags
 
@@ -56,6 +56,52 @@ type LocalWorkload struct {
 	// has index 0, the first secondary interface has index 1, and so on. At
 	// most [addressing.MaxSecondaryInterfaces] secondary interfaces are supported.
 	NICIndex uint8
+
+	// ActivatedAt is the instant in time in which this entry was marked as active.
+	ActivatedAt time.Time
+
+	// ActivationBlockers are list of reasons why activation is blocked.
+	ActivationBlockers []ActivationBlocker
+}
+
+type ActivationBlocker = string
+
+const (
+	// ActivationBlockerMigration blocks the activation due to ongoing migration.
+	ActivationBlockerMigration ActivationBlocker = "migration"
+
+	// ActivationBlockerInactive blocks the activation due to inactive annotation.
+	ActivationBlockerInactive ActivationBlocker = "inactive"
+)
+
+func (lw *LocalWorkload) IsActivationBlocked() bool {
+	return len(lw.ActivationBlockers) > 0
+}
+
+// GetActivatedAt returns the activation time or zero if the activation is blocked.
+func (lw *LocalWorkload) GetActivatedAt() time.Time {
+	if len(lw.ActivationBlockers) > 0 {
+		return time.Time{}
+	}
+	return lw.ActivatedAt
+}
+
+func (lw *LocalWorkload) AddActivationBlocker(reason ActivationBlocker) {
+	if slices.Contains(lw.ActivationBlockers, reason) {
+		return
+	}
+	lw.ActivationBlockers = append(slices.Clone(lw.ActivationBlockers), reason)
+}
+
+func (lw *LocalWorkload) RemoveActivationBlocker(reason ActivationBlocker) {
+	if idx := slices.Index(lw.ActivationBlockers, reason); idx >= 0 {
+		lw.ActivationBlockers = slices.Delete(
+			slices.Clone(lw.ActivationBlockers),
+			idx, idx+1)
+	}
+	if len(lw.ActivationBlockers) == 0 && lw.ActivatedAt.IsZero() {
+		lw.ActivatedAt = time.Now()
+	}
 }
 
 // LocalWorkloadLXC is the LXC interface associated with an endpoint.
@@ -78,6 +124,12 @@ func (lw *LocalWorkload) TableHeader() []string {
 }
 
 func (lw *LocalWorkload) TableRow() []string {
+	activatedAt := formatActivatedAt(lw.ActivatedAt)
+	if lw.IsActivationBlocked() {
+		activatedAt = fmt.Sprintf("<blocked: %s>",
+			strings.Join(lw.ActivationBlockers, ", "))
+	}
+
 	return []string{
 		lw.Namespace + "/" + lw.Endpoint.Name,
 		strconv.FormatUint(uint64(lw.EndpointID), 10),
@@ -87,7 +139,7 @@ func (lw *LocalWorkload) TableRow() []string {
 		cmp.Or(lw.Interface.Addressing.IPv6, "N/A"),
 		cmp.Or(lw.Endpoint.Addressing.IPv4, "N/A"),
 		cmp.Or(lw.Endpoint.Addressing.IPv6, "N/A"),
-		formatActivatedAt(lw.ActivatedAt),
+		activatedAt,
 	}
 }
 

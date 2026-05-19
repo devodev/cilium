@@ -16,9 +16,6 @@ import (
 	"net/netip"
 	"strconv"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	kubevirtv1 "kubevirt.io/api/core/v1"
-
 	"github.com/cilium/cilium/pkg/annotation"
 	"github.com/cilium/cilium/pkg/mac"
 )
@@ -54,17 +51,8 @@ type NetworkAttachment struct {
 }
 
 type annotatedObject interface {
-	GetAnnotations() map[string]string
-}
-
-type kubeVirtObject interface {
 	GetLabels() map[string]string
-	GetOwnerReferences() []metav1.OwnerReference
-}
-
-type kubeVirtAnnotatedObject interface {
-	annotatedObject
-	kubeVirtObject
+	GetAnnotations() map[string]string
 }
 
 func HasNetworkAttachmentAnnotation(obj annotatedObject) bool {
@@ -122,21 +110,5 @@ func ExtractInactiveAnnotation(obj annotatedObject) (inactive bool, err error) {
 	if err != nil {
 		return false, fmt.Errorf("invalid value in %q annotation: %w", PrivateNetworkInactiveAnnotation, err)
 	}
-
 	return inactive, nil
-}
-
-func ExtractKubeVirtVMI(obj kubeVirtAnnotatedObject) string {
-	return obj.GetAnnotations()[kubevirtv1.DomainAnnotation]
-}
-
-// IsKubeVirtMigrationTargetNode returns true if the node name label does not match the
-// local node name which means the VM is in the process of being migrated to this node.
-func IsKubeVirtMigrationTargetNode(obj kubeVirtAnnotatedObject, localNode string) bool {
-	sourceNode := KubeVirtNodeName(obj)
-	return sourceNode != "" && sourceNode != localNode
-}
-
-func KubeVirtNodeName(obj kubeVirtObject) string {
-	return obj.GetLabels()[kubevirtv1.NodeNameLabel]
 }

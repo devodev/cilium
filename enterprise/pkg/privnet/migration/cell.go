@@ -12,21 +12,29 @@ package migration
 
 import (
 	"github.com/cilium/hive/cell"
+	"github.com/cilium/statedb"
 	"google.golang.org/grpc"
 
 	pncfg "github.com/cilium/cilium/enterprise/pkg/privnet/config"
 	api "github.com/cilium/cilium/enterprise/pkg/privnet/grpc/api/v1"
 	grpcserver "github.com/cilium/cilium/enterprise/pkg/privnet/grpc/server"
+	"github.com/cilium/cilium/enterprise/pkg/privnet/tables"
 )
 
 var Cell = cell.Module(
 	"private-network-migration",
 	"Private Network workload migration",
 
+	cell.Invoke(
+		registerController,
+	),
 	cell.ProvidePrivate(
 		newService,
 	),
 	cell.Provide(
+		tables.NewMigrationsTable,
+		statedb.RWTable[tables.Migration].ToTable,
+
 		func(cfg pncfg.Config, svc *service) grpcserver.RegistrarOut {
 			if !cfg.Enabled {
 				return grpcserver.RegistrarOut{}

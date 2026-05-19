@@ -16,7 +16,6 @@ import (
 	"log/slog"
 	"maps"
 	"testing"
-	"time"
 
 	"github.com/cilium/hive/hivetest"
 	"github.com/cilium/hive/script"
@@ -32,6 +31,7 @@ import (
 	"github.com/cilium/cilium/pkg/logging"
 	nodeTypes "github.com/cilium/cilium/pkg/node/types"
 	"github.com/cilium/cilium/pkg/testutils"
+	"github.com/cilium/cilium/pkg/time"
 )
 
 var debug = flag.Bool("debug", false, "Enable debug logging")

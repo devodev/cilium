@@ -18,6 +18,7 @@ import (
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/hive/job"
 	"github.com/cilium/statedb"
+	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	"github.com/cilium/cilium/enterprise/pkg/privnet/config"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/endpoints"
@@ -61,8 +62,9 @@ type LocalWorkloads struct {
 	endpointActivationManager *EndpointActivationManager
 	restorerPromise           promise.Promise[endpointstate.Restorer]
 
-	db  *statedb.DB
-	tbl statedb.RWTable[*tables.LocalWorkload]
+	db         *statedb.DB
+	tbl        statedb.RWTable[*tables.LocalWorkload]
+	migrations statedb.RWTable[tables.Migration]
 }
 
 func newLocalWorkloads(in struct {
@@ -77,8 +79,9 @@ func newLocalWorkloads(in struct {
 	EndpointActivationManager *EndpointActivationManager
 	RestorerPromise           promise.Promise[endpointstate.Restorer]
 
-	DB    *statedb.DB
-	Table statedb.RWTable[*tables.LocalWorkload]
+	DB         *statedb.DB
+	Table      statedb.RWTable[*tables.LocalWorkload]
+	Migrations statedb.RWTable[tables.Migration]
 }) *LocalWorkloads {
 	return &LocalWorkloads{
 		log: in.Log,
@@ -90,8 +93,9 @@ func newLocalWorkloads(in struct {
 		endpointActivationManager: in.EndpointActivationManager,
 		restorerPromise:           in.RestorerPromise,
 
-		db:  in.DB,
-		tbl: in.Table,
+		db:         in.DB,
+		tbl:        in.Table,
+		migrations: in.Migrations,
 	}
 }
 
@@ -162,13 +166,14 @@ func (l *LocalWorkloads) upsertEndpoint(ep endpoints.Endpoint) {
 		return
 	}
 
-	wtx := l.db.WriteTxn(l.tbl)
+	wtx := l.db.WriteTxn(l.tbl, l.migrations)
 	defer wtx.Commit()
 
 	lw := &tables.LocalWorkload{
-		EndpointID: ep.GetID16(),
-		Namespace:  k8sNamespace,
-		Subnet:     tables.SubnetName(privNetAddr.subnet),
+		EndpointID:  ep.GetID16(),
+		Namespace:   k8sNamespace,
+		ActivatedAt: privNetAddr.activatedAt,
+		Subnet:      tables.SubnetName(privNetAddr.subnet),
 		Endpoint: iso_v1alpha1.PrivateNetworkEndpointSliceEndpoint{
 			Addressing: iso_v1alpha1.PrivateNetworkEndpointAddressing{
 				IPv4: ep.GetIPv4Address(),
@@ -187,14 +192,32 @@ func (l *LocalWorkloads) upsertEndpoint(ep endpoints.Endpoint) {
 			MAC:     privNetAddr.mac,
 			Network: privNetAddr.network,
 		},
-		ActivatedAt: privNetAddr.activatedAt,
-		UsesDHCPv4:  privNetAddr.usesDHCPv4,
+		UsesDHCPv4: privNetAddr.usesDHCPv4,
 		LXC: tables.LocalWorkloadLXC{
 			IfName:  ep.HostInterface(),
 			IfIndex: ep.GetIfIndex(),
 		},
 		NICIndex: privNetAddr.nicIndex,
 	}
+
+	if privNetAddr.activatedAt.IsZero() {
+		lw.AddActivationBlocker(tables.ActivationBlockerInactive)
+	} else {
+		lw.RemoveActivationBlocker(tables.ActivationBlockerInactive)
+	}
+
+	// Check if this local workload is being migrated from another node
+	// and if so create a [tables.Migration] to pull in state from the
+	// old node. Further updates to migrations are done from [Pods] and
+	// [migration.controller].
+	if migration := migrationFromLocalWorkload(lw, ep); migration != nil {
+		_, _, found := l.migrations.Get(wtx, tables.MigrationByKey(migration.MigrationKey))
+		if !found {
+			l.migrations.Insert(wtx, *migration)
+			lw.AddActivationBlocker(tables.ActivationBlockerMigration)
+		}
+	}
+
 	_, _, err = l.tbl.Insert(wtx, lw)
 	if err != nil {
 		l.log.Error("BUG: Failed to insert local endpoint. "+
@@ -208,17 +231,26 @@ func (l *LocalWorkloads) upsertEndpoint(ep endpoints.Endpoint) {
 
 // deleteEndpoint deletes the endpoint from the local workload table (if it exists)
 func (l *LocalWorkloads) deleteEndpoint(ep endpoints.Endpoint) {
-	wtx := l.db.WriteTxn(l.tbl)
+	wtx := l.db.WriteTxn(l.tbl, l.migrations)
 	defer wtx.Commit()
 
-	_, _, err := l.tbl.Delete(wtx, &tables.LocalWorkload{EndpointID: ep.GetID16()})
+	lw, _, err := l.tbl.Delete(wtx, &tables.LocalWorkload{EndpointID: ep.GetID16()})
 	if err != nil {
 		l.log.Error("BUG: Failed to delete local endpoint. "+
 			"Please report this bug to Cilium developers.",
 			logfields.EndpointID, ep.GetID16(),
 			logfields.Error, err,
 		)
-		return
+	}
+
+	if lw != nil {
+		l.migrations.Delete(wtx, tables.Migration{
+			MigrationKey: tables.MigrationKey{
+				Namespace: lw.Namespace,
+				PodName:   lw.Endpoint.Name,
+				MAC:       lw.Interface.MAC,
+			},
+		})
 	}
 }
 
@@ -306,4 +338,46 @@ func extractPrivateNetworkAddressing(ep endpoints.Endpoint) (*privateNetworkAddr
 	}
 
 	return addr, nil
+}
+
+// migrationFromLocalWorkload returns a migration object if this is a workload that is in
+// the process of being migrated to this node.
+func migrationFromLocalWorkload(lw *tables.LocalWorkload, ep endpoints.Endpoint) *tables.Migration {
+	pod := ep.GetPod()
+	if pod == nil {
+		return nil
+	}
+
+	_, found := pod.Labels[kubevirtv1.MigrationJobLabel]
+	if !found {
+		// Not a migration
+		return nil
+	}
+	nodeName, found := pod.Labels[kubevirtv1.NodeNameLabel]
+	if !found {
+		return nil
+	} else if nodeName == pod.Spec.NodeName {
+		// Already migrated
+		return nil
+	}
+
+	ns, name, _ := strings.Cut(ep.GetK8sNamespaceAndPodName(), "/")
+
+	key := tables.MigrationKey{
+		Namespace: ns,
+		PodName:   name,
+		MAC:       lw.Interface.MAC,
+	}
+
+	now := time.Now()
+	return &tables.Migration{
+		MigrationKey:  key,
+		LocalWorkload: lw,
+		SourceNode:    tables.NodeName(nodeName),
+		CreatedAt:     now,
+		UpdatedAt:     now,
+		Resumed:       false,
+		State:         tables.MigrationStateNew,
+		Error:         nil,
+	}
 }
