@@ -135,11 +135,11 @@ sync-helm-manifests:
 	cp -a ../../install/kubernetes/cilium/. manifests
 
 .PHONY: set-images
-set-images: # Set the images versions matching the local state in the helm values embedded into CLife. A different tag, suffix and registry can be selected by setting env variables: CL_TAG, CL_IS_CI, CL_SUFFIX and CL_REGISTRY
+set-images: crane # Set the images versions matching the local state in the helm values embedded into CLife. A different tag, suffix and registry can be selected by setting env variables: CL_TAG, CL_IS_CI, CL_SUFFIX and CL_REGISTRY
 	./scripts/set-images.sh
 
 .PHONY: set-related-images
-set-related-images: # Set the related images as env variables in manager.yaml from the local state in the helm values embedded into CLife. A different tag, suffix and registry can be selected by setting env variables: CL_TAG, CL_IS_CI, CL_SUFFIX and CL_REGISTRY. They get then set in the ClusterServiceVersion down the stream through the opm tooling.
+set-related-images: crane # Set the related images as env variables in manager.yaml from the local state in the helm values embedded into CLife. A different tag, suffix and registry can be selected by setting env variables: CL_TAG, CL_IS_CI, CL_SUFFIX and CL_REGISTRY. They get then set in the ClusterServiceVersion down the stream through the opm tooling.
 	./scripts/set-related-images.sh
 
 .PHONY: build
@@ -329,6 +329,28 @@ ifeq (,$(shell which opm 2>/dev/null))
 	}
 else
 OPM = $(shell which opm)
+endif
+endif
+
+.PHONY: crane
+# renovate: datasource=github-releases depName=google/go-containerregistry
+CRANE_VERSION = v0.21.6
+CRANE = $(LOCALBIN)/crane
+crane: ## Download crane locally if necessary.
+ifeq (,$(wildcard $(CRANE)))
+ifeq (,$(shell which crane 2>/dev/null))
+	@{ \
+	set -e ;\
+ 	mkdir -p $(dir $(CRANE)) ;\
+ 	OS=$(shell go env GOOS) && ARCH=$(shell go env GOARCH | sed s/amd64/x86_64/) && \
+	echo "downloading https://github.com/google/go-containerregistry/releases/download/${CRANE_VERSION}/go-containerregistry_$${OS^}_$${ARCH}.tar.gz" && \
+ 	curl -sL "https://github.com/google/go-containerregistry/releases/download/${CRANE_VERSION}/go-containerregistry_$${OS^}_$${ARCH}.tar.gz" > go-containerregistry.tar.gz && \
+	tar -zxvf go-containerregistry.tar.gz -C $(dir $(CRANE))/ crane && \
+ 	chmod +x $(CRANE) && \
+	rm go-containerregistry.tar.gz ;\
+	}
+else
+CRANE = $(shell which crane)
 endif
 endif
 
