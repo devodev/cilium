@@ -319,8 +319,8 @@ func newCmdPrivNetTest() *cobra.Command {
 			// egress denied by toCIDR
 			t.Run(ctx, privnet.NewClientToEcho(t, vmClientC, vmUnknownC2), privnet.ExpectationCurlTimeout)
 
-			// ingress denied by fromEndpoints
-			t.Run(ctx, privnet.NewClientToEcho(t, vmExtC1, vmEchoOtherC), privnet.ExpectationCurlTimeout)
+			// ingress allowed by fromEndpoints
+			t.Run(ctx, privnet.NewClientToEcho(t, vmExtC1, vmEchoOtherC), privnet.ExpectationOK)
 			// ingress allowed by toPort
 			t.Run(ctx, privnet.NewClientToEcho(t, vmExtC1, vmEchoA), privnet.ExpectationOK)
 			// ingress denied by fromCIDR
