@@ -26,18 +26,18 @@ catalog_tag="${CATALOG_TAG:-latest}"
 
 mkdir -p catalog-dev
 if docker manifest inspect ${repo_base_name}-catalog:${catalog_tag}; then
-  docker run --rm -v "${olm_dir}":/workdir quay.io/operator-framework/opm:${opm_version} render ${repo_base_name}-catalog:${catalog_tag} -o yaml > "${olm_dir}/catalog-dev/index.yaml"
+  docker run --rm -v "${olm_dir}":/workdir -v /etc/containers/policy.json:/etc/containers/policy.json quay.io/operator-framework/opm:${opm_version} render ${repo_base_name}-catalog:${catalog_tag} -o yaml > "${olm_dir}/catalog-dev/index.yaml"
 else
   # Used for bootstrapping
   # TODO: check that the reinitilization of the catalog is not triggered by a connectivity or quay issue
-  docker run --rm -v "${olm_dir}":/workdir quay.io/operator-framework/opm:${opm_version} init clife --default-channel="${default_channel}" --description=/workdir/catalog-README.md --icon=/workdir/isovalent.svg --output yaml > "${olm_dir}/catalog-dev/index.yaml"
+  docker run --rm -v "${olm_dir}":/workdir  -v /etc/containers/policy.json:/etc/containers/policy.json quay.io/operator-framework/opm:${opm_version} init clife --default-channel="${default_channel}" --description=/workdir/catalog-README.md --icon=/workdir/isovalent.svg --output yaml > "${olm_dir}/catalog-dev/index.yaml"
 fi
 bundle=$(docker run --rm -v "${olm_dir}":/workdir mikefarah/yq:${yq_version} ".name | select(. == \"clife.v${bundle_version}\")" /workdir/catalog-dev/index.yaml)
 if [ -n "$bundle" ]; then
   printf "Bundle clife.%s already present in catalog index\n" "${bundle_version}"
 else
   printf "Adding the bundle clife.%s to the catalog\n" "${bundle_version}"
-  docker run --rm -v "${olm_dir}":/workdir quay.io/operator-framework/opm:${opm_version} render ${repo_base_name}-bundle:v${bundle_version} --output=yaml >> "${olm_dir}/catalog-dev/index.yaml"
+  docker run --rm -v "${olm_dir}":/workdir -v /etc/containers/policy.json:/etc/containers/policy.json quay.io/operator-framework/opm:${opm_version} render ${repo_base_name}-bundle:v${bundle_version} --output=yaml >> "${olm_dir}/catalog-dev/index.yaml"
 fi
 
 # Add the channel if it does not exist
@@ -69,4 +69,4 @@ if [[ ! "${channel_entries}" =~ clife.v"${bundle_version}" ]]; then
 else
   printf "Bundle clife.%s already part of the channel %s\n" "${bundle_version}" "${channel}"
 fi
-docker run --rm -v "${olm_dir}":/workdir quay.io/operator-framework/opm:${opm_version} validate /workdir/catalog-dev
+docker run --rm -v "${olm_dir}":/workdir -v /etc/containers/policy.json:/etc/containers/policy.json quay.io/operator-framework/opm:${opm_version} validate /workdir/catalog-dev
