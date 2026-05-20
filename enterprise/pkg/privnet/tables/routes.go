@@ -126,6 +126,11 @@ func (r Route) ToMapEntry(subnet SubnetSpec, activeINB INBNode, bridgeMode bool)
 			EgressIfIndex: egressIfIndex,
 		},
 
+		Source: MapEntrySource{
+			Kind: MapEntrySourceKindRoute,
+			Key:  string(r.Key()),
+		},
+
 		Status: reconciler.StatusPending(),
 
 		// No need to do gratuitous ARP/ND for routes.

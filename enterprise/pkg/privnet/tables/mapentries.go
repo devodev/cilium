@@ -36,6 +36,9 @@ type MapEntry struct {
 	// Routing represents the routing information to reach the target network CIDR.
 	Routing MapEntryRouting
 
+	// Source contains the foreign key of the resource which resulted in this MapEntry being created
+	Source MapEntrySource
+
 	// Status is the status of the reconciliation of this entry into the BPF maps.
 	Status reconciler.Status
 
@@ -274,6 +277,19 @@ type MapEntryKey string
 
 func (key MapEntryKey) Key() index.Key {
 	return index.String(string(key))
+}
+
+type MapEntrySourceKind string
+
+const (
+	MapEntrySourceKindEndpoint MapEntrySourceKind = "Endpoint"
+	MapEntrySourceKindRoute    MapEntrySourceKind = "Route"
+)
+
+// MapEntrySource contains the kind and StateDB key of the resource which resulted in this MapEntry being created
+type MapEntrySource struct {
+	Kind MapEntrySourceKind
+	Key  string
 }
 
 func newMapEntryKeyFromNetwork(network NetworkName) MapEntryKey {

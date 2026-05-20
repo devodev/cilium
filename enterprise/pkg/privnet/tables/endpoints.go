@@ -89,6 +89,11 @@ func (ep Endpoint) ToMapEntry(subnet SubnetSpec, isLocallyConnected, announce bo
 			L2Announce: announce && subnet.EgressIfIndex > 0,
 		},
 
+		Source: MapEntrySource{
+			Kind: MapEntrySourceKindEndpoint,
+			Key:  string(ep.Key()),
+		},
+
 		Status:       reconciler.StatusPending(),
 		GneighStatus: gneighStatus,
 	}
@@ -239,6 +244,9 @@ var (
 		FromString: index.FromString,
 		Unique:     false,
 	}
+
+	// EndpointsByPrimaryKey queries the endpoints table by the full EndpointKey
+	EndpointsByPrimaryKey = endpointsPrimaryIndex.Query
 
 	// EndpointsByPIP queries the endpoints table by Pod IP.
 	EndpointsByPIP = endpointsPIPIndex.Query
