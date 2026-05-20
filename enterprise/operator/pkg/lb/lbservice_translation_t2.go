@@ -64,6 +64,7 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	wafenvoy "github.com/cilium/cilium/enterprise/operator/pkg/waf/envoy"
@@ -85,11 +86,36 @@ type lbServiceT2Translator struct {
 	wafTranslator *wafenvoy.Translator
 }
 
-func (r *lbServiceT2Translator) DesiredCiliumEnvoyConfig(model *lbService) (*ciliumv2.CiliumEnvoyConfig, error) {
+func (r *lbServiceT2Translator) DesiredCiliumEnvoyConfigs(model *lbService) ([]*ciliumv2.CiliumEnvoyConfig, error) {
 	if (!model.vip.IPv4Assigned() && !model.vip.IPv6Assigned()) || !model.vip.bindStatus.serviceExists || !model.vip.bindStatus.bindSuccessful || model.isTCPProxyT1OnlyMode() || model.isUDPProxyT1OnlyMode() {
 		return nil, nil
 	}
 
+	if model.zoneAwareMode == lbServiceZoneAwareModeRequireSameZone {
+		return r.desiredZonedCiliumEnvoyConfigs(model)
+	}
+
+	cec, err := r.desiredCiliumEnvoyConfig(model, "")
+	if err != nil {
+		return nil, err
+	}
+	return []*ciliumv2.CiliumEnvoyConfig{cec}, nil
+}
+
+func (r *lbServiceT2Translator) desiredZonedCiliumEnvoyConfigs(model *lbService) ([]*ciliumv2.CiliumEnvoyConfig, error) {
+	zones := slices.Sorted(maps.Keys(model.t2NodeZones()))
+	cecs := make([]*ciliumv2.CiliumEnvoyConfig, 0, len(zones))
+	for _, zone := range zones {
+		cec, err := r.desiredCiliumEnvoyConfig(model, zone)
+		if err != nil {
+			return nil, err
+		}
+		cecs = append(cecs, cec)
+	}
+	return cecs, nil
+}
+
+func (r *lbServiceT2Translator) desiredCiliumEnvoyConfig(model *lbService, zone string) (*ciliumv2.CiliumEnvoyConfig, error) {
 	envoyResources := []ciliumv2.XDSResource{}
 
 	// Service (with route(s)) -> Envoy Listener(s) & Route(s)
@@ -124,7 +150,7 @@ func (r *lbServiceT2Translator) DesiredCiliumEnvoyConfig(model *lbService) (*cil
 
 	// Backend(s)-> Envoy Cluster(s) & Envoy Endpoints (ClusterLoadAssignments)
 
-	clusters := r.desiredEnvoyClusters(model)
+	clusters := r.desiredEnvoyClusters(model, zone)
 
 	for _, c := range clusters {
 		clusterXdsResource, err := r.toXdsResource(c, envoy.ClusterTypeURL)
@@ -135,7 +161,7 @@ func (r *lbServiceT2Translator) DesiredCiliumEnvoyConfig(model *lbService) (*cil
 		envoyResources = append(envoyResources, clusterXdsResource)
 	}
 
-	loadAssignments := r.desiredEnvoyClusterLoadAssignments(model)
+	loadAssignments := r.desiredEnvoyClusterLoadAssignments(model, zone)
 
 	for _, la := range loadAssignments {
 		endpointXdsResource, err := r.toXdsResource(la, envoy.EndpointTypeURL)
@@ -159,15 +185,21 @@ func (r *lbServiceT2Translator) DesiredCiliumEnvoyConfig(model *lbService) (*cil
 		envoyResources = append(envoyResources, accessLoggerClusterResource)
 	}
 
-	t2NodeLabelselector, err := slim_metav1.ParseToLabelSelector(model.t2LabelSelector.String())
+	t2NodeLabelselector, err := desiredCECNodeSelector(model, zone)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse T2 node label selector: %w", err)
+	}
+
+	cecName := model.getOwningResourceName()
+	if zone != "" {
+		// Include the zone in the resource name so each zoned T2 CEC stays distinct.
+		cecName = model.getOwningResourceNameWithMidfix(zone + "-")
 	}
 
 	return &ciliumv2.CiliumEnvoyConfig{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: model.namespace,
-			Name:      model.getOwningResourceName(),
+			Name:      cecName,
 
 			// Explicitly instruct the CEC parsing to handle the CEC as N/S L7 loadbalancing.
 			// This is mainly to change the source IP of the Envoy upstream connection to the
@@ -1680,13 +1712,13 @@ func (r *lbServiceT2Translator) desiredHealthCheckFilter(model *lbService) *envo
 	return healthCheckFilter
 }
 
-func (r *lbServiceT2Translator) desiredEnvoyClusters(model *lbService) []*envoy_config_cluster_v3.Cluster {
+func (r *lbServiceT2Translator) desiredEnvoyClusters(model *lbService, zone string) []*envoy_config_cluster_v3.Cluster {
 	clusters := []*envoy_config_cluster_v3.Cluster{}
 
 	refBackendNamesSorted := slices.Sorted(maps.Keys(model.referencedBackends))
 
 	for _, bn := range refBackendNamesSorted {
-		clusters = append(clusters, r.desiredEnvoyCluster(model, r.getClusterName(bn), model.referencedBackends[bn]))
+		clusters = append(clusters, r.desiredEnvoyCluster(model, r.getClusterName(bn), model.referencedBackends[bn], zone))
 	}
 
 	clusters = append(clusters, r.desiredJWKSEnvoyClusters(model)...)
@@ -1843,7 +1875,7 @@ func (r *lbServiceT2Translator) toHealthCheckTransportSocketMatchCriteria(backen
 	}
 }
 
-func (r *lbServiceT2Translator) desiredEnvoyCluster(model *lbService, name string, b backend) *envoy_config_cluster_v3.Cluster {
+func (r *lbServiceT2Translator) desiredEnvoyCluster(model *lbService, name string, b backend, zone string) *envoy_config_cluster_v3.Cluster {
 	cluster := &envoy_config_cluster_v3.Cluster{
 		Name: name,
 		CommonLbConfig: &envoy_config_cluster_v3.Cluster_CommonLbConfig{
@@ -1903,7 +1935,7 @@ func (r *lbServiceT2Translator) desiredEnvoyCluster(model *lbService, name strin
 		}
 
 		// For STRICT_DNS cluster, we must specify endpoint inline in the cluster
-		cluster.LoadAssignment = r.desiredEnvoyClusterLoadAssignment(name, b)
+		cluster.LoadAssignment = r.desiredEnvoyClusterLoadAssignment(name, b, model.zoneAwareMode, zone)
 
 	default:
 		cluster.ClusterDiscoveryType = &envoy_config_cluster_v3.Cluster_Type{
@@ -2199,7 +2231,7 @@ func (r *lbServiceT2Translator) toClusterHealthCheckerTCP(healthCheckConfig lbBa
 	return check
 }
 
-func (r *lbServiceT2Translator) desiredEnvoyClusterLoadAssignments(model *lbService) []*envoy_config_endpoint_v3.ClusterLoadAssignment {
+func (r *lbServiceT2Translator) desiredEnvoyClusterLoadAssignments(model *lbService, zone string) []*envoy_config_endpoint_v3.ClusterLoadAssignment {
 	loadAssignments := []*envoy_config_endpoint_v3.ClusterLoadAssignment{}
 
 	if la := r.desiredEnvoyZoneAwarenessLoadAssignment(model); la != nil {
@@ -2211,7 +2243,7 @@ func (r *lbServiceT2Translator) desiredEnvoyClusterLoadAssignments(model *lbServ
 	for _, bn := range refBackendNamesSorted {
 		// For STRICT_DNS cluster, we must specify endpoint inline in the cluster
 		if b := model.referencedBackends[bn]; b.typ != lbBackendTypeHostname {
-			loadAssignments = append(loadAssignments, r.desiredEnvoyClusterLoadAssignment(r.getClusterName(bn), b))
+			loadAssignments = append(loadAssignments, r.desiredEnvoyClusterLoadAssignment(r.getClusterName(bn), b, model.zoneAwareMode, zone))
 		}
 	}
 
@@ -2223,7 +2255,9 @@ func (r *lbServiceT2Translator) desiredEnvoyClusterLoadAssignments(model *lbServ
 // cluster only as a model of the per-zone T2 proxy population when evaluating
 // zone-aware routing on T2; it is not used to open real upstream connections.
 func (r *lbServiceT2Translator) desiredEnvoyZoneAwarenessLoadAssignment(model *lbService) *envoy_config_endpoint_v3.ClusterLoadAssignment {
-	if model.zoneAwareMode != lbServiceZoneAwareModePreferSameZone && model.zoneAwareMode != lbServiceZoneAwareModeRequireSameZone {
+	if model.zoneAwareMode != lbServiceZoneAwareModePreferSameZone {
+		// Zoned requireSameZone configs already pin Envoy to a single backend zone, so
+		// the shared synthetic locality cluster used for preferSameZone is not needed.
 		return nil
 	}
 
@@ -2293,7 +2327,7 @@ func (r *lbServiceT2Translator) desiredEnvoyZoneAwarenessLoadAssignment(model *l
 // desiredEnvoyClusterLoadAssignment builds the real backend EDS resource for a
 // single upstream cluster, grouping endpoints by zone when that metadata is
 // available and preserving unknown-zone endpoints in a fallback bucket.
-func (r *lbServiceT2Translator) desiredEnvoyClusterLoadAssignment(name string, b backend) *envoy_config_endpoint_v3.ClusterLoadAssignment {
+func (r *lbServiceT2Translator) desiredEnvoyClusterLoadAssignment(name string, b backend, mode lbServiceZoneAwareModeType, zone string) *envoy_config_endpoint_v3.ClusterLoadAssignment {
 	zoneLbEndpoints := map[string][]*envoy_config_endpoint_v3.LbEndpoint{}
 	bareLbEndpoints := []*envoy_config_endpoint_v3.LbEndpoint{}
 
@@ -2305,6 +2339,13 @@ func (r *lbServiceT2Translator) desiredEnvoyClusterLoadAssignment(name string, b
 			}
 		}
 		for _, a := range lbBackend.addresses {
+			beZone, ok := lbBackend.addressZones[a]
+
+			if beZone != zone && mode == lbServiceZoneAwareModeRequireSameZone {
+				// Zoned requireSameZone configs must drop cross-zone backends.
+				continue
+			}
+
 			lbEndpoint := &envoy_config_endpoint_v3.LbEndpoint{
 				LoadBalancingWeight: wrapperspb.UInt32(lbBackend.weight),
 				HealthStatus:        r.toHealthStatus(lbBackend.status),
@@ -2317,11 +2358,31 @@ func (r *lbServiceT2Translator) desiredEnvoyClusterLoadAssignment(name string, b
 				}},
 			}
 
-			if zone, ok := lbBackend.addressZones[a]; ok && zone != "" && zone != lbServiceZoneUnknown {
-				zoneLbEndpoints[zone] = append(zoneLbEndpoints[zone], lbEndpoint)
+			if ok && beZone != "" && beZone != lbServiceZoneUnknown {
+				zoneLbEndpoints[beZone] = append(zoneLbEndpoints[beZone], lbEndpoint)
 				continue
 			}
+
 			bareLbEndpoints = append(bareLbEndpoints, lbEndpoint)
+		}
+	}
+
+	// Zoned requireSameZone configs expose only the target zone's locality bucket
+	// and fail closed with an empty assignment when that zone has no local backends.
+	if mode == lbServiceZoneAwareModeRequireSameZone {
+		localityLbEndpoints := []*envoy_config_endpoint_v3.LocalityLbEndpoints{}
+		if len(zoneLbEndpoints[zone]) > 0 {
+			localityLbEndpoints = append(localityLbEndpoints, &envoy_config_endpoint_v3.LocalityLbEndpoints{
+				Locality: &envoy_config_core_v3.Locality{
+					Zone: zone,
+				},
+				LbEndpoints: zoneLbEndpoints[zone],
+			})
+		}
+
+		return &envoy_config_endpoint_v3.ClusterLoadAssignment{
+			ClusterName: name,
+			Endpoints:   localityLbEndpoints,
 		}
 	}
 
@@ -3049,14 +3110,30 @@ func toAny(message proto.Message) *anypb.Any {
 }
 
 func (r *lbServiceT2Translator) lookupLocalityConfigSpecifier(model *lbService) *envoy_config_cluster_v3.Cluster_CommonLbConfig_ZoneAwareLbConfig_ {
-	switch model.zoneAwareMode {
-	case lbServiceZoneAwareModePreferSameZone:
-		return &envoy_config_cluster_v3.Cluster_CommonLbConfig_ZoneAwareLbConfig_{
-			ZoneAwareLbConfig: &envoy_config_cluster_v3.Cluster_CommonLbConfig_ZoneAwareLbConfig{
-				MinClusterSize: wrapperspb.UInt64(model.zoneAwareMinBackendCount),
-			},
-		}
-	default:
+	if model.zoneAwareMode != lbServiceZoneAwareModePreferSameZone {
 		return nil
 	}
+
+	return &envoy_config_cluster_v3.Cluster_CommonLbConfig_ZoneAwareLbConfig_{
+		ZoneAwareLbConfig: &envoy_config_cluster_v3.Cluster_CommonLbConfig_ZoneAwareLbConfig{
+			MinClusterSize: wrapperspb.UInt64(model.zoneAwareMinBackendCount),
+		},
+	}
+}
+
+func desiredCECNodeSelector(model *lbService, zone string) (*slim_metav1.LabelSelector, error) {
+	selector, err := slim_metav1.ParseToLabelSelector(model.t2LabelSelector.String())
+	if err != nil {
+		return nil, err
+	}
+	if zone == "" {
+		return selector, nil
+	}
+
+	if selector.MatchLabels == nil {
+		selector.MatchLabels = map[string]string{}
+	}
+	selector.MatchLabels[corev1.LabelTopologyZone] = zone
+
+	return selector, nil
 }

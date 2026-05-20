@@ -1308,12 +1308,6 @@ func withZoneAware(opts ...zoneAware) trafficPolicyOption {
 	}
 }
 
-func withMinBackendCount(count uint64) zoneAware {
-	return func(o *isovalentv1alpha1.LBZoneAware) {
-		o.MinBackendCount = count
-	}
-}
-
 func withPreferSameZone() zoneAware {
 	return func(o *isovalentv1alpha1.LBZoneAware) {
 		o.Mode = isovalentv1alpha1.LBZoneAwareModePreferSameZone

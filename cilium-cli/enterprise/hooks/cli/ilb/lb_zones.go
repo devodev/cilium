@@ -51,7 +51,14 @@ func TestTCPProxyT1OnlyRequireSameZone(t T) {
 }
 
 func TestT2HTTPPreferSameZone(t T) {
-	testName := "t2-http-prefer-same-zone"
+	runT2HTTPZoneTest(t, "t2-http-prefer-same-zone", withPreferSameZone(), assertPreferZoneFailover)
+}
+
+func TestT2HTTPRequireSameZone(t T) {
+	runT2HTTPZoneTest(t, "t2-http-require-same-zone", withRequireSameZone(), assertRequireZoneFailover)
+}
+
+func runT2HTTPZoneTest(t T, testName string, mode zoneAware, failoverAssert zoneFailoverAssert) {
 	ciliumCli, k8sCli := NewCiliumAndK8sCli(t)
 	dockerCli := NewDockerCli(t)
 
@@ -102,10 +109,7 @@ func TestT2HTTPPreferSameZone(t T) {
 	service := lbService(testName,
 		withHTTPProxyApplication(withHttpRoute(testName)),
 		withTrafficPolicy(
-			withZoneAware(
-				withPreferSameZone(),
-				withMinBackendCount(2),
-			),
+			withZoneAware(mode),
 		),
 	)
 	scenario.createLBService(service)
@@ -126,7 +130,7 @@ func TestT2HTTPPreferSameZone(t T) {
 
 	t.Log("Starting zone failover testing...")
 	for zone, nodes := range t1ZoneNodes {
-		assertPreferZoneFailover(t, client, zone, nodes[0], vipIP, zoneBackend, sendAndCollectResponseIDs)
+		failoverAssert(t, client, zone, nodes[0], vipIP, zoneBackend, sendAndCollectResponseIDs)
 	}
 }
 
@@ -370,8 +374,12 @@ func assertRequireZoneFailover(t T, client *frrContainer, zone string, node core
 		withFailedZoneBackend(t, zone, zoneBackend, func() {
 			requestID := fmt.Sprintf("e2e-test-%s-fail-%d", zone, time.Now().Unix())
 			testCmd := curlCmdVerbose(fmt.Sprintf("--max-time 10 http://%s:80/ -H \"%s: %s\"", vipIP, requestIDHeader, requestID))
-			matchRequestLog := func(line string) bool { return strings.Contains(line, requestID) }
-			hitCount := waitForFailClosedResult(t, client, zone, testCmd)
+			requestIDs := waitForFailClosedResult(t, client, zone, testCmd)
+			hitCount := len(requestIDs)
+			matchRequestLog := func(line string) bool {
+				_, ok := requestIDs[getRequestIDValue(line)]
+				return ok
+			}
 
 			for beZone, beApp := range zoneBackend {
 				count := countRequestsInBackendLogs(t, beApp, matchRequestLog)
@@ -468,8 +476,8 @@ func withFailedZoneBackend(t T, zone string, zoneBackend map[string]*hcAppContai
 	run()
 }
 
-func waitForFailClosedResult(t T, client *frrContainer, zone, testCmd string) int {
-	hitCount := 0
+func waitForFailClosedResult(t T, client *frrContainer, zone, testCmd string) map[string]struct{} {
+	requestIDs := map[string]struct{}{}
 	eventually(t, func() error {
 		t.Log("[%s] waiting for request to fail ...", zone)
 		stdout, stderr, err := client.Exec(t.Context(), testCmd)
@@ -481,10 +489,13 @@ func waitForFailClosedResult(t T, client *frrContainer, zone, testCmd string) in
 			return err
 		}
 
-		hitCount++
+		if requestID := getRequestIDValue(stdout); requestID != "" {
+			requestIDs[requestID] = struct{}{}
+		}
 		return fmt.Errorf("curl still succeeded unexpectedly (cmd: %q, stdout: %q, stderr: %q)", testCmd, stdout, stderr)
 	}, longTimeout, longPollInterval)
-	return hitCount
+
+	return requestIDs
 }
 
 type requestLogMatcher func(line string) bool

@@ -13,25 +13,34 @@ package lb
 import (
 	"testing"
 
+	"github.com/cilium/hive/hivetest"
 	envoy_config_cluster_v3 "github.com/envoyproxy/go-control-plane/envoy/config/cluster/v3"
 	envoy_config_core_v3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	envoy_config_endpoint_v3 "github.com/envoyproxy/go-control-plane/envoy/config/endpoint/v3"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/wrapperspb"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	wafenvoy "github.com/cilium/cilium/enterprise/operator/pkg/waf/envoy"
 	"github.com/cilium/cilium/pkg/envoy"
+	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
+	"github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/labels"
+	slim_metav1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
 )
 
-func TestDesiredEnvoyClusterLoadAssignmentZones(t *testing.T) {
+func TestDesiredEnvoyClusterLoadAssignment(t *testing.T) {
 	tr := &lbServiceT2Translator{}
 
 	testCases := []struct {
 		name     string
+		mode     lbServiceZoneAwareModeType
+		zone     string
 		backend  backend
 		expected *envoy_config_endpoint_v3.ClusterLoadAssignment
 	}{
 		{
 			name: "groups endpoints per known zone",
+			mode: lbServiceZoneAwareModeDisabled,
 			backend: backend{
 				lbBackends: []lbBackend{
 					{
@@ -62,6 +71,7 @@ func TestDesiredEnvoyClusterLoadAssignmentZones(t *testing.T) {
 		},
 		{
 			name: "adds fallback bucket for unknown or missing zones",
+			mode: lbServiceZoneAwareModeDisabled,
 			backend: backend{
 				lbBackends: []lbBackend{
 					{
@@ -91,6 +101,7 @@ func TestDesiredEnvoyClusterLoadAssignmentZones(t *testing.T) {
 		},
 		{
 			name: "unknown only stays in single no-locality bucket",
+			mode: lbServiceZoneAwareModeDisabled,
 			backend: backend{
 				lbBackends: []lbBackend{
 					{
@@ -112,11 +123,56 @@ func TestDesiredEnvoyClusterLoadAssignmentZones(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "require same zone keeps only matching zoned backends",
+			mode: lbServiceZoneAwareModeRequireSameZone,
+			zone: "zone-a",
+			backend: backend{
+				lbBackends: []lbBackend{
+					{
+						addresses:    []string{"10.0.0.1", "10.0.0.9", "10.0.0.2"},
+						addressZones: map[string]string{"10.0.0.1": "zone-a", "10.0.0.9": lbServiceZoneUnknown, "10.0.0.2": "zone-b"},
+						port:         8080,
+						weight:       1,
+					},
+				},
+			},
+			expected: &envoy_config_endpoint_v3.ClusterLoadAssignment{
+				ClusterName: "backend_cluster_test",
+				Endpoints: []*envoy_config_endpoint_v3.LocalityLbEndpoints{
+					{
+						Locality: &envoy_config_core_v3.Locality{Zone: "zone-a"},
+						LbEndpoints: []*envoy_config_endpoint_v3.LbEndpoint{
+							newLBEndpoint("10.0.0.1", 8080, 1),
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "require same zone fails closed when no local backends exist",
+			mode: lbServiceZoneAwareModeRequireSameZone,
+			zone: "zone-c",
+			backend: backend{
+				lbBackends: []lbBackend{
+					{
+						addresses:    []string{"10.0.0.1", "10.0.0.9", "10.0.0.2"},
+						addressZones: map[string]string{"10.0.0.1": "zone-a", "10.0.0.9": lbServiceZoneUnknown, "10.0.0.2": "zone-b"},
+						port:         8080,
+						weight:       1,
+					},
+				},
+			},
+			expected: &envoy_config_endpoint_v3.ClusterLoadAssignment{
+				ClusterName: "backend_cluster_test",
+				Endpoints:   []*envoy_config_endpoint_v3.LocalityLbEndpoints{},
+			},
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			actual := tr.desiredEnvoyClusterLoadAssignment("backend_cluster_test", tc.backend)
+			actual := tr.desiredEnvoyClusterLoadAssignment("backend_cluster_test", tc.backend, tc.mode, tc.zone)
 			require.Equal(t, tc.expected, actual)
 		})
 	}
@@ -168,7 +224,7 @@ func TestDesiredEnvoyClusterLocalityAwarePolicy(t *testing.T) {
 
 			cluster := tr.desiredEnvoyCluster(lbService, "backend_cluster_test", backend{
 				tcpConfig: &lbBackendTCPConfig{},
-			})
+			}, "")
 
 			require.Equal(t, tc.expectedZoneAwareLbConfig, cluster.CommonLbConfig.GetZoneAwareLbConfig())
 		})
@@ -237,6 +293,111 @@ func TestDesiredEnvoyZoneAwarenessLoadAssignment(t *testing.T) {
 			require.Equal(t, tc.expected, tr.desiredEnvoyZoneAwarenessLoadAssignment(tc.model))
 		})
 	}
+}
+
+func TestDesiredCiliumEnvoyConfigsRequireSameZone(t *testing.T) {
+	tr := &lbServiceT2Translator{
+		logger:        hivetest.Logger(t),
+		wafTranslator: wafenvoy.NewTranslator(hivetest.Logger(t), wafenvoy.NewProxyConfigBuilder()),
+	}
+
+	vip := "100.64.0.100"
+	testCases := []struct {
+		name         string
+		model        *lbService
+		expectedCECs []*ciliumv2.CiliumEnvoyConfig
+	}{
+		{
+			name: "creates one zoned CEC per known T2 zone",
+			model: &lbService{
+				namespace: "default",
+				name:      "lb-1",
+				vip: lbVIP{
+					name:         "lb-1",
+					ipFamily:     ipFamilyV4,
+					assignedIPv4: &vip,
+					bindStatus: lbVIPBindStatus{
+						serviceExists:  true,
+						bindSuccessful: true,
+						bindIssue:      "",
+					},
+				},
+				zoneAwareMode: lbServiceZoneAwareModeRequireSameZone,
+				applications: lbApplications{
+					tcpProxy: &lbApplicationTCPProxy{
+						tierMode: tierModeT2,
+						routes: []lbRouteTCPProxy{
+							{backendRef: backendRef{name: "app"}},
+						},
+					},
+				},
+				referencedBackends: map[string]backend{
+					"app": {
+						lbAlgorithm: lbBackendLBAlgorithm{algorithm: lbAlgorithmRoundRobin},
+						lbBackends: []lbBackend{
+							{
+								addresses:    []string{"10.0.0.1", "10.0.0.2"},
+								addressZones: map[string]string{"10.0.0.1": "zone-a", "10.0.0.2": "zone-b"},
+								port:         8080,
+								weight:       1,
+							},
+						},
+						tcpConfig: &lbBackendTCPConfig{connectTimeoutSeconds: 5},
+					},
+				},
+				t2NodeIPv4Zones: map[string]string{
+					"172.18.0.2": "zone-a",
+					"172.18.0.3": "zone-b",
+				},
+				t2LabelSelector: labels.Everything(),
+			},
+			expectedCECs: []*ciliumv2.CiliumEnvoyConfig{
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "lbfe-zone-a-lb-1"},
+					Spec: ciliumv2.CiliumEnvoyConfigSpec{
+						NodeSelector: &slim_metav1.LabelSelector{
+							MatchLabels: map[string]string{
+								"topology.kubernetes.io/zone": "zone-a",
+							},
+							MatchExpressions: []slim_metav1.LabelSelectorRequirement{},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{Name: "lbfe-zone-b-lb-1"},
+					Spec: ciliumv2.CiliumEnvoyConfigSpec{
+						NodeSelector: &slim_metav1.LabelSelector{
+							MatchLabels: map[string]string{
+								"topology.kubernetes.io/zone": "zone-b",
+							},
+							MatchExpressions: []slim_metav1.LabelSelectorRequirement{},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			cecs, err := tr.DesiredCiliumEnvoyConfigs(tc.model)
+			require.NoError(t, err)
+			require.Len(t, cecs, len(tc.expectedCECs))
+			require.Equal(t, tc.expectedCECs, expectedCECs(cecs))
+		})
+	}
+}
+
+func expectedCECs(cecs []*ciliumv2.CiliumEnvoyConfig) []*ciliumv2.CiliumEnvoyConfig {
+	result := make([]*ciliumv2.CiliumEnvoyConfig, 0, len(cecs))
+	for _, cec := range cecs {
+		result = append(result, &ciliumv2.CiliumEnvoyConfig{
+			ObjectMeta: metav1.ObjectMeta{Name: cec.Name},
+			Spec:       ciliumv2.CiliumEnvoyConfigSpec{NodeSelector: cec.Spec.NodeSelector},
+		})
+	}
+
+	return result
 }
 
 func newLBEndpoint(addr string, port uint32, weight uint32) *envoy_config_endpoint_v3.LbEndpoint {

@@ -308,10 +308,16 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// get the desired T2 Services
-	desiredT2CiliumEnvoyConfig, err := r.t2Translator.DesiredCiliumEnvoyConfig(model)
+	desiredT2CiliumEnvoyConfigs, err := r.t2Translator.DesiredCiliumEnvoyConfigs(model)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
+	if len(desiredT2CiliumEnvoyConfigs) != 1 {
+		scopedLog.ErrorContext(ctx, "Gateway reconciliation expected exactly one T2 CiliumEnvoyConfig", logfields.Found, len(desiredT2CiliumEnvoyConfigs))
+		return ctrl.Result{}, fmt.Errorf("gateway reconciliation expected exactly 1 T2 CiliumEnvoyConfig, got %d", len(desiredT2CiliumEnvoyConfigs))
+	}
+
+	desiredT2CiliumEnvoyConfig := desiredT2CiliumEnvoyConfigs[0]
 
 	// Set controlling ownerreferences
 	desiredT2CiliumEnvoyConfig.OwnerReferences = []metav1.OwnerReference{

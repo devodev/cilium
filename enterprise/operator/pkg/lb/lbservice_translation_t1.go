@@ -102,7 +102,7 @@ func (r *lbServiceT1Translator) DesiredService(model *lbService) *corev1.Service
 		}
 	}
 
-	if (model.isTCPProxyT1OnlyMode() || model.isUDPProxyT1OnlyMode()) && model.zoneAwareMode == lbServiceZoneAwareModeRequireSameZone {
+	if model.zoneAwareMode == lbServiceZoneAwareModeRequireSameZone {
 		annotations[annotation.ServiceTrafficPolicyZone] = annotation.ServiceTrafficPolicyZoneRequireSameZone
 	}
 

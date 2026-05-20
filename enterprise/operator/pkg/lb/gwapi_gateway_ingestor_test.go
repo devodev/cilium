@@ -94,9 +94,11 @@ func TestHTTP(t *testing.T) {
 			assert.Equal(t, expectedEndpointSliceYaml, testEndpointSlice) //nolint:all (assert.YAMLEq output is not super readable)
 
 			// desired T2 from translation
-			cec, err := t2Translator.DesiredCiliumEnvoyConfig(inputGW)
+			cecs, err := t2Translator.DesiredCiliumEnvoyConfigs(inputGW)
 			require.NoError(t, err)
+			require.Len(t, cecs, 1)
 
+			cec := cecs[0]
 			actualCiliumEnvoyConfigYaml := ""
 			if cec != nil {
 				cec.TypeMeta = metav1.TypeMeta{APIVersion: "cilium.io/v2", Kind: "CiliumEnvoyConfig"} // fix missing typemeta

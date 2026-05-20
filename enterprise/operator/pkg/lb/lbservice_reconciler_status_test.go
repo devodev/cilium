@@ -1130,6 +1130,285 @@ func TestLBServiceLBDeployments(t *testing.T) {
 	}
 }
 
+func TestLBServiceZoneAwareNodeLabels(t *testing.T) {
+	r := lbServiceReconciler{}
+
+	conditionType := isovalentv1alpha1.ConditionTypeZoneAwareNodeLabels
+
+	testCases := []struct {
+		desc                   string
+		model                  *lbService
+		lbsvc                  *isovalentv1alpha1.LBService
+		expectedNrOfConditions int
+		expectedStatus         metav1.ConditionStatus
+		expectedReason         string
+		expectedMessage        string
+	}{
+		{
+			desc: "Require same zone with zoned T2 node",
+			model: &lbService{
+				zoneAwareMode:   lbServiceZoneAwareModeRequireSameZone,
+				t2NodeIPv4Zones: map[string]string{"10.0.0.1": "zone-a"},
+			},
+			lbsvc:                  &isovalentv1alpha1.LBService{},
+			expectedNrOfConditions: 1,
+			expectedStatus:         metav1.ConditionTrue,
+			expectedReason:         isovalentv1alpha1.ZoneAwareNodeLabelsConditionReasonValid,
+			expectedMessage:        "Zone labels assigned",
+		},
+		{
+			desc: "Require same zone without zoned T2 nodes",
+			model: &lbService{
+				zoneAwareMode:   lbServiceZoneAwareModeRequireSameZone,
+				t2NodeIPv4Zones: map[string]string{"10.0.0.1": lbServiceZoneUnknown},
+			},
+			lbsvc:                  &isovalentv1alpha1.LBService{},
+			expectedNrOfConditions: 1,
+			expectedStatus:         metav1.ConditionFalse,
+			expectedReason:         isovalentv1alpha1.ZoneAwareNodeLabelsConditionReasonMissing,
+			expectedMessage:        "requireSameZone requires at least one T2 node with topology.kubernetes.io/zone label",
+		},
+		{
+			desc: "Prefer same zone without zoned T2 nodes",
+			model: &lbService{
+				zoneAwareMode: lbServiceZoneAwareModePreferSameZone,
+			},
+			lbsvc:                  &isovalentv1alpha1.LBService{},
+			expectedNrOfConditions: 1,
+			expectedStatus:         metav1.ConditionTrue,
+			expectedReason:         isovalentv1alpha1.ZoneAwareNodeLabelsConditionReasonValid,
+			expectedMessage:        "Zone labels assigned",
+		},
+		{
+			desc: "Require same zone T1-only",
+			model: &lbService{
+				zoneAwareMode: lbServiceZoneAwareModeRequireSameZone,
+				applications: lbApplications{
+					tcpProxy: &lbApplicationTCPProxy{tierMode: tierModeT1},
+				},
+			},
+			lbsvc:                  &isovalentv1alpha1.LBService{},
+			expectedNrOfConditions: 1,
+			expectedStatus:         metav1.ConditionTrue,
+			expectedReason:         isovalentv1alpha1.ZoneAwareNodeLabelsConditionReasonValid,
+			expectedMessage:        "Zone labels assigned",
+		},
+		{
+			desc: "Update existing condition",
+			model: &lbService{
+				zoneAwareMode:   lbServiceZoneAwareModeRequireSameZone,
+				t2NodeIPv4Zones: map[string]string{"10.0.0.1": "zone-a"},
+			},
+			lbsvc: &isovalentv1alpha1.LBService{
+				Status: isovalentv1alpha1.LBServiceStatus{Conditions: []metav1.Condition{{Type: conditionType, Status: metav1.ConditionFalse, Reason: "reason", Message: "message"}}},
+			},
+			expectedNrOfConditions: 1,
+			expectedStatus:         metav1.ConditionTrue,
+			expectedReason:         isovalentv1alpha1.ZoneAwareNodeLabelsConditionReasonValid,
+			expectedMessage:        "Zone labels assigned",
+		},
+		{
+			desc: "Doesn't delete other conditions",
+			model: &lbService{
+				zoneAwareMode:   lbServiceZoneAwareModeRequireSameZone,
+				t2NodeIPv4Zones: map[string]string{"10.0.0.1": "zone-a"},
+			},
+			lbsvc: &isovalentv1alpha1.LBService{Status: isovalentv1alpha1.LBServiceStatus{Conditions: []metav1.Condition{
+				{Type: "other-type", Status: metav1.ConditionTrue, Reason: "other-reason", Message: "other-message"},
+				{Type: conditionType, Status: metav1.ConditionFalse, Reason: "reason", Message: "message"},
+			}}},
+			expectedNrOfConditions: 2,
+			expectedStatus:         metav1.ConditionTrue,
+			expectedReason:         isovalentv1alpha1.ZoneAwareNodeLabelsConditionReasonValid,
+			expectedMessage:        "Zone labels assigned",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			r.updateZoneAwareNodeLabelsInStatus(tc.model, tc.lbsvc)
+
+			assert.Len(t, tc.lbsvc.Status.Conditions, tc.expectedNrOfConditions)
+
+			c := tc.lbsvc.GetStatusCondition(conditionType)
+			require.NotNil(t, c)
+			assert.Equal(t, tc.expectedStatus, c.Status)
+			assert.Equal(t, tc.expectedReason, c.Reason)
+			assert.Equal(t, tc.expectedMessage, c.Message)
+		})
+	}
+}
+
+func TestLBServiceZoneAwareBackends(t *testing.T) {
+	r := lbServiceReconciler{}
+
+	conditionType := isovalentv1alpha1.ConditionTypeZoneAwareBackends
+
+	testCases := []struct {
+		desc                   string
+		model                  *lbService
+		lbsvc                  *isovalentv1alpha1.LBService
+		expectedNrOfConditions int
+		expectedStatus         metav1.ConditionStatus
+		expectedReason         string
+		expectedMessage        string
+	}{
+		{
+			desc: "Require same zone with matching backend zone",
+			model: &lbService{
+				zoneAwareMode:   lbServiceZoneAwareModeRequireSameZone,
+				t2NodeIPv4Zones: map[string]string{"10.0.0.1": "zone-a"},
+				referencedBackends: map[string]backend{
+					"backend": {
+						lbBackends: []lbBackend{
+							{addressZones: map[string]string{"172.18.0.1": "zone-a"}},
+						},
+					},
+				},
+			},
+			lbsvc:                  &isovalentv1alpha1.LBService{},
+			expectedNrOfConditions: 1,
+			expectedStatus:         metav1.ConditionTrue,
+			expectedReason:         isovalentv1alpha1.ZoneAwareBackendsConditionReasonValid,
+			expectedMessage:        "Zone backends assigned",
+		},
+		{
+			desc: "Require same zone without matching backend zone",
+			model: &lbService{
+				zoneAwareMode:   lbServiceZoneAwareModeRequireSameZone,
+				t2NodeIPv4Zones: map[string]string{"10.0.0.1": "zone-a"},
+				referencedBackends: map[string]backend{
+					"backend": {
+						lbBackends: []lbBackend{
+							{addressZones: map[string]string{"172.18.0.1": "zone-b"}},
+						},
+					},
+				},
+			},
+			lbsvc:                  &isovalentv1alpha1.LBService{},
+			expectedNrOfConditions: 1,
+			expectedStatus:         metav1.ConditionFalse,
+			expectedReason:         isovalentv1alpha1.ZoneAwareBackendsConditionReasonNoMatchingZones,
+			expectedMessage:        "requireSameZone requires at least one backend zone to match a T2 node zone",
+		},
+		{
+			desc: "Require same zone without zoned T2 nodes",
+			model: &lbService{
+				zoneAwareMode:   lbServiceZoneAwareModeRequireSameZone,
+				t2NodeIPv4Zones: map[string]string{"10.0.0.1": lbServiceZoneUnknown},
+				referencedBackends: map[string]backend{
+					"backend": {
+						lbBackends: []lbBackend{
+							{addressZones: map[string]string{"172.18.0.1": "zone-a"}},
+						},
+					},
+				},
+			},
+			lbsvc:                  &isovalentv1alpha1.LBService{},
+			expectedNrOfConditions: 1,
+			expectedStatus:         metav1.ConditionTrue,
+			expectedReason:         isovalentv1alpha1.ZoneAwareBackendsConditionReasonValid,
+			expectedMessage:        "Zone backends assigned",
+		},
+		{
+			desc: "Prefer same zone without matching backend zone",
+			model: &lbService{
+				zoneAwareMode:   lbServiceZoneAwareModePreferSameZone,
+				t2NodeIPv4Zones: map[string]string{"10.0.0.1": "zone-a"},
+				referencedBackends: map[string]backend{
+					"backend": {
+						lbBackends: []lbBackend{
+							{addressZones: map[string]string{"172.18.0.1": "zone-b"}},
+						},
+					},
+				},
+			},
+			lbsvc:                  &isovalentv1alpha1.LBService{},
+			expectedNrOfConditions: 1,
+			expectedStatus:         metav1.ConditionTrue,
+			expectedReason:         isovalentv1alpha1.ZoneAwareBackendsConditionReasonValid,
+			expectedMessage:        "Zone backends assigned",
+		},
+		{
+			desc: "Require same zone T1-only",
+			model: &lbService{
+				zoneAwareMode: lbServiceZoneAwareModeRequireSameZone,
+				applications: lbApplications{
+					tcpProxy: &lbApplicationTCPProxy{tierMode: tierModeT1},
+				},
+				t2NodeIPv4Zones: map[string]string{"10.0.0.1": "zone-a"},
+				referencedBackends: map[string]backend{
+					"backend": {
+						lbBackends: []lbBackend{
+							{addressZones: map[string]string{"172.18.0.1": "zone-b"}},
+						},
+					},
+				},
+			},
+			lbsvc:                  &isovalentv1alpha1.LBService{},
+			expectedNrOfConditions: 1,
+			expectedStatus:         metav1.ConditionTrue,
+			expectedReason:         isovalentv1alpha1.ZoneAwareBackendsConditionReasonValid,
+			expectedMessage:        "Zone backends assigned",
+		},
+		{
+			desc: "Update existing condition",
+			model: &lbService{
+				zoneAwareMode:   lbServiceZoneAwareModeRequireSameZone,
+				t2NodeIPv4Zones: map[string]string{"10.0.0.1": "zone-a"},
+				referencedBackends: map[string]backend{
+					"backend": {
+						lbBackends: []lbBackend{
+							{addressZones: map[string]string{"172.18.0.1": "zone-a"}},
+						},
+					},
+				},
+			},
+			lbsvc: &isovalentv1alpha1.LBService{
+				Status: isovalentv1alpha1.LBServiceStatus{Conditions: []metav1.Condition{{Type: conditionType, Status: metav1.ConditionFalse, Reason: "reason", Message: "message"}}},
+			},
+			expectedNrOfConditions: 1,
+			expectedStatus:         metav1.ConditionTrue,
+			expectedReason:         isovalentv1alpha1.ZoneAwareBackendsConditionReasonValid,
+			expectedMessage:        "Zone backends assigned",
+		},
+		{
+			desc: "Doesn't delete other conditions",
+			model: &lbService{
+				zoneAwareMode:   lbServiceZoneAwareModeRequireSameZone,
+				t2NodeIPv4Zones: map[string]string{"10.0.0.1": "zone-a"},
+				referencedBackends: map[string]backend{
+					"backend": {
+						lbBackends: []lbBackend{
+							{addressZones: map[string]string{"172.18.0.1": "zone-a"}},
+						},
+					},
+				},
+			},
+			lbsvc: &isovalentv1alpha1.LBService{Status: isovalentv1alpha1.LBServiceStatus{Conditions: []metav1.Condition{
+				{Type: "other-type", Status: metav1.ConditionTrue, Reason: "other-reason", Message: "other-message"},
+				{Type: conditionType, Status: metav1.ConditionFalse, Reason: "reason", Message: "message"},
+			}}},
+			expectedNrOfConditions: 2,
+			expectedStatus:         metav1.ConditionTrue,
+			expectedReason:         isovalentv1alpha1.ZoneAwareBackendsConditionReasonValid,
+			expectedMessage:        "Zone backends assigned",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			r.updateZoneAwareBackendsInStatus(tc.model, tc.lbsvc)
+
+			assert.Len(t, tc.lbsvc.Status.Conditions, tc.expectedNrOfConditions)
+
+			c := tc.lbsvc.GetStatusCondition(conditionType)
+			require.NotNil(t, c)
+			assert.Equal(t, tc.expectedStatus, c.Status)
+			assert.Equal(t, tc.expectedReason, c.Reason)
+			assert.Equal(t, tc.expectedMessage, c.Message)
+		})
+	}
+}
+
 func acceptedCondition() metav1.Condition {
 	return metav1.Condition{
 		Type:    isovalentv1alpha1.ConditionTypeBackendAccepted,

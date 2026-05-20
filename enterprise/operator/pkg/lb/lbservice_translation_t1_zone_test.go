@@ -488,12 +488,13 @@ func TestDesiredServiceZoneAwareMode(t *testing.T) {
 			expectedTrafficDistValue: ptr.To(corev1.ServiceTrafficDistributionPreferClose),
 		},
 		{
-			name: "require same zone does not add annotation for t1 t2 tcp",
+			name: "require same zone adds annotation for t1 t2 tcp",
 			mode: lbServiceZoneAwareModeRequireSameZone,
 			applications: lbApplications{
 				tcpProxy: &lbApplicationTCPProxy{tierMode: tierModeT2},
 			},
 			expectedTrafficDistValue: nil,
+			expectedAnnotation:       annotation.ServiceTrafficPolicyZoneRequireSameZone,
 		},
 	}
 

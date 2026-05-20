@@ -2491,7 +2491,7 @@ spec:
                       minBackendCount:
                         default: 1
                         description: |-
-                          Sets the minimum backend count threshold for this service.
+                          Sets the minimum backend count threshold for preferSameZone.
                           Defaults to 1.
                         format: int64
                         minimum: 1
@@ -2517,6 +2517,11 @@ spec:
                     - minBackendCount
                     - mode
                     type: object
+                    x-kubernetes-validations:
+                    - message: minBackendCount only applies to preferSameZone and
+                        cannot be customized for requireSameZone
+                      rule: self.mode != 'requireSameZone' || self.minBackendCount
+                        == 1
                 type: object
               vipRef:
                 description: |-

@@ -113,6 +113,49 @@ func (r lbService) getOwningResourceNameWithMidfix(midfix string) string {
 	return getOwningResourceNameWithMidfix(r.name, midfix)
 }
 
+func (r lbService) usesT2() bool {
+	return !r.isTCPProxyT1OnlyMode() && !r.isUDPProxyT1OnlyMode()
+}
+
+func (r lbService) t2NodeZones() map[string]struct{} {
+	zones := map[string]struct{}{}
+	for _, zone := range r.t2NodeIPv4Zones {
+		if zone == "" || zone == lbServiceZoneUnknown {
+			continue
+		}
+		zones[zone] = struct{}{}
+	}
+	for _, zone := range r.t2NodeIPv6Zones {
+		if zone == "" || zone == lbServiceZoneUnknown {
+			continue
+		}
+		zones[zone] = struct{}{}
+	}
+	return zones
+}
+
+func (r lbService) hasBackendInT2NodeZone() bool {
+	if !r.usesT2() {
+		return false
+	}
+
+	t2Zones := r.t2NodeZones()
+	if len(t2Zones) == 0 {
+		return false
+	}
+
+	for _, be := range r.referencedBackends {
+		for _, lbBe := range be.lbBackends {
+			for _, zone := range lbBe.addressZones {
+				if _, ok := t2Zones[zone]; ok {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 func getOwningResourceName(parentName string) string {
 	name := "lbfe-" + parentName
 

@@ -13,6 +13,7 @@ package lb
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"testing"
 
@@ -126,7 +127,7 @@ func testTranslationSingle(tc testcase) func(t *testing.T) {
 		expectedServiceYaml := readOutput(t, fmt.Sprintf("%s/%s/output-t1-service.yaml", translationDir, tc.name), &corev1.Service{})
 		expectedEndpointSliceYaml := readOutput(t, fmt.Sprintf("%s/%s/output-t1-endpointslice.yaml", translationDir, tc.name), &discoveryv1.EndpointSlice{})
 		expectedEndpointSliceIPv6Yaml := readOutput(t, fmt.Sprintf("%s/%s/output-t1-endpointslice-ipv6.yaml", translationDir, tc.name), &discoveryv1.EndpointSlice{})
-		expectedCiliumEnvoyConfigYaml := readOutput(t, fmt.Sprintf("%s/%s/output-t2-ciliumenvoyconfig.yaml", translationDir, tc.name), &ciliumv2.CiliumEnvoyConfig{})
+		expectedCiliumEnvoyConfigYamls := readCECOutputs(t, fmt.Sprintf("%s/%s", translationDir, tc.name))
 
 		// ingestion
 		ing := newIngestor(hivetest.Logger(t), defaultT1LabelSelector, defaultT2LabelSelector)
@@ -183,16 +184,20 @@ func testTranslationSingle(tc testcase) func(t *testing.T) {
 		assert.Equal(t, expectedEndpointSliceIPv6Yaml, actualEndpointSliceIPv6Yaml) //nolint:all (assert.YAMLEq output is not super readable)
 
 		// T2 CiliumEnvoyConfig
-		cec, err := t2Translator.DesiredCiliumEnvoyConfig(model)
+		cecs, err := t2Translator.DesiredCiliumEnvoyConfigs(model)
 		require.NoError(t, err)
 
-		actualCiliumEnvoyConfigYaml := ""
-		if cec != nil {
+		slices.SortFunc(cecs, func(a, b *ciliumv2.CiliumEnvoyConfig) int {
+			return strings.Compare(a.Name, b.Name)
+		})
+
+		actualCiliumEnvoyConfigYamls := []string{}
+		for _, cec := range cecs {
 			cec.TypeMeta = metav1.TypeMeta{APIVersion: "cilium.io/v2", Kind: "CiliumEnvoyConfig"} // fix missing typemeta
-			actualCiliumEnvoyConfigYaml = toYaml(t, cec)
+			actualCiliumEnvoyConfigYamls = append(actualCiliumEnvoyConfigYamls, toYaml(t, cec))
 		}
 
-		assert.Equal(t, expectedCiliumEnvoyConfigYaml, actualCiliumEnvoyConfigYaml) //nolint:all (assert.YAMLEq output is not super readable)
+		assert.Equal(t, expectedCiliumEnvoyConfigYamls, actualCiliumEnvoyConfigYamls) //nolint:all (assert.YAMLEq output is not super readable)
 	}
 }
 
@@ -222,6 +227,27 @@ func readOutput(t *testing.T, file string, obj any) string {
 	yamlText := toYaml(t, obj)
 
 	return strings.TrimSpace(string(yamlText))
+}
+
+func readCECOutputs(t *testing.T, dir string) []string {
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+
+	outputs := []string{}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasPrefix(entry.Name(), "output-t2-ciliumenvoyconfig") || !strings.HasSuffix(entry.Name(), ".yaml") {
+			continue
+		}
+
+		output := readOutput(t, fmt.Sprintf("%s/%s", dir, entry.Name()), &ciliumv2.CiliumEnvoyConfig{})
+		if output == "" {
+			continue
+		}
+		outputs = append(outputs, output)
+	}
+
+	slices.Sort(outputs)
+	return outputs
 }
 
 func toYaml(t *testing.T, obj any) string {

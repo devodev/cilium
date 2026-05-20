@@ -359,6 +359,8 @@ func (r *lbServiceReconciler) reconcileResources(ctx context.Context, lbsvc *iso
 	r.updateNodesAssignedInStatus(model, lbsvc)
 	r.updateAssignedIpInStatus(model, lbsvc)
 	r.updateModesInStatus(model, lbsvc)
+	r.updateZoneAwareNodeLabelsInStatus(model, lbsvc)
+	r.updateZoneAwareBackendsInStatus(model, lbsvc)
 
 	// Stop reconciliation if assigned IP is not available or some status
 	// conditions on the LBService aren't met yet. Also, we
@@ -381,8 +383,8 @@ func (r *lbServiceReconciler) reconcileResources(ctx context.Context, lbsvc *iso
 		if err = r.ensureEndpointSliceDeleted(ctx, model, true); err != nil {
 			return fmt.Errorf("failed to ensure IPv6 endpointslice is deleted: %w", err)
 		}
-		if err = r.ensureCECDeleted(ctx, model); err != nil {
-			return fmt.Errorf("failed to ensure CEC is deleted: %w", err)
+		if err = r.ensureCECDeleted(ctx, lbsvc); err != nil {
+			return fmt.Errorf("failed to ensure CECs are deleted: %w", err)
 		}
 		return nil
 	}
@@ -457,26 +459,33 @@ func (r *lbServiceReconciler) reconcileResources(ctx context.Context, lbsvc *iso
 	// reconciliation.
 	// Creating/Updating the T1 Service will trigger an additional reconciliation.
 	if !model.vip.bindStatus.serviceExists || !model.vip.bindStatus.bindSuccessful || model.isTCPProxyT1OnlyMode() || model.isUDPProxyT1OnlyMode() {
-		if err = r.ensureCECDeleted(ctx, model); err != nil {
-			return fmt.Errorf("failed to ensure CEC is deleted: %w", err)
+		if err = r.ensureCECDeleted(ctx, lbsvc); err != nil {
+			return fmt.Errorf("failed to ensure CECs are deleted: %w", err)
 		}
 		return nil
 	}
 
 	// Build desired resources
-	desiredT2CiliumEnvoyConfig, err := r.t2Translator.DesiredCiliumEnvoyConfig(model)
+	desiredT2CiliumEnvoyConfigs, err := r.t2Translator.DesiredCiliumEnvoyConfigs(model)
 	if err != nil {
 		return err
 	}
 
 	// Set controlling ownerreferences
-	if err := controllerutil.SetControllerReference(lbsvc, desiredT2CiliumEnvoyConfig, r.scheme); err != nil {
-		return fmt.Errorf("failed to set ownerreference on T2 CiliumEnvoyConfig: %w", err)
+	for _, desiredCEC := range desiredT2CiliumEnvoyConfigs {
+		if err := controllerutil.SetControllerReference(lbsvc, desiredCEC, r.scheme); err != nil {
+			return fmt.Errorf("failed to set ownerreference on T2 CiliumEnvoyConfig: %w", err)
+		}
 	}
 
-	// Create or update resources
-	if err := r.createOrUpdateCiliumEnvoyConfig(ctx, desiredT2CiliumEnvoyConfig); err != nil {
-		return err
+	// Create/update CECs
+	if err := r.createOrUpdateCiliumEnvoyConfigs(ctx, desiredT2CiliumEnvoyConfigs); err != nil {
+		return fmt.Errorf("failed to create or update T2 CiliumEnvoyConfigs: %w", err)
+	}
+
+	// Prune stale CECs
+	if err := r.pruneStaleCiliumEnvoyConfigs(ctx, lbsvc, desiredT2CiliumEnvoyConfigs); err != nil {
+		return fmt.Errorf("failed to prune stale T2 CiliumEnvoyConfigs: %w", err)
 	}
 
 	return nil
@@ -765,20 +774,75 @@ func (r *lbServiceReconciler) createOrUpdateCiliumEnvoyConfig(ctx context.Contex
 	return nil
 }
 
-func (r *lbServiceReconciler) ensureCECDeleted(ctx context.Context, model *lbService) error {
-	cec := &ciliumv2.CiliumEnvoyConfig{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: model.namespace,
-			Name:      model.getOwningResourceName(),
-		},
+func (r *lbServiceReconciler) ensureCECDeleted(ctx context.Context, lbsvc *isovalentv1alpha1.LBService) error {
+	ownedCECs, err := r.listOwnedCiliumEnvoyConfigs(ctx, lbsvc)
+	if err != nil {
+		return err
 	}
-	if err := r.client.Delete(ctx, cec); err != nil {
-		if !k8serrors.IsNotFound(err) {
+
+	for _, cec := range ownedCECs {
+		if err := r.client.Delete(ctx, cec); err != nil && !k8serrors.IsNotFound(err) {
 			return err
 		}
-		// CEC does not exist, which is fine
 	}
+
 	return nil
+}
+
+func (r *lbServiceReconciler) pruneStaleCiliumEnvoyConfigs(ctx context.Context, lbsvc *isovalentv1alpha1.LBService, desiredCECs []*ciliumv2.CiliumEnvoyConfig) error {
+	ownedCECs, err := r.listOwnedCiliumEnvoyConfigs(ctx, lbsvc)
+	if err != nil {
+		return err
+	}
+
+	desiredNames := make(map[string]struct{}, len(desiredCECs))
+	for _, cec := range desiredCECs {
+		desiredNames[cec.Name] = struct{}{}
+	}
+
+	for _, cec := range ownedCECs {
+		if _, ok := desiredNames[cec.Name]; ok {
+			continue
+		}
+		if err := r.client.Delete(ctx, cec); err != nil && !k8serrors.IsNotFound(err) {
+			return fmt.Errorf("failed to delete stale CiliumEnvoyConfig %s/%s: %w", cec.Namespace, cec.Name, err)
+		}
+	}
+
+	return nil
+}
+
+func (r *lbServiceReconciler) createOrUpdateCiliumEnvoyConfigs(ctx context.Context, desired []*ciliumv2.CiliumEnvoyConfig) error {
+	for _, cec := range desired {
+		if err := r.createOrUpdateCiliumEnvoyConfig(ctx, cec); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (r *lbServiceReconciler) listOwnedCiliumEnvoyConfigs(ctx context.Context, lbsvc *isovalentv1alpha1.LBService) ([]*ciliumv2.CiliumEnvoyConfig, error) {
+	cecList := &ciliumv2.CiliumEnvoyConfigList{}
+	if err := r.client.List(ctx, cecList, client.InNamespace(lbsvc.Namespace)); err != nil {
+		return nil, fmt.Errorf("failed to list CiliumEnvoyConfigs: %w", err)
+	}
+
+	ownedCECs := []*ciliumv2.CiliumEnvoyConfig{}
+	for i := range cecList.Items {
+		cec := &cecList.Items[i]
+		for _, owner := range cec.OwnerReferences {
+			if owner.APIVersion != isovalentv1alpha1.SchemeGroupVersion.String() || owner.Kind != isovalentv1alpha1.LBServiceKindDefinition {
+				continue
+			}
+			if owner.Name == lbsvc.Name && owner.UID == lbsvc.UID {
+				ownedCECs = append(ownedCECs, cec)
+				break
+			}
+		}
+	}
+
+	return ownedCECs, nil
 }
 
 func (r *lbServiceReconciler) enqueueReferencingLBServicesByIndex(indexName string, indexKeyFunc func(obj client.Object) string) handler.EventHandler {
@@ -1115,6 +1179,48 @@ func (r *lbServiceReconciler) updateBackendK8sServiceRefsInStatus(lbsvc *isovale
 	}
 
 	lbsvc.Status.K8sServiceRefs = k8sServiceRefs
+}
+
+func (*lbServiceReconciler) updateZoneAwareNodeLabelsInStatus(model *lbService, lbsvc *isovalentv1alpha1.LBService) {
+	zoneAwareCondition := metav1.Condition{
+		Type:               isovalentv1alpha1.ConditionTypeZoneAwareNodeLabels,
+		Status:             metav1.ConditionTrue,
+		Reason:             isovalentv1alpha1.ZoneAwareNodeLabelsConditionReasonValid,
+		Message:            "Zone labels assigned",
+		ObservedGeneration: lbsvc.GetGeneration(),
+		LastTransitionTime: metav1.Now(),
+	}
+
+	// requireSameZone needs at least one zoned T2 node, otherwise no zoned
+	// CECs can be produced.
+	if model.usesT2() && model.zoneAwareMode == lbServiceZoneAwareModeRequireSameZone && len(model.t2NodeZones()) == 0 {
+		zoneAwareCondition.Status = metav1.ConditionFalse
+		zoneAwareCondition.Reason = isovalentv1alpha1.ZoneAwareNodeLabelsConditionReasonMissing
+		zoneAwareCondition.Message = "requireSameZone requires at least one T2 node with topology.kubernetes.io/zone label"
+	}
+
+	lbsvc.UpsertStatusCondition(isovalentv1alpha1.ConditionTypeZoneAwareNodeLabels, zoneAwareCondition)
+}
+
+func (*lbServiceReconciler) updateZoneAwareBackendsInStatus(model *lbService, lbsvc *isovalentv1alpha1.LBService) {
+	backendsCondition := metav1.Condition{
+		Type:               isovalentv1alpha1.ConditionTypeZoneAwareBackends,
+		Status:             metav1.ConditionTrue,
+		Reason:             isovalentv1alpha1.ZoneAwareBackendsConditionReasonValid,
+		Message:            "Zone backends assigned",
+		ObservedGeneration: lbsvc.GetGeneration(),
+		LastTransitionTime: metav1.Now(),
+	}
+
+	// Once T2 zones are known, requireSameZone needs at least one backend in
+	// a T2 node zone; otherwise every zoned CEC will fail closed.
+	if model.usesT2() && model.zoneAwareMode == lbServiceZoneAwareModeRequireSameZone && len(model.t2NodeZones()) > 0 && !model.hasBackendInT2NodeZone() {
+		backendsCondition.Status = metav1.ConditionFalse
+		backendsCondition.Reason = isovalentv1alpha1.ZoneAwareBackendsConditionReasonNoMatchingZones
+		backendsCondition.Message = "requireSameZone requires at least one backend zone to match a T2 node zone"
+	}
+
+	lbsvc.UpsertStatusCondition(isovalentv1alpha1.ConditionTypeZoneAwareBackends, backendsCondition)
 }
 
 func (*lbServiceReconciler) getIncompatiblePersistentBackendLBAlgorithms(lbsvc *isovalentv1alpha1.LBService, backends []*isovalentv1alpha1.LBBackendPool) []string {

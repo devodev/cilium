@@ -1617,17 +1617,19 @@ const (
 )
 
 const (
-	ConditionTypeServiceValid       = "lb.cilium.io/ServiceValid"
-	ConditionTypeIPAssigned         = "lb.cilium.io/IPAssigned"
-	ConditionTypeLBDeploymentsUsed  = "lb.cilium.io/LBDeploymentsUsed"
-	ConditionTypeNodesAssigned      = "lb.cilium.io/NodesAssigned"
-	ConditionTypeVIPExist           = "lb.cilium.io/VIPExist"
-	ConditionTypeBackendsExist      = "lb.cilium.io/BackendsExist"
-	ConditionTypeBackendsCompatible = "lb.cilium.io/BackendsCompatible"
-	ConditionTypeSecretsExist       = "lb.cilium.io/SecretsExist"
-	ConditionTypeSecretsCompatible  = "lb.cilium.io/SecretsCompatible"
-	ConditionTypeK8sServiceExist    = "lb.cilium.io/K8sServiceExist"
-	ConditionTypeEPSlicesExist      = "lb.cilium.io/EndpointSliceExist"
+	ConditionTypeServiceValid        = "lb.cilium.io/ServiceValid"
+	ConditionTypeIPAssigned          = "lb.cilium.io/IPAssigned"
+	ConditionTypeLBDeploymentsUsed   = "lb.cilium.io/LBDeploymentsUsed"
+	ConditionTypeNodesAssigned       = "lb.cilium.io/NodesAssigned"
+	ConditionTypeVIPExist            = "lb.cilium.io/VIPExist"
+	ConditionTypeBackendsExist       = "lb.cilium.io/BackendsExist"
+	ConditionTypeBackendsCompatible  = "lb.cilium.io/BackendsCompatible"
+	ConditionTypeSecretsExist        = "lb.cilium.io/SecretsExist"
+	ConditionTypeSecretsCompatible   = "lb.cilium.io/SecretsCompatible"
+	ConditionTypeK8sServiceExist     = "lb.cilium.io/K8sServiceExist"
+	ConditionTypeEPSlicesExist       = "lb.cilium.io/EndpointSliceExist"
+	ConditionTypeZoneAwareNodeLabels = "lb.cilium.io/ZoneAwareNodeLabels"
+	ConditionTypeZoneAwareBackends   = "lb.cilium.io/ZoneAwareBackends"
 )
 
 const (
@@ -1702,6 +1704,16 @@ const (
 const (
 	EPSlicesExistConditionReasonAllEndpointSlicesExist = "AllEndpointSlicesExist"
 	EPSlicesExistConditionReasonMissingEndpointSlices  = "MissingEndpointSlices"
+)
+
+const (
+	ZoneAwareNodeLabelsConditionReasonValid   = "ZoneAwareNodeLabelsValid"
+	ZoneAwareNodeLabelsConditionReasonMissing = "ZoneAwareNodeLabelsMissing"
+)
+
+const (
+	ZoneAwareBackendsConditionReasonValid           = "ZoneAwareBackendsValid"
+	ZoneAwareBackendsConditionReasonNoMatchingZones = "NoMatchingBackendZones"
 )
 
 func (r *LBService) AllReferencedSecretNames() []string {
@@ -1926,6 +1938,7 @@ type LBTrafficPolicy struct {
 	ZoneAware *LBZoneAware `json:"zoneAware,omitempty"`
 }
 
+// +kubebuilder:validation:XValidation:rule="self.mode != 'requireSameZone' || self.minBackendCount == 1",message="minBackendCount only applies to preferSameZone and cannot be customized for requireSameZone"
 type LBZoneAware struct {
 	// Configures zone-aware routing for this service. When enabled,
 	// backend selection prefers or requires endpoints in the same
@@ -1942,7 +1955,7 @@ type LBZoneAware struct {
 	// +kubebuilder:validation:Required
 	Mode LBZoneAwareModeType `json:"mode"`
 
-	// Sets the minimum backend count threshold for this service.
+	// Sets the minimum backend count threshold for preferSameZone.
 	// Defaults to 1.
 	//
 	// +kubebuilder:default:=1
