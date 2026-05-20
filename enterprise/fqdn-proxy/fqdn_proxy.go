@@ -30,7 +30,6 @@ import (
 type runParams struct {
 	cell.In
 
-	Health      cell.Health
 	Cfg         Config
 	Log         *slog.Logger
 	Watcher     *rulesWatcher
@@ -40,7 +39,7 @@ type runParams struct {
 	Notifier *notifier
 }
 
-func run(ctx context.Context, params runParams) error {
+func run(ctx context.Context, health cell.Health, params runParams) error {
 	log := params.Log.With(logfields.LogSubsys, "fqdn-proxy")
 
 	log.Info("     _ _ _")
@@ -90,7 +89,7 @@ func run(ctx context.Context, params runParams) error {
 		return fmt.Errorf("failed to start DNS proxy: %w", err)
 	}
 	log.Info("started dns proxy")
-	params.Health.OK("started dns proxy")
+	health.OK("started dns proxy")
 
 	<-ctx.Done()
 	log.Info("Shutting proxy down...")

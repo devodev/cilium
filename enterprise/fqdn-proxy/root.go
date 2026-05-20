@@ -59,6 +59,6 @@ var (
 
 func runDNSProxy(jg job.Group, params runParams) {
 	jg.Add(job.OneShot("fqdnha-proxy", func(ctx context.Context, health cell.Health) error {
-		return run(ctx, params)
+		return run(ctx, health, params)
 	}, job.WithShutdown()))
 }
