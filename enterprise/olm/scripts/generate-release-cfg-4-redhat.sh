@@ -108,4 +108,4 @@ fi
 
 echo "Generated release-config.yaml:
 ${template}"
-echo "${template}" > "${rh_repo}/operators/isovalent-networking/${tag}/${release_file}"
+echo "${template}" > "${rh_repo}/operators/isovalent-networking/${tag#v}/${release_file}"

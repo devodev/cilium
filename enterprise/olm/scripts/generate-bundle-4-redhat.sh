@@ -31,11 +31,11 @@ make manifests
 make set-images
 make bundle
 
-mkdir -p "${rh_repo}/operators/isovalent-networking/${tag}"
-cp -R ${root_dir}/enterprise/olm/bundle/manifests "${rh_repo}/operators/isovalent-networking/${tag}/"
-cp -R ${root_dir}/enterprise/olm/bundle/metadata "${rh_repo}/operators/isovalent-networking/${tag}/"
-echo "  # Red Hat annotations"  >> "${rh_repo}/operators/isovalent-networking/${tag}/metadata/annotations.yaml"
-echo "  com.redhat.openshift.versions: \"v4.14\"" >> "${rh_repo}/operators/isovalent-networking/${tag}/metadata/annotations.yaml"
+mkdir -p "${rh_repo}/operators/isovalent-networking/${tag#v}"
+cp -R ${root_dir}/enterprise/olm/bundle/manifests "${rh_repo}/operators/isovalent-networking/${tag#v}/"
+cp -R ${root_dir}/enterprise/olm/bundle/metadata "${rh_repo}/operators/isovalent-networking/${tag#v}/"
+echo "  # Red Hat annotations"  >> "${rh_repo}/operators/isovalent-networking/${tag#v}/metadata/annotations.yaml"
+echo "  com.redhat.openshift.versions: \"v4.14\"" >> "${rh_repo}/operators/isovalent-networking/${tag#v}/metadata/annotations.yaml"
 
 echo "Bundle manifests and metadata added"
 
