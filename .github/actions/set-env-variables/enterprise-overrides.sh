@@ -7,14 +7,17 @@ set -ex
 
 REGISTRY="quay.io"
 REGISTRY_DEV="quay.io"
+ARTIFACTORY_DEV="artifactory.devhub-cloud.cisco.com"
 BACKUP_REGISTRY="docker.io"
 echo "REGISTRY=$REGISTRY" >> $GITHUB_ENV
 echo "REGISTRY_DEV=$REGISTRY_DEV" >> $GITHUB_ENV
+echo "ARTIFACTORY_DEV=$ARTIFACTORY_DEV" >> $GITHUB_ENV
 echo "BACKUP_REGISTRY=$BACKUP_REGISTRY" >> $GITHUB_ENV
 echo "ORGANIZATION=isovalent-staging" >> $GITHUB_ENV
 echo "ORGANIZATION_DEV=isovalent-dev" >> $GITHUB_ENV
 echo "QUAY_ORGANIZATION=isovalent-staging" >> "$GITHUB_ENV"
 echo "QUAY_ORGANIZATION_DEV=isovalent-dev" >> "$GITHUB_ENV"
+echo "ARTIFACTORY_ORGANIZATION_DEV=isovalent-eng-docker" >> $GITHUB_ENV
 echo "CILIUM_HELM_REPO_NAME=isovalent" >> "$GITHUB_ENV"
 echo "CILIUM_HELM_REPO_URL=https://helm.isovalent.com" >> "$GITHUB_ENV"
 echo "CILIUM_CLI_REPO=isovalent/cilium-cli-releases" >> "$GITHUB_ENV"
