@@ -24,7 +24,7 @@
 	__privnet_evpn_ingress(ctx, net_id)
 #endif
 
-static __always_inline __maybe_unused
+static __always_inline
 int valid_dmac(struct __ctx_buff *ctx)
 {
 	int ret = CTX_ACT_OK;
@@ -47,7 +47,7 @@ int valid_dmac(struct __ctx_buff *ctx)
  * entering the node via the evpn-vxlan tunnel.
  */
 __section_entry
-int cil_from_evpn(struct __ctx_buff __maybe_unused *ctx)
+int cil_from_evpn(struct __ctx_buff *ctx)
 {
 	struct bpf_tunnel_key tunnel_key;
 	const struct vni_val *vni_val;
