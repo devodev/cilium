@@ -72,13 +72,8 @@ spec:
           containerPort: {{ .ServePort }}
           protocol: TCP
         readinessProbe:
-          exec:
-            command:
-            - curl
-            - --fail
-            - --max-time
-            - "1"
-            - localhost:8000
+          httpGet:
+            port: http
           failureThreshold: 3
           periodSeconds: 1
           successThreshold: 1
