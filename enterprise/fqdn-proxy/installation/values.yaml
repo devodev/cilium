@@ -31,6 +31,9 @@ metrics:
 
 
 image:
+  # @schema
+  # type: [null, string]
+  # @schema
   override: ~
   repository: "quay.io/isovalent-dev/cilium-dnsproxy-ci"
   tag: "latest"

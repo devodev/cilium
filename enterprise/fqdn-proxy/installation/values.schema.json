@@ -71,7 +71,10 @@
           "type": "string"
         },
         "override": {
-          "type": "null"
+          "type": [
+            "null",
+            "string"
+          ]
         },
         "repository": {
           "type": "string"
