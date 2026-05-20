@@ -21,6 +21,8 @@ option go_package = "github.com/isovalent/hubble-timescape/api/timescape/v1alpha
 service IngesterService {
   // Ingest ingests data into Timescape.
   rpc Ingest(stream IngestRequest) returns (IngestResponse) {}
+  // IngestBatch ingests batches of data into Timescape.
+  rpc IngestBatch(stream IngestBatchRequest) returns (IngestBatchResponse) {}
 }
 
 // IngestRequest is the request message for the Ingest rpc call.
@@ -34,3 +36,21 @@ message IngestRequest {
 
 // IngestResponse is the response message for the Ingest rpc call.
 message IngestResponse {}
+
+// IngestBatchRequest is the request message for the IngestBatch rpc call.
+message IngestBatchRequest {
+  // Data contains the data to be ingested.
+  oneof data {
+    // FlowBatch is the flow data batch to be ingested.
+    FlowBatch flow_batch = 1;
+  }
+}
+
+// IngestBatchResponse is the response message for the IngestBatch rpc call.
+message IngestBatchResponse {}
+
+// FlowBatch is a batch of flows to be ingested.
+message FlowBatch {
+  // Flows contains the flow data to be ingested.
+  repeated flow.Flow flows = 1;
+}

@@ -29,7 +29,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	IngesterService_Ingest_FullMethodName = "/timescape.v1alpha.IngesterService/Ingest"
+	IngesterService_Ingest_FullMethodName      = "/timescape.v1alpha.IngesterService/Ingest"
+	IngesterService_IngestBatch_FullMethodName = "/timescape.v1alpha.IngesterService/IngestBatch"
 )
 
 // IngesterServiceClient is the client API for IngesterService service.
@@ -41,6 +42,8 @@ const (
 type IngesterServiceClient interface {
 	// Ingest ingests data into Timescape.
 	Ingest(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[IngestRequest, IngestResponse], error)
+	// IngestBatch ingests batches of data into Timescape.
+	IngestBatch(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[IngestBatchRequest, IngestBatchResponse], error)
 }
 
 type ingesterServiceClient struct {
@@ -64,6 +67,19 @@ func (c *ingesterServiceClient) Ingest(ctx context.Context, opts ...grpc.CallOpt
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type IngesterService_IngestClient = grpc.ClientStreamingClient[IngestRequest, IngestResponse]
 
+func (c *ingesterServiceClient) IngestBatch(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[IngestBatchRequest, IngestBatchResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &IngesterService_ServiceDesc.Streams[1], IngesterService_IngestBatch_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[IngestBatchRequest, IngestBatchResponse]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type IngesterService_IngestBatchClient = grpc.ClientStreamingClient[IngestBatchRequest, IngestBatchResponse]
+
 // IngesterServiceServer is the server API for IngesterService service.
 // All implementations should embed UnimplementedIngesterServiceServer
 // for forward compatibility.
@@ -73,6 +89,8 @@ type IngesterService_IngestClient = grpc.ClientStreamingClient[IngestRequest, In
 type IngesterServiceServer interface {
 	// Ingest ingests data into Timescape.
 	Ingest(grpc.ClientStreamingServer[IngestRequest, IngestResponse]) error
+	// IngestBatch ingests batches of data into Timescape.
+	IngestBatch(grpc.ClientStreamingServer[IngestBatchRequest, IngestBatchResponse]) error
 }
 
 // UnimplementedIngesterServiceServer should be embedded to have
@@ -84,6 +102,9 @@ type UnimplementedIngesterServiceServer struct{}
 
 func (UnimplementedIngesterServiceServer) Ingest(grpc.ClientStreamingServer[IngestRequest, IngestResponse]) error {
 	return status.Error(codes.Unimplemented, "method Ingest not implemented")
+}
+func (UnimplementedIngesterServiceServer) IngestBatch(grpc.ClientStreamingServer[IngestBatchRequest, IngestBatchResponse]) error {
+	return status.Error(codes.Unimplemented, "method IngestBatch not implemented")
 }
 func (UnimplementedIngesterServiceServer) testEmbeddedByValue() {}
 
@@ -112,6 +133,13 @@ func _IngesterService_Ingest_Handler(srv interface{}, stream grpc.ServerStream) 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type IngesterService_IngestServer = grpc.ClientStreamingServer[IngestRequest, IngestResponse]
 
+func _IngesterService_IngestBatch_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(IngesterServiceServer).IngestBatch(&grpc.GenericServerStream[IngestBatchRequest, IngestBatchResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type IngesterService_IngestBatchServer = grpc.ClientStreamingServer[IngestBatchRequest, IngestBatchResponse]
+
 // IngesterService_ServiceDesc is the grpc.ServiceDesc for IngesterService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -123,6 +151,11 @@ var IngesterService_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "Ingest",
 			Handler:       _IngesterService_Ingest_Handler,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "IngestBatch",
+			Handler:       _IngesterService_IngestBatch_Handler,
 			ClientStreams: true,
 		},
 	},

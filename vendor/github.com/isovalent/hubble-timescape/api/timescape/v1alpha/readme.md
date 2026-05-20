@@ -4,6 +4,9 @@
 ## Table of Contents
 
 - [timescape/v1alpha/ingester.proto](#timescape_v1alpha_ingester-proto)
+    - [FlowBatch](#timescape-v1alpha-FlowBatch)
+    - [IngestBatchRequest](#timescape-v1alpha-IngestBatchRequest)
+    - [IngestBatchResponse](#timescape-v1alpha-IngestBatchResponse)
     - [IngestRequest](#timescape-v1alpha-IngestRequest)
     - [IngestResponse](#timescape-v1alpha-IngestResponse)
   
@@ -38,6 +41,46 @@
 <p align="right"><a href="#top">Top</a></p>
 
 ## timescape/v1alpha/ingester.proto
+
+
+
+<a name="timescape-v1alpha-FlowBatch"></a>
+
+### FlowBatch
+FlowBatch is a batch of flows to be ingested.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| flows | [flow.Flow](#flow-Flow) | repeated | Flows contains the flow data to be ingested. |
+
+
+
+
+
+
+<a name="timescape-v1alpha-IngestBatchRequest"></a>
+
+### IngestBatchRequest
+IngestBatchRequest is the request message for the IngestBatch rpc call.
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| flow_batch | [FlowBatch](#timescape-v1alpha-FlowBatch) |  | FlowBatch is the flow data batch to be ingested. |
+
+
+
+
+
+
+<a name="timescape-v1alpha-IngestBatchResponse"></a>
+
+### IngestBatchResponse
+IngestBatchResponse is the response message for the IngestBatch rpc call.
+
+
+
 
 
 
@@ -81,6 +124,7 @@ for Timescape.
 | Method Name | Request Type | Response Type | Description |
 | ----------- | ------------ | ------------- | ------------|
 | Ingest | [IngestRequest](#timescape-v1alpha-IngestRequest) stream | [IngestResponse](#timescape-v1alpha-IngestResponse) | Ingest ingests data into Timescape. |
+| IngestBatch | [IngestBatchRequest](#timescape-v1alpha-IngestBatchRequest) stream | [IngestBatchResponse](#timescape-v1alpha-IngestBatchResponse) | IngestBatch ingests batches of data into Timescape. |
 
  
 

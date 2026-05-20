@@ -139,6 +139,159 @@ func (*IngestResponse) Descriptor() ([]byte, []int) {
 	return file_timescape_v1alpha_ingester_proto_rawDescGZIP(), []int{1}
 }
 
+// IngestBatchRequest is the request message for the IngestBatch rpc call.
+type IngestBatchRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Data contains the data to be ingested.
+	//
+	// Types that are valid to be assigned to Data:
+	//
+	//	*IngestBatchRequest_FlowBatch
+	Data          isIngestBatchRequest_Data `protobuf_oneof:"data"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *IngestBatchRequest) Reset() {
+	*x = IngestBatchRequest{}
+	mi := &file_timescape_v1alpha_ingester_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IngestBatchRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IngestBatchRequest) ProtoMessage() {}
+
+func (x *IngestBatchRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_timescape_v1alpha_ingester_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IngestBatchRequest.ProtoReflect.Descriptor instead.
+func (*IngestBatchRequest) Descriptor() ([]byte, []int) {
+	return file_timescape_v1alpha_ingester_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *IngestBatchRequest) GetData() isIngestBatchRequest_Data {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+func (x *IngestBatchRequest) GetFlowBatch() *FlowBatch {
+	if x != nil {
+		if x, ok := x.Data.(*IngestBatchRequest_FlowBatch); ok {
+			return x.FlowBatch
+		}
+	}
+	return nil
+}
+
+type isIngestBatchRequest_Data interface {
+	isIngestBatchRequest_Data()
+}
+
+type IngestBatchRequest_FlowBatch struct {
+	// FlowBatch is the flow data batch to be ingested.
+	FlowBatch *FlowBatch `protobuf:"bytes,1,opt,name=flow_batch,json=flowBatch,proto3,oneof"`
+}
+
+func (*IngestBatchRequest_FlowBatch) isIngestBatchRequest_Data() {}
+
+// IngestBatchResponse is the response message for the IngestBatch rpc call.
+type IngestBatchResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *IngestBatchResponse) Reset() {
+	*x = IngestBatchResponse{}
+	mi := &file_timescape_v1alpha_ingester_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IngestBatchResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IngestBatchResponse) ProtoMessage() {}
+
+func (x *IngestBatchResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_timescape_v1alpha_ingester_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IngestBatchResponse.ProtoReflect.Descriptor instead.
+func (*IngestBatchResponse) Descriptor() ([]byte, []int) {
+	return file_timescape_v1alpha_ingester_proto_rawDescGZIP(), []int{3}
+}
+
+// FlowBatch is a batch of flows to be ingested.
+type FlowBatch struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Flows contains the flow data to be ingested.
+	Flows         []*flow.Flow `protobuf:"bytes,1,rep,name=flows,proto3" json:"flows,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FlowBatch) Reset() {
+	*x = FlowBatch{}
+	mi := &file_timescape_v1alpha_ingester_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FlowBatch) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FlowBatch) ProtoMessage() {}
+
+func (x *FlowBatch) ProtoReflect() protoreflect.Message {
+	mi := &file_timescape_v1alpha_ingester_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FlowBatch.ProtoReflect.Descriptor instead.
+func (*FlowBatch) Descriptor() ([]byte, []int) {
+	return file_timescape_v1alpha_ingester_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *FlowBatch) GetFlows() []*flow.Flow {
+	if x != nil {
+		return x.Flows
+	}
+	return nil
+}
+
 var File_timescape_v1alpha_ingester_proto protoreflect.FileDescriptor
 
 const file_timescape_v1alpha_ingester_proto_rawDesc = "" +
@@ -148,9 +301,18 @@ const file_timescape_v1alpha_ingester_proto_rawDesc = "" +
 	"\x04flow\x18\x01 \x01(\v2\n" +
 	".flow.FlowH\x00R\x04flowB\x06\n" +
 	"\x04data\"\x10\n" +
-	"\x0eIngestResponse2d\n" +
+	"\x0eIngestResponse\"[\n" +
+	"\x12IngestBatchRequest\x12=\n" +
+	"\n" +
+	"flow_batch\x18\x01 \x01(\v2\x1c.timescape.v1alpha.FlowBatchH\x00R\tflowBatchB\x06\n" +
+	"\x04data\"\x15\n" +
+	"\x13IngestBatchResponse\"-\n" +
+	"\tFlowBatch\x12 \n" +
+	"\x05flows\x18\x01 \x03(\v2\n" +
+	".flow.FlowR\x05flows2\xc6\x01\n" +
 	"\x0fIngesterService\x12Q\n" +
-	"\x06Ingest\x12 .timescape.v1alpha.IngestRequest\x1a!.timescape.v1alpha.IngestResponse\"\x00(\x01B=Z;github.com/isovalent/hubble-timescape/api/timescape/v1alphab\x06proto3"
+	"\x06Ingest\x12 .timescape.v1alpha.IngestRequest\x1a!.timescape.v1alpha.IngestResponse\"\x00(\x01\x12`\n" +
+	"\vIngestBatch\x12%.timescape.v1alpha.IngestBatchRequest\x1a&.timescape.v1alpha.IngestBatchResponse\"\x00(\x01B=Z;github.com/isovalent/hubble-timescape/api/timescape/v1alphab\x06proto3"
 
 var (
 	file_timescape_v1alpha_ingester_proto_rawDescOnce sync.Once
@@ -164,21 +326,28 @@ func file_timescape_v1alpha_ingester_proto_rawDescGZIP() []byte {
 	return file_timescape_v1alpha_ingester_proto_rawDescData
 }
 
-var file_timescape_v1alpha_ingester_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_timescape_v1alpha_ingester_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_timescape_v1alpha_ingester_proto_goTypes = []any{
-	(*IngestRequest)(nil),  // 0: timescape.v1alpha.IngestRequest
-	(*IngestResponse)(nil), // 1: timescape.v1alpha.IngestResponse
-	(*flow.Flow)(nil),      // 2: flow.Flow
+	(*IngestRequest)(nil),       // 0: timescape.v1alpha.IngestRequest
+	(*IngestResponse)(nil),      // 1: timescape.v1alpha.IngestResponse
+	(*IngestBatchRequest)(nil),  // 2: timescape.v1alpha.IngestBatchRequest
+	(*IngestBatchResponse)(nil), // 3: timescape.v1alpha.IngestBatchResponse
+	(*FlowBatch)(nil),           // 4: timescape.v1alpha.FlowBatch
+	(*flow.Flow)(nil),           // 5: flow.Flow
 }
 var file_timescape_v1alpha_ingester_proto_depIdxs = []int32{
-	2, // 0: timescape.v1alpha.IngestRequest.flow:type_name -> flow.Flow
-	0, // 1: timescape.v1alpha.IngesterService.Ingest:input_type -> timescape.v1alpha.IngestRequest
-	1, // 2: timescape.v1alpha.IngesterService.Ingest:output_type -> timescape.v1alpha.IngestResponse
-	2, // [2:3] is the sub-list for method output_type
-	1, // [1:2] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	5, // 0: timescape.v1alpha.IngestRequest.flow:type_name -> flow.Flow
+	4, // 1: timescape.v1alpha.IngestBatchRequest.flow_batch:type_name -> timescape.v1alpha.FlowBatch
+	5, // 2: timescape.v1alpha.FlowBatch.flows:type_name -> flow.Flow
+	0, // 3: timescape.v1alpha.IngesterService.Ingest:input_type -> timescape.v1alpha.IngestRequest
+	2, // 4: timescape.v1alpha.IngesterService.IngestBatch:input_type -> timescape.v1alpha.IngestBatchRequest
+	1, // 5: timescape.v1alpha.IngesterService.Ingest:output_type -> timescape.v1alpha.IngestResponse
+	3, // 6: timescape.v1alpha.IngesterService.IngestBatch:output_type -> timescape.v1alpha.IngestBatchResponse
+	5, // [5:7] is the sub-list for method output_type
+	3, // [3:5] is the sub-list for method input_type
+	3, // [3:3] is the sub-list for extension type_name
+	3, // [3:3] is the sub-list for extension extendee
+	0, // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_timescape_v1alpha_ingester_proto_init() }
@@ -189,13 +358,16 @@ func file_timescape_v1alpha_ingester_proto_init() {
 	file_timescape_v1alpha_ingester_proto_msgTypes[0].OneofWrappers = []any{
 		(*IngestRequest_Flow)(nil),
 	}
+	file_timescape_v1alpha_ingester_proto_msgTypes[2].OneofWrappers = []any{
+		(*IngestBatchRequest_FlowBatch)(nil),
+	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_timescape_v1alpha_ingester_proto_rawDesc), len(file_timescape_v1alpha_ingester_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   2,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
