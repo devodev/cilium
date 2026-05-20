@@ -12,7 +12,9 @@ import (
 	"time"
 
 	"github.com/cilium/ebpf/rlimit"
+	"github.com/cilium/hive/cell"
 	"github.com/cilium/hive/hivetest"
+	"github.com/cilium/statedb"
 	"github.com/google/uuid"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/require"
@@ -23,6 +25,7 @@ import (
 	"github.com/cilium/cilium/pkg/bpf"
 	"github.com/cilium/cilium/pkg/datapath/linux/safenetlink"
 	"github.com/cilium/cilium/pkg/datapath/linux/sysctl"
+	"github.com/cilium/cilium/pkg/datapath/tables"
 	"github.com/cilium/cilium/pkg/hive"
 	"github.com/cilium/cilium/pkg/identity"
 	cilium_api_v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
@@ -101,6 +104,8 @@ var (
 	ep1Labels = map[string]string{"test-key": "test-value-1"}
 	ep2Labels = map[string]string{"test-key": "test-value-2"}
 
+	ns1Labels = map[string]string{"test-key": "ns-test-value-1"}
+
 	identityAllocator = testidentity.NewMockIdentityAllocator(nil)
 
 	nodeGroupNotFoundLabels = map[string]string{"label1": "notfound"}
@@ -164,6 +169,30 @@ func setupEgressGatewayTestSuite(t *testing.T) *EgressGatewayTestSuite {
 	policyMap4 := egressmap.CreatePrivatePolicyMap4(lc, nil, egressmap.DefaultPolicyConfig)
 	policyMap6 := egressmap.CreatePrivatePolicyMap6(lc, nil, egressmap.DefaultPolicyConfig)
 
+	var (
+		db          *statedb.DB
+		deviceTable statedb.Table[*tables.Device]
+	)
+
+	// create a hive to provide statedb
+	h := hive.New(
+		cell.Provide(
+			tables.NewDeviceTable,
+		),
+
+		cell.Invoke(func(db_ *statedb.DB,
+			dT statedb.RWTable[*tables.Device]) {
+			db = db_
+			deviceTable = dT
+		}),
+	)
+
+	require.NoError(t, h.Start(logger, context.TODO()))
+
+	t.Cleanup(func() {
+		require.NoError(t, h.Stop(logger, context.TODO()))
+	})
+
 	k.manager, err = newEgressGatewayManager(Params{
 		Logger:            logger,
 		Lifecycle:         lc,
@@ -176,6 +205,8 @@ func setupEgressGatewayTestSuite(t *testing.T) *EgressGatewayTestSuite {
 		Nodes:             k.nodes,
 		Endpoints:         k.endpoints,
 		Sysctl:            k.sysctl,
+		DB:                db,
+		DeviceTable:       deviceTable,
 	})
 	require.NoError(t, err)
 	require.NotNil(t, k.manager)
@@ -281,6 +312,40 @@ func TestPrivilegedEgressGatewayCEGPParser(t *testing.T) {
 	cegp.Spec.Selectors[0].PodSelector = nil
 	_, err = ParseCEGP(cegp)
 	require.Error(t, err)
+
+	// PodSelector is not mutated by the CEGP parser
+	policy = policyParams{
+		name:             "policy-1",
+		endpointLabels:   ep1Labels,
+		destinationCIDRs: []string{destCIDR},
+		policyGwParams: []policyGatewayParams{
+			{
+				iface: testInterface1,
+			},
+		},
+	}
+
+	cegp, _ = newCEGP(&policy)
+	_, err = ParseCEGP(cegp)
+	require.NoError(t, err)
+	require.Equal(t, ep1Labels, cegp.Spec.Selectors[0].PodSelector.MatchLabels)
+
+	// NamespaceSelector is not mutated by the CEGP parser
+	policy = policyParams{
+		name:             "policy-1",
+		namespaceLabels:  ns1Labels,
+		destinationCIDRs: []string{destCIDR},
+		policyGwParams: []policyGatewayParams{
+			{
+				iface: testInterface1,
+			},
+		},
+	}
+
+	cegp, _ = newCEGP(&policy)
+	_, err = ParseCEGP(cegp)
+	require.NoError(t, err)
+	require.Equal(t, ns1Labels, cegp.Spec.Selectors[0].NamespaceSelector.MatchLabels)
 
 	// can't specify both egress iface and IP
 	policy = policyParams{
