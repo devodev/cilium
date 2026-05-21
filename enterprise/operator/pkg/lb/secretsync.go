@@ -13,6 +13,8 @@ package lb
 import (
 	"context"
 	"log/slog"
+	"slices"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -67,10 +69,39 @@ func getLBServicesForSecret(ctx context.Context, c client.Client, logger *slog.L
 	}
 
 	if err := c.List(ctx, &lbList, listOps); err != nil {
+		if strings.Contains(err.Error(), "Index with name field:"+lbServiceTlsSecretsIndexName+" does not exist") {
+			logger.Info("LBService TLS secret index not yet available, falling back to namespace scan")
+			return getLBServicesForSecretWithoutIndex(ctx, c, logger, secret)
+		}
+
 		logger.Warn("Failed to list LBServices", logfields.Error, err)
 		return nil
 	}
 
+	return lbServicesFromList(lbList)
+}
+
+func getLBServicesForSecretWithoutIndex(ctx context.Context, c client.Client, logger *slog.Logger, secret *corev1.Secret) []*isovalentv1alpha1.LBService {
+	lbList := isovalentv1alpha1.LBServiceList{}
+
+	// Secret sync can run before the LBService controller has registered its field indexes during startup.
+	// Fall back to a namespace-local scan so secret sync still behaves correctly until the index is available.
+	if err := c.List(ctx, &lbList, client.InNamespace(secret.GetNamespace())); err != nil {
+		logger.Warn("Failed to list LBServices without index", logfields.Error, err)
+		return nil
+	}
+
+	filtered := isovalentv1alpha1.LBServiceList{}
+	for _, lbService := range lbList.Items {
+		if slices.Contains(lbService.AllReferencedSecretNames(), secret.GetName()) {
+			filtered.Items = append(filtered.Items, lbService)
+		}
+	}
+
+	return lbServicesFromList(filtered)
+}
+
+func lbServicesFromList(lbList isovalentv1alpha1.LBServiceList) []*isovalentv1alpha1.LBService {
 	result := []*isovalentv1alpha1.LBService{}
 
 	for _, i := range lbList.Items {
