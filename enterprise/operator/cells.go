@@ -13,6 +13,7 @@ package main
 import (
 	"github.com/cilium/hive/cell"
 
+	cmapisrv "github.com/cilium/cilium/enterprise/clustermesh-apiserver/clustermesh"
 	"github.com/cilium/cilium/enterprise/features"
 	"github.com/cilium/cilium/enterprise/operator/dnsclient"
 	"github.com/cilium/cilium/enterprise/operator/dnsresolver"
@@ -87,6 +88,7 @@ var (
 
 			clustercfg.Cell,
 			phantom.Cell,
+			cmapisrv.EnterpriseOperator,
 
 			metricsFeatures.EnterpriseCell,
 		),

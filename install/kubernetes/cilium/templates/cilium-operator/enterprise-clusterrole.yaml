@@ -454,6 +454,9 @@ rules:
     - clusterwideprivatenetworks
     - privatenetworknodeattachments
     - clusterwideprivatenetworks/status
+  {{- if .Values.etcd.enabled }}
+    - privatenetworkendpointslices
+  {{- end }}
   verbs:
     - list
     - watch
