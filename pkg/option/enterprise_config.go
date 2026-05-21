@@ -15,7 +15,6 @@ import (
 
 	bgpconfig "github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
 	bfdtypes "github.com/cilium/cilium/enterprise/pkg/bfd/types"
-	pncfg "github.com/cilium/cilium/enterprise/pkg/privnet/config"
 )
 
 // Enterprise specific command line arguments.
@@ -34,6 +33,9 @@ const (
 
 	// VRFEnabled enables the VRF feature
 	VRFEnabled = "enable-vrf"
+
+	// PrivateNetworksEnabled enables private networks.
+	PrivateNetworksEnabled = "private-networks-enabled"
 )
 
 type EnterpriseDaemonConfig struct {
@@ -68,7 +70,7 @@ func (ec *EnterpriseDaemonConfig) Populate(vp *viper.Viper) {
 	ec.EnableEnterpriseBGPControlPlane = vp.GetBool(bgpconfig.EnterpriseBGPEnabled)
 	ec.EnableMulticast = vp.GetBool(MulticastEnabled)
 	ec.EnableBFD = vp.GetBool(bfdtypes.EnableBFDFlag)
-	ec.EnablePrivateNetworks = vp.GetBool(pncfg.FlagEnable)
+	ec.EnablePrivateNetworks = vp.GetBool(PrivateNetworksEnabled)
 	ec.EnableEVPN = vp.GetBool(EVPNEnabled)
 	ec.EnableVRF = vp.GetBool(VRFEnabled)
 }

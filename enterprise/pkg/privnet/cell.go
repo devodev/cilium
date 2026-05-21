@@ -31,7 +31,7 @@ var Cell = cell.Module(
 	"private-networks",
 	"Support for Private Networks",
 
-	pncfg.Cell,
+	pncfg.ValidatingCell,
 	tables.DHCPLeasesCell,
 	reconcilers.Cell,
 	endpoints.Cell,

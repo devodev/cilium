@@ -13,16 +13,26 @@ package config
 import (
 	"fmt"
 	"net/netip"
+	"slices"
 
 	"github.com/cilium/hive/cell"
 	"github.com/spf13/pflag"
 
+	cni "github.com/cilium/cilium/daemon/cmd/cni/config"
+	clustermesh "github.com/cilium/cilium/enterprise/pkg/clustermesh/config"
+	ipsec "github.com/cilium/cilium/pkg/datapath/linux/ipsec/types"
+	dpopt "github.com/cilium/cilium/pkg/datapath/option"
+	ipamopt "github.com/cilium/cilium/pkg/ipam/option"
+	"github.com/cilium/cilium/pkg/kpr"
+	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/time"
+	wireguard "github.com/cilium/cilium/pkg/wireguard/types"
+	ztunnel "github.com/cilium/cilium/pkg/ztunnel/config"
 )
 
 const (
 	// FlagEnable is the flag to enable private networking.
-	FlagEnable = "private-networks-enabled"
+	FlagEnable = option.PrivateNetworksEnabled
 
 	// DHCPInterfaceName is the name of the host dummy interface used to
 	// receive DHCP packets redirected from BPF.
@@ -62,10 +72,16 @@ const (
 )
 
 var (
-	// Cell registers the private networking configuration, and performs validation.
+	// Cell registers the private networking configuration, without performing validation.
 	Cell = cell.Group(
 		cell.Config(defaultFlags),
 		cell.Provide(NewConfig),
+	)
+
+	// Cell registers the private networking configuration, and performs validation.
+	ValidatingCell = cell.Group(
+		Cell,
+		cell.Invoke(Config.validate),
 	)
 
 	DefaultCommon = Common{
@@ -138,13 +154,6 @@ type Config struct {
 
 // NewConfig creates a Config from the parsed Flags.
 func NewConfig(f Flags) (Config, error) {
-	switch f.Mode {
-	case ModeDefault, ModeBridge, ModeLocalAccess:
-	default:
-		return Config{}, fmt.Errorf("invalid private networks mode %q, should be one of: %q, %q, %q",
-			f.Mode, ModeDefault, ModeBridge, ModeLocalAccess)
-	}
-
 	snatIPv4, err := netip.ParseAddr(f.HostSNATIPv4)
 	if err != nil {
 		return Config{}, fmt.Errorf("invalid %s: %w", FlagHostSNATIPv4, err)
@@ -176,6 +185,99 @@ func NewConfig(f Flags) (Config, error) {
 		HostSNATIPv4:         snatIPv4,
 		HostSNATIPv6:         snatIPv6,
 	}, nil
+}
+
+func (cfg Config) validate(in struct {
+	cell.In
+
+	ClusterMesh clustermesh.Config
+	CNI         cni.Config
+	Daemon      *option.DaemonConfig
+	KPR         kpr.KPRConfig
+	IPSec       ipsec.Config
+	WireGuard   wireguard.Config
+	ZTunnel     ztunnel.Config
+}) error {
+	if !cfg.Enabled {
+		return nil
+	}
+
+	switch cfg.Mode {
+	case ModeDefault, ModeBridge, ModeLocalAccess:
+	default:
+		return fmt.Errorf("invalid private networks mode %q, should be one of: %q, %q, %q",
+			cfg.Mode, ModeDefault, ModeBridge, ModeLocalAccess)
+	}
+
+	var (
+		incompatible = func(opt string) error {
+			return fmt.Errorf("currently, --%s is not compatible with --%s", FlagEnable, opt)
+		}
+		requires = func(opt string) error {
+			return fmt.Errorf("currently, --%s requires --%s", FlagEnable, opt)
+		}
+	)
+
+	for _, incompatibility := range []struct {
+		has bool
+		err error
+	}{
+		// EndpointRoutes introduce the cil_to_container BPF program, which is currently not supported.
+		{has: in.Daemon.EnableEndpointRoutes, err: incompatible(option.EnableEndpointRoutes)},
+		// At least host reachability requires KPR to work. More testing would be also needed to claim support with KPR off.
+		{has: !in.KPR.KubeProxyReplacement, err: requires("kube-proxy-replacement")},
+		// HostFirewall needs more testing to validate the interaction with local access and INB traffic.
+		{has: in.Daemon.EnableHostFirewall, err: incompatible(option.EnableHostFirewall)},
+
+		// KubeVirt VMs don't seem to work in combination with netkit, and more testing would be needed anyways.
+		{has: in.Daemon.DatapathMode != dpopt.DatapathModeVeth, err: requires(option.DatapathMode + "=" + dpopt.DatapathModeVeth)},
+
+		// Miscellaneous options that may or may not work, but are unlikely to be of interest soon anyways.
+		{has: in.Daemon.EnableNat46X64Gateway, err: incompatible(option.EnableNat46X64Gateway)},
+		{has: in.Daemon.EnableVTEP, err: incompatible(option.EnableVTEP)},
+
+		// IPSec and WireGuard may work out of the box, as all traffic is either pod to pod or goes
+		// through the tunnel, but we need better testing to validate that we actually treat it
+		// correctly in all cases, and we don't unexpectedly leak unencrypted packets onto the wire.
+		{has: in.IPSec.Enabled(), err: incompatible(option.EnableIPSec)},
+		{has: in.WireGuard.Enabled(), err: incompatible(wireguard.EnableWireguard)},
+		{has: in.ZTunnel.EnableZTunnel, err: incompatible("enable-ztunnel")},
+
+		// Forbid CNI chaining, to ensure that Cilium is in full control to handle the pod interconnection.
+		{has: in.CNI.CNIChainingMode != "none", err: incompatible(option.CNIChainingMode + "=" + in.CNI.CNIChainingMode)},
+
+		// The support for Overlapping Pod CIDR comes with many limitations, and definitely requires more testing.
+		{has: in.ClusterMesh.EnableClusterAwareAddressing, err: incompatible(clustermesh.EnableClusterAwareAddressing)},
+		{has: in.ClusterMesh.EnableInterClusterSNAT, err: incompatible(clustermesh.EnableInterClusterSNAT)},
+
+		// Forbid cloud-provider related IPAM modes, which are typically associated with specific
+		// quirks, and would require additional testing to validate that they work correctly.
+		{
+			has: !slices.Contains([]string{ipamopt.IPAMKubernetes, ipamopt.IPAMClusterPool, ipamopt.IPAMMultiPool}, in.Daemon.IPAM),
+			err: incompatible(option.IPAM + "=" + in.Daemon.IPAM),
+		},
+
+		// Forbid XDP acceleration, as it is not possible to attach XDP programs to VLAN interfaces,
+		// and more testing is required to validate the interaction with local access and INB traffic.
+		{
+			has: in.Daemon.NodePortAcceleration != option.NodePortAccelerationDisabled,
+			err: incompatible(option.LoadBalancerAcceleration + "=" + in.Daemon.NodePortAcceleration),
+		},
+
+		// Enforce that INBs run in tunnel mode, so that they can forward unknown flow traffic
+		// through the tunnel. The workload clusters may either run in native routing mode with
+		// mixed routing mode support, or tunnel mode.
+		{
+			has: cfg.Mode == ModeBridge && in.Daemon.RoutingMode != option.RoutingModeTunnel,
+			err: fmt.Errorf("currently, --%s=%s requires %s=%s", FlagMode, ModeBridge, option.RoutingMode, option.RoutingModeTunnel),
+		},
+	} {
+		if incompatibility.has {
+			return incompatibility.err
+		}
+	}
+
+	return nil
 }
 
 // EnabledAsBridge returns whether private networking is enabled, and configured in bridge mode.
