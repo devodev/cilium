@@ -1,0 +1,18 @@
+{{- if .Values.enterprise.privateNetworks.enabled }}
+
+{{- if and .Values.enterprise.privateNetworks.api.tls.enabled (eq .Values.enterprise.privateNetworks.api.tls.method "manual") }}
+  {{- if not .Values.enterprise.privateNetworks.api.tls.manual.server.existingSecret }}
+    {{ fail "Private Networks API TLS method=manual requires that user specifies .Values.enterprise.privateNetworks.api.tls.manual.server.existingSecret" }}
+  {{- end }}
+  {{- if not .Values.enterprise.privateNetworks.api.tls.manual.client.existingSecret }}
+    {{ fail "Private Networks API TLS method=manual requires that user specifies .Values.enterprise.privateNetworks.api.tls.manual.client.existingSecret" }}
+  {{- end }}
+{{- else if and .Values.enterprise.privateNetworks.api.tls.enabled (eq .Values.enterprise.privateNetworks.api.tls.method "certmanager") }}
+  {{- if not .Values.enterprise.privateNetworks.api.tls.certmanager.issuerRef }}
+    {{ fail "Private Networks API TLS method=certmanager requires that user specifies .Values.enterprise.privateNetworks.api.tls.certmanager.issuerRef" }}
+  {{- end }}
+{{- else if and .Values.enterprise.privateNetworks.api.tls.enabled (ne .Values.enterprise.privateNetworks.api.tls.method "cronJob") }}
+  {{ fail "Unsupported TLS method for the Private Networks API" }}
+{{- end }}
+
+{{- end }}
