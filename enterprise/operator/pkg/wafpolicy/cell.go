@@ -11,6 +11,7 @@
 package wafpolicy
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -108,8 +109,18 @@ type resolverParams struct {
 	Defaults           GlobalDefaults
 }
 
-func newResolver(params resolverParams) *Resolver {
-	return NewResolver(params.CtrlRuntimeManager.GetClient(), params.Logger, params.Defaults)
+func newResolver(params resolverParams) (*Resolver, error) {
+	if params.Defaults.Enabled && params.CtrlRuntimeManager == nil {
+		return nil, errors.New("waf requires Kubernetes support to be enabled")
+	}
+
+	if params.CtrlRuntimeManager != nil {
+		return NewResolver(params.CtrlRuntimeManager.GetClient(), params.Logger, params.Defaults), nil
+	}
+
+	// Hive inspection can populate this cell without a controller-runtime
+	// manager, so tolerate the nil manager on non-runtime paths.
+	return NewResolver(nil, params.Logger, params.Defaults), nil
 }
 
 type reconcilerParams struct {
