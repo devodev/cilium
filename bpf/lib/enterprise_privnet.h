@@ -591,7 +591,7 @@ struct {
 	__uint(map_flags, BPF_F_NO_PREALLOC | BPF_F_RDONLY_PROG_COND);
 } cilium_privnet_cidr_identity __section_maps_btf;
 
-static __always_inline __maybe_unused const struct privnet_cidr_identity *
+static __always_inline const struct privnet_cidr_identity *
 privnet_cidr_identity_lookup4(const void *map, __be32 addr) {
 	struct privnet_cidr_identity_key key = {};
 
@@ -602,7 +602,7 @@ privnet_cidr_identity_lookup4(const void *map, __be32 addr) {
 	return map_lookup_elem(map, &key);
 }
 
-static __always_inline __maybe_unused const struct privnet_cidr_identity *
+static __always_inline const struct privnet_cidr_identity *
 privnet_cidr_identity_lookup6(const void *map, union v6addr addr) {
 	struct privnet_cidr_identity_key key = {};
 
@@ -1759,7 +1759,6 @@ privnet_unknown_policy_ingress6(struct __ctx_buff *ctx,
 	const struct privnet_cidr_identity *info = NULL;
 	__u8 policy_match_type = POLICY_MATCH_NONE;
 	__u32 src_sec_identity = WORLD_IPV6_ID;
-	fraginfo_t fraginfo __maybe_unused;
 	bool is_untracked_fragment = false;
 	struct ipv6_ct_tuple tuple = {};
 	struct ct_state ct_state = {};
@@ -1768,6 +1767,7 @@ privnet_unknown_policy_ingress6(struct __ctx_buff *ctx,
 	void *data, *data_end;
 	__u16 proxy_port = 0;
 	__s8 *ext_err = NULL;
+	fraginfo_t fraginfo;
 	struct ipv6hdr *ip6;
 	__u32 monitor = 0;
 	__u8 audited = 0;

@@ -290,7 +290,7 @@ static __always_inline bool is_privnet_unknown_inb_flow(struct __ctx_buff *ctx _
 }
 
 static __always_inline bool
-is_privnet_local_access_flow(struct __ctx_buff *ctx __maybe_unused)
+is_privnet_local_access_flow(struct __ctx_buff *ctx)
 {
 	__u16 netdev_net_id __maybe_unused;
 	__u16 lxc_net_id __maybe_unused;
@@ -329,14 +329,14 @@ is_privnet_local_access_flow(struct __ctx_buff *ctx __maybe_unused)
 }
 
 static __always_inline bool
-is_privnet_evpn_flow(struct __ctx_buff *ctx __maybe_unused)
+is_privnet_evpn_flow(struct __ctx_buff *ctx)
 {
 	return (CONFIG(privnet_enable) && CONFIG(evpn_enable) &&
 		ctx_get_ingress_ifindex(ctx) == CONFIG(evpn_device_ifindex));
 }
 
 static __always_inline bool
-privnet_should_enforce_unknown_policy(struct __ctx_buff *ctx __maybe_unused)
+privnet_should_enforce_unknown_policy(struct __ctx_buff *ctx)
 {
 	return is_privnet_unknown_inb_flow(ctx) ||
 	       is_privnet_local_access_flow(ctx) ||

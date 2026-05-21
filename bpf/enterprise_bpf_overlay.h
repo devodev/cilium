@@ -6,9 +6,9 @@
 #include "lib/enterprise_privnet.h"
 #include "lib/network_device.h"
 
-static __always_inline int enterprise_privnet_from_overlay(struct __ctx_buff *ctx __maybe_unused,
-							   __u16 proto,
-							   __s8 *ext_err __maybe_unused)
+static __always_inline int
+enterprise_privnet_from_overlay(struct __ctx_buff *ctx, __u16 proto,
+				__s8 *ext_err __maybe_unused)
 {
 	const struct privnet_pip_val *dst_pip_val __maybe_unused = NULL;
 	const struct privnet_pip_val *src_pip_val __maybe_unused = NULL;
