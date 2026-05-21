@@ -1469,7 +1469,6 @@ privnet_unknown_policy_ingress4(struct __ctx_buff *ctx,
 	const struct privnet_cidr_identity *info = NULL;
 	__u8 policy_match_type = POLICY_MATCH_NONE;
 	__u32 src_sec_identity = WORLD_IPV4_ID;
-	fraginfo_t fraginfo __maybe_unused;
 	bool is_untracked_fragment = false;
 	int verdict = CTX_ACT_OK;
 	void *data, *data_end;
@@ -1490,14 +1489,13 @@ privnet_unknown_policy_ingress4(struct __ctx_buff *ctx,
 	if (!revalidate_data(ctx, &data, &data_end, &ip4))
 		return DROP_INVALID;
 
-	fraginfo = ipfrag_encode_ipv4(ip4);
 	l4_off = ETH_HLEN + ipv4_hdrlen(ip4);
 
 #ifndef ENABLE_IPV4_FRAGMENTS
 	/* Indicate that this is a datagram fragment for which we cannot
 	 * retrieve L4 ports. Do not set flag if we support fragmentation.
 	 */
-	is_untracked_fragment = ipfrag_is_fragment(fraginfo);
+	is_untracked_fragment = ipfrag_is_fragment(ipfrag_encode_ipv4(ip4));
 #endif
 
 	tuple.nexthdr = ip4->protocol;
@@ -2143,19 +2141,17 @@ privnet_ext_ep_policy_ingress4(struct __ctx_buff *ctx,
 	int l4_off;
 	int ct_ret;
 	int ret;
-	fraginfo_t fraginfo __maybe_unused;
 	bool is_untracked_fragment = false;
 	struct ipv4_ct_tuple tuple = {};
 	struct ct_state ct_state = {};
 
-	fraginfo = ipfrag_encode_ipv4(ip4);
 	l4_off = ETH_HLEN + ipv4_hdrlen(ip4);
 
 #ifndef ENABLE_IPV4_FRAGMENTS
 	/* Indicate that this is a datagram fragment for which we cannot
 	 * retrieve L4 ports. Do not set flag if we support fragmentation.
 	 */
-	is_untracked_fragment = ipfrag_is_fragment(fraginfo);
+	is_untracked_fragment = ipfrag_is_fragment(ipfrag_encode_ipv4(ip4));
 #endif
 
 	tuple.nexthdr = ip4->protocol;
