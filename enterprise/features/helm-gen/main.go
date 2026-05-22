@@ -130,6 +130,10 @@ func validate() {
 				opts = append(opts, fmt.Sprintf("%s=%s", k, v))
 			}
 
+			for k, v := range feat.HelmTestDeps {
+				opts = append(opts, fmt.Sprintf("%s=%s", k, v))
+			}
+
 			// Test without allowing the feature.
 			cmd := exec.Command(helmProg,
 				append(defArgs,

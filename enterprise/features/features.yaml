@@ -195,6 +195,8 @@ features:
       private-networks-enabled: true
     helm:
       enterprise.privateNetworks.enabled: true
+    helm-test-deps:
+      kubeProxyReplacement: true
 
   PrivateNetworkExternalEndpoints:
     maturity: Beta
@@ -205,6 +207,8 @@ features:
       private-networks-external-endpoints-enabled: true
     helm:
       enterprise.privateNetworks.externalEndpoints.enabled: true
+    helm-test-deps:
+      kubeProxyReplacement: true
 
   PrivateNetworkBridge:
     maturity: Limited
@@ -215,6 +219,8 @@ features:
       private-networks-mode: bridge
     helm:
       enterprise.privateNetworks.mode: bridge
+    helm-test-deps:
+      kubeProxyReplacement: true
 
   PrivateNetworkLocalAccess:
     maturity: Limited
@@ -225,6 +231,8 @@ features:
       private-networks-mode: local-access
     helm:
       enterprise.privateNetworks.mode: local-access
+    helm-test-deps:
+      kubeProxyReplacement: true
 
   ILBGatewayAPI:
     maturity: Alpha
@@ -708,3 +716,9 @@ features:
     # Optional helm expression to replace what is generated from 'helm'.
     # Only specify if strictly necessary.
     helm-check: and example.enabled (eq example.mode "foo")
+
+    # Extra Helm option(s) that shall be set when the target feature is enabled,
+    # e.g, to fulfill possible validation steps. They are used only by the
+    # self-tests, when verifying that the feature flag works correctly.
+    helm-test-deps:
+      foo.enabled: true

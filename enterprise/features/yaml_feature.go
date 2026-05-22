@@ -66,6 +66,11 @@ type YAMLFeature struct {
 	// Helm is an optional helm template snippet to check if the feature is enabled.
 	// Overrides the generated checks from [Helm]
 	HelmCheck string `yaml:"helm-check"`
+
+	// Extra helm options that shall be set when the target feature is enabled,
+	// e.g, to fulfill possible validation steps. They are used only by the
+	// self-tests, when verifying that the feature flag works correctly.
+	HelmTestDeps map[string]string `yaml:"helm-test-deps"`
 }
 
 type Version semver.Version
