@@ -1206,4 +1206,10 @@ envoy:
     # cilium-envoy daemonset make sure to configure `envoy.terminationGracePeriodSeconds` to a sufficiently large value to allow
     # traffic to drain (e.g. 60 seconds).
     enabled: false
+    # -- The time in seconds that Envoy will wait before shutting down the parent process during a graceful restart.
+    # Should generally be less than `envoy.terminationGracePeriodSeconds`
+    parentShutdownSeconds: 80
+    # -- The time in seconds that Envoy will drain connections during a graceful restart.
+    # Should generally be less than `parentShutdownSeconds` and `envoy.terminationGracePeriodSeconds`
+    drainTimeSeconds: 60
 enableNonDefaultDenyPolicies: false
