@@ -8,6 +8,7 @@
 # CL_SUFFIX: whether a suffix needs to get appended, defaults to -ubi
 # CL_IS_CI: whether an additional -ci suffix needs to get appended, defaults to true
 # CL_TAG: the tag to use for in-tree images, defaults to the commit id of the head
+# CRANE: the location of the crane binary
 
 set -o errexit
 set -o pipefail
@@ -34,6 +35,7 @@ else
   tag="${CL_TAG}"
 fi
 echo "tag: ${tag}"
+crane="${CRANE:-${root_dir}/enterprise/olm/bin/crane}"
 # Using a temporary file avoid getting a half processed result file if an issue occurs
 tmp_file=$(mktemp)
 function cleanup {
@@ -42,7 +44,7 @@ function cleanup {
 trap cleanup EXIT
 trap cleanup SIGINT
 
-cp ${values_file} ${tmp_file}
+cp "${values_file}" "${tmp_file}"
 # yq_replace makes in place modifications of values.yaml
 function yq_replace {
   docker run --rm -v "${tmp_file}":/workdir/values.yaml --user "$(id -u):$(id -g)" mikefarah/yq:${yq_version} e -i "$1" /workdir/values.yaml
@@ -57,7 +59,7 @@ function yq_get {
 # get_digest gives the digest of the image from the image reference and tag
 get_digest_result=""
 function get_digest {
-  get_digest_result=$(${root_dir}/enterprise/olm/bin/crane digest "$1:$2")
+  get_digest_result=$(${crane} digest "$1:$2")
 }
 # $tmp_config gets mounted with yq_replace and -i is used
 # Set the image tags
@@ -185,6 +187,6 @@ digest=${get_digest_result}
 echo "digest: ${digest}"
 yq_replace ".operator.image.genericDigest = \"${digest}\""
 yq_replace ".operator.image.useDigest = true"
-cp ${tmp_file} ${values_file}
+cp "${tmp_file}" "${values_file}"
 
 echo "values.yaml updated"

@@ -11,6 +11,7 @@
 # CL_SUFFIX: whether a suffix needs to get appended, defaults to -ubi
 # CL_IS_CI: whether an additional -ci suffix needs to get appended, defaults to true
 # CL_TAG: the tag to use for in-tree images, defaults to the commit id of the head
+# CRANE: the location of the crane binary
 
 set -o errexit
 set -o pipefail
@@ -37,6 +38,7 @@ else
   tag="${CL_TAG}"
 fi
 echo "tag: ${tag}"
+crane="${CRANE:-${root_dir}/enterprise/olm/bin/crane}"
 
 # yq_replace_mgr makes in place modifications of manager.yaml
 function yq_replace_mgr {
@@ -58,7 +60,7 @@ function yq_get {
 # get_digest gives the digest of the image from the image reference and tag
 get_digest_result=""
 function get_digest {
-  get_digest_result=$(${root_dir}/enterprise/olm/bin/crane digest "$1:$2")
+  get_digest_result=$(${crane} digest "$1:$2")
 }
 
 # Get the image digests and populate related images in the ClusterServiceVersion

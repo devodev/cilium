@@ -136,11 +136,11 @@ sync-helm-manifests:
 
 .PHONY: set-images
 set-images: crane # Set the images versions matching the local state in the helm values embedded into CLife. A different tag, suffix and registry can be selected by setting env variables: CL_TAG, CL_IS_CI, CL_SUFFIX and CL_REGISTRY
-	./scripts/set-images.sh
+	CRANE=$(CRANE) ./scripts/set-images.sh
 
 .PHONY: set-related-images
 set-related-images: crane # Set the related images as env variables in manager.yaml from the local state in the helm values embedded into CLife. A different tag, suffix and registry can be selected by setting env variables: CL_TAG, CL_IS_CI, CL_SUFFIX and CL_REGISTRY. They get then set in the ClusterServiceVersion down the stream through the opm tooling.
-	./scripts/set-related-images.sh
+	CRANE=$(CRANE) ./scripts/set-related-images.sh
 
 .PHONY: build
 build: manifests generate fmt sync-helm-manifests vet set-images ## Build manager binary.
