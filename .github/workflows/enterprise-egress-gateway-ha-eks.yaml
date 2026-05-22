@@ -423,17 +423,32 @@ jobs:
         run: |
           bash ./.github/enterprise-egw-ha/setup-vpc-route-server.sh "${{ steps.vars.outputs.cluster_name }}" "${{ env.aws_asn }}" "${{ env.peer_asn }}" "${{ env.enable_bfd }}"
 
-      - name: Setup conn-disrupt before upgrade
-        if: ${{ steps.vars.outputs.downgrade_version != '' }}
+      - name: Build conn-disrupt test args
+        id: conn-disrupt
         run: |
-          cilium connectivity test \
+          CONN_DISRUPT_SETUP_ARGS=" \
             --include-conn-disrupt-test-egw-ha \
             --include-unsafe-tests \
             --conn-disrupt-test-setup \
             --conn-disrupt-dispatch-interval 0ms \
-            --conn-disrupt-test-restarts-path "./cilium-conn-disrupt-restarts" \
+            --conn-disrupt-test-restarts-path ./cilium-conn-disrupt-restarts \
             --conn-disrupt-egw-ha-egress-cidrs ${{ env.conn_disrupt_egw_ha_egress_cidrs }} \
             --egw-bgp-peer-addresses ${{ steps.setup-vpc-route-server.outputs.route_server_endpoint_ip }}
+          "
+          CONN_DISRUPT_CHECK_ARGS=" \
+            --include-unsafe-tests \
+            --include-conn-disrupt-test-egw-ha \
+            --conn-disrupt-test-restarts-path ./cilium-conn-disrupt-restarts \
+            --flush-ct \
+            --test no-interrupted-connections-for-enterprise
+          "
+          echo conn_disrupt_setup_args=${CONN_DISRUPT_SETUP_ARGS} >> $GITHUB_OUTPUT
+          echo conn_disrupt_check_args=${CONN_DISRUPT_CHECK_ARGS} >> $GITHUB_OUTPUT
+
+      - name: Setup conn-disrupt before upgrade
+        if: ${{ steps.vars.outputs.downgrade_version != '' }}
+        run: |
+          cilium connectivity test ${{ steps.conn-disrupt.outputs.conn_disrupt_setup_args }}
 
       - name: Upgrade Cilium
         if: ${{ steps.vars.outputs.downgrade_version != '' }}
@@ -453,12 +468,7 @@ jobs:
       - name: Check conn-disrupt after upgrade
         if: ${{ steps.vars.outputs.downgrade_version != '' }}
         run: |
-          cilium connectivity test \
-            --include-unsafe-tests \
-            --include-conn-disrupt-test-egw-ha \
-            --conn-disrupt-test-restarts-path "./cilium-conn-disrupt-restarts" \
-            --flush-ct \
-            --test "no-interrupted-connections-for-enterprise"
+          cilium connectivity test ${{ steps.conn-disrupt.outputs.conn_disrupt_check_args }}
 
       - name: Run connectivity egress gateway ha test
         run: |
@@ -474,14 +484,7 @@ jobs:
 
       - name: Setup conn-disrupt before maintenance test
         run: |
-          cilium connectivity test \
-            --include-conn-disrupt-test-egw-ha \
-            --include-unsafe-tests \
-            --conn-disrupt-test-setup \
-            --conn-disrupt-dispatch-interval 0ms \
-            --conn-disrupt-test-restarts-path "./cilium-conn-disrupt-restarts" \
-            --conn-disrupt-egw-ha-egress-cidrs ${{ env.conn_disrupt_egw_ha_egress_cidrs }} \
-            --egw-bgp-peer-addresses ${{ steps.setup-vpc-route-server.outputs.route_server_endpoint_ip }}
+          cilium connectivity test ${{ steps.conn-disrupt.outputs.conn_disrupt_setup_args }}
 
       - name: Cordon GW nodes and restart Cilium
         run: |
@@ -515,24 +518,12 @@ jobs:
 
       - name: Check conn-disrupt after maintenance test
         run: |
-          cilium connectivity test \
-            --include-unsafe-tests \
-            --include-conn-disrupt-test-egw-ha \
-            --conn-disrupt-test-restarts-path "./cilium-conn-disrupt-restarts" \
-            --flush-ct \
-            --test "no-interrupted-connections-for-enterprise"
+          cilium connectivity test ${{ steps.conn-disrupt.outputs.conn_disrupt_check_args }}
 
       - name: Setup conn-disrupt before downgrade
         if: ${{ steps.vars.outputs.downgrade_version != '' }}
         run: |
-          cilium connectivity test \
-            --include-conn-disrupt-test-egw-ha \
-            --include-unsafe-tests \
-            --conn-disrupt-test-setup \
-            --conn-disrupt-dispatch-interval 0ms \
-            --conn-disrupt-test-restarts-path "./cilium-conn-disrupt-restarts" \
-            --conn-disrupt-egw-ha-egress-cidrs ${{ env.conn_disrupt_egw_ha_egress_cidrs }} \
-            --egw-bgp-peer-addresses ${{ steps.setup-vpc-route-server.outputs.route_server_endpoint_ip }}
+          cilium connectivity test ${{ steps.conn-disrupt.outputs.conn_disrupt_setup_args }}
 
       - name: Downgrade to Cilium ${{ steps.vars.outputs.downgrade_version }}
         if: ${{ steps.vars.outputs.downgrade_version != '' }}
@@ -552,12 +543,7 @@ jobs:
       - name: Check conn-disrupt after downgrade
         if: ${{ steps.vars.outputs.downgrade_version != '' }}
         run: |
-          cilium connectivity test \
-            --include-unsafe-tests \
-            --include-conn-disrupt-test-egw-ha \
-            --conn-disrupt-test-restarts-path "./cilium-conn-disrupt-restarts" \
-            --flush-ct \
-            --test "no-interrupted-connections-for-enterprise"
+          cilium connectivity test ${{ steps.conn-disrupt.outputs.conn_disrupt_check_args }}
 
       - name: Post-test information gathering
         if: ${{ !success() && steps.install-cilium.outcome != 'skipped' && steps.install-cilium.outcome != 'cancelled' }}
