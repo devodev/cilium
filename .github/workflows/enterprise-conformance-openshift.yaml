@@ -114,6 +114,8 @@ jobs:
       - name: Cleanup Disk space in runner
         uses: ./.github/actions/disk-cleanup
 
+      - name: Set Environment Variables
+        uses: ./.github/actions/set-env-variables
       - name: Set up job variables
         id: vars
         run: |
@@ -124,19 +126,26 @@ jobs:
           fi
           echo sha=${sha} >> $GITHUB_OUTPUT
 
+      - name: Login to Artifactory
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ${{ env.ARTIFACTORY_DEV }}
+          username: ${{ vars.ARTIFACTORY_USERNAME }}
+          password: ${{ secrets.ARTIFACTORY_PASSWORD }}
+
       - name: Wait for images to be available
         id: wait_images
         timeout-minutes: 30
         shell: bash
         run: |
           for image in cilium-ubi-ci operator-generic-ubi-ci hubble-relay-ubi-ci clustermesh-apiserver-ubi-ci; do
-            until docker manifest inspect quay.io/isovalent-dev/$image:${{ steps.vars.outputs.sha }} &> /dev/null; do sleep 45s; done
+            until docker manifest inspect ${{ env.ARTIFACTORY_DEV }}/${{ env.ARTIFACTORY_ORGANIZATION_DEV }}/$image:${{ steps.vars.outputs.sha }} &> /dev/null; do sleep 45s; done
           done
           echo "images available"
           # Some special handling is needed for clife as it does not get built for every push / PR, per default
           # only when enterprise/olm is modified.
           i=0
-          until docker manifest inspect quay.io/isovalent-dev/clife-ci:${{ steps.vars.outputs.sha }} &> /dev/null || [[ "${i}" -gt 10 ]]; do sleep 30s; i=$((i + 1)); done
+          until docker manifest inspect ${{ env.ARTIFACTORY_DEV }}/${{ env.ARTIFACTORY_ORGANIZATION_DEV }}/clife-ci:${{ steps.vars.outputs.sha }} &> /dev/null || [[ "${i}" -gt 10 ]]; do sleep 30s; i=$((i + 1)); done
           if [[ "${i}" -gt 10 ]]; then
             echo "CLife rebuild needed"
             echo rebuild_clife='true' >> $GITHUB_OUTPUT
@@ -144,14 +153,6 @@ jobs:
             echo "Clife image available"
             echo rebuild_clife='false' >> $GITHUB_OUTPUT
           fi
-
-      - name: Login to quay.io
-        if: ${{ steps.wait_images.outputs.rebuild_clife  == 'true' }}
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
-        with:
-          registry: quay.io
-          username: ${{ secrets.QUAY_USERNAME_CI }}
-          password: ${{ secrets.QUAY_PASSWORD_CI }}
 
       - name: Login to registry.redhat.io for pulling images
         if: ${{ steps.wait_images.outputs.rebuild_clife  == 'true' }}
@@ -172,7 +173,7 @@ jobs:
       - name: Build and Push CLife image
         if: ${{ steps.wait_images.outputs.rebuild_clife  == 'true' }}
         env:
-          IMG: "quay.io/isovalent-dev/clife-ci:${{ steps.vars.outputs.sha }}"
+          IMG: "${{ env.ARTIFACTORY_DEV }}/${{ env.ARTIFACTORY_ORGANIZATION_DEV }}/clife-ci:${{ steps.vars.outputs.sha }}"
           CL_TAG: "${{ steps.vars.outputs.sha }}"
         working-directory: ./enterprise/olm
         run: |
@@ -321,7 +322,7 @@ jobs:
       - name: Generate installation manifests
         working-directory: ./enterprise/olm
         env:
-          IMG: "quay.io/isovalent-dev/clife-ci:${{ steps.vars.outputs.sha }}"
+          IMG: "${{ env.ARTIFACTORY_DEV }}/${{ env.ARTIFACTORY_ORGANIZATION_DEV }}/clife-ci:${{ steps.vars.outputs.sha }}"
         run: make build-installer
 
       - name: Install kubectl
@@ -344,11 +345,18 @@ jobs:
           aws-region: ${{ steps.vars.outputs.region }}
           role-duration-seconds: 5400
 
+      - name: Login to Artifactory for Cilium CLI
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ${{ env.ARTIFACTORY_DEV }}
+          username: ${{ vars.ARTIFACTORY_USERNAME }}
+          password: ${{ secrets.ARTIFACTORY_PASSWORD }}
+
       - name: Install Cilium CLI
         uses: cilium/cilium-cli@3ce83aa3b4ea3ce6d97023c4d83c22b73a4ed3b4 # v0.19.2
         with:
           skip-build: ${{ env.CILIUM_CLI_SKIP_BUILD }}
-          image-repo: ${{ env.CILIUM_CLI_IMAGE_REPO }}
+          image-repo: ${{ env.CILIUM_CLI_IMAGE_REPO_ARTIFACTORY }}
           image-tag: ${{ steps.vars.outputs.sha }}
           repository: ${{ env.CILIUM_CLI_RELEASE_REPO }}
           release-version: ${{ env.CILIUM_CLI_VERSION }}
@@ -375,6 +383,15 @@ jobs:
         run: |
           # Generation of the installation configuration.
           echo "${{ secrets.OPENSHIFT_PULL_SECRET }}" | base64 -d > .pullsecret.json
+
+          # Add Artifactory credentials to pull secret (resolves auth issue)
+          ARTIFACTORY_AUTH=$(echo -n "${{ vars.ARTIFACTORY_USERNAME }}:${{ secrets.ARTIFACTORY_PASSWORD }}" | base64 -w0)
+          jq --arg auth "$ARTIFACTORY_AUTH" \
+            --arg registry "${{ env.ARTIFACTORY_DEV }}" \
+            '.auths[$registry] = {"auth": $auth}' \
+            .pullsecret.json > .pullsecret.tmp.json
+          mv .pullsecret.tmp.json .pullsecret.json
+
           # exclude 0 from the random range to avoid conflicts with the pod CIDR 10.0.0.0/16
           range=$(shuf -i 1-255 -n 1)
           cat > setup.conf << EOF
