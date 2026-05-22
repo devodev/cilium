@@ -48,11 +48,19 @@ function preflight {
 	  --submit"
   fi
   echo "docker run --rm quay.io/opdev/preflight:stable ${cmd}  > $output"
-  docker run --rm quay.io/opdev/preflight:stable ${cmd}  > $output
+  if ! docker run --rm quay.io/opdev/preflight:stable ${cmd}  > $output; then
+    # The preflight tool returns an error when the check is run for the same
+    # image with a different tag. The tag gets however correctly appended.
+    # confer support case: 04451999
+    echo "Preflight check tool returned error. Checking result file for failure."
+  fi
 }
 
 function preflight-eval {
   result_file="$1"
+  if [ ! -s $result_file ]; then
+       return 1
+  fi
   for result in $(cat ${result_file} | jq '.passed'); do
      if [ $result != true ]; then
        return 1
@@ -109,7 +117,7 @@ tags+=( [8]="${yq_get_result}" )
 for i in "${!images[@]}"; do
   preflight ${images[$i]}${suffix}:${tags[$i]} $CL_PYXIS_TOKEN ${cid[$i]} false $res
   if ! preflight-eval $res ; then
-    echo "Preflight checks failed for image: ${images[i]}${suffix}:${tags[$i]}"
+    echo "Preflight checks failed for image: ${images[$i]}${suffix}:${tags[$i]}"
     cat $res
     exit 1
   fi
