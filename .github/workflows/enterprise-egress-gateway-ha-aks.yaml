@@ -587,6 +587,10 @@ jobs:
           CONN_DISRUPT_CHECK_ARGS=" \
             --include-unsafe-tests \
             --include-conn-disrupt-test-egw-ha \
+            --collect-sysdump-on-failure \
+            --sysdump-hubble-flows-count=1000000 \
+            --sysdump-hubble-flows-timeout=5m \
+            --sysdump-output-filename 'cilium-sysdump-conn-disrupt-<ts>' \
             --conn-disrupt-test-restarts-path ./cilium-conn-disrupt-restarts \
             --flush-ct \
             --test no-interrupted-connections-for-enterprise
