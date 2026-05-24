@@ -33,6 +33,7 @@ type EffectiveRuleSource string
 const (
 	EffectiveRuleSourceDefault EffectiveRuleSource = "Default"
 	EffectiveRuleSourceManaged EffectiveRuleSource = "Managed"
+	EffectiveRuleSourceProfile EffectiveRuleSource = "Profile"
 	EffectiveRuleSourceInline  EffectiveRuleSource = "Inline"
 )
 
@@ -41,6 +42,7 @@ const (
 type EffectiveRules struct {
 	Source        EffectiveRuleSource
 	PolicyProfile isovalentv1alpha1.IsovalentWAFPolicyProfileType
+	CustomProfile isovalentv1alpha1.IsovalentWAFCustomProfile
 	Inline        InlineRules
 }
 
@@ -105,6 +107,9 @@ func Validate(policy *isovalentv1alpha1.IsovalentWAFPolicy) error {
 	}
 
 	if hasCustom {
+		if policy.Spec.Rules.Custom.Profile != nil {
+			return nil
+		}
 		return ValidateInlineRules(policy.Spec.Rules.Custom.Inline)
 	}
 
@@ -286,15 +291,25 @@ func (r *Resolver) policyToConfig(policy *isovalentv1alpha1.IsovalentWAFPolicy) 
 		config.Rules.PolicyProfile = policy.Spec.Rules.Managed.Profile
 	}
 
-	if policy.Spec.Rules != nil && policy.Spec.Rules.Custom != nil {
-		inlineRules, err := BuildInlineRules(policy.Spec.Rules.Custom.Inline)
-		if err != nil {
-			return EffectiveConfig{}, err
-		}
+	if policy.Spec.Rules == nil || policy.Spec.Rules.Custom == nil {
+		return config, nil
+	}
+
+	if policy.Spec.Rules.Custom.Profile != nil {
 		config.Rules = EffectiveRules{
-			Source: EffectiveRuleSourceInline,
-			Inline: inlineRules,
+			Source:        EffectiveRuleSourceProfile,
+			CustomProfile: *policy.Spec.Rules.Custom.Profile,
 		}
+		return config, nil
+	}
+
+	inlineRules, err := BuildInlineRules(policy.Spec.Rules.Custom.Inline)
+	if err != nil {
+		return EffectiveConfig{}, err
+	}
+	config.Rules = EffectiveRules{
+		Source: EffectiveRuleSourceInline,
+		Inline: inlineRules,
 	}
 
 	return config, nil

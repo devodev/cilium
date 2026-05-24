@@ -215,6 +215,41 @@ func TestReconcilePolicyInlineRules(t *testing.T) {
 				expectedInline.HashKey: {Policies: []string{"team-a/policy-inline", "team-b/policy-inline"}},
 			},
 		},
+		{
+			name: "custom profile removes stale inline bundle entry for same policy",
+			policy: &isovalentv1alpha1.IsovalentWAFPolicy{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: "team-a",
+					Name:      "policy-inline",
+				},
+				Spec: isovalentv1alpha1.IsovalentWAFPolicySpec{
+					Rules: &isovalentv1alpha1.IsovalentWAFPolicyRules{
+						Custom: &isovalentv1alpha1.IsovalentWAFCustomRules{
+							Profile: &isovalentv1alpha1.IsovalentWAFCustomProfile{
+								BlockingParanoiaLevel:         2,
+								DetectionParanoiaLevel:        3,
+								InboundAnomalyScoreThreshold:  7,
+								OutboundAnomalyScoreThreshold: 6,
+							},
+						},
+					},
+				},
+			},
+			inlineRulesData: map[string]string{
+				expectedInline.HashKey: expectedInline.Inline,
+				otherInline.HashKey:    otherInline.Inline,
+			},
+			inlineRulesMetadata: map[string]string{
+				expectedInline.HashKey: `{"policies":["team-a/policy-inline"]}`,
+				otherInline.HashKey:    `{"policies":["team-b/other-policy"]}`,
+			},
+			expectedInlineRulesData: map[string]string{
+				otherInline.HashKey: otherInline.Inline,
+			},
+			expectedMetadataData: map[string]inlineMetadata{
+				otherInline.HashKey: {Policies: []string{"team-b/other-policy"}},
+			},
+		},
 	}
 
 	for _, tc := range testCases {

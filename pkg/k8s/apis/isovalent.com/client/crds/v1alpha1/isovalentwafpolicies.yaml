@@ -178,6 +178,10 @@ spec:
                         - inboundAnomalyScoreThreshold
                         - outboundAnomalyScoreThreshold
                         type: object
+                        x-kubernetes-validations:
+                        - message: detectionParanoiaLevel must be greater than or
+                            equal to blockingParanoiaLevel
+                          rule: self.detectionParanoiaLevel >= self.blockingParanoiaLevel
                     type: object
                     x-kubernetes-validations:
                     - message: exactly one of inline or profile must be specified

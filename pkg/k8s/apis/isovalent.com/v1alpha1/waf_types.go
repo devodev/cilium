@@ -178,6 +178,7 @@ type IsovalentWAFCustomRules struct {
 	Profile *IsovalentWAFCustomProfile `json:"profile,omitempty"`
 }
 
+// +kubebuilder:validation:XValidation:message="detectionParanoiaLevel must be greater than or equal to blockingParanoiaLevel",rule="self.detectionParanoiaLevel >= self.blockingParanoiaLevel"
 type IsovalentWAFCustomProfile struct {
 	// BlockingParanoiaLevel controls which CRS blocking rules are enabled.
 	//

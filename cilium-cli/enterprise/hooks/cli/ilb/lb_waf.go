@@ -119,6 +119,40 @@ func TestWAFMonitorsManagedProfileAttacks(t T) {
 	}
 }
 
+func TestWAFBlocksCustomProfileAttacks(t T) {
+	testName := "waf-blocks-custom-profile-attacks"
+	hostName := "insecure.acme.io"
+	path := "/api/foo-insecure"
+
+	env := newWAFTestEnv(t,
+		testName,
+		hostName,
+		path,
+		wafPolicy(
+			testName,
+			wafLabelValue,
+			withWAFEnabled(true),
+			withWAFMode(isovalentv1alpha1.IsovalentWAFPolicyModeEnforce),
+			withWAFCustomProfile(isovalentv1alpha1.IsovalentWAFCustomProfile{
+				BlockingParanoiaLevel:         2,
+				DetectionParanoiaLevel:        2,
+				InboundAnomalyScoreThreshold:  7,
+				OutboundAnomalyScoreThreshold: 6,
+			}),
+		))
+	if env == nil {
+		return
+	}
+
+	t.Log("Testing benign request...")
+	env.expectStatus(hostName, path, "200")
+
+	for _, tt := range attacks {
+		t.Log("Testing WAF attack: %s...", tt.name)
+		env.eventuallyResponseWithHeaders(hostName, path+tt.query, tt.headers, "403", "blocked by waf", nil)
+	}
+}
+
 func newWAFTestEnv(t T, testName, hostName, path string, policy *isovalentv1alpha1.IsovalentWAFPolicy) *wafTestEnv {
 	ciliumCli, k8sCli := NewCiliumAndK8sCli(t)
 	if skipIfWAFDisabled(t, k8sCli, "WAF is not enabled in cilium-config") {
@@ -286,6 +320,18 @@ func withWAFManagedProfile(profile isovalentv1alpha1.IsovalentWAFPolicyProfileTy
 			p.Spec.Rules.Managed = &isovalentv1alpha1.IsovalentWAFManagedRules{}
 		}
 		p.Spec.Rules.Managed.Profile = profile
+	}
+}
+
+func withWAFCustomProfile(profile isovalentv1alpha1.IsovalentWAFCustomProfile) wafPolicyOption {
+	return func(p *isovalentv1alpha1.IsovalentWAFPolicy) {
+		if p.Spec.Rules == nil {
+			p.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{}
+		}
+		if p.Spec.Rules.Custom == nil {
+			p.Spec.Rules.Custom = &isovalentv1alpha1.IsovalentWAFCustomRules{}
+		}
+		p.Spec.Rules.Custom.Profile = &profile
 	}
 }
 

@@ -110,5 +110,6 @@ var Tests = []func(t T){
 	TestTCPProxyT1OnlyRequireSameZone,
 	TestT2HTTPPreferSameZone,
 	TestWAFBlocksManagedProfileAttacks,
+	TestWAFBlocksCustomProfileAttacks,
 	TestWAFMonitorsManagedProfileAttacks,
 }

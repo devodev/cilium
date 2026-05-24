@@ -12,6 +12,7 @@ package envoy
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/cilium/cilium/enterprise/operator/pkg/waf/policy"
 	isovalentv1alpha1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
@@ -22,7 +23,11 @@ const (
 	wafResponseBlockStatus = 403
 	wafResponseBlockBody   = "blocked by waf"
 	wafBodyLimitBytes      = 1024 * 1024
+	wafRulesPath           = "/etc/coraza/rules"
 	wafProfilesPath        = "/etc/coraza/rules/profiles"
+	wafMainConfigPath      = wafRulesPath + "/main.conf"
+	// Coraza requires an ID for the generated SecAction that applies custom CRS tuning.
+	wafCustomProfileRuleID = 1000000
 )
 
 type ProxyConfig struct {
@@ -47,12 +52,9 @@ func (ProxyConfigBuilder) Build(cfg policy.EffectiveConfig) (*ProxyConfig, error
 		return nil, nil
 	}
 
-	switch cfg.Rules.Source {
-	case policy.EffectiveRuleSourceDefault, policy.EffectiveRuleSourceManaged:
-	case policy.EffectiveRuleSourceInline:
+	// Currently not implemented
+	if cfg.Rules.Source == policy.EffectiveRuleSourceInline {
 		return nil, nil
-	default:
-		return nil, fmt.Errorf("unsupported WAF rules source %q", cfg.Rules.Source)
 	}
 
 	directives, err := directivesForWAFConfig(cfg)
@@ -92,7 +94,23 @@ func directivesForWAFConfig(config policy.EffectiveConfig) (string, error) {
 	switch config.Rules.Source {
 	case policy.EffectiveRuleSourceDefault, policy.EffectiveRuleSourceManaged:
 		return fmt.Sprintf("Include %s/%s.conf", wafProfilesPath, config.Rules.PolicyProfile), nil
+	case policy.EffectiveRuleSourceProfile:
+		return directivesForCustomProfile(config.Rules.CustomProfile), nil
 	default:
 		return "", fmt.Errorf("unsupported WAF rules source %q", config.Rules.Source)
 	}
+}
+
+func directivesForCustomProfile(profile isovalentv1alpha1.IsovalentWAFCustomProfile) string {
+	return strings.Join([]string{
+		fmt.Sprintf(
+			`SecAction "id:%d,phase:1,pass,nolog,t:none,setvar:tx.blocking_paranoia_level=%d,setvar:tx.detection_paranoia_level=%d,setvar:tx.inbound_anomaly_score_threshold=%d,setvar:tx.outbound_anomaly_score_threshold=%d"`,
+			wafCustomProfileRuleID,
+			profile.BlockingParanoiaLevel,
+			profile.DetectionParanoiaLevel,
+			profile.InboundAnomalyScoreThreshold,
+			profile.OutboundAnomalyScoreThreshold,
+		),
+		fmt.Sprintf("Include %s", wafMainConfigPath),
+	}, "\n")
 }

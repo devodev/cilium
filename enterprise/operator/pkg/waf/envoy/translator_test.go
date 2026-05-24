@@ -58,6 +58,24 @@ func TestHTTPFilter(t *testing.T) {
 			expectedFilter: true,
 		},
 		{
+			name: "custom profile emits filter",
+			config: &policy.EffectiveConfig{
+				Enabled:     true,
+				Mode:        isovalentv1alpha1.IsovalentWAFPolicyModeEnforce,
+				FailureMode: isovalentv1alpha1.WAFFailureModeOpen,
+				Rules: policy.EffectiveRules{
+					Source: policy.EffectiveRuleSourceProfile,
+					CustomProfile: isovalentv1alpha1.IsovalentWAFCustomProfile{
+						BlockingParanoiaLevel:         2,
+						DetectionParanoiaLevel:        3,
+						InboundAnomalyScoreThreshold:  7,
+						OutboundAnomalyScoreThreshold: 6,
+					},
+				},
+			},
+			expectedFilter: true,
+		},
+		{
 			name: "managed enforce close with overrides",
 			config: &policy.EffectiveConfig{
 				Enabled:     true,
@@ -127,6 +145,38 @@ func TestBlockRoute(t *testing.T) {
 				Match: &envoy_config_route_v3.RouteMatch{
 					PathSpecifier: &envoy_config_route_v3.RouteMatch_Path{
 						Path: "/__waf_block__",
+					},
+				},
+				Action: &envoy_config_route_v3.Route_DirectResponse{
+					DirectResponse: &envoy_config_route_v3.DirectResponseAction{
+						Status: 403,
+						Body: &envoy_config_core_v3.DataSource{
+							Specifier: &envoy_config_core_v3.DataSource_InlineString{
+								InlineString: "blocked by waf",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "custom profile builds block route",
+			config: &policy.EffectiveConfig{
+				Enabled: true,
+				Rules: policy.EffectiveRules{
+					Source: policy.EffectiveRuleSourceProfile,
+					CustomProfile: isovalentv1alpha1.IsovalentWAFCustomProfile{
+						BlockingParanoiaLevel:         2,
+						DetectionParanoiaLevel:        3,
+						InboundAnomalyScoreThreshold:  7,
+						OutboundAnomalyScoreThreshold: 6,
+					},
+				},
+			},
+			expected: &envoy_config_route_v3.Route{
+				Match: &envoy_config_route_v3.RouteMatch{
+					PathSpecifier: &envoy_config_route_v3.RouteMatch_Path{
+						Path: "/__coraza_block__",
 					},
 				},
 				Action: &envoy_config_route_v3.Route_DirectResponse{

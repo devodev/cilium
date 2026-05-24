@@ -47,6 +47,12 @@ func TestResolverResolveConfig(t *testing.T) {
 
 	inline := `SecAction "id:1000,phase:1,pass,nolog"`
 	mode := isovalentv1alpha1.IsovalentWAFPolicyModeMonitor
+	customProfile := isovalentv1alpha1.IsovalentWAFCustomProfile{
+		BlockingParanoiaLevel:         2,
+		DetectionParanoiaLevel:        3,
+		InboundAnomalyScoreThreshold:  7,
+		OutboundAnomalyScoreThreshold: 6,
+	}
 	overridePolicy := acceptedPolicy(
 		"team-a",
 		"api-waf",
@@ -92,6 +98,16 @@ func TestResolverResolveConfig(t *testing.T) {
 				StatusCode: &blockStatusCode,
 				Body:       &blockBody,
 			},
+		},
+	}
+	customProfilePolicy := acceptedPolicy(
+		"team-a",
+		"api-waf-custom-profile",
+		&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}},
+	)
+	customProfilePolicy.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{
+		Custom: &isovalentv1alpha1.IsovalentWAFCustomRules{
+			Profile: &customProfile,
 		},
 	}
 	matchAllPolicy := acceptedPolicy(
@@ -202,6 +218,19 @@ func TestResolverResolveConfig(t *testing.T) {
 					BodyLimitBytes:          &bodyLimitBytes,
 					BlockResponseStatusCode: &blockStatusCode,
 					BlockResponseBody:       &blockBody,
+				},
+			},
+		},
+		{
+			desc:    "applies custom profile when selected",
+			objects: []ctrlClient.Object{&customProfilePolicy},
+			expected: &EffectiveConfig{
+				Enabled:     true,
+				Mode:        defaults.Mode,
+				FailureMode: defaults.FailureMode,
+				Rules: EffectiveRules{
+					Source:        EffectiveRuleSourceProfile,
+					CustomProfile: customProfile,
 				},
 			},
 		},
