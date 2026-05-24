@@ -14,6 +14,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	isovalentv1alpha1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
 )
 
 func TestNormalize(t *testing.T) {
@@ -79,56 +81,80 @@ func TestHashKey(t *testing.T) {
 	}
 }
 
-func TestValidateInlineRules(t *testing.T) {
+func TestValidateCustomRules(t *testing.T) {
 	testCases := []struct {
 		name        string
-		inline      string
+		rules       *isovalentv1alpha1.IsovalentWAFCustomRules
 		expectError string
 	}{
 		{
-			name:   "accepts valid inline rules",
-			inline: `SecAction "id:1000,phase:1,pass,nolog"` + "\r\n",
+			name:  "accepts nil custom rules",
+			rules: nil,
+		},
+		{
+			name: "accepts profile only custom rules",
+			rules: &isovalentv1alpha1.IsovalentWAFCustomRules{
+				Profile: &isovalentv1alpha1.IsovalentWAFCustomProfile{
+					BlockingParanoiaLevel:         2,
+					DetectionParanoiaLevel:        3,
+					InboundAnomalyScoreThreshold:  7,
+					OutboundAnomalyScoreThreshold: 6,
+				},
+			},
+		},
+		{
+			name: "accepts valid inline rules",
+			rules: &isovalentv1alpha1.IsovalentWAFCustomRules{
+				Inline: `SecAction "id:1000,phase:1,pass,nolog"` + "\r\n",
+			},
+		},
+		{
+			name: "accepts profile with valid inline rules",
+			rules: &isovalentv1alpha1.IsovalentWAFCustomRules{
+				Profile: &isovalentv1alpha1.IsovalentWAFCustomProfile{
+					BlockingParanoiaLevel:         2,
+					DetectionParanoiaLevel:        3,
+					InboundAnomalyScoreThreshold:  7,
+					OutboundAnomalyScoreThreshold: 6,
+				},
+				Inline: `SecAction "id:1000,phase:1,pass,nolog"` + "\r\n",
+			},
 		},
 		{
 			name:        "rejects inline rules that declare SecRuleEngine",
-			inline:      "SecRuleEngine DetectionOnly\r\n",
+			rules:       &isovalentv1alpha1.IsovalentWAFCustomRules{Inline: "SecRuleEngine DetectionOnly\r\n"},
 			expectError: "inline rules must not declare SecRuleEngine",
 		},
 		{
 			name:        "rejects inline rules that declare Include",
-			inline:      "Include @crs-setup.conf.example\r\n",
+			rules:       &isovalentv1alpha1.IsovalentWAFCustomRules{Inline: "Include @crs-setup.conf.example\r\n"},
 			expectError: "inline rules must not declare Include",
 		},
 		{
 			name:        "rejects syntactically invalid inline rules",
-			inline:      `SecRule REQUEST_URI "@rx (" "id:1000,phase:1,deny"`,
+			rules:       &isovalentv1alpha1.IsovalentWAFCustomRules{Inline: `SecRule REQUEST_URI "@rx (" "id:1000,phase:1,deny"`},
 			expectError: "effective WAF rule validation failed",
 		},
 		{
-			name:        "rejects empty inline rules",
-			inline:      "",
-			expectError: "spec.rules.custom.inline must not be empty",
-		},
-		{
 			name:        "rejects whitespace only inline rules",
-			inline:      "\r\n\t  \r\n",
+			rules:       &isovalentv1alpha1.IsovalentWAFCustomRules{Inline: "\r\n\t  \r\n"},
 			expectError: "spec.rules.custom.inline must not be empty",
 		},
 		{
 			name:        "rejects comment only inline rules",
-			inline:      "# comment only",
+			rules:       &isovalentv1alpha1.IsovalentWAFCustomRules{Inline: "# comment only"},
 			expectError: "spec.rules.custom.inline must not be empty",
 		},
 		{
 			name:        "rejects blank and comment only inline rules",
-			inline:      "\n\t# comment only\r\n\n# another comment",
+			rules:       &isovalentv1alpha1.IsovalentWAFCustomRules{Inline: "\n\t# comment only\r\n\n# another comment"},
 			expectError: "spec.rules.custom.inline must not be empty",
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := ValidateInlineRules(tc.inline)
+			err := ValidateCustomRules(tc.rules)
 			if tc.expectError != "" {
 				require.Error(t, err)
 				require.ErrorContains(t, err, tc.expectError)

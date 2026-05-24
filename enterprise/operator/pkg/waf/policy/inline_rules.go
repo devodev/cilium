@@ -18,6 +18,8 @@ import (
 
 	"github.com/corazawaf/coraza/v3"
 	apivalidation "k8s.io/apimachinery/pkg/util/validation"
+
+	isovalentv1alpha1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
 )
 
 const inlineHashKeyPrefix = "crs_inline_sha256_v1_"
@@ -27,11 +29,16 @@ type InlineRules struct {
 	HashKey string
 }
 
-func ValidateInlineRules(inline string) error {
-	directives, err := parseDirectives(inline)
+func ValidateCustomRules(rules *isovalentv1alpha1.IsovalentWAFCustomRules) error {
+	if rules == nil || rules.Inline == "" {
+		return nil
+	}
+
+	directives, err := parseDirectives(rules.Inline)
 	if err != nil {
 		return err
 	}
+
 	if _, err := coraza.NewWAF(coraza.NewWAFConfig().WithDirectives(directives)); err != nil {
 		return fmt.Errorf("effective WAF rule validation failed: %w", err)
 	}

@@ -35,14 +35,17 @@ func TestHTTPFilter(t *testing.T) {
 			expectedFilter: false,
 		},
 		{
-			name: "inline rules skip managed filter",
+			name: "inline rules emit filter",
 			config: &policy.EffectiveConfig{
 				Enabled: true,
 				Rules: policy.EffectiveRules{
 					Source: policy.EffectiveRuleSourceInline,
+					Inline: policy.InlineRules{
+						Inline: `SecAction "id:1000,phase:1,pass,nolog"`,
+					},
 				},
 			},
-			expectedFilter: false,
+			expectedFilter: true,
 		},
 		{
 			name: "managed monitor defaults",
@@ -124,14 +127,33 @@ func TestBlockRoute(t *testing.T) {
 			expected: nil,
 		},
 		{
-			name: "inline rules skip block route",
+			name: "inline rules build block route",
 			config: &policy.EffectiveConfig{
 				Enabled: true,
 				Rules: policy.EffectiveRules{
 					Source: policy.EffectiveRuleSourceInline,
+					Inline: policy.InlineRules{
+						Inline: `SecAction "id:1000,phase:1,pass,nolog"`,
+					},
 				},
 			},
-			expected: nil,
+			expected: &envoy_config_route_v3.Route{
+				Match: &envoy_config_route_v3.RouteMatch{
+					PathSpecifier: &envoy_config_route_v3.RouteMatch_Path{
+						Path: "/__coraza_block__",
+					},
+				},
+				Action: &envoy_config_route_v3.Route_DirectResponse{
+					DirectResponse: &envoy_config_route_v3.DirectResponseAction{
+						Status: 403,
+						Body: &envoy_config_core_v3.DataSource{
+							Specifier: &envoy_config_core_v3.DataSource_InlineString{
+								InlineString: "blocked by waf",
+							},
+						},
+					},
+				},
+			},
 		},
 		{
 			name: "managed defaults",

@@ -52,11 +52,6 @@ func (ProxyConfigBuilder) Build(cfg policy.EffectiveConfig) (*ProxyConfig, error
 		return nil, nil
 	}
 
-	// Currently not implemented
-	if cfg.Rules.Source == policy.EffectiveRuleSourceInline {
-		return nil, nil
-	}
-
 	directives, err := directivesForWAFConfig(cfg)
 	if err != nil {
 		return nil, err
@@ -92,17 +87,19 @@ func toWAFFailPolicy(mode isovalentv1alpha1.WAFFailureModeType) string {
 
 func directivesForWAFConfig(config policy.EffectiveConfig) (string, error) {
 	switch config.Rules.Source {
-	case policy.EffectiveRuleSourceDefault, policy.EffectiveRuleSourceManaged:
+	case policy.EffectiveRuleSourceManaged:
 		return fmt.Sprintf("Include %s/%s.conf", wafProfilesPath, config.Rules.PolicyProfile), nil
 	case policy.EffectiveRuleSourceProfile:
-		return directivesForCustomProfile(config.Rules.CustomProfile), nil
+		return directivesForCustomProfile(config.Rules.CustomProfile, config.Rules.Inline), nil
+	case policy.EffectiveRuleSourceInline:
+		return config.Rules.Inline.Inline, nil
 	default:
 		return "", fmt.Errorf("unsupported WAF rules source %q", config.Rules.Source)
 	}
 }
 
-func directivesForCustomProfile(profile isovalentv1alpha1.IsovalentWAFCustomProfile) string {
-	return strings.Join([]string{
+func directivesForCustomProfile(profile isovalentv1alpha1.IsovalentWAFCustomProfile, inline policy.InlineRules) string {
+	parts := []string{
 		fmt.Sprintf(
 			`SecAction "id:%d,phase:1,pass,nolog,t:none,setvar:tx.blocking_paranoia_level=%d,setvar:tx.detection_paranoia_level=%d,setvar:tx.inbound_anomaly_score_threshold=%d,setvar:tx.outbound_anomaly_score_threshold=%d"`,
 			wafCustomProfileRuleID,
@@ -112,5 +109,9 @@ func directivesForCustomProfile(profile isovalentv1alpha1.IsovalentWAFCustomProf
 			profile.OutboundAnomalyScoreThreshold,
 		),
 		fmt.Sprintf("Include %s", wafMainConfigPath),
-	}, "\n")
+	}
+	if inline.Inline != "" {
+		parts = append(parts, inline.Inline)
+	}
+	return strings.Join(parts, "\n")
 }

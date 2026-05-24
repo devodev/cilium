@@ -60,17 +60,22 @@ func TestDesiredManagedWAFHTTPRouteConfig(t *testing.T) {
 			},
 		},
 		{
-			name: "inline rules skip block route",
+			name: "inline rules prepend block route",
 			config: &wafpolicy.EffectiveConfig{
 				Enabled: true,
 				Rules: wafpolicy.EffectiveRules{
 					Source: wafpolicy.EffectiveRuleSourceInline,
 				},
 			},
-			expectedRouteLen: 1,
+			expectedRouteLen: 2,
 			assertRoutes: func(t *testing.T, routes []*envoy_config_route_v3.Route) {
 				t.Helper()
-				backendRoute := routes[0]
+				blockRoute := routes[0]
+				require.Equal(t, "/__coraza_block__", blockRoute.GetMatch().GetPath())
+				require.Equal(t, uint32(403), blockRoute.GetDirectResponse().GetStatus())
+				require.Equal(t, "blocked by waf", blockRoute.GetDirectResponse().GetBody().GetInlineString())
+
+				backendRoute := routes[1]
 				require.Equal(t, "/api/foo-insecure", backendRoute.GetMatch().GetPath())
 				require.Equal(t, "backend_cluster_app", backendRoute.GetRoute().GetCluster())
 			},

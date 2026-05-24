@@ -153,6 +153,72 @@ func TestWAFBlocksCustomProfileAttacks(t T) {
 	}
 }
 
+func TestWAFBlocksInlineRuleAttack(t T) {
+	testName := "waf-blocks-inline-rule-attack"
+	hostName := "insecure.acme.io"
+	path := "/api/foo-insecure"
+
+	env := newWAFTestEnv(t,
+		testName,
+		hostName,
+		path,
+		wafPolicy(
+			testName,
+			wafLabelValue,
+			withWAFEnabled(true),
+			withWAFMode(isovalentv1alpha1.IsovalentWAFPolicyModeEnforce),
+			withWAFInlineRules(`SecRule REQUEST_HEADERS:User-Agent "@streq Nessus" "id:1000,phase:1,deny,status:403,msg:'block Nessus user-agent'"`),
+		))
+	if env == nil {
+		return
+	}
+
+	t.Log("Testing benign request...")
+	env.expectStatus(hostName, path, "200")
+
+	t.Log("Testing WAF inline-only policy does not load CRS...")
+	env.eventuallyResponseWithHeaders(hostName, path+attacks[0].query, nil, "200", "", nil)
+
+	t.Log("Testing WAF inline-rule attack...")
+	env.eventuallyResponseWithHeaders(hostName, path, map[string]string{"User-Agent": "Nessus"}, "403", "blocked by waf", nil)
+}
+
+func TestWAFBlocksCustomProfileWithInlineRuleAttack(t T) {
+	testName := "waf-blocks-custom-profile-inline-rule-attack"
+	hostName := "insecure.acme.io"
+	path := "/api/foo-insecure"
+
+	env := newWAFTestEnv(t,
+		testName,
+		hostName,
+		path,
+		wafPolicy(
+			testName,
+			wafLabelValue,
+			withWAFEnabled(true),
+			withWAFMode(isovalentv1alpha1.IsovalentWAFPolicyModeEnforce),
+			withWAFCustomProfile(isovalentv1alpha1.IsovalentWAFCustomProfile{
+				BlockingParanoiaLevel:         2,
+				DetectionParanoiaLevel:        2,
+				InboundAnomalyScoreThreshold:  7,
+				OutboundAnomalyScoreThreshold: 6,
+			}),
+			withWAFInlineRules(`SecRule REQUEST_HEADERS:User-Agent "@streq Nessus" "id:1000,phase:1,deny,status:403,msg:'block Nessus user-agent'"`),
+		))
+	if env == nil {
+		return
+	}
+
+	t.Log("Testing benign request...")
+	env.expectStatus(hostName, path, "200")
+
+	t.Log("Testing WAF custom-profile inline-rule attack...")
+	env.eventuallyResponseWithHeaders(hostName, path, map[string]string{"User-Agent": "Nessus"}, "403", "blocked by waf", nil)
+
+	t.Log("Testing WAF custom-profile CRS attack...")
+	env.eventuallyResponseWithHeaders(hostName, path+attacks[0].query, nil, "403", "blocked by waf", nil)
+}
+
 func newWAFTestEnv(t T, testName, hostName, path string, policy *isovalentv1alpha1.IsovalentWAFPolicy) *wafTestEnv {
 	ciliumCli, k8sCli := NewCiliumAndK8sCli(t)
 	if skipIfWAFDisabled(t, k8sCli, "WAF is not enabled in cilium-config") {
@@ -332,6 +398,18 @@ func withWAFCustomProfile(profile isovalentv1alpha1.IsovalentWAFCustomProfile) w
 			p.Spec.Rules.Custom = &isovalentv1alpha1.IsovalentWAFCustomRules{}
 		}
 		p.Spec.Rules.Custom.Profile = &profile
+	}
+}
+
+func withWAFInlineRules(inline string) wafPolicyOption {
+	return func(p *isovalentv1alpha1.IsovalentWAFPolicy) {
+		if p.Spec.Rules == nil {
+			p.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{}
+		}
+		if p.Spec.Rules.Custom == nil {
+			p.Spec.Rules.Custom = &isovalentv1alpha1.IsovalentWAFCustomRules{}
+		}
+		p.Spec.Rules.Custom.Inline = inline
 	}
 }
 

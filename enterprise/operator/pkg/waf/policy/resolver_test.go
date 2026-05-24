@@ -110,6 +110,17 @@ func TestResolverResolveConfig(t *testing.T) {
 			Profile: &customProfile,
 		},
 	}
+	customProfileWithInlinePolicy := acceptedPolicy(
+		"team-a",
+		"api-waf-custom-profile-inline",
+		&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}},
+	)
+	customProfileWithInlinePolicy.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{
+		Custom: &isovalentv1alpha1.IsovalentWAFCustomRules{
+			Profile: &customProfile,
+			Inline:  inline,
+		},
+	}
 	matchAllPolicy := acceptedPolicy(
 		"team-a",
 		"match-all",
@@ -231,6 +242,20 @@ func TestResolverResolveConfig(t *testing.T) {
 				Rules: EffectiveRules{
 					Source:        EffectiveRuleSourceProfile,
 					CustomProfile: customProfile,
+				},
+			},
+		},
+		{
+			desc:    "applies custom profile with inline additions when selected",
+			objects: []ctrlClient.Object{&customProfileWithInlinePolicy},
+			expected: &EffectiveConfig{
+				Enabled:     true,
+				Mode:        defaults.Mode,
+				FailureMode: defaults.FailureMode,
+				Rules: EffectiveRules{
+					Source:        EffectiveRuleSourceProfile,
+					CustomProfile: customProfile,
+					Inline:        mustInlineRulesForTest(t, inline),
 				},
 			},
 		},
@@ -360,17 +385,17 @@ func TestValidate(t *testing.T) {
 			expectError: true,
 		},
 		{
-			desc: "rejects empty rules object",
+			desc: "accepts empty rules object and uses defaults",
 			policy: func() isovalentv1alpha1.IsovalentWAFPolicy {
 				policy := acceptedPolicy(
 					"team-a",
-					"invalid-empty-rules",
+					"empty-rules",
 					&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}},
 				)
 				policy.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{}
 				return policy
 			}(),
-			expectError: true,
+			expectError: false,
 		},
 		{
 			desc: "rejects policies that specify both managed and custom rules",
@@ -389,6 +414,31 @@ func TestValidate(t *testing.T) {
 				return policy
 			}(),
 			expectError: true,
+		},
+		{
+			desc: "accepts custom profile with inline additions",
+			policy: func() isovalentv1alpha1.IsovalentWAFPolicy {
+				policy := acceptedPolicy(
+					"team-a",
+					"custom-profile-inline",
+					&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}},
+				)
+				inline := `SecAction "id:1000,phase:1,pass,nolog"`
+				profile := isovalentv1alpha1.IsovalentWAFCustomProfile{
+					BlockingParanoiaLevel:         2,
+					DetectionParanoiaLevel:        3,
+					InboundAnomalyScoreThreshold:  7,
+					OutboundAnomalyScoreThreshold: 6,
+				}
+				policy.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{
+					Custom: &isovalentv1alpha1.IsovalentWAFCustomRules{
+						Profile: &profile,
+						Inline:  inline,
+					},
+				}
+				return policy
+			}(),
+			expectError: false,
 		},
 		{
 			desc: "rejects unsupported target kinds",

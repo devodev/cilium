@@ -134,8 +134,12 @@ spec:
                     properties:
                       inline:
                         description: |-
-                          Inline provides a fully custom WAF ruleset directly in the resource.
+                          Inline provides custom WAF directives directly in the resource.
                           Multi-line values should be provided as a YAML block scalar.
+
+                          If profile is also specified, the inline directives are appended on top of
+                          the CRS-based profile configuration. Otherwise, the inline directives are
+                          used as the full ruleset.
 
                           If provided, the field must not declare SecRuleEngine or Include.
                           SecRuleEngine conflicts with spec.mode, and Include would make the custom
@@ -143,8 +147,10 @@ spec:
                         type: string
                       profile:
                         description: |-
-                          Profile provides explicit CRS tuning for this policy as an alternative
-                          to inline custom rules.
+                          Profile provides explicit CRS tuning for this policy.
+
+                          If inline is also specified, the inline directives are appended on top of
+                          the CRS-based profile configuration.
                         properties:
                           blockingParanoiaLevel:
                             description: BlockingParanoiaLevel controls which CRS
@@ -184,8 +190,8 @@ spec:
                           rule: self.detectionParanoiaLevel >= self.blockingParanoiaLevel
                     type: object
                     x-kubernetes-validations:
-                    - message: exactly one of inline or profile must be specified
-                      rule: has(self.inline) != has(self.profile)
+                    - message: at least one of inline or profile must be specified
+                      rule: has(self.inline) || has(self.profile)
                   managed:
                     description: Managed selects the built-in WAF rules shipped by
                       the platform.

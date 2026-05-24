@@ -111,5 +111,7 @@ var Tests = []func(t T){
 	TestT2HTTPPreferSameZone,
 	TestWAFBlocksManagedProfileAttacks,
 	TestWAFBlocksCustomProfileAttacks,
+	TestWAFBlocksInlineRuleAttack,
+	TestWAFBlocksCustomProfileWithInlineRuleAttack,
 	TestWAFMonitorsManagedProfileAttacks,
 }

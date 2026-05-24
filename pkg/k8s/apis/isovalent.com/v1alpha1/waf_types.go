@@ -159,10 +159,14 @@ type IsovalentWAFBlockResponse struct {
 	Body *string `json:"body,omitempty"`
 }
 
-// +kubebuilder:validation:XValidation:message="exactly one of inline or profile must be specified",rule="has(self.inline) != has(self.profile)"
+// +kubebuilder:validation:XValidation:message="at least one of inline or profile must be specified",rule="has(self.inline) || has(self.profile)"
 type IsovalentWAFCustomRules struct {
-	// Inline provides a fully custom WAF ruleset directly in the resource.
+	// Inline provides custom WAF directives directly in the resource.
 	// Multi-line values should be provided as a YAML block scalar.
+	//
+	// If profile is also specified, the inline directives are appended on top of
+	// the CRS-based profile configuration. Otherwise, the inline directives are
+	// used as the full ruleset.
 	//
 	// If provided, the field must not declare SecRuleEngine or Include.
 	// SecRuleEngine conflicts with spec.mode, and Include would make the custom
@@ -171,8 +175,10 @@ type IsovalentWAFCustomRules struct {
 	// +kubebuilder:validation:Optional
 	Inline string `json:"inline,omitempty"`
 
-	// Profile provides explicit CRS tuning for this policy as an alternative
-	// to inline custom rules.
+	// Profile provides explicit CRS tuning for this policy.
+	//
+	// If inline is also specified, the inline directives are appended on top of
+	// the CRS-based profile configuration.
 	//
 	// +kubebuilder:validation:Optional
 	Profile *IsovalentWAFCustomProfile `json:"profile,omitempty"`

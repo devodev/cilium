@@ -31,14 +31,12 @@ import (
 type EffectiveRuleSource string
 
 const (
-	EffectiveRuleSourceDefault EffectiveRuleSource = "Default"
 	EffectiveRuleSourceManaged EffectiveRuleSource = "Managed"
 	EffectiveRuleSourceProfile EffectiveRuleSource = "Profile"
 	EffectiveRuleSourceInline  EffectiveRuleSource = "Inline"
 )
 
-// EffectiveRules is the resolved rules union for an LBService. It mirrors the
-// policy API shape: exactly one rules source is active after resolution.
+// EffectiveRules is the resolved rules union for an LBService.
 type EffectiveRules struct {
 	Source        EffectiveRuleSource
 	PolicyProfile isovalentv1alpha1.IsovalentWAFPolicyProfileType
@@ -100,20 +98,11 @@ func Validate(policy *isovalentv1alpha1.IsovalentWAFPolicy) error {
 		return nil
 	}
 
-	hasManaged := policy.Spec.Rules.Managed != nil
-	hasCustom := policy.Spec.Rules.Custom != nil
-	if hasManaged == hasCustom {
+	if policy.Spec.Rules.Managed != nil && policy.Spec.Rules.Custom != nil {
 		return fmt.Errorf("exactly one of spec.rules.managed or spec.rules.custom must be specified")
 	}
 
-	if hasCustom {
-		if policy.Spec.Rules.Custom.Profile != nil {
-			return nil
-		}
-		return ValidateInlineRules(policy.Spec.Rules.Custom.Inline)
-	}
-
-	return nil
+	return ValidateCustomRules(policy.Spec.Rules.Custom)
 }
 
 func Condition(policy *isovalentv1alpha1.IsovalentWAFPolicy, err error) metav1.Condition {
@@ -270,10 +259,6 @@ func (r *Resolver) policyToConfig(policy *isovalentv1alpha1.IsovalentWAFPolicy) 
 		Enabled:     policy.Spec.Enabled,
 		Mode:        valueOrDefault(policy.Spec.Mode, r.defaults.Mode),
 		FailureMode: valueOrDefault(policy.Spec.FailureMode, r.defaults.FailureMode),
-		Rules: EffectiveRules{
-			Source:        EffectiveRuleSourceDefault,
-			PolicyProfile: r.defaults.PolicyProfile,
-		},
 	}
 
 	if policy.Spec.Handling != nil {
@@ -286,30 +271,27 @@ func (r *Resolver) policyToConfig(policy *isovalentv1alpha1.IsovalentWAFPolicy) 
 		}
 	}
 
-	if policy.Spec.Rules != nil && policy.Spec.Rules.Managed != nil {
-		config.Rules.Source = EffectiveRuleSourceManaged
-		config.Rules.PolicyProfile = policy.Spec.Rules.Managed.Profile
-	}
-
 	if policy.Spec.Rules == nil || policy.Spec.Rules.Custom == nil {
-		return config, nil
-	}
-
-	if policy.Spec.Rules.Custom.Profile != nil {
-		config.Rules = EffectiveRules{
-			Source:        EffectiveRuleSourceProfile,
-			CustomProfile: *policy.Spec.Rules.Custom.Profile,
+		config.Rules.Source = EffectiveRuleSourceManaged
+		config.Rules.PolicyProfile = r.defaults.PolicyProfile
+		if policy.Spec.Rules != nil && policy.Spec.Rules.Managed != nil {
+			config.Rules.PolicyProfile = policy.Spec.Rules.Managed.Profile
 		}
 		return config, nil
 	}
 
-	inlineRules, err := BuildInlineRules(policy.Spec.Rules.Custom.Inline)
-	if err != nil {
-		return EffectiveConfig{}, err
+	if policy.Spec.Rules.Custom.Inline != "" {
+		inline, err := BuildInlineRules(policy.Spec.Rules.Custom.Inline)
+		if err != nil {
+			return EffectiveConfig{}, err
+		}
+		config.Rules.Inline = inline
+		config.Rules.Source = EffectiveRuleSourceInline
 	}
-	config.Rules = EffectiveRules{
-		Source: EffectiveRuleSourceInline,
-		Inline: inlineRules,
+
+	if policy.Spec.Rules.Custom.Profile != nil {
+		config.Rules.CustomProfile = *policy.Spec.Rules.Custom.Profile
+		config.Rules.Source = EffectiveRuleSourceProfile
 	}
 
 	return config, nil
