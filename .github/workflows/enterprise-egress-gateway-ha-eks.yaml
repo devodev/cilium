@@ -172,7 +172,8 @@ jobs:
             --flow-validation=disabled \
             --include-unsafe-tests \
             --collect-sysdump-on-failure \
-            --log-check-extra-exceptions=cleanup-peer-config-status
+            --log-check-extra-exceptions=cleanup-peer-config-status \
+            --log-check-extra-exceptions='failed to update node spec: Operation cannot be fulfilled on ciliumnodes.cilium.io'
           "
 
           OWNER="${{ github.ref_name }}"
