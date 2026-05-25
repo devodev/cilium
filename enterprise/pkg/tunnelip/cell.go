@@ -16,12 +16,15 @@ import (
 
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/hive/job"
+	"github.com/cilium/statedb"
 	"github.com/spf13/pflag"
 
 	dpipc "github.com/cilium/cilium/pkg/datapath/ipcache"
 	ipsectypes "github.com/cilium/cilium/pkg/datapath/linux/ipsec/types"
+	dptables "github.com/cilium/cilium/pkg/datapath/tables"
 	"github.com/cilium/cilium/pkg/node"
 	nodemanager "github.com/cilium/cilium/pkg/node/manager"
+	"github.com/cilium/cilium/pkg/node/sync"
 	wgtypes "github.com/cilium/cilium/pkg/wireguard/types"
 )
 
@@ -88,4 +91,24 @@ var Cell = cell.Module(
 			}),
 		)
 	}),
+
+	cell.Provide(func(db *statedb.DB, devices statedb.Table[*dptables.Device], cfg Config) initFuncsOut {
+		if len(cfg.PreferredTunnelEndpointDevices) == 0 {
+			return initFuncsOut{}
+		}
+		lni := localNodeInit{
+			db:      db,
+			devices: devices,
+			filter:  dptables.DeviceFilter(cfg.PreferredTunnelEndpointDevices),
+		}
+		return initFuncsOut{
+			ExtraInitFuncs: []sync.InitFunc{lni.initFunc},
+		}
+	}),
 )
+
+type initFuncsOut struct {
+	cell.Out
+
+	ExtraInitFuncs []sync.InitFunc `group:"init-funcs"`
+}

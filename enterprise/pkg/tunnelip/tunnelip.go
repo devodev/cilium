@@ -39,7 +39,6 @@ import (
 	"github.com/cilium/cilium/pkg/node/addressing"
 	nodemanager "github.com/cilium/cilium/pkg/node/manager"
 	nodeTypes "github.com/cilium/cilium/pkg/node/types"
-	"github.com/cilium/cilium/pkg/rate"
 	"github.com/cilium/cilium/pkg/time"
 )
 
@@ -348,18 +347,30 @@ func (m *manager) reconcileMappingLocked(hostsToRefresh []net.IP, nodeIP net.IP,
 }
 
 func (m *manager) runDeviceSync(ctx context.Context, store *node.LocalNodeStore) error {
-	limiter := rate.NewLimiter(deviceReconciliationMinInterval, 1)
-	var (
-		tunnelIPs   []netip.Addr
-		initialized bool
-	)
-
 	for {
-		rxn := m.db.ReadTxn()
-		selectedDevices, watchSelected := m.devices.ListWatch(rxn, dptables.DeviceSelectedIndex.Query(true))
+		ws, devs := getDevicesToSync(m.db.ReadTxn(), m.devices)
+		m.reconcileTunnelEndpoints(devs)
+		store.Update(func(node *node.LocalNode) {
+			syncLocalNodeTunnelIPs(m.devFilter, devs, node)
+		})
 
-		hostDev, _, watchHost, found := m.devices.GetWatch(rxn, tables.DeviceNameIndex.Query(defaults.HostDevice))
-		devIter := iter.Seq[*dptables.Device](func(yield func(*dptables.Device) bool) {
+		if _, err := ws.Wait(ctx, deviceReconciliationMinInterval); err != nil {
+			return err
+		}
+	}
+}
+
+func getDevicesToSync(rxn statedb.ReadTxn, devices statedb.Table[*dptables.Device]) (*statedb.WatchSet, iter.Seq[*dptables.Device]) {
+	ws := statedb.NewWatchSet()
+
+	selectedDevices, watchSelected := devices.ListWatch(rxn, dptables.DeviceSelectedIndex.Query(true))
+	ws.Add(watchSelected)
+
+	hostDev, _, watchHost, found := devices.GetWatch(rxn, tables.DeviceNameIndex.Query(defaults.HostDevice))
+	ws.Add(watchHost)
+
+	return ws,
+		func(yield func(*dptables.Device) bool) {
 			for dev := range selectedDevices {
 				if !yield(dev) {
 					return
@@ -368,29 +379,14 @@ func (m *manager) runDeviceSync(ctx context.Context, store *node.LocalNodeStore)
 			if found {
 				yield(hostDev)
 			}
-		})
-
-		m.reconcileTunnelEndpoints(devIter)
-		tunnelIPs = m.syncLocalNodeTunnelIPs(devIter, store, tunnelIPs, initialized)
-		initialized = true
-
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-watchSelected:
-		case <-watchHost:
 		}
-		if err := limiter.Wait(ctx); err != nil {
-			return err
-		}
-	}
 }
 
-func (m *manager) syncLocalNodeTunnelIPs(devices iter.Seq[*dptables.Device], store *node.LocalNodeStore, tunnelIPs []netip.Addr, initialized bool) []netip.Addr {
+func syncLocalNodeTunnelIPs(devFilter dptables.DeviceFilter, devices iter.Seq[*dptables.Device], localNode *node.LocalNode) {
 	var newTunnelIPs []netip.Addr
 
 	for dev := range devices {
-		match, exclude := m.devFilter.Match(dev.Name)
+		match, exclude := devFilter.Match(dev.Name)
 		if !match || exclude {
 			continue
 		}
@@ -403,30 +399,38 @@ func (m *manager) syncLocalNodeTunnelIPs(devices iter.Seq[*dptables.Device], sto
 	}
 	slices.SortFunc(newTunnelIPs, netip.Addr.Compare)
 
-	// In case of the first run and tunnelIPs being nil, do not return early.
-	// This is to remove any stale IPs in the NodeLocalStore (below).
-	if initialized && slices.Equal(tunnelIPs, newTunnelIPs) {
-		return tunnelIPs
+	addrs := make([]nodeTypes.Address, 0, len(localNode.IPAddresses))
+	for _, addr := range localNode.IPAddresses {
+		if addr.Type != addressing.NodeCiliumTunnelIP {
+			addrs = append(addrs, addr)
+		}
+	}
+	for _, addr := range newTunnelIPs {
+		addrs = append(addrs, nodeTypes.Address{
+			Type: addressing.NodeCiliumTunnelIP,
+			IP:   addr.AsSlice(),
+		})
 	}
 
-	store.Update(func(ln *node.LocalNode) {
-		addrs := make([]nodeTypes.Address, 0, len(ln.IPAddresses))
-		for _, addr := range ln.IPAddresses {
-			if addr.Type != addressing.NodeCiliumTunnelIP {
-				addrs = append(addrs, addr)
-			}
-		}
-		for _, addr := range newTunnelIPs {
-			addrs = append(addrs, nodeTypes.Address{
-				Type: addressing.NodeCiliumTunnelIP,
-				IP:   addr.AsSlice(),
-			})
-		}
+	localNode.IPAddresses = addrs
+}
 
-		ln.IPAddresses = addrs
-	})
+type localNodeInit struct {
+	db      *statedb.DB
+	devices statedb.Table[*dptables.Device]
+	filter  dptables.DeviceFilter
+}
 
-	return newTunnelIPs
+// initFunc is called by [sync.LocalNodeSynchronizer] to fill in the tunnel IP
+// before the node object is advertised to other nodes.
+func (lni localNodeInit) initFunc(ctx context.Context, localNode *node.LocalNode) error {
+	_, devs := getDevicesToSync(lni.db.ReadTxn(), lni.devices)
+	syncLocalNodeTunnelIPs(
+		lni.filter,
+		devs,
+		localNode,
+	)
+	return nil
 }
 
 var _ dpipc.ChainableMap = (*manager)(nil)

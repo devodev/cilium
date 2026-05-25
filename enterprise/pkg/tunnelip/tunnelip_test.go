@@ -65,7 +65,7 @@ func (f *fakeTunnelIPCache) RefreshByHost(_ ipcache.IPIdentityMappingListener, h
 	return 1
 }
 
-func newTestManager(t *testing.T, underlay tunnel.UnderlayProtocol) (*manager, *fakeTunnelIPMap, *fakeTunnelIPCache, *fakeTunnelIPNodes, *node.LocalNodeStore, statedb.RWTable[*dptables.Device]) {
+func newTestManager(t *testing.T, underlay tunnel.UnderlayProtocol) (*manager, *fakeTunnelIPMap, *fakeTunnelIPCache, *fakeTunnelIPNodes, *node.LocalNode, statedb.RWTable[*dptables.Device]) {
 	t.Helper()
 
 	db := statedb.New()
@@ -80,14 +80,14 @@ func newTestManager(t *testing.T, underlay tunnel.UnderlayProtocol) (*manager, *
 	ipc := &fakeTunnelIPCache{}
 	nodes := &fakeTunnelIPNodes{nodes: map[nodeTypes.Identity]nodeTypes.Node{}}
 	next := &fakeTunnelIPMap{}
-	store := node.NewTestLocalNodeStore(node.LocalNode{
+	ln := &node.LocalNode{
 		Node: nodeTypes.Node{
 			IPAddresses: []nodeTypes.Address{
 				{Type: addressing.NodeInternalIP, IP: net.ParseIP("192.0.2.1")},
 			},
 		},
 		Local: &node.LocalNodeInfo{},
-	})
+	}
 
 	mgr := &manager{
 		logger:     hivetest.Logger(t),
@@ -102,7 +102,7 @@ func newTestManager(t *testing.T, underlay tunnel.UnderlayProtocol) (*manager, *
 		nodeToTunnelEndpoint: make(map[netip.Addr]netip.Addr),
 	}
 
-	return mgr, next, ipc, nodes, store, devices
+	return mgr, next, ipc, nodes, ln, devices
 }
 
 func newTestTunnelConfig(underlay tunnel.UnderlayProtocol) tunnel.Config {
@@ -303,7 +303,7 @@ func TestTunnelIPNodeAddRefreshesChangedHosts(t *testing.T) {
 }
 
 func TestSyncLocalNodeTunnelIPs(t *testing.T) {
-	mgr, _, _, _, store, devices := newTestManager(t, "")
+	mgr, _, _, _, ln, devices := newTestManager(t, "")
 
 	insertTestDevice(t, mgr.db, devices, &dptables.Device{
 		Index:    1,
@@ -329,18 +329,15 @@ func TestSyncLocalNodeTunnelIPs(t *testing.T) {
 		Addrs:    []dptables.DeviceAddress{{Addr: netip.MustParseAddr("10.0.0.42")}},
 	})
 
-	tunnelIPs := mgr.syncLocalNodeTunnelIPs(statedb.ToSeq(mgr.devices.List(mgr.db.ReadTxn(), dptables.DeviceSelectedIndex.Query(true))), store, nil, false)
-	require.Equal(t,
-		[]netip.Addr{
-			netip.MustParseAddr("10.0.0.2"),
-			netip.MustParseAddr("10.0.0.8"),
-			netip.MustParseAddr("198.51.100.10"),
-		},
-		tunnelIPs,
-	)
+	lni := localNodeInit{
+		db:      mgr.db,
+		devices: devices,
+		filter:  mgr.devFilter,
+	}
+	lni.initFunc(t.Context(), ln)
+	require.Equal(t, []string{"192.0.2.1", "10.0.0.2", "10.0.0.8", "198.51.100.10"}, addressStrings(ln.IPAddresses))
 
-	ln, err := store.Get(t.Context())
-	require.NoError(t, err)
+	syncLocalNodeTunnelIPs(mgr.devFilter, statedb.ToSeq(mgr.devices.List(mgr.db.ReadTxn(), dptables.DeviceSelectedIndex.Query(true))), ln)
 	require.Equal(t, []string{"192.0.2.1", "10.0.0.2", "10.0.0.8", "198.51.100.10"}, addressStrings(ln.IPAddresses))
 
 	insertTestDevice(t, mgr.db, devices, &dptables.Device{
@@ -353,15 +350,8 @@ func TestSyncLocalNodeTunnelIPs(t *testing.T) {
 		},
 	})
 
-	tunnelIPs = mgr.syncLocalNodeTunnelIPs(statedb.ToSeq(mgr.devices.List(mgr.db.ReadTxn(), dptables.DeviceSelectedIndex.Query(true))), store, tunnelIPs, true)
-	require.Equal(t, []netip.Addr{netip.MustParseAddr("10.0.0.4"), netip.MustParseAddr("10.0.0.9")}, tunnelIPs)
-
-	ln, err = store.Get(t.Context())
-	require.NoError(t, err)
+	syncLocalNodeTunnelIPs(mgr.devFilter, statedb.ToSeq(mgr.devices.List(mgr.db.ReadTxn(), dptables.DeviceSelectedIndex.Query(true))), ln)
 	require.Equal(t, []string{"192.0.2.1", "10.0.0.4", "10.0.0.9"}, addressStrings(ln.IPAddresses))
-
-	sameTunnelIPs := mgr.syncLocalNodeTunnelIPs(statedb.ToSeq(mgr.devices.List(mgr.db.ReadTxn(), dptables.DeviceSelectedIndex.Query(true))), store, tunnelIPs, true)
-	require.Equal(t, tunnelIPs, sameTunnelIPs)
 }
 
 func insertTestDevice(t *testing.T, db *statedb.DB, devices statedb.RWTable[*dptables.Device], dev *dptables.Device) {
