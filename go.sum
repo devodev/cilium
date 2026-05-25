@@ -66,8 +66,8 @@ github.com/ProtonMail/go-crypto v1.4.1 h1:9RfcZHqEQUvP8RzecWEUafnZVtEvrBVL9BiF67
 github.com/ProtonMail/go-crypto v1.4.1/go.mod h1:e1OaTyu5SYVrO9gKOEhTc+5UcXtTUa+P3uLudwcgPqo=
 github.com/PuerkitoBio/purell v1.1.1/go.mod h1:c11w/QuzBsJSee3cPx9rAFu61PvFxuPbtSwDGJws/X0=
 github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578/go.mod h1:uGdkoq3SwY9Y+13GIhn11/XLaGBb4BfwItxLd5jeuXE=
-github.com/YutaroHayakawa/bgplay v0.0.3 h1:2YRRgsrmRxLb3LEo3A8rh9a32OV4CplWKO5rPQe1MvQ=
-github.com/YutaroHayakawa/bgplay v0.0.3/go.mod h1:fsLPRufCbpHBMS+XmPWrEcYWN/xb5F01+265C4GH17U=
+github.com/YutaroHayakawa/bgplay v0.0.4 h1:0eMjAgHsn0xSHOFGq23joaFRpGCS1IW4OcNcU5UVEq8=
+github.com/YutaroHayakawa/bgplay v0.0.4/go.mod h1:27fNzmtXGeG8obmavH9HxxvpcsTBfganNZKPY5+DKtk=
 github.com/ajstarks/svgo v0.0.0-20180226025133-644b8db467af/go.mod h1:K08gAheRH3/J6wwsYMMT4xOr94bZjxIelGM0+d/wbFw=
 github.com/alecthomas/assert/v2 v2.3.0 h1:mAsH2wmvjsuvyBvAmCtm7zFsBlb8mIHx5ySLVdDZXL0=
 github.com/alecthomas/assert/v2 v2.3.0/go.mod h1:pXcQ2Asjp247dahGEmsZ6ru0UVwnkhktn7S0bBDLxvQ=
@@ -537,8 +537,6 @@ github.com/ishidawataru/sctp v0.0.0-20230406120618-7ff4192f6ff2 h1:i2fYnDurfLlJH
 github.com/ishidawataru/sctp v0.0.0-20230406120618-7ff4192f6ff2/go.mod h1:co9pwDoBCm1kGxawmb4sPq0cSIOOWNPT4KnHotMP1Zg=
 github.com/isovalent/go-ra v0.0.0-20241125075947-1274124821d6 h1:OV+faAvpYGaoBrm2nEx1MCp5xRHIvlVRKBq3o9nmsrA=
 github.com/isovalent/go-ra v0.0.0-20241125075947-1274124821d6/go.mod h1:r5ppO5qsH+CLp5hcc5pHvytUlOgcI0vuAwpywt6y/Eg=
-github.com/isovalent/gobgp/v3 v3.0.0-20260116195249-1eca87faca1a h1:HR323df3bgXiyVFjLUYWZdD18SiXFCbISF1XbGSoe50=
-github.com/isovalent/gobgp/v3 v3.0.0-20260116195249-1eca87faca1a/go.mod h1:1QGApdIwhxWB9LTF4C1Xtj0hkcpwaq9MpyZcpBvCBFo=
 github.com/isovalent/hubble-timescape/api v1.19.0-rc.3 h1:0xFzeqYLoJ6ZpoWs203uklxCk3h4kxHW3nCAG6GA6+U=
 github.com/isovalent/hubble-timescape/api v1.19.0-rc.3/go.mod h1:jnipHbDiv8W8E1Ugk1FOdsR0Hx3EKwFQkTHFrUE+z2k=
 github.com/isovalent/ipa v1.19.0-rc.1 h1:B05xouDZSlmxz5eh7kgToWtV/w6Au14zbYMAsFY4LJU=
