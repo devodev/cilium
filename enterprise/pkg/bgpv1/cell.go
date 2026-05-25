@@ -16,8 +16,8 @@ import (
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/agent"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/commands"
+	"github.com/cilium/cilium/enterprise/pkg/bgpv1/manager"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/manager/reconcilerv2"
-	ossAgent "github.com/cilium/cilium/pkg/bgp/agent"
 	"github.com/cilium/cilium/pkg/bgp/gobgp"
 	"github.com/cilium/cilium/pkg/bgp/types"
 	"github.com/cilium/cilium/pkg/k8s"
@@ -47,13 +47,10 @@ var Cell = cell.Module(
 	// enterprise-specific commands
 	commands.Cell,
 
-	// enterprise BGP commands
+	// enterprise BGP agent components
 	cell.Provide(
-
-		// provide enterprise router manager (used by the enterprise commands)
-		func(manager ossAgent.BGPRouterManager) agent.EnterpriseBGPRouterManager {
-			return manager.(agent.EnterpriseBGPRouterManager)
-		},
+		agent.NewController,
+		manager.NewBGPRouterManager,
 	),
 
 	// override GoBGP router provider with the enterprise version
@@ -61,5 +58,10 @@ var Cell = cell.Module(
 		func(_ types.RouterProvider) types.RouterProvider {
 			return gobgp.NewEnterpriseRouterProvider()
 		},
+	),
+
+	cell.Invoke(
+		// Invoke enterprise bgp controller to trigger the constructor.
+		func(*agent.Controller) {},
 	),
 )
