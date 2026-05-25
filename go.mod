@@ -160,8 +160,8 @@ require (
 	github.com/go-playground/validator/v10 v10.30.1
 	github.com/insomniacslk/dhcp v0.0.0-20251020182700-175e84fbb167
 	github.com/int128/listener v1.3.0
-	github.com/isovalent/hubble-timescape/api v1.19.0-rc.3
-	github.com/isovalent/ipa v1.19.0-rc.1
+	github.com/isovalent/hubble-timescape/api v1.19.0
+	github.com/isovalent/ipa v1.19.0
 	github.com/jonboulle/clockwork v0.5.0
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v1.7.6
 	github.com/lestrrat-go/jwx/v2 v2.1.6

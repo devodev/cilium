@@ -537,10 +537,10 @@ github.com/ishidawataru/sctp v0.0.0-20230406120618-7ff4192f6ff2 h1:i2fYnDurfLlJH
 github.com/ishidawataru/sctp v0.0.0-20230406120618-7ff4192f6ff2/go.mod h1:co9pwDoBCm1kGxawmb4sPq0cSIOOWNPT4KnHotMP1Zg=
 github.com/isovalent/go-ra v0.0.0-20241125075947-1274124821d6 h1:OV+faAvpYGaoBrm2nEx1MCp5xRHIvlVRKBq3o9nmsrA=
 github.com/isovalent/go-ra v0.0.0-20241125075947-1274124821d6/go.mod h1:r5ppO5qsH+CLp5hcc5pHvytUlOgcI0vuAwpywt6y/Eg=
-github.com/isovalent/hubble-timescape/api v1.19.0-rc.3 h1:0xFzeqYLoJ6ZpoWs203uklxCk3h4kxHW3nCAG6GA6+U=
-github.com/isovalent/hubble-timescape/api v1.19.0-rc.3/go.mod h1:jnipHbDiv8W8E1Ugk1FOdsR0Hx3EKwFQkTHFrUE+z2k=
-github.com/isovalent/ipa v1.19.0-rc.1 h1:B05xouDZSlmxz5eh7kgToWtV/w6Au14zbYMAsFY4LJU=
-github.com/isovalent/ipa v1.19.0-rc.1/go.mod h1:zdALjBunN6HFUpdaJXaXDcnEtHQh9uZs6ecyihM4sw4=
+github.com/isovalent/hubble-timescape/api v1.19.0 h1:Ii65T4aAGdjMkdxvR7UtUAOPCEOLgwfvXoRZUP/ItlE=
+github.com/isovalent/hubble-timescape/api v1.19.0/go.mod h1:UFdkhMWvIzraVDQkN0i+jMbPr1ZTAMxaCI0uPoZxlyo=
+github.com/isovalent/ipa v1.19.0 h1:n8+Y4RGWjYGc3+GACJGfE0NDquwugEItHbFhfempscI=
+github.com/isovalent/ipa v1.19.0/go.mod h1:zdALjBunN6HFUpdaJXaXDcnEtHQh9uZs6ecyihM4sw4=
 github.com/jcchavezs/mergefs v0.1.1 h1:D45R17m6dHnSVZefnhynoeZvcK2Uw0oTrRfoUOQ0S5Y=
 github.com/jcchavezs/mergefs v0.1.1/go.mod h1:eRLTrsA+vFwQZ48hj8p8gki/5v9C2bFtHH5Mnn4bcGk=
 github.com/jeremywohl/flatten v1.0.1 h1:LrsxmB3hfwJuE+ptGOijix1PIfOoKLJ3Uee/mzbgtrs=

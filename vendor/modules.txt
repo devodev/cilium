@@ -1286,12 +1286,12 @@ github.com/int128/listener
 # github.com/ishidawataru/sctp v0.0.0-20230406120618-7ff4192f6ff2
 ## explicit; go 1.12
 github.com/ishidawataru/sctp
-# github.com/isovalent/hubble-timescape/api v1.19.0-rc.3
+# github.com/isovalent/hubble-timescape/api v1.19.0
 ## explicit; go 1.25.0
 github.com/isovalent/hubble-timescape/api/k8sevent/v1
 github.com/isovalent/hubble-timescape/api/timescape/v1
 github.com/isovalent/hubble-timescape/api/timescape/v1alpha
-# github.com/isovalent/ipa v1.19.0-rc.1
+# github.com/isovalent/ipa v1.19.0
 ## explicit; go 1.24.0
 github.com/isovalent/ipa/common/k8s/type/v1alpha
 github.com/isovalent/ipa/common/net/v1alpha
