@@ -16,6 +16,8 @@ import (
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
 	ossAgent "github.com/cilium/cilium/pkg/bgp/agent"
 	ossTypes "github.com/cilium/cilium/pkg/bgp/types"
+	v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
+	v1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
 )
 
 type EnterpriseBGPRouterManager interface {
@@ -28,6 +30,12 @@ type EnterpriseBGPRouterManager interface {
 	// GetRoutePoliciesExtended returns BGP routing policies of the specified BGP instance from underlying router.
 	// If BGP instance is not specified, returns the result of all instances.
 	GetRoutePoliciesExtended(ctx context.Context, instance string) (map[string][]*types.ExtendedRoutePolicy, error)
+
+	// ReconcileEnterpriseInstances is the Enterprise-native reconciliation
+	// entry point used during the OSS/CEE separation. Once all Enterprise
+	// reconcilers use the native config path, this should replace
+	// ReconcileInstances.
+	ReconcileEnterpriseInstances(ctx context.Context, nodeObj *v1.IsovalentBGPNodeConfig, ciliumNode *v2.CiliumNode) error
 }
 
 // GetRoutesExtendedRequest is a request for GetRoutesExtended method.
