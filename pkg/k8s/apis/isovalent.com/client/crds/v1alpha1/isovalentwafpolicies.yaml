@@ -209,10 +209,54 @@ spec:
                     required:
                     - profile
                     type: object
+                  overrides:
+                    description: |-
+                      Overrides provides structured CRS rule tuning for profile-based configurations.
+
+                      Overrides apply to managed rules, custom profiles, and the operator
+                      default managed profile when no explicit ruleset is selected. Overrides do
+                      not apply to standalone inline rules.
+                    items:
+                      properties:
+                        action:
+                          description: Action controls how the referenced rule should
+                            be tuned.
+                          enum:
+                          - Disable
+                          - ExcludeTarget
+                          type: string
+                        ruleID:
+                          description: RuleID identifies the CRS rule to tune.
+                          format: int64
+                          minimum: 1
+                          type: integer
+                        target:
+                          description: |-
+                            Target identifies the specific Coraza target to exclude from the rule,
+                            using variable syntax in the form COLLECTION:name, for example
+                            ARGS:note or REQUEST_HEADERS:User-Agent.
+                          type: string
+                      required:
+                      - action
+                      - ruleID
+                      type: object
+                      x-kubernetes-validations:
+                      - message: target must be specified for ExcludeTarget and must
+                          be omitted for Disable
+                        rule: (self.action == 'Disable' && (!has(self.target) || self.target
+                          == "")) || (self.action == 'ExcludeTarget' && has(self.target)
+                          && self.target != "")
+                    type: array
+                    x-kubernetes-list-type: atomic
                 type: object
                 x-kubernetes-validations:
-                - message: exactly one of managed or custom must be specified
-                  rule: has(self.managed) != has(self.custom)
+                - message: managed and custom must not both be specified
+                  rule: '!(has(self.managed) && has(self.custom))'
+                - message: overrides require managed rules, a custom profile, or the
+                    default managed profile; standalone custom inline rules are not
+                    supported
+                  rule: '!has(self.overrides) || size(self.overrides) == 0 || !has(self.custom)
+                    || has(self.custom.profile)'
               targets:
                 description: Targets defines the resources that this WAF policy should
                   apply to.

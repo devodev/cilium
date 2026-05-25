@@ -94,7 +94,8 @@ type IsovalentWAFPolicyTarget struct {
 	LabelSelector *slim_metav1.LabelSelector `json:"labelSelector,omitempty"`
 }
 
-// +kubebuilder:validation:XValidation:message="exactly one of managed or custom must be specified",rule="has(self.managed) != has(self.custom)"
+// +kubebuilder:validation:XValidation:message="managed and custom must not both be specified",rule="!(has(self.managed) && has(self.custom))"
+// +kubebuilder:validation:XValidation:message="overrides require managed rules, a custom profile, or the default managed profile; standalone custom inline rules are not supported",rule="!has(self.overrides) || size(self.overrides) == 0 || !has(self.custom) || has(self.custom.profile)"
 type IsovalentWAFPolicyRules struct {
 	// Managed selects the built-in WAF rules shipped by the platform.
 	//
@@ -105,6 +106,16 @@ type IsovalentWAFPolicyRules struct {
 	//
 	// +kubebuilder:validation:Optional
 	Custom *IsovalentWAFCustomRules `json:"custom,omitempty"`
+
+	// Overrides provides structured CRS rule tuning for profile-based configurations.
+	//
+	// Overrides apply to managed rules, custom profiles, and the operator
+	// default managed profile when no explicit ruleset is selected. Overrides do
+	// not apply to standalone inline rules.
+	//
+	// +kubebuilder:validation:Optional
+	// +listType=atomic
+	Overrides []IsovalentWAFRuleOverride `json:"overrides,omitempty"`
 }
 
 type IsovalentWAFManagedRules struct {
@@ -113,6 +124,32 @@ type IsovalentWAFManagedRules struct {
 	// +kubebuilder:validation:Required
 	Profile IsovalentWAFPolicyProfileType `json:"profile"`
 }
+
+// +kubebuilder:validation:XValidation:message="target must be specified for ExcludeTarget and must be omitted for Disable",rule="(self.action == 'Disable' && (!has(self.target) || self.target == \"\")) || (self.action == 'ExcludeTarget' && has(self.target) && self.target != \"\")"
+type IsovalentWAFRuleOverride struct {
+	// RuleID identifies the CRS rule to tune.
+	//
+	// +kubebuilder:validation:Minimum=1
+	RuleID int64 `json:"ruleID"`
+
+	// Action controls how the referenced rule should be tuned.
+	Action IsovalentWAFRuleOverrideActionType `json:"action"`
+
+	// Target identifies the specific Coraza target to exclude from the rule,
+	// using variable syntax in the form COLLECTION:name, for example
+	// ARGS:note or REQUEST_HEADERS:User-Agent.
+	//
+	// +kubebuilder:validation:Optional
+	Target string `json:"target,omitempty"`
+}
+
+// +kubebuilder:validation:Enum=Disable;ExcludeTarget
+type IsovalentWAFRuleOverrideActionType string
+
+const (
+	IsovalentWAFRuleOverrideActionDisable       IsovalentWAFRuleOverrideActionType = "Disable"
+	IsovalentWAFRuleOverrideActionExcludeTarget IsovalentWAFRuleOverrideActionType = "ExcludeTarget"
+)
 
 type IsovalentWAFPolicyHandling struct {
 	// Request configures how the WAF handles inspected requests.
@@ -422,6 +459,11 @@ func (in *IsovalentWAFPolicyRules) DeepCopyInto(out *IsovalentWAFPolicyRules) {
 		in, out := &in.Custom, &out.Custom
 		*out = new(IsovalentWAFCustomRules)
 		(*in).DeepCopyInto(*out)
+	}
+	if in.Overrides != nil {
+		in, out := &in.Overrides, &out.Overrides
+		*out = make([]IsovalentWAFRuleOverride, len(*in))
+		copy(*out, *in)
 	}
 }
 

@@ -30,6 +30,28 @@ const (
 	wafCustomProfileRuleID = 1000000
 )
 
+var (
+	directiveBuilders = map[policy.EffectiveRuleSource]func(policy.EffectiveRules) (string, error){
+		policy.EffectiveRuleSourceManaged: directivesForManagedProfile,
+		policy.EffectiveRuleSourceProfile: directivesForCustomProfile,
+		policy.EffectiveRuleSourceInline: func(rules policy.EffectiveRules) (string, error) {
+			return rules.Inline.Inline, nil
+		},
+	}
+
+	overrideBuilders = map[isovalentv1alpha1.IsovalentWAFRuleOverrideActionType]func(isovalentv1alpha1.IsovalentWAFRuleOverride) (string, error){
+		isovalentv1alpha1.IsovalentWAFRuleOverrideActionDisable: func(o isovalentv1alpha1.IsovalentWAFRuleOverride) (string, error) {
+			return fmt.Sprintf("SecRuleRemoveById %d", o.RuleID), nil
+		},
+		isovalentv1alpha1.IsovalentWAFRuleOverrideActionExcludeTarget: func(o isovalentv1alpha1.IsovalentWAFRuleOverride) (string, error) {
+			if o.Target == "" {
+				return "", fmt.Errorf("target must be specified for override action %q", o.Action)
+			}
+			return fmt.Sprintf("SecRuleUpdateTargetById %d !%s", o.RuleID, o.Target), nil
+		},
+	}
+)
+
 type ProxyConfig struct {
 	DefaultMode         string `json:"default_mode"`
 	BodyLimitBytes      int64  `json:"body_limit_bytes"`
@@ -52,7 +74,12 @@ func (ProxyConfigBuilder) Build(cfg policy.EffectiveConfig) (*ProxyConfig, error
 		return nil, nil
 	}
 
-	directives, err := directivesForWAFConfig(cfg)
+	directivesFn, ok := directiveBuilders[cfg.Rules.Source]
+	if !ok {
+		return nil, fmt.Errorf("unsupported WAF rules source %q", cfg.Rules.Source)
+	}
+
+	directives, err := directivesFn(cfg.Rules)
 	if err != nil {
 		return nil, err
 	}
@@ -85,33 +112,63 @@ func toWAFFailPolicy(mode isovalentv1alpha1.WAFFailureModeType) string {
 	return "open"
 }
 
-func directivesForWAFConfig(config policy.EffectiveConfig) (string, error) {
-	switch config.Rules.Source {
-	case policy.EffectiveRuleSourceManaged:
-		return fmt.Sprintf("Include %s/%s.conf", wafProfilesPath, config.Rules.PolicyProfile), nil
-	case policy.EffectiveRuleSourceProfile:
-		return directivesForCustomProfile(config.Rules.CustomProfile, config.Rules.Inline), nil
-	case policy.EffectiveRuleSourceInline:
-		return config.Rules.Inline.Inline, nil
-	default:
-		return "", fmt.Errorf("unsupported WAF rules source %q", config.Rules.Source)
+func directivesForManagedProfile(rules policy.EffectiveRules) (string, error) {
+	overrides, err := directivesOverrides(rules.Overrides)
+	if err != nil {
+		return "", err
 	}
+
+	directives := []string{fmt.Sprintf("Include %s/%s.conf", wafProfilesPath, rules.PolicyProfile)}
+	if overrides != "" {
+		directives = append(directives, overrides)
+	}
+	return strings.Join(directives, "\n"), nil
 }
 
-func directivesForCustomProfile(profile isovalentv1alpha1.IsovalentWAFCustomProfile, inline policy.InlineRules) string {
-	parts := []string{
+func directivesForCustomProfile(rules policy.EffectiveRules) (string, error) {
+	overrides, err := directivesOverrides(rules.Overrides)
+	if err != nil {
+		return "", err
+	}
+
+	directives := []string{
 		fmt.Sprintf(
 			`SecAction "id:%d,phase:1,pass,nolog,t:none,setvar:tx.blocking_paranoia_level=%d,setvar:tx.detection_paranoia_level=%d,setvar:tx.inbound_anomaly_score_threshold=%d,setvar:tx.outbound_anomaly_score_threshold=%d"`,
 			wafCustomProfileRuleID,
-			profile.BlockingParanoiaLevel,
-			profile.DetectionParanoiaLevel,
-			profile.InboundAnomalyScoreThreshold,
-			profile.OutboundAnomalyScoreThreshold,
+			rules.CustomProfile.BlockingParanoiaLevel,
+			rules.CustomProfile.DetectionParanoiaLevel,
+			rules.CustomProfile.InboundAnomalyScoreThreshold,
+			rules.CustomProfile.OutboundAnomalyScoreThreshold,
 		),
 		fmt.Sprintf("Include %s", wafMainConfigPath),
 	}
-	if inline.Inline != "" {
-		parts = append(parts, inline.Inline)
+	if overrides != "" {
+		directives = append(directives, overrides)
 	}
-	return strings.Join(parts, "\n")
+	if rules.Inline.Inline != "" {
+		directives = append(directives, rules.Inline.Inline)
+	}
+	return strings.Join(directives, "\n"), nil
+}
+
+func directivesOverrides(overrides []isovalentv1alpha1.IsovalentWAFRuleOverride) (string, error) {
+	if len(overrides) == 0 {
+		return "", nil
+	}
+
+	directives := make([]string, 0, len(overrides))
+	for _, override := range overrides {
+		directiveFn, ok := overrideBuilders[override.Action]
+		if !ok {
+			return "", fmt.Errorf("unsupported WAF override action %q", override.Action)
+		}
+
+		directive, err := directiveFn(override)
+		if err != nil {
+			return "", err
+		}
+
+		directives = append(directives, directive)
+	}
+	return strings.Join(directives, "\n"), nil
 }

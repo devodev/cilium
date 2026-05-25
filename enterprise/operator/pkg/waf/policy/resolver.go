@@ -42,6 +42,7 @@ type EffectiveRules struct {
 	PolicyProfile isovalentv1alpha1.IsovalentWAFPolicyProfileType
 	CustomProfile isovalentv1alpha1.IsovalentWAFCustomProfile
 	Inline        InlineRules
+	Overrides     []isovalentv1alpha1.IsovalentWAFRuleOverride
 }
 
 type EffectiveHandlingOverrides struct {
@@ -102,7 +103,11 @@ func Validate(policy *isovalentv1alpha1.IsovalentWAFPolicy) error {
 		return fmt.Errorf("exactly one of spec.rules.managed or spec.rules.custom must be specified")
 	}
 
-	return ValidateCustomRules(policy.Spec.Rules.Custom)
+	if err := ValidateCustomRules(policy.Spec.Rules.Custom); err != nil {
+		return err
+	}
+
+	return validateRuleOverrides(policy.Spec.Rules)
 }
 
 func Condition(policy *isovalentv1alpha1.IsovalentWAFPolicy, err error) metav1.Condition {
@@ -269,6 +274,10 @@ func (r *Resolver) policyToConfig(policy *isovalentv1alpha1.IsovalentWAFPolicy) 
 			config.HandlingOverrides.BlockResponseStatusCode = policy.Spec.Handling.Response.BlockResponse.StatusCode
 			config.HandlingOverrides.BlockResponseBody = policy.Spec.Handling.Response.BlockResponse.Body
 		}
+	}
+
+	if policy.Spec.Rules != nil && len(policy.Spec.Rules.Overrides) > 0 {
+		config.Rules.Overrides = copyRuleOverrides(policy.Spec.Rules.Overrides)
 	}
 
 	if policy.Spec.Rules == nil || policy.Spec.Rules.Custom == nil {

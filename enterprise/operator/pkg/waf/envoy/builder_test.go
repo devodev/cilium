@@ -23,6 +23,11 @@ func TestProxyConfigBuilderBuild(t *testing.T) {
 	bodyLimitBytes := int64(2048)
 	blockStatusCode := int32(418)
 	blockBody := "blocked by policy"
+	ruleOverrideTarget := "ARGS:note"
+	ruleOverrides := []isovalentv1alpha1.IsovalentWAFRuleOverride{
+		{RuleID: 949110, Action: isovalentv1alpha1.IsovalentWAFRuleOverrideActionDisable},
+		{RuleID: 942100, Action: isovalentv1alpha1.IsovalentWAFRuleOverrideActionExcludeTarget, Target: ruleOverrideTarget},
+	}
 
 	testCases := []struct {
 		name          string
@@ -60,7 +65,7 @@ func TestProxyConfigBuilderBuild(t *testing.T) {
 			},
 		},
 		{
-			name: "custom profile with inline rules build proxy config",
+			name: "custom profile with inline rules and CRS overrides build proxy config",
 			config: policy.EffectiveConfig{
 				Enabled:     true,
 				Mode:        isovalentv1alpha1.IsovalentWAFPolicyModeEnforce,
@@ -76,6 +81,7 @@ func TestProxyConfigBuilderBuild(t *testing.T) {
 					Inline: policy.InlineRules{
 						Inline: `SecAction "id:1000,phase:1,pass,nolog"`,
 					},
+					Overrides: ruleOverrides,
 				},
 			},
 			expected: &ProxyConfig{
@@ -88,9 +94,35 @@ func TestProxyConfigBuilderBuild(t *testing.T) {
 				ResponseBlockBody:   "blocked by waf",
 				Directives: `SecAction "id:1000000,phase:1,pass,nolog,t:none,setvar:tx.blocking_paranoia_level=2,setvar:tx.detection_paranoia_level=3,setvar:tx.inbound_anomaly_score_threshold=7,setvar:tx.outbound_anomaly_score_threshold=6"
 Include /etc/coraza/rules/main.conf
+SecRuleRemoveById 949110
+SecRuleUpdateTargetById 942100 !ARGS:note
 SecAction "id:1000,phase:1,pass,nolog"`,
 			},
 		},
+		{
+			name: "managed rules with CRS overrides build proxy config",
+			config: policy.EffectiveConfig{
+				Enabled:     true,
+				Mode:        isovalentv1alpha1.IsovalentWAFPolicyModeEnforce,
+				FailureMode: isovalentv1alpha1.WAFFailureModeOpen,
+				Rules: policy.EffectiveRules{
+					Source:        policy.EffectiveRuleSourceManaged,
+					PolicyProfile: isovalentv1alpha1.IsovalentWAFPolicyProfileHighSecurity,
+					Overrides:     ruleOverrides,
+				},
+			},
+			expected: &ProxyConfig{
+				DefaultMode:         "block",
+				BodyLimitBytes:      1024 * 1024,
+				FailPolicy:          "open",
+				RouteModeHeader:     "",
+				BlockPath:           "/__coraza_block__",
+				ResponseBlockStatus: 403,
+				ResponseBlockBody:   "blocked by waf",
+				Directives:          "Include /etc/coraza/rules/profiles/high_security.conf\nSecRuleRemoveById 949110\nSecRuleUpdateTargetById 942100 !ARGS:note",
+			},
+		},
+
 		{
 			name: "custom profile builds inline CRS tuning directives",
 			config: policy.EffectiveConfig{

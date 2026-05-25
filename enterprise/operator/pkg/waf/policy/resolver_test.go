@@ -53,6 +53,11 @@ func TestResolverResolveConfig(t *testing.T) {
 		InboundAnomalyScoreThreshold:  7,
 		OutboundAnomalyScoreThreshold: 6,
 	}
+	ruleOverrideTarget := "ARGS:note"
+	ruleOverrides := []isovalentv1alpha1.IsovalentWAFRuleOverride{
+		{RuleID: 949110, Action: isovalentv1alpha1.IsovalentWAFRuleOverrideActionDisable},
+		{RuleID: 942100, Action: isovalentv1alpha1.IsovalentWAFRuleOverrideActionExcludeTarget, Target: ruleOverrideTarget},
+	}
 	overridePolicy := acceptedPolicy(
 		"team-a",
 		"api-waf",
@@ -88,6 +93,7 @@ func TestResolverResolveConfig(t *testing.T) {
 		Managed: &isovalentv1alpha1.IsovalentWAFManagedRules{
 			Profile: profile,
 		},
+		Overrides: ruleOverrides,
 	}
 	managedPolicyWithOverrides.Spec.Handling = &isovalentv1alpha1.IsovalentWAFPolicyHandling{
 		Request: &isovalentv1alpha1.IsovalentWAFRequestHandling{
@@ -110,6 +116,25 @@ func TestResolverResolveConfig(t *testing.T) {
 			Profile: &customProfile,
 		},
 	}
+	customProfileWithOverridesPolicy := acceptedPolicy(
+		"team-a",
+		"api-waf-custom-profile-overrides",
+		&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}},
+	)
+	customProfileWithOverridesPolicy.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{
+		Custom: &isovalentv1alpha1.IsovalentWAFCustomRules{
+			Profile: &customProfile,
+		},
+		Overrides: ruleOverrides,
+	}
+	defaultManagedOverridesPolicy := acceptedPolicy(
+		"team-a",
+		"api-waf-default-managed-overrides",
+		&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}},
+	)
+	defaultManagedOverridesPolicy.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{
+		Overrides: ruleOverrides,
+	}
 	customProfileWithInlinePolicy := acceptedPolicy(
 		"team-a",
 		"api-waf-custom-profile-inline",
@@ -120,6 +145,7 @@ func TestResolverResolveConfig(t *testing.T) {
 			Profile: &customProfile,
 			Inline:  inline,
 		},
+		Overrides: ruleOverrides,
 	}
 	matchAllPolicy := acceptedPolicy(
 		"team-a",
@@ -224,6 +250,7 @@ func TestResolverResolveConfig(t *testing.T) {
 				Rules: EffectiveRules{
 					Source:        EffectiveRuleSourceManaged,
 					PolicyProfile: profile,
+					Overrides:     ruleOverrides,
 				},
 				HandlingOverrides: EffectiveHandlingOverrides{
 					BodyLimitBytes:          &bodyLimitBytes,
@@ -246,6 +273,34 @@ func TestResolverResolveConfig(t *testing.T) {
 			},
 		},
 		{
+			desc:    "applies custom profile overrides when selected",
+			objects: []ctrlClient.Object{&customProfileWithOverridesPolicy},
+			expected: &EffectiveConfig{
+				Enabled:     true,
+				Mode:        defaults.Mode,
+				FailureMode: defaults.FailureMode,
+				Rules: EffectiveRules{
+					Source:        EffectiveRuleSourceProfile,
+					CustomProfile: customProfile,
+					Overrides:     ruleOverrides,
+				},
+			},
+		},
+		{
+			desc:    "applies default managed profile overrides when selected",
+			objects: []ctrlClient.Object{&defaultManagedOverridesPolicy},
+			expected: &EffectiveConfig{
+				Enabled:     true,
+				Mode:        defaults.Mode,
+				FailureMode: defaults.FailureMode,
+				Rules: EffectiveRules{
+					Source:        EffectiveRuleSourceManaged,
+					PolicyProfile: defaults.PolicyProfile,
+					Overrides:     ruleOverrides,
+				},
+			},
+		},
+		{
 			desc:    "applies custom profile with inline additions when selected",
 			objects: []ctrlClient.Object{&customProfileWithInlinePolicy},
 			expected: &EffectiveConfig{
@@ -256,6 +311,7 @@ func TestResolverResolveConfig(t *testing.T) {
 					Source:        EffectiveRuleSourceProfile,
 					CustomProfile: customProfile,
 					Inline:        mustInlineRulesForTest(t, inline),
+					Overrides:     ruleOverrides,
 				},
 			},
 		},
@@ -318,6 +374,11 @@ func TestResolverResolveConfig(t *testing.T) {
 }
 
 func TestValidate(t *testing.T) {
+	ruleOverrides := []isovalentv1alpha1.IsovalentWAFRuleOverride{
+		{RuleID: 949110, Action: isovalentv1alpha1.IsovalentWAFRuleOverrideActionDisable},
+		{RuleID: 942100, Action: isovalentv1alpha1.IsovalentWAFRuleOverrideActionExcludeTarget, Target: "ARGS:note"},
+	}
+
 	testCases := []struct {
 		desc        string
 		policy      isovalentv1alpha1.IsovalentWAFPolicy
@@ -439,6 +500,37 @@ func TestValidate(t *testing.T) {
 				return policy
 			}(),
 			expectError: false,
+		},
+		{
+			desc: "accepts default managed overrides",
+			policy: func() isovalentv1alpha1.IsovalentWAFPolicy {
+				policy := acceptedPolicy(
+					"team-a",
+					"default-managed-overrides",
+					&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}},
+				)
+				policy.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{
+					Overrides: ruleOverrides,
+				}
+				return policy
+			}(),
+			expectError: false,
+		},
+		{
+			desc: "rejects overrides with standalone custom inline rules",
+			policy: func() isovalentv1alpha1.IsovalentWAFPolicy {
+				policy := acceptedPolicy(
+					"team-a",
+					"invalid-inline-overrides",
+					&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}},
+				)
+				policy.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{
+					Custom:    &isovalentv1alpha1.IsovalentWAFCustomRules{Inline: `SecAction "id:1000,phase:1,pass,nolog"`},
+					Overrides: ruleOverrides,
+				}
+				return policy
+			}(),
+			expectError: true,
 		},
 		{
 			desc: "rejects unsupported target kinds",
