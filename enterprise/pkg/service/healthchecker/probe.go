@@ -317,10 +317,10 @@ func sendL7Probe(p probeParams) probeResult {
 	method := getSvcHTTPMethod(p.config)
 	backend := getAddrStr(p.addrWithProbePort(p.beAddr))
 	logFields := []slog.Attr{
-		slog.String("url", url),
-		slog.String("method", method),
-		slog.String("host", p.config.HTTPHost),
-		slog.String("backend", backend),
+		slog.String(logfields.URL, url),
+		slog.String(logfields.Method, method),
+		slog.String(logfields.Host, p.config.HTTPHost),
+		slog.String(logfields.Backend, backend),
 	}
 
 	// create a request with proper method, URL and HTTP Host
