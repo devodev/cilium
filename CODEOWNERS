@@ -483,7 +483,6 @@ Makefile* @cilium/build
 /examples/ @cilium/docs-structure
 /examples/hubble/ @cilium/sig-hubble
 /examples/kubernetes-egress-gateway/ @cilium/egress-gateway
-/examples/kubernetes-inspection/ @isovalent/sig-defence
 /examples/kubernetes/ @cilium/sig-k8s
 /examples/kubernetes/clustermesh/ @cilium/sig-clustermesh
 /examples/kubernetes/gateway/ @cilium/sig-servicemesh
@@ -1052,6 +1051,7 @@ Makefile* @cilium/build
 /enterprise/tools/map-testowners/ @isovalent/core-structure
 /enterprise/tools/gomod-override/ @isovalent/traffic-engineering
 /examples/enterprise-crds @isovalent/helm
+/examples/kubernetes-inspection/ @isovalent/sig-defence
 /hubble/Makefile.override @isovalent/hubble
 /install/kubernetes/Makefile.digests-isovalent @isovalent/infrastructure
 /install/kubernetes/Makefile.override @isovalent/infrastructure

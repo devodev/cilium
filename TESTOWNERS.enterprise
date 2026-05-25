@@ -175,7 +175,6 @@
 /Documentation/security/standalone-dns-proxy.rst @isovalent/dns-proxy
 /examples/hubble/ @isovalent/hubble
 /examples/kubernetes-egress-gateway/ @isovalent/egress-gateway
-/examples/kubernetes-inspection/ @isovalent/sig-defence
 /examples/kubernetes/ @isovalent/sig-k8s
 /examples/kubernetes/clustermesh/ @isovalent/clustermesh
 /examples/kubernetes/gateway/ @isovalent/service-mesh
@@ -593,6 +592,7 @@
 /enterprise/test/hubble-rbac/ @isovalent/hubble-rbac
 /enterprise/tools/gomod-override/ @isovalent/traffic-engineering
 /examples/enterprise-crds @isovalent/helm
+/examples/kubernetes-inspection/ @isovalent/sig-defence
 /hubble/Makefile.override @isovalent/hubble
 /install/kubernetes/Makefile.digests-isovalent @isovalent/infrastructure
 /install/kubernetes/Makefile.override @isovalent/infrastructure
