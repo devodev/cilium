@@ -12,6 +12,7 @@ package cache
 
 import (
 	"context"
+	"slices"
 
 	"github.com/jonboulle/clockwork"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
@@ -199,13 +200,13 @@ func (c *Cache) lookup(hash types.Hash, f types.AggregatableFlow) *types.Aggrega
 		// as new until the background goroutine evicts the expired flow. This is because
 		// the lookup function returns nil as soon as it finds a matching flow that has
 		// expired.
-		for i := len(chain) - 1; i >= 0; i-- {
-			if c.conf.CompareFunc(chain[i].FirstFlow, f) {
-				if chain[i].Expires.Before(now) {
+		for _, af := range slices.Backward(chain) {
+			if c.conf.CompareFunc(af.FirstFlow, f) {
+				if af.Expires.Before(now) {
 					return nil
 				}
 
-				return chain[i]
+				return af
 			}
 		}
 	}
