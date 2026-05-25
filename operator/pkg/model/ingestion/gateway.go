@@ -4,6 +4,7 @@
 package ingestion
 
 import (
+	"cmp"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -321,6 +322,8 @@ func extractRoutes(logger *slog.Logger,
 		var requestRedirectFilter *model.HTTPRequestRedirectFilter
 		var rewriteFilter *model.HTTPURLRewriteFilter
 		var requestMirrors []*model.HTTPRequestMirror
+		var externalAuth *model.HTTPExternalAuthFilter
+		var requestCORS *model.HTTPCORSFilter
 
 		for _, f := range rule.Filters {
 			switch f.Type {
@@ -345,6 +348,29 @@ func extractRoutes(logger *slog.Logger,
 				if svc != nil {
 					requestMirrors = append(requestMirrors, toHTTPRequestMirror(*svc, f.RequestMirror, hr.Namespace))
 				}
+			case gatewayv1.HTTPRouteFilterExternalAuth:
+				if f.ExternalAuth != nil {
+					beRef := gatewayv1.BackendRef{BackendObjectReference: f.ExternalAuth.BackendRef}
+					if !helpers.IsBackendReferenceAllowed(hr.GetNamespace(), beRef, gatewayv1.SchemeGroupVersion.WithKind("HTTPRoute"), grants) {
+						break
+					}
+				}
+				externalAuth = toHTTPExternalAuthFilter(logger, f.ExternalAuth, hr.Namespace, services, serviceImports, btlspMap)
+			case gatewayv1.HTTPRouteFilterCORS:
+				ac := false
+				if f.CORS.AllowCredentials != nil {
+					ac = *f.CORS.AllowCredentials
+				}
+				requestCORS = &model.HTTPCORSFilter{
+					AllowOrigins:     toStringSlice(f.CORS.AllowOrigins),
+					AllowCredentials: ac,
+					AllowMethods:     toStringSlice(f.CORS.AllowMethods),
+					AllowHeaders:     toStringSlice(f.CORS.AllowHeaders),
+					ExposeHeaders:    toStringSlice(f.CORS.ExposeHeaders),
+					// CRD defaults the value to 5 and allows values of 1 or higher.
+					// Local tests can bypass this, ensuring we always get a default.
+					MaxAge: cmp.Or(f.CORS.MaxAge, int32(5)),
+				}
 			}
 		}
 
@@ -359,8 +385,10 @@ func extractRoutes(logger *slog.Logger,
 				RequestRedirect:        requestRedirectFilter,
 				Rewrite:                rewriteFilter,
 				RequestMirrors:         requestMirrors,
+				ExternalAuth:           externalAuth,
 				Timeout:                toTimeout(rule.Timeouts),
 				Retry:                  toHTTPRetry(rule.Retry),
+				CORS:                   requestCORS,
 			})
 		}
 
@@ -379,8 +407,10 @@ func extractRoutes(logger *slog.Logger,
 				RequestRedirect:        requestRedirectFilter,
 				Rewrite:                rewriteFilter,
 				RequestMirrors:         requestMirrors,
+				ExternalAuth:           externalAuth,
 				Timeout:                toTimeout(rule.Timeouts),
 				Retry:                  toHTTPRetry(rule.Retry),
+				CORS:                   requestCORS,
 			})
 		}
 	}
@@ -778,6 +808,56 @@ func toHTTPRewriteFilter(rewrite *gatewayv1.HTTPURLRewriteFilter) *model.HTTPURL
 	}
 }
 
+func toHTTPExternalAuthFilter(log *slog.Logger, ea *gatewayv1.HTTPExternalAuthFilter, defaultNamespace string, services []corev1.Service, serviceImports []mcsapiv1beta1.ServiceImport, btlspMap helpers.BackendTLSPolicyServiceMap) *model.HTTPExternalAuthFilter {
+	if ea == nil {
+		return nil
+	}
+	if ea.BackendRef.Port == nil {
+		log.Warn("ExternalAuth filter has no port specified; filter will be ignored",
+			logfields.K8sNamespace, helpers.NamespaceDerefOr(ea.BackendRef.Namespace, defaultNamespace),
+			logfields.Name, string(ea.BackendRef.Name),
+		)
+		return nil
+	}
+	ns := helpers.NamespaceDerefOr(ea.BackendRef.Namespace, defaultNamespace)
+	svcName, err := getBackendServiceName(ns, services, serviceImports, ea.BackendRef)
+	if err != nil {
+		return nil
+	}
+	svc := getServiceSpec(svcName, ns, services)
+	if svc == nil {
+		return nil
+	}
+
+	be := model.Backend{
+		Name:      svcName,
+		Namespace: ns,
+		Port:      &model.BackendPort{Port: uint32(*ea.BackendRef.Port)},
+	}
+	var include bool
+	be, include = addBackendTLSDetails(log, be, svc, btlspMap)
+	if !include {
+		return nil
+	}
+
+	filter := &model.HTTPExternalAuthFilter{
+		Backend:  be,
+		Protocol: model.ExternalAuthProtocol(ea.ExternalAuthProtocol),
+	}
+	if ea.HTTPAuthConfig != nil {
+		filter.PathPrefix = ea.HTTPAuthConfig.Path
+		filter.AllowedRequestHeaders = ea.HTTPAuthConfig.AllowedRequestHeaders
+		filter.AllowedResponseHeaders = ea.HTTPAuthConfig.AllowedResponseHeaders
+	}
+	if ea.GRPCAuthConfig != nil {
+		filter.AllowedRequestHeaders = ea.GRPCAuthConfig.AllowedRequestHeaders
+	}
+	if ea.ForwardBody != nil && ea.ForwardBody.MaxSize > 0 {
+		filter.ForwardBody = &model.ForwardBodyConfig{MaxSize: uint32(ea.ForwardBody.MaxSize)}
+	}
+	return filter
+}
+
 func toHTTPRequestMirror(svc corev1.Service, mirror *gatewayv1.HTTPRequestMirrorFilter, ns string) *model.HTTPRequestMirror {
 	var n, d int32 = 100, 100
 
@@ -1062,7 +1142,7 @@ func toMapString[K, V ~string](in map[K]V) map[string]string {
 	return out
 }
 
-func toStringSlice(s []gatewayv1.Hostname) []string {
+func toStringSlice[S ~string](s []S) []string {
 	res := make([]string, 0, len(s))
 	for _, h := range s {
 		res = append(res, string(h))

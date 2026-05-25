@@ -178,6 +178,8 @@
 /examples/kubernetes-inspection/ @isovalent/sig-defence
 /examples/kubernetes/ @isovalent/sig-k8s
 /examples/kubernetes/clustermesh/ @isovalent/clustermesh
+/examples/kubernetes/gateway/ @isovalent/service-mesh
+/examples/kubernetes/servicemesh/ @isovalent/service-mesh
 /examples/minikube/ @isovalent/sig-k8s
 /examples/policies/kubernetes/clustermesh/ @isovalent/clustermesh
 /hubble/ @isovalent/hubble
@@ -207,9 +209,9 @@
 /operator/pkg/ipam/allocator/aws/ @isovalent/networking-framework @isovalent/infrastructure
 /operator/pkg/ipam/allocator/azure/ @isovalent/networking-framework @isovalent/infrastructure
 /operator/pkg/ipam/allocator/clusterpool/ @isovalent/networking-framework
+/operator/pkg/ipam/allocator/multipool @isovalent/networking-framework
 /operator/pkg/lbipam @isovalent/isovalent-loadbalancer
 /operator/pkg/model @isovalent/service-mesh
-/operator/pkg/multipool @isovalent/networking-framework
 /operator/pkg/networkpolicy @isovalent/policy-identity-networking
 /operator/pkg/nodeipam @isovalent/isovalent-loadbalancer
 /operator/pkg/secretsync @isovalent/service-mesh @isovalent/service-mesh

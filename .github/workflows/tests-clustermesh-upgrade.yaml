@@ -21,12 +21,8 @@ on:
         required: false
         default: '{}'
 
-  push:
-    branches:
-      - main-ce
-      - ft/main/**
-    paths-ignore:
-      - 'Documentation/**'
+  schedule:
+    - cron: '30 5/8 * * *'
 
 # By specifying the access of one of the scopes, all of those that are not
 # specified are set to 'none'.
@@ -46,6 +42,7 @@ concurrency:
   # - Event type
   # - A unique identifier depending on event type:
   #   - push: SHA
+  #   - schedule: SHA
   #   - workflow_dispatch: PR number
   #
   # This structure ensures a unique concurrency group name is generated for each
@@ -55,6 +52,7 @@ concurrency:
     ${{ github.event_name }}
     ${{
       (github.event_name == 'push' && github.sha) ||
+      (github.event_name == 'schedule' && github.sha) ||
       (github.event_name == 'workflow_dispatch' && github.event.inputs.PR-number)
     }}
   cancel-in-progress: true
@@ -80,7 +78,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Set initial commit status
-        uses: cilium/cilium/.github/actions/set-commit-status@6bbf438de412ec7abcb58b25bc02227e6f09ac0c # main
+        uses: cilium/cilium/.github/actions/set-commit-status@main # main
         with:
           sha: ${{ inputs.SHA || github.sha }}
 
@@ -152,7 +150,7 @@ jobs:
 
     steps:
       - name: Set commit status to pending
-        uses: cilium/cilium/.github/actions/set-commit-status@6bbf438de412ec7abcb58b25bc02227e6f09ac0c # main
+        uses: cilium/cilium/.github/actions/set-commit-status@main # main
         with:
           sha: ${{ inputs.SHA || github.sha }}
 
@@ -289,7 +287,7 @@ jobs:
           wait: 0 # The control-plane never becomes ready, since no CNI is present
 
       - name: Install Cilium CLI
-        uses: cilium/cilium-cli@3ce83aa3b4ea3ce6d97023c4d83c22b73a4ed3b4 # v0.19.2
+        uses: cilium/cilium-cli@28724c91759fcfe797a1619994da9eb53399da9d # v0.19.3
         with:
           skip-build: ${{ env.CILIUM_CLI_SKIP_BUILD }}
           image-repo: ${{ env.CILIUM_CLI_IMAGE_REPO }}

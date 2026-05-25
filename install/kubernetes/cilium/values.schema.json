@@ -1425,6 +1425,12 @@
                     },
                     "method": {
                       "type": "string"
+                    },
+                    "privateKey": {
+                      "type": "object"
+                    },
+                    "subject": {
+                      "type": "object"
                     }
                   },
                   "type": "object"
@@ -2009,6 +2015,17 @@
               "type": "object"
             },
             "annotations": {
+              "type": "object"
+            },
+            "ca": {
+              "properties": {
+                "type": {
+                  "enum": [
+                    "spire",
+                    "internal"
+                  ]
+                }
+              },
               "type": "object"
             },
             "caAddress": {
@@ -5677,8 +5694,14 @@
                 "method": {
                   "type": "string"
                 },
+                "privateKey": {
+                  "type": "object"
+                },
                 "schedule": {
                   "type": "string"
+                },
+                "subject": {
+                  "type": "object"
                 }
               },
               "type": "object"
@@ -6556,7 +6579,7 @@
         "enabled": {
           "type": "boolean"
         },
-        "interface": {
+        "interfacePattern": {
           "type": "string"
         }
       },

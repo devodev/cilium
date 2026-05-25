@@ -224,6 +224,7 @@ cilium-operator-azure hive [flags]
       --waf-inline-rules-config-map string                                Name of the ConfigMap used to publish shared WAF inline rule bundles. (default "waf-inline-rules")
       --waf-mode string                                                   Default WAF mode for operator-managed resources. Applicable values: Monitor, Enforce (default "Enforce")
       --waf-policy-profile string                                         Default WAF policy profile for operator-managed resources. Applicable values: max_security, high_security, balanced, low_friction, min_friction (default "balanced")
+      --ztunnel-ca-type string                                            CA backend used by ztunnel: 'spire' (external SPIRE server) or 'internal' (Cilium-managed CA) (default "internal")
 ```
 
 ### SEE ALSO

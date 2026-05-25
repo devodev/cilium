@@ -281,6 +281,60 @@ type HTTPRequestMirror struct {
 	Denominator int32 `json:"denominator,omitempty"`
 }
 
+// ExternalAuthProtocol is the protocol used to communicate with an ext_authz backend.
+type ExternalAuthProtocol string
+
+const (
+	ExternalAuthProtocolGRPC ExternalAuthProtocol = "GRPC"
+	ExternalAuthProtocolHTTP ExternalAuthProtocol = "HTTP"
+)
+
+// HTTPExternalAuthFilter defines configuration for an external authorization filter.
+type HTTPExternalAuthFilter struct {
+	// Backend is the authorization service backend.
+	Backend Backend `json:"backend"`
+	// Protocol is the protocol used to communicate with the auth backend.
+	Protocol ExternalAuthProtocol `json:"protocol"`
+	// PathPrefix is prepended to the request path when forwarding to HTTP auth backends.
+	PathPrefix string `json:"path_prefix,omitempty"`
+	// AllowedRequestHeaders are additional headers forwarded to the auth service (HTTP protocol).
+	AllowedRequestHeaders []string `json:"allowed_request_headers,omitempty"`
+	// AllowedResponseHeaders are headers from the auth response to forward to the upstream (HTTP protocol).
+	AllowedResponseHeaders []string `json:"allowed_response_headers,omitempty"`
+	// ForwardBody configures buffering and forwarding of the client request body to the auth service.
+	// If nil or MaxSize is 0, the body is not forwarded.
+	ForwardBody *ForwardBodyConfig `json:"forward_body,omitempty"`
+}
+
+// ForwardBodyConfig controls if and how the client request body is forwarded to the auth service.
+type ForwardBodyConfig struct {
+	// MaxSize is the maximum number of bytes to buffer and forward. If the body exceeds this,
+	// the body is truncated to MaxSize before being sent to the auth service.
+	MaxSize uint32 `json:"max_size"`
+}
+
+// HTTPCORSFilter defines configuration for the CORS filter.
+type HTTPCORSFilter struct {
+	// AllowOrigins indicates whether the response can be shared with
+	// requested resource from the given `Origin`.
+	AllowOrigins []string `json:"allowOrigins,omitempty"`
+	// AllowCredentials indicates whether the actual cross-origin request
+	// allows to include credentials.
+	AllowCredentials bool `json:"allowCredentials,omitempty"`
+	// AllowMethods indicates which HTTP methods are supported
+	// for accessing the requested resource.
+	AllowMethods []string `json:"allowMethods,omitempty"`
+	// AllowHeaders indicates which HTTP request headers are supported
+	// for accessing the requested resource.
+	AllowHeaders []string `json:"allowHeaders,omitempty"`
+	// ExposeHeaders indicates which HTTP response headers can be exposed
+	// to client-side scripts in response to a cross-origin request.
+	ExposeHeaders []string `json:"exposeHeaders,omitempty"`
+	// MaxAge indicates the duration (in seconds) for the client to cache
+	// the results of a "preflight" request.
+	MaxAge int32 `json:"maxAge,omitempty"`
+}
+
 // HTTPRoute holds all the details needed to route HTTP traffic to a backend.
 type HTTPRoute struct {
 	Name string `json:"name,omitempty"`
@@ -319,6 +373,9 @@ type HTTPRoute struct {
 	// Unlike other filter, multiple request mirrors are supported
 	RequestMirrors []*HTTPRequestMirror `json:"request_mirrors,omitempty"`
 
+	// ExternalAuth configures external authorization for this route.
+	ExternalAuth *HTTPExternalAuthFilter `json:"external_auth,omitempty"`
+
 	// IsGRPC is an indicator if this route is related to GRPC
 	IsGRPC bool `json:"is_grpc,omitempty"`
 
@@ -327,6 +384,9 @@ type HTTPRoute struct {
 
 	// Retry holds the retry configuration for a route.
 	Retry *HTTPRetry `json:"retry,omitempty"`
+
+	// CORS holds cross-origin resource sharing filters for a route.
+	CORS *HTTPCORSFilter `json:"cors,omitempty"`
 }
 
 type BackendHTTPFilter struct {
@@ -386,6 +446,20 @@ func (r *HTTPRoute) GetMatchKey() string {
 	if r.RequestRedirect != nil && r.RequestRedirect.Scheme != nil {
 		sb.WriteString("redirect:")
 		sb.WriteString("true")
+		sb.WriteString("|")
+	}
+
+	if r.ExternalAuth != nil {
+		sb.WriteString("auth:")
+		sb.WriteString(string(r.ExternalAuth.Protocol))
+		sb.WriteString(":")
+		sb.WriteString(r.ExternalAuth.Backend.Namespace)
+		sb.WriteString(":")
+		sb.WriteString(r.ExternalAuth.Backend.Name)
+		if r.ExternalAuth.Backend.Port != nil {
+			sb.WriteString(":")
+			sb.WriteString(r.ExternalAuth.Backend.Port.GetPort())
+		}
 		sb.WriteString("|")
 	}
 
@@ -551,6 +625,19 @@ func (m *Model) HTTPPorts() []uint32 {
 		ports = append(ports, l.Port)
 	}
 	return slices.SortedUnique(ports)
+}
+
+// IsCORSFilterConfigured returns true if any HTTP route has a configured CORS filter.
+func (m *Model) IsCORSFilterConfigured() bool {
+	for _, h := range m.HTTP {
+		for _, r := range h.Routes {
+			if r.CORS != nil {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 // TLSPassthroughPorts returns a list of unique ports for all TLS Passthrough listeners.

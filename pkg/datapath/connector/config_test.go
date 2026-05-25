@@ -18,6 +18,7 @@ import (
 	datapathOption "github.com/cilium/cilium/pkg/datapath/option"
 	"github.com/cilium/cilium/pkg/datapath/tunnel"
 	"github.com/cilium/cilium/pkg/defaults"
+	"github.com/cilium/cilium/pkg/kpr"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/testutils"
 	"github.com/cilium/cilium/pkg/testutils/netns"
@@ -80,6 +81,13 @@ var (
 		EnableIPv6:               true,
 		UnsafeDaemonConfigOption: option.UnsafeDaemonConfig{EnableHostLegacyRouting: true},
 	}
+	daemonConfigNetkitIptablesMasq = option.DaemonConfig{
+		DatapathMode:         datapathOption.DatapathModeNetkit,
+		EnableIPv4:           true,
+		EnableIPv6:           true,
+		EnableIPv4Masquerade: true,
+		EnableBPFMasquerade:  false,
+	}
 	daemonConfigNetkitEndpointRoutes = option.DaemonConfig{
 		DatapathMode:         datapathOption.DatapathModeNetkit,
 		EnableIPv4:           true,
@@ -104,6 +112,13 @@ var (
 		EnableIPv6:               true,
 		UnsafeDaemonConfigOption: option.UnsafeDaemonConfig{EnableHostLegacyRouting: true},
 	}
+	daemonConfigNetkitL2IptablesMasq = option.DaemonConfig{
+		DatapathMode:         datapathOption.DatapathModeNetkitL2,
+		EnableIPv4:           true,
+		EnableIPv6:           true,
+		EnableIPv4Masquerade: true,
+		EnableBPFMasquerade:  false,
+	}
 	daemonConfigNetkitL2EndpointRoutes = option.DaemonConfig{
 		DatapathMode:         datapathOption.DatapathModeNetkitL2,
 		EnableIPv4:           true,
@@ -127,6 +142,13 @@ var (
 		EnableIPv4:               true,
 		EnableIPv6:               true,
 		UnsafeDaemonConfigOption: option.UnsafeDaemonConfig{EnableHostLegacyRouting: true},
+	}
+	daemonConfigAutoIptablesMasq = option.DaemonConfig{
+		DatapathMode:         datapathOption.DatapathModeAuto,
+		EnableIPv4:           true,
+		EnableIPv6:           true,
+		EnableIPv4Masquerade: true,
+		EnableBPFMasquerade:  false,
 	}
 	daemonConfigAutoEndpointRoutes = option.DaemonConfig{
 		DatapathMode:         datapathOption.DatapathModeAuto,
@@ -191,8 +213,13 @@ func TestNewConfig(t *testing.T) {
 		wgAgent        *fakewireguard.Agent
 		tunnelConfig   tunnel.Config
 		expectedConfig *config
-		shouldError    bool
-		shouldSkip     bool
+		// kprConfig defaults to KubeProxyReplacement=true for every case
+		// except the explicit kpr-disabled tests below. Use a pointer so
+		// the zero value (struct{KubeProxyReplacement:false}) is
+		// distinguishable from "not set".
+		kprConfig   *kpr.KPRConfig
+		shouldError bool
+		shouldSkip  bool
 	}{
 		{
 			name:           "datapath-carrier-pigeon",
@@ -249,6 +276,29 @@ func TestNewConfig(t *testing.T) {
 			shouldSkip:     false,
 		},
 		{
+			// Explicit netkit + iptables masquerade (no BPF masq):
+			// canUseNetkit refuses, agent fails to start. Operator must
+			// switch to BPF masquerade.
+			name:           "datapath-netkit+iptables-masq",
+			daemonConfig:   &daemonConfigNetkitIptablesMasq,
+			wgAgent:        fakewireguard.NewTestAgent(wgConfigDisabled),
+			tunnelConfig:   tunnelConfigNative,
+			expectedConfig: &connectorConfigNetkit,
+			shouldError:    true,
+			shouldSkip:     false,
+		},
+		{
+			// Explicit netkit + KPR disabled: canUseNetkit refuses.
+			name:           "datapath-netkit+kpr-disabled",
+			daemonConfig:   &daemonConfigNetkit,
+			wgAgent:        fakewireguard.NewTestAgent(wgConfigDisabled),
+			tunnelConfig:   tunnelConfigNative,
+			expectedConfig: &connectorConfigNetkit,
+			kprConfig:      &kpr.KPRConfig{KubeProxyReplacement: false},
+			shouldError:    true,
+			shouldSkip:     false,
+		},
+		{
 			name:           "datapath-netkit+endpoint-routes",
 			daemonConfig:   &daemonConfigNetkitEndpointRoutes,
 			wgAgent:        fakewireguard.NewTestAgent(wgConfigDisabled),
@@ -281,6 +331,25 @@ func TestNewConfig(t *testing.T) {
 			wgAgent:        fakewireguard.NewTestAgent(wgConfigDisabled),
 			tunnelConfig:   tunnelConfigNative,
 			expectedConfig: &connectorConfigNetkitL2,
+			shouldError:    true,
+			shouldSkip:     false,
+		},
+		{
+			name:           "datapath-netkit-l2+iptables-masq",
+			daemonConfig:   &daemonConfigNetkitL2IptablesMasq,
+			wgAgent:        fakewireguard.NewTestAgent(wgConfigDisabled),
+			tunnelConfig:   tunnelConfigNative,
+			expectedConfig: &connectorConfigNetkitL2,
+			shouldError:    true,
+			shouldSkip:     false,
+		},
+		{
+			name:           "datapath-netkit-l2+kpr-disabled",
+			daemonConfig:   &daemonConfigNetkitL2,
+			wgAgent:        fakewireguard.NewTestAgent(wgConfigDisabled),
+			tunnelConfig:   tunnelConfigNative,
+			expectedConfig: &connectorConfigNetkitL2,
+			kprConfig:      &kpr.KPRConfig{KubeProxyReplacement: false},
 			shouldError:    true,
 			shouldSkip:     false,
 		},
@@ -321,6 +390,29 @@ func TestNewConfig(t *testing.T) {
 			shouldSkip:     hostSupportsNetkit(),
 		},
 		{
+			// Old kernel without netkit support: auto must already pick
+			// veth regardless of iptables masquerade. No regression risk
+			// here, but the symmetric case below (with netkit support)
+			// is the one this fix is really protecting.
+			name:           "datapath-auto(!netkit)+iptables-masq+oper-veth",
+			daemonConfig:   &daemonConfigAutoIptablesMasq,
+			wgAgent:        fakewireguard.NewTestAgent(wgConfigDisabled),
+			tunnelConfig:   tunnelConfigNative,
+			expectedConfig: &connectorConfigAuto_Veth,
+			shouldError:    false,
+			shouldSkip:     hostSupportsNetkit(),
+		},
+		{
+			name:           "datapath-auto(!netkit)+kpr-disabled+oper-veth",
+			daemonConfig:   &daemonConfigAuto,
+			wgAgent:        fakewireguard.NewTestAgent(wgConfigDisabled),
+			tunnelConfig:   tunnelConfigNative,
+			expectedConfig: &connectorConfigAuto_Veth,
+			kprConfig:      &kpr.KPRConfig{KubeProxyReplacement: false},
+			shouldError:    false,
+			shouldSkip:     hostSupportsNetkit(),
+		},
+		{
 			name:           "datapath-auto(netkit)+oper-netkit",
 			daemonConfig:   &daemonConfigAuto,
 			wgAgent:        fakewireguard.NewTestAgent(wgConfigDisabled),
@@ -344,6 +436,32 @@ func TestNewConfig(t *testing.T) {
 			wgAgent:        fakewireguard.NewTestAgent(wgConfigDisabled),
 			tunnelConfig:   tunnelConfigNative,
 			expectedConfig: &connectorConfigAuto_Veth,
+			shouldError:    false,
+			shouldSkip:     !hostSupportsNetkit(),
+		},
+		{
+			// This is the regression-protection case: on a kernel that
+			// newly supports netkit, auto must still pick veth when the
+			// rest of the config would force the kpr-initializer to fall
+			// back to legacy routing (iptables masq without bpf masq).
+			// Otherwise a working auto+veth cluster on an older kernel
+			// would break after a kernel upgrade.
+			name:           "datapath-auto(netkit)+iptables-masq+oper-veth",
+			daemonConfig:   &daemonConfigAutoIptablesMasq,
+			wgAgent:        fakewireguard.NewTestAgent(wgConfigDisabled),
+			tunnelConfig:   tunnelConfigNative,
+			expectedConfig: &connectorConfigAuto_Veth,
+			shouldError:    false,
+			shouldSkip:     !hostSupportsNetkit(),
+		},
+		{
+			// Same regression case for kube-proxy-replacement disabled.
+			name:           "datapath-auto(netkit)+kpr-disabled+oper-veth",
+			daemonConfig:   &daemonConfigAuto,
+			wgAgent:        fakewireguard.NewTestAgent(wgConfigDisabled),
+			tunnelConfig:   tunnelConfigNative,
+			expectedConfig: &connectorConfigAuto_Veth,
+			kprConfig:      &kpr.KPRConfig{KubeProxyReplacement: false},
 			shouldError:    false,
 			shouldSkip:     !hostSupportsNetkit(),
 		},
@@ -373,12 +491,17 @@ func TestNewConfig(t *testing.T) {
 				t.Skip()
 			}
 
+			kprCfg := kpr.KPRConfig{KubeProxyReplacement: true}
+			if tt.kprConfig != nil {
+				kprCfg = *tt.kprConfig
+			}
 			p := connectorParams{
 				Lifecycle:    &cell.DefaultLifecycle{},
 				Log:          logger,
 				DaemonConfig: tt.daemonConfig,
 				WgAgent:      tt.wgAgent,
 				TunnelConfig: tt.tunnelConfig,
+				KPRConfig:    kprCfg,
 			}
 			connector, err := newConfig(p)
 
@@ -436,6 +559,7 @@ func TestUseTunedBufferMargins(t *testing.T) {
 				Log:          logger,
 				Lifecycle:    &cell.DefaultLifecycle{},
 				DaemonConfig: tt.daemonConfig,
+				KPRConfig:    kpr.KPRConfig{KubeProxyReplacement: true},
 			}
 			connector, err := newConfig(p)
 
@@ -699,6 +823,7 @@ func TestPrivilegedCalculateTunedBufferMargins(t *testing.T) {
 				DaemonConfig: tt.daemonConfig,
 				WgAgent:      tt.wgAgent,
 				TunnelConfig: tt.tunnelConfig,
+				KPRConfig:    kpr.KPRConfig{KubeProxyReplacement: true},
 			}
 
 			connector, err := newConfig(p)

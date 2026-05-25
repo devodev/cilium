@@ -24,6 +24,7 @@ type AllocatorAzure struct {
 	ParallelAllocWorkers        int64
 	LimitIPAMAPIBurst           int
 	LimitIPAMAPIQPS             float64
+	AzureMetrics                azureAPI.MetricsAPI
 
 	rootLogger *slog.Logger
 	logger     *slog.Logger
@@ -37,7 +38,7 @@ func (a *AllocatorAzure) Init(ctx context.Context, logger *slog.Logger) error {
 }
 
 // Start kicks of the Azure IP allocation
-func (a *AllocatorAzure) Start(ctx context.Context, getterUpdater allocator.CiliumNodeGetterUpdater, azMetrics azureAPI.MetricsAPI, iMetrics nodemanager.MetricsAPI) (allocator.NodeEventHandler, error) {
+func (a *AllocatorAzure) Start(ctx context.Context, getterUpdater allocator.CiliumNodeGetterUpdater, iMetrics nodemanager.MetricsAPI) (allocator.NodeEventHandler, error) {
 	a.logger.Info("Starting Azure IP allocator...")
 
 	a.logger.Debug("Retrieving Azure cloud name via Azure IMS")
@@ -68,11 +69,11 @@ func (a *AllocatorAzure) Start(ctx context.Context, getterUpdater allocator.Cili
 		a.logger.Debug("Detected resource group name via Azure IMS", logfields.Resource, resourceGroupName)
 	}
 
-	azureClient, err := azureAPI.NewClient(a.rootLogger, azureCloudName, subscriptionID, resourceGroupName, a.AzureUserAssignedIdentityID, azMetrics, a.LimitIPAMAPIQPS, a.LimitIPAMAPIBurst, a.AzureUsePrimaryAddress)
+	azureClient, err := azureAPI.NewClient(a.rootLogger, azureCloudName, subscriptionID, resourceGroupName, a.AzureUserAssignedIdentityID, a.AzureMetrics, a.LimitIPAMAPIQPS, a.LimitIPAMAPIBurst, a.AzureUsePrimaryAddress)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create Azure client: %w", err)
 	}
-	instances := azureIPAM.NewInstancesManager(a.rootLogger, azureClient)
+	instances := azureIPAM.NewInstancesManager(a.rootLogger, azureClient, a.AzureUsePrimaryAddress)
 	nodeManager, err := nodemanager.NewNodeManager(a.logger, instances, getterUpdater, iMetrics, a.ParallelAllocWorkers, false, 0, false)
 	if err != nil {
 		return nil, fmt.Errorf("unable to initialize Azure node manager: %w", err)

@@ -380,7 +380,7 @@ static __always_inline int tail_handle_ipv4_privnet_unknown_ingress(struct __ctx
 			  bpf_htons(ETH_P_IP));
 
 	return redirect_ep(ctx, CONFIG(interface_ifindex),
-			   should_redirect_peer(from_host), from_tunnel);
+			   should_redirect_peer(ctx, from_host), from_tunnel);
 }
 
 __declare_tail(CILIUM_CALL_IPV6_PRIVNET_UNKNOWN_INGRESS)
@@ -420,7 +420,7 @@ static __always_inline int tail_handle_ipv6_privnet_unknown_ingress(struct __ctx
 			  bpf_htons(ETH_P_IPV6));
 
 	return redirect_ep(ctx, CONFIG(interface_ifindex),
-			   should_redirect_peer(from_host), from_tunnel);
+			   should_redirect_peer(ctx, from_host), from_tunnel);
 }
 
 static __always_inline int

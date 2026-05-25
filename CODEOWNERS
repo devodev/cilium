@@ -388,7 +388,6 @@ Makefile* @cilium/build
 /contrib/coccinelle/ @cilium/sig-datapath
 /contrib/scripts/portgen.py @cilium/sig-datapath
 /contrib/scripts/check-datapathconfig.sh @cilium/loader
-/contrib/scripts/check-fipsonly.sh @cilium/build @cilium/security
 /contrib/scripts/verifier_diff.py @cilium/sig-datapath
 /daemon/ @cilium/sig-agent
 /daemon/cmd/endpoint* @cilium/endpoint
@@ -487,6 +486,8 @@ Makefile* @cilium/build
 /examples/kubernetes-inspection/ @isovalent/sig-defence
 /examples/kubernetes/ @cilium/sig-k8s
 /examples/kubernetes/clustermesh/ @cilium/sig-clustermesh
+/examples/kubernetes/gateway/ @cilium/sig-servicemesh
+/examples/kubernetes/servicemesh/ @cilium/sig-servicemesh
 /examples/minikube/ @cilium/sig-k8s
 /examples/policies/kubernetes/clustermesh/ @cilium/sig-clustermesh
 /hack/ @cilium/contributing
@@ -527,10 +528,10 @@ Makefile* @cilium/build
 /operator/pkg/ipam/allocator/aws/ @cilium/sig-ipam @cilium/aws
 /operator/pkg/ipam/allocator/azure/ @cilium/sig-ipam @cilium/azure
 /operator/pkg/ipam/allocator/clusterpool/ @cilium/sig-ipam @cilium/operator
+/operator/pkg/ipam/allocator/multipool @cilium/sig-ipam
 /operator/pkg/kvstore @cilium/kvstore
 /operator/pkg/lbipam @cilium/sig-lb
 /operator/pkg/model @cilium/sig-servicemesh
-/operator/pkg/multipool @cilium/sig-ipam
 /operator/pkg/networkpolicy @cilium/sig-policy
 /operator/pkg/nodeipam @cilium/sig-lb
 /operator/pkg/secretsync @cilium/envoy @cilium/sig-servicemesh
@@ -736,7 +737,6 @@ Makefile* @cilium/build
 /vendor/ @cilium/vendor
 /VERSION @cilium/release-managers
 /.clang-format @cilium/contributing
-/**/fipsonly.go @cilium/build @cilium/security
 
 # Isovalent Teams
 # +++++++++++++++
@@ -933,9 +933,9 @@ Makefile* @cilium/build
 /cilium-cli/enterprise/hooks/k8s/vm_exec.go @isovalent/private-networking
 /cilium-cli/enterprise/hooks/manifests/egw-ha/ @isovalent/egress-gateway
 /cilium-cli/enterprise/hooks/manifests/ingress-policy/ @isovalent/service-mesh
-/cilium-cli/enterprise/hooks/manifests/network-policy @isovalent/policy-identity-networking 
+/cilium-cli/enterprise/hooks/manifests/network-policy @isovalent/policy-identity-networking
 /cilium-cli/enterprise/hooks/sysdump/timescape*.go @isovalent/timescape
-/cilium-cli/enterprise/hooks/policy.go @isovalent/policy-identity-networking 
+/cilium-cli/enterprise/hooks/policy.go @isovalent/policy-identity-networking
 /contrib/containerlab/enterprise/evpn/ @isovalent/traffic-engineering
 /contrib/containerlab/enterprise/privnet/ @isovalent/private-networking
 /contrib/scripts/enterprise-check-api-code-gen.sh @isovalent/cilium-agent

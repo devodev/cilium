@@ -13,6 +13,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/cilium/cilium/operator/pkg/ipam/nodemanager"
+	azureTypes "github.com/cilium/cilium/pkg/azure/types"
+
 	// Register the Azure resource-ID parser. This is the canonical place
 	// for Azure-IPAM-enabled binaries to wire in pkg/azure/types' parser
 	// so AzureInterface.SetID() can populate the VMSS/VM/RG fields.
@@ -48,6 +50,10 @@ type InstancesManager struct {
 	// resyncLock ensures instance incremental resync do not run at the same time as a full API resync
 	resyncLock lock.RWMutex
 
+	// usePrimary mirrors the --azure-use-primary-address operator flag; when
+	// true, each NIC's primary IP is exposed to the allocatable pool.
+	usePrimary bool
+
 	// mutex protects the fields below
 	mutex     lock.RWMutex
 	instances *ipamTypes.InstanceMap
@@ -56,11 +62,12 @@ type InstancesManager struct {
 }
 
 // NewInstancesManager returns a new instances manager
-func NewInstancesManager(logger *slog.Logger, api AzureAPI) *InstancesManager {
+func NewInstancesManager(logger *slog.Logger, api AzureAPI, usePrimary bool) *InstancesManager {
 	return &InstancesManager{
-		logger:    logger.With(subsysLogAttr...),
-		instances: ipamTypes.NewInstanceMap(),
-		api:       api,
+		logger:     logger.With(subsysLogAttr...),
+		instances:  ipamTypes.NewInstanceMap(),
+		api:        api,
+		usePrimary: usePrimary,
 	}
 }
 
@@ -157,9 +164,9 @@ func (m *InstancesManager) resyncInstance(ctx context.Context, instanceID string
 func (m *InstancesManager) extractSubnetIDs(instances *ipamTypes.InstanceMap) []string {
 	subnetIDs := sets.New[string]()
 
-	instances.ForeachAddress("", func(instanceID, interfaceID, ip, poolID string, address ipamTypes.Address) error {
-		if poolID != "" {
-			subnetIDs.Insert(poolID)
+	instances.ForeachInterface("", func(instanceID, interfaceID string, iface ipamTypes.Interface) error {
+		if azIface, ok := iface.(*azureTypes.AzureInterface); ok && azIface.Subnet.ID != "" {
+			subnetIDs.Insert(azIface.Subnet.ID)
 		}
 		return nil
 	})
