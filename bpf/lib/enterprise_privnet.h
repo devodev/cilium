@@ -907,15 +907,16 @@ __noinline __weak int
 privnet_unknown_policy_egress4(struct __ctx_buff *ctx,
 			       __u16 net_id,
 			       __u32 sec_label,
+			       __u32 *dst_sec_identity,
 			       struct trace_ctx *trace)
 {
 	const struct privnet_cidr_identity *info = NULL;
 	__u8 policy_match_type = POLICY_MATCH_NONE;
-	__u32 dst_sec_identity = WORLD_IPV4_ID;
 	fraginfo_t fraginfo __maybe_unused;
 	bool is_untracked_fragment = false;
 	struct ipv4_ct_tuple tuple = {};
 	struct ct_state ct_state = {};
+	__u32 local_dst_sec_identity;
 	void *ct_map, *ct_map_any;
 	int verdict = CTX_ACT_OK;
 	void *data, *data_end;
@@ -928,6 +929,11 @@ privnet_unknown_policy_egress4(struct __ctx_buff *ctx,
 	int l4_off;
 	int ct_ret;
 	int ret;
+
+	if (!dst_sec_identity)
+		dst_sec_identity = &local_dst_sec_identity;
+
+	*dst_sec_identity = WORLD_IPV4_ID;
 
 	if (!revalidate_data(ctx, &data, &data_end, &ip4))
 		return DROP_INVALID;
@@ -958,16 +964,15 @@ privnet_unknown_policy_egress4(struct __ctx_buff *ctx,
 		trace->reason = (enum trace_reason)ct_ret;
 	}
 
+	info = privnet_cidr_identity_lookup4(&cilium_privnet_cidr_identity, ip4->daddr);
+	if (info)
+		*dst_sec_identity = info->sec_identity;
+
 	/* Skip policy enforcement for return traffic. */
 	if (ct_ret == CT_REPLY || ct_ret == CT_RELATED)
 		return CTX_ACT_OK;
 
-	/* Note: We are looking up by tuple.saddr for the dst here because ct_lookup swapped the order */
-	info = privnet_cidr_identity_lookup4(&cilium_privnet_cidr_identity, tuple.saddr);
-	if (info)
-		dst_sec_identity = info->sec_identity;
-
-	verdict = privnet_unknown_policy_can_access(ctx, sec_label, dst_sec_identity, ETH_P_IP,
+	verdict = privnet_unknown_policy_can_access(ctx, sec_label, *dst_sec_identity, ETH_P_IP,
 						    tuple.dport, tuple.nexthdr, l4_off, CT_EGRESS,
 						    is_untracked_fragment, &policy_match_type,
 						    ext_err, &proxy_port, &cookie, &audited);
@@ -985,7 +990,7 @@ privnet_unknown_policy_egress4(struct __ctx_buff *ctx,
 
 	/* Emit verdict if drop or if allow for CT_NEW. */
 	if (verdict != CTX_ACT_OK || ct_ret != CT_ESTABLISHED) {
-		send_policy_verdict_notify(ctx, dst_sec_identity, tuple.dport,
+		send_policy_verdict_notify(ctx, *dst_sec_identity, tuple.dport,
 					   tuple.nexthdr, POLICY_EGRESS, false,
 					   verdict, proxy_port, policy_match_type, audited,
 					   0, cookie);
@@ -1014,7 +1019,7 @@ static __always_inline int privnet_egress_ipv4(struct __ctx_buff *ctx,
 					       __u32 sec_label, __u16 net_id, __u16 subnet_id,
 					       const struct privnet_fib_val **src_privnet_entry,
 					       const struct privnet_fib_val **dst_privnet_entry,
-					       struct trace_ctx *trace)
+					       __u32 *dst_sec_identity, struct trace_ctx *trace)
 {
 	void *data, *data_end;
 	struct iphdr *ip4;
@@ -1049,7 +1054,8 @@ static __always_inline int privnet_egress_ipv4(struct __ctx_buff *ctx,
 		 */
 		if (is_privnet_route_entry(dip_val) && sec_label) {
 			/* enforce egress policy for unknown flow */
-			ret = privnet_unknown_policy_egress4(ctx, net_id, sec_label, trace);
+			ret = privnet_unknown_policy_egress4(ctx, net_id, sec_label,
+							     dst_sec_identity, trace);
 			if (ret != CTX_ACT_OK)
 				return ret;
 
@@ -1116,7 +1122,7 @@ static __always_inline int privnet_egress_ipv4(struct __ctx_buff *ctx,
 
 	if (host_traffic && sip_val) {
 		const struct remote_endpoint_info *info;
-		__u32 dst_sec_identity;
+		__u32 host_dst_sec_identity;
 
 		ret = privnet_host_rev_snat_egress4(ctx);
 		if (IS_ERR(ret))
@@ -1125,8 +1131,8 @@ static __always_inline int privnet_egress_ipv4(struct __ctx_buff *ctx,
 			return DROP_INVALID;
 
 		info = lookup_ip4_remote_endpoint(ip4->daddr, 0);
-		dst_sec_identity = info ? info->sec_identity : UNKNOWN_ID;
-		if (!privnet_is_identity_any_host(dst_sec_identity))
+		host_dst_sec_identity = info ? info->sec_identity : UNKNOWN_ID;
+		if (!privnet_is_identity_any_host(host_dst_sec_identity))
 			return DROP_UNROUTABLE;
 
 		/* Set net id to default network.*/
@@ -1140,15 +1146,16 @@ __noinline __weak int
 privnet_unknown_policy_egress6(struct __ctx_buff *ctx,
 			       __u16 net_id,
 			       __u32 sec_label,
+			       __u32 *dst_sec_identity,
 			       struct trace_ctx *trace)
 {
 	const struct privnet_cidr_identity *info = NULL;
 	__u8 policy_match_type = POLICY_MATCH_NONE;
-	__u32 dst_sec_identity = WORLD_IPV6_ID;
 	fraginfo_t fraginfo __maybe_unused;
 	bool is_untracked_fragment = false;
 	struct ipv6_ct_tuple tuple = {};
 	struct ct_state ct_state = {};
+	__u32 local_dst_sec_identity;
 	void *ct_map, *ct_map_any;
 	int verdict = CTX_ACT_OK;
 	void *data, *data_end;
@@ -1162,6 +1169,11 @@ privnet_unknown_policy_egress6(struct __ctx_buff *ctx,
 	int l4_off;
 	int ct_ret;
 	int ret;
+
+	if (!dst_sec_identity)
+		dst_sec_identity = &local_dst_sec_identity;
+
+	*dst_sec_identity = WORLD_IPV6_ID;
 
 	if (!revalidate_data(ctx, &data, &data_end, &ip6))
 		return DROP_INVALID;
@@ -1187,16 +1199,16 @@ privnet_unknown_policy_egress6(struct __ctx_buff *ctx,
 		trace->reason = (enum trace_reason)ct_ret;
 	}
 
+	info = privnet_cidr_identity_lookup6(&cilium_privnet_cidr_identity,
+					     *((union v6addr *)&ip6->daddr));
+	if (info)
+		*dst_sec_identity = info->sec_identity;
+
 	/* Skip policy enforcement for return traffic. */
 	if (ct_ret == CT_REPLY || ct_ret == CT_RELATED)
 		return CTX_ACT_OK;
 
-	/* Note: We are looking up by tuple.saddr for the dst here because ct_lookup swapped the order */
-	info = privnet_cidr_identity_lookup6(&cilium_privnet_cidr_identity, tuple.saddr);
-	if (info)
-		dst_sec_identity = info->sec_identity;
-
-	verdict = privnet_unknown_policy_can_access(ctx, sec_label, dst_sec_identity, ETH_P_IPV6,
+	verdict = privnet_unknown_policy_can_access(ctx, sec_label, *dst_sec_identity, ETH_P_IPV6,
 						    tuple.dport, tuple.nexthdr, l4_off, CT_EGRESS,
 						    is_untracked_fragment, &policy_match_type,
 						    ext_err, &proxy_port, &cookie, &audited);
@@ -1214,7 +1226,7 @@ privnet_unknown_policy_egress6(struct __ctx_buff *ctx,
 
 	/* Emit verdict if drop or if allow for CT_NEW. */
 	if (verdict != CTX_ACT_OK || ct_ret != CT_ESTABLISHED) {
-		send_policy_verdict_notify(ctx, dst_sec_identity, tuple.dport,
+		send_policy_verdict_notify(ctx, *dst_sec_identity, tuple.dport,
 					   tuple.nexthdr, POLICY_EGRESS, false,
 					   verdict, proxy_port, policy_match_type, audited,
 					   0, cookie);
@@ -1280,7 +1292,7 @@ static __always_inline int privnet_egress_ipv6(struct __ctx_buff *ctx,
 					       __u32 sec_label, __u16 net_id, __u16 subnet_id,
 					       const struct privnet_fib_val **src_privnet_entry,
 					       const struct privnet_fib_val **dst_privnet_entry,
-					       struct trace_ctx *trace)
+					       __u32 *dst_sec_identity, struct trace_ctx *trace)
 {
 	void *data, *data_end;
 	struct ipv6hdr *ip6;
@@ -1318,7 +1330,7 @@ static __always_inline int privnet_egress_ipv6(struct __ctx_buff *ctx,
 		if (is_privnet_route_entry(dip_val) && sec_label) {
 			/* enforce egress policy for unknown flow */
 			ret = privnet_unknown_policy_egress6(ctx, net_id, sec_label,
-							     trace);
+							     dst_sec_identity, trace);
 			if (ret != CTX_ACT_OK)
 				return ret;
 
@@ -1361,7 +1373,7 @@ static __always_inline int privnet_egress_ipv6(struct __ctx_buff *ctx,
 	/* Host reachability is disabled for v6 due to BPF complexity limits */
 	if (is_defined(WIP) && host_traffic && sip_val) {
 		const struct remote_endpoint_info *info;
-		__u32 dst_sec_identity;
+		__u32 host_dst_sec_identity;
 
 		if (!revalidate_data(ctx, &data, &data_end, &ip6))
 			return DROP_INVALID;
@@ -1374,8 +1386,8 @@ static __always_inline int privnet_egress_ipv6(struct __ctx_buff *ctx,
 		ipv6_addr_copy(&orig_dip, (union v6addr *)&ip6->daddr);
 
 		info = lookup_ip6_remote_endpoint(&orig_dip, 0);
-		dst_sec_identity = info ? info->sec_identity : UNKNOWN_ID;
-		if (!privnet_is_identity_any_host(dst_sec_identity))
+		host_dst_sec_identity = info ? info->sec_identity : UNKNOWN_ID;
+		if (!privnet_is_identity_any_host(host_dst_sec_identity))
 			return DROP_UNROUTABLE;
 
 		/* Set net id to default network.*/

@@ -114,6 +114,7 @@ static __always_inline int tail_handle_ipv4_privnet_lxc_egress(struct __ctx_buff
 {
 	__u16 proto = bpf_htons(ETH_P_IP);
 	const struct privnet_fib_val *dip_val;
+	__u32 dst_sec_id = UNKNOWN_ID;
 	struct trace_ctx trace = {
 		.reason = TRACE_REASON_UNKNOWN,
 		.monitor = 0,
@@ -132,7 +133,7 @@ static __always_inline int tail_handle_ipv4_privnet_lxc_egress(struct __ctx_buff
 	ret = privnet_egress_ipv4(ctx, SECLABEL_IPV4, net_id,
 				  privnet_subnet_id_lookup4(net_id, ip4->saddr),
 				  NULL, &dip_val,
-				  &trace);
+				  &dst_sec_id, &trace);
 	if (IS_ERR(ret) || ret == CTX_ACT_REDIRECT)
 		goto out;
 
@@ -146,11 +147,10 @@ static __always_inline int tail_handle_ipv4_privnet_lxc_egress(struct __ctx_buff
 		struct remote_endpoint_info fake_info = {0};
 
 		fake_info.tunnel_endpoint.ip4 = dip_val->ip4;
-		fake_info.sec_identity = CONFIG(privnet_unknown_sec_id);
 
 		return encap_and_redirect_with_nodeid(ctx, &fake_info,
 						      CONFIG(privnet_unknown_sec_id),
-						      fake_info.sec_identity,
+						      dst_sec_id,
 						      &trace, proto);
 	}
 #endif /* TUNNEL_MODE */
@@ -174,6 +174,7 @@ static __always_inline int tail_handle_ipv6_privnet_lxc_egress(struct __ctx_buff
 {
 	__u16 proto = bpf_htons(ETH_P_IPV6);
 	const struct privnet_fib_val *dip_val;
+	__u32 dst_sec_id = UNKNOWN_ID;
 	struct trace_ctx trace = {
 		.reason = TRACE_REASON_UNKNOWN,
 		.monitor = 0,
@@ -192,7 +193,7 @@ static __always_inline int tail_handle_ipv6_privnet_lxc_egress(struct __ctx_buff
 	ret = privnet_egress_ipv6(ctx, SECLABEL_IPV6, net_id,
 				  privnet_subnet_id_lookup6(net_id, *(union v6addr *)&ip6->saddr),
 				  NULL, &dip_val,
-				  &trace);
+				  &dst_sec_id, &trace);
 	if (IS_ERR(ret) || ret == CTX_ACT_REDIRECT)
 		goto out;
 
@@ -203,11 +204,10 @@ static __always_inline int tail_handle_ipv6_privnet_lxc_egress(struct __ctx_buff
 
 		/* only support v4 underlay for unknown flows. */
 		fake_info.tunnel_endpoint.ip4 = dip_val->ip4;
-		fake_info.sec_identity = CONFIG(privnet_unknown_sec_id);
 
 		return encap_and_redirect_with_nodeid(ctx, &fake_info,
 						      CONFIG(privnet_unknown_sec_id),
-						      fake_info.sec_identity,
+						      dst_sec_id,
 						      &trace, proto);
 	}
 #endif /* TUNNEL_MODE */

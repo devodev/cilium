@@ -77,7 +77,7 @@ enterprise_privnet_do_netdev(struct __ctx_buff *ctx, __u16 proto,
 			return ret;
 
 		ret = privnet_egress_ipv6(ctx, 0, *net_id, subnet_id,
-					  &sip_val, &dip_val, NULL);
+					  &sip_val, &dip_val, NULL, NULL);
 		if (IS_ERR(ret))
 			return ret;
 
@@ -155,7 +155,7 @@ enterprise_privnet_do_netdev(struct __ctx_buff *ctx, __u16 proto,
 			return ret;
 
 		ret = privnet_egress_ipv4(ctx, 0, *net_id, subnet_id,
-					  &sip_val, &dip_val, NULL);
+					  &sip_val, &dip_val, NULL, NULL);
 		if (IS_ERR(ret))
 			return ret;
 
