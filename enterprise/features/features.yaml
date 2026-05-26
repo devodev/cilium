@@ -291,12 +291,20 @@ features:
       bpf.datapathMode: "veth"
 
   DatapathModeNetkit:
-    maturity: Beta
+    maturity: Limited
     description: Enable netkit datapath mode
     flags:
       datapath-mode: "netkit"
     helm:
       bpf.datapathMode: "netkit"
+
+  DatapathModeNetkitL2:
+    maturity: Limited
+    description: Enable netkit-l2 datapath mode
+    flags:
+      datapath-mode: "netkit-l2"
+    helm:
+      bpf.datapathMode: "netkit-l2"
 
   DatapathModeLBOnly:
     maturity: Stable
