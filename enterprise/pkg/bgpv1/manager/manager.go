@@ -34,16 +34,15 @@ type BGPRouterManagerParams struct {
 	OSSRouterManager ossAgent.BGPRouterManager
 }
 
-// NewBGPRouterManager provides the enterprise RouterManager. During the oss-cee
-// separation, when the OSS and CEE BGP control planes are both enabled, keep
-// using the OSS manager as EnterpriseBGPRouterManager.
 func NewBGPRouterManager(params BGPRouterManagerParams) agent.EnterpriseBGPRouterManager {
-	if !params.BGPConfig.Enabled {
-		return nil
-	}
-
+	// Whenever the OSS BGP Control Plane is enabled, keep using the OSS
+	// manager as EnterpriseBGPRouterManager.
 	if params.DaemonConfig.BGPControlPlaneEnabled() {
 		return params.OSSRouterManager.(agent.EnterpriseBGPRouterManager)
+	}
+
+	if !params.BGPConfig.Enabled {
+		return nil
 	}
 
 	return &BGPRouterManager{}
