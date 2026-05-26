@@ -1,4 +1,4 @@
-#! --test-peering-ips=10.99.106.111,10.99.106.112
+#! --test-peering-ips=11.99.106.111,11.99.106.112
 
 # Tests BGP advertisements upon modifications of service VIP and LB class.
 
@@ -6,17 +6,17 @@
 hive start
 
 # Configure gobgp server
-gobgp/add-server test 65010 10.99.106.111 1790
+gobgp/add-server test 65010 11.99.106.111 1790
 
 # Configure peers on GoBGP
-gobgp/add-peer 10.99.106.112 65001
+gobgp/add-peer 11.99.106.112 65001
 
 # Configure BGP on Cilium
 k8s/add cilium-node.yaml bgp-node-config.yaml bgp-peer-config.yaml bgp-advertisement.yaml
 * bgptest/sync-oss-resources
 
 # Wait for peering to be established
-gobgp/wait-state 10.99.106.112 ESTABLISHED
+gobgp/wait-state 11.99.106.112 ESTABLISHED
 
 # Add k8s service
 k8s/add service-vip-1.yaml
@@ -63,7 +63,7 @@ metadata:
   name: test-node
 spec:
   addresses:
-  - ip: 10.99.106.112
+  - ip: 11.99.106.112
     type: InternalIP
   ipam:
     podCIDRs:
@@ -81,8 +81,8 @@ spec:
     peers:
     - name: gobgp-peer-1
       peerASN: 65010
-      peerAddress: 10.99.106.111
-      localAddress: 10.99.106.112
+      peerAddress: 11.99.106.111
+      localAddress: 11.99.106.112
       peerConfigRef:
         name: gobgp-peer-config
 
@@ -218,9 +218,9 @@ status:
 
 -- gobgp-routes-1.expected --
 Prefix          NextHop         Attrs
-172.16.1.1/32   10.99.106.112   [{Origin: i} {AsPath: 65001}]
+172.16.1.1/32   11.99.106.112   [{Origin: i} {AsPath: 65001}]
 -- gobgp-routes-2.expected --
 Prefix          NextHop         Attrs
-172.16.1.2/32   10.99.106.112   [{Origin: i} {AsPath: 65001}]
+172.16.1.2/32   11.99.106.112   [{Origin: i} {AsPath: 65001}]
 -- gobgp-routes-empty.expected --
 Prefix   NextHop   Attrs

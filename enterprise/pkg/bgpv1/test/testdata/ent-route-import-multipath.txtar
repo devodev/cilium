@@ -1,4 +1,4 @@
-#! --test-peering-ips=10.100.100.2,fd00:10:100:100::2
+#! --test-peering-ips=11.100.100.2,fc00:10:100:100::2
 
 hive start
 db/initialized
@@ -9,11 +9,11 @@ db/insert neighbors neighbor.yaml
 
 # Configure gobgp server (bind to :: as GoBGP does not support binding to a LL address with zone)
 gobgp/add-server server0 --router-id=10.0.0.0 65001 :: 1801
-gobgp/add-server server1 --router-id=10.0.0.1 65001 10.100.100.2 179
-gobgp/add-server server2 --router-id=10.0.0.2 65001 fd00:10:100:100::2 179
+gobgp/add-server server1 --router-id=10.0.0.1 65001 11.100.100.2 179
+gobgp/add-server server2 --router-id=10.0.0.2 65001 fc00:10:100:100::2 179
 gobgp/add-peer -s server0 fe80::a800:ff:fe00:1%centbgptest2 65000
-gobgp/add-peer -s server1 10.100.100.2 65000
-gobgp/add-peer -s server2 fd00:10:100:100::2 65000
+gobgp/add-peer -s server1 11.100.100.2 65000
+gobgp/add-peer -s server2 fc00:10:100:100::2 65000
 
 # Configure BGP on Cilium
 k8s/add cilium-node.yaml bgp-node-config.yaml bgp-peer-config0.yaml bgp-peer-config1.yaml bgp-peer-config2.yaml bgp-policy.yaml
@@ -21,8 +21,8 @@ k8s/add cilium-node.yaml bgp-node-config.yaml bgp-peer-config0.yaml bgp-peer-con
 
 # Wait for peering to be established
 gobgp/wait-state -s server0 fe80::a800:ff:fe00:1%centbgptest2 ESTABLISHED
-gobgp/wait-state -s server1 10.100.100.2 ESTABLISHED
-gobgp/wait-state -s server2 fd00:10:100:100::2 ESTABLISHED
+gobgp/wait-state -s server1 11.100.100.2 ESTABLISHED
+gobgp/wait-state -s server2 fc00:10:100:100::2 ESTABLISHED
 
 # Add unnumbered routes
 gobgp/add-route -s server0 10.0.0.0/24
@@ -97,12 +97,12 @@ spec:
         name: peer-config0
     - name: peer1
       peerASN: 65001
-      peerAddress: 10.100.100.2
+      peerAddress: 11.100.100.2
       peerConfigRef:
         name: peer-config1
     - name: peer2
       peerASN: 65001
-      peerAddress: fd00:10:100:100::2
+      peerAddress: fc00:10:100:100::2
       peerConfigRef:
         name: peer-config2
 
@@ -184,12 +184,12 @@ spec:
 
 -- desired-routes0.expected --
 Owner             Table        Prefix          AD    Selected   Nexthop   Device   Multipath
-bgp-instance0     main (254)   10.0.0.0/24     150   true       none      none     [10.100.100.2, fd00:10:100:100::2, fe80::a800:ff:fe00:2%centbgptest1 centbgptest1 (1)]
-bgp-instance0     main (254)   2001:db8::/64   150   true       none      none     [fd00:10:100:100::2, fe80::a800:ff:fe00:2%centbgptest1 centbgptest1 (1)]
+bgp-instance0     main (254)   10.0.0.0/24     150   true       none      none     [11.100.100.2, fc00:10:100:100::2, fe80::a800:ff:fe00:2%centbgptest1 centbgptest1 (1)]
+bgp-instance0     main (254)   2001:db8::/64   150   true       none      none     [fc00:10:100:100::2, fe80::a800:ff:fe00:2%centbgptest1 centbgptest1 (1)]
 
 -- desired-routes1.expected --
 Owner             Table        Prefix          AD    Selected   Nexthop                             Device             Multipath
-bgp-instance0     main (254)   10.0.0.0/24     150   true       none                                none               [10.100.100.2, fe80::a800:ff:fe00:2%centbgptest1 centbgptest1 (1)]
+bgp-instance0     main (254)   10.0.0.0/24     150   true       none                                none               [11.100.100.2, fe80::a800:ff:fe00:2%centbgptest1 centbgptest1 (1)]
 bgp-instance0     main (254)   2001:db8::/64   150   true       fe80::a800:ff:fe00:2%centbgptest1   centbgptest1 (1)   none
 
 -- desired-routes2.expected --

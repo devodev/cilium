@@ -1,4 +1,4 @@
-#! --test-peering-ips=fd00::aa:aa:aa:101,fd00::aa:aa:aa:102
+#! --test-peering-ips=fc00::aa:aa:aa:101,fc00::aa:aa:aa:102
 
 # Tests service advertisements with health-checking for service backends.
 
@@ -6,8 +6,8 @@
 hive start
 
 # Configure gobgp server
-gobgp/add-server test --router-id=1.2.3.4 65001 fd00::aa:aa:aa:101 1790
-gobgp/add-peer fd00::aa:aa:aa:102 65001
+gobgp/add-server test --router-id=1.2.3.4 65001 fc00::aa:aa:aa:101 1790
+gobgp/add-peer fc00::aa:aa:aa:102 65001
 
 # Configure BGP on Cilium
 k8s/add cilium-node.yaml bgp-node-config.yaml bgp-peer-config.yaml bgp-advertisement.yaml
@@ -18,7 +18,7 @@ k8s/add service.yaml endpoints.yaml endpoints-ipv6.yaml
 db/cmp frontends frontends.table
 
 # Wait for peering to be established
-gobgp/wait-state fd00::aa:aa:aa:102 ESTABLISHED
+gobgp/wait-state fc00::aa:aa:aa:102 ESTABLISHED
 
 # Validate IPv4 service VIP is advertised
 gobgp/routes -o routes.actual ipv4 unicast
@@ -92,7 +92,7 @@ metadata:
   name: test-node
 spec:
   addresses:
-  - ip: fd00::aa:aa:aa:102
+  - ip: fc00::aa:aa:aa:102
     type: InternalIP
   ipam:
     podCIDRs:
@@ -112,8 +112,8 @@ spec:
     peers:
     - name: gobgp-peer
       peerASN: 65001
-      peerAddress: fd00::aa:aa:aa:101
-      localAddress: fd00::aa:aa:aa:102
+      peerAddress: fc00::aa:aa:aa:101
+      localAddress: fc00::aa:aa:aa:102
       peerConfigRef:
         name: gobgp-peer-config
 
@@ -279,10 +279,10 @@ ports:
 
 -- gobgp-routes-ipv4.expected --
 Prefix          NextHop              Attrs
-172.16.1.1/32   fd00::aa:aa:aa:102   [{Origin: i} {AsPath: } {LocalPref: 100}]
+172.16.1.1/32   fc00::aa:aa:aa:102   [{Origin: i} {AsPath: } {LocalPref: 100}]
 -- gobgp-routes-ipv6.expected --
 Prefix              NextHop              Attrs
-fd00:aa:bb::1/128   fd00::aa:aa:aa:102   [{Origin: i} {AsPath: } {LocalPref: 100}]
+fd00:aa:bb::1/128   fc00::aa:aa:aa:102   [{Origin: i} {AsPath: } {LocalPref: 100}]
 -- gobgp-routes-ipv4-empty.expected --
 Prefix   NextHop   Attrs
 -- gobgp-routes-ipv6-empty.expected --

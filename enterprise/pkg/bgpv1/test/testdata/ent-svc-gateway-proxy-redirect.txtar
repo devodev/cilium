@@ -1,4 +1,4 @@
-#! --test-peering-ips=10.99.5.101,10.99.5.102
+#! --test-peering-ips=11.99.5.101,11.99.5.102
 
 # Tests BGP advertisement of Gateway API / Ingress services with local proxy (Envoy).
 # These services should be advertised via BGP even with externalTrafficPolicy: Local
@@ -12,10 +12,10 @@
 hive start
 
 # Configure gobgp server
-gobgp/add-server test 65010 10.99.5.101 1790
+gobgp/add-server test 65010 11.99.5.101 1790
 
 # Configure peers on GoBGP
-gobgp/add-peer 10.99.5.102 65001
+gobgp/add-peer 11.99.5.102 65001
 
 # Add Gateway service (without endpoints)
 k8s/add service-gateway.yaml
@@ -25,7 +25,7 @@ k8s/add cilium-node.yaml bgp-node-config.yaml bgp-peer-config.yaml bgp-advertise
 bgptest/sync-oss-resources
 
 # Wait for peering to be established
-gobgp/wait-state 10.99.5.102 ESTABLISHED
+gobgp/wait-state 11.99.5.102 ESTABLISHED
 
 # Set ProxyRedirect on the service to simulate local Envoy proxy handling traffic.
 # This triggers BGP reconciliation and causes the service to be advertised.
@@ -45,7 +45,7 @@ metadata:
   name: test-node
 spec:
   addresses:
-  - ip: 10.99.5.102
+  - ip: 11.99.5.102
     type: InternalIP
   ipam:
     podCIDRs:
@@ -63,8 +63,8 @@ spec:
     peers:
     - name: gobgp-peer-1
       peerASN: 65010
-      peerAddress: 10.99.5.101
-      localAddress: 10.99.5.102
+      peerAddress: 11.99.5.101
+      localAddress: 11.99.5.102
       peerConfigRef:
         name: gobgp-peer-config
 
@@ -134,4 +134,4 @@ status:
 
 -- gobgp-routes-gateway.expected --
 Prefix              NextHop       Attrs
-172.18.255.200/32   10.99.5.102   [{Origin: i} {AsPath: 65001}]
+172.18.255.200/32   11.99.5.102   [{Origin: i} {AsPath: 65001}]

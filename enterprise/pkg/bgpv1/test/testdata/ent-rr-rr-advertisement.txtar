@@ -1,4 +1,4 @@
-#! --test-peering-ips=10.99.102.1,10.99.102.2,10.99.102.3,10.99.102.4,10.99.102.5,fc00:10:99:102::1,fc00:10:99:102::2,fc00:10:99:102::3,fc00:10:99:102::4,fc00:10:99:102::5
+#! --test-peering-ips=11.99.102.1,11.99.102.2,11.99.102.3,11.99.102.4,11.99.102.5,fc00:10:99:102::1,fc00:10:99:102::2,fc00:10:99:102::3,fc00:10:99:102::4,fc00:10:99:102::5
 
 # Tests the route-reflector with dummy client peer. In this test, the RR client
 # is not a "real" Cilium node. We instead use a dummy GoBGP server and
@@ -16,23 +16,23 @@ hive start
 # The v4/v6 suffixes indicate whether the peer is IPv4 or IPv6. This is for testing
 # both IPv4 and IPv6 route reflection and advertisement and also to make sure that
 # RR works correctly when multiple peers for each type are configured.
-gobgp/add-server client-v4    65010 10.99.102.2       1790 --router-id 1.0.0.2
+gobgp/add-server client-v4    65010 11.99.102.2       1790 --router-id 1.0.0.2
 gobgp/add-server client-v6    65010 fc00:10:99:102::2 1790 --router-id 1.0.0.3
-gobgp/add-server rr-v4        65010 10.99.102.3       1790 --router-id 1.0.0.4
+gobgp/add-server rr-v4        65010 11.99.102.3       1790 --router-id 1.0.0.4
 gobgp/add-server rr-v6        65010 fc00:10:99:102::3 1790 --router-id 1.0.0.5
-gobgp/add-server external-v4  65011 10.99.102.4       1790 --router-id 1.0.0.6
+gobgp/add-server external-v4  65011 11.99.102.4       1790 --router-id 1.0.0.6
 gobgp/add-server external-v6  65011 fc00:10:99:102::4 1790 --router-id 1.0.0.7
-gobgp/add-server internal-v4  65010 10.99.102.5       1790 --router-id 1.0.0.8
+gobgp/add-server internal-v4  65010 11.99.102.5       1790 --router-id 1.0.0.8
 gobgp/add-server internal-v6  65010 fc00:10:99:102::5 1790 --router-id 1.0.0.9
 
 # Configure peering
-gobgp/add-peer -s client-v4   10.99.102.1       65010
+gobgp/add-peer -s client-v4   11.99.102.1       65010
 gobgp/add-peer -s client-v6   fc00:10:99:102::1 65010
-gobgp/add-peer -s rr-v4       10.99.102.1       65010
+gobgp/add-peer -s rr-v4       11.99.102.1       65010
 gobgp/add-peer -s rr-v6       fc00:10:99:102::1 65010
-gobgp/add-peer -s external-v4 10.99.102.1       65010
+gobgp/add-peer -s external-v4 11.99.102.1       65010
 gobgp/add-peer -s external-v6 fc00:10:99:102::1 65010
-gobgp/add-peer -s internal-v4 10.99.102.1       65010
+gobgp/add-peer -s internal-v4 11.99.102.1       65010
 gobgp/add-peer -s internal-v6 fc00:10:99:102::1 65010
 
 # Configure BGP on Cilium
@@ -40,13 +40,13 @@ k8s/add cilium-node.yaml bgp-node-config.yaml bgp-peer-config.yaml bgp-advertise
 * bgptest/sync-oss-resources
 
 # Wait for peers to be established
-gobgp/wait-state -s client-v4   10.99.102.1       ESTABLISHED
+gobgp/wait-state -s client-v4   11.99.102.1       ESTABLISHED
 gobgp/wait-state -s client-v6   fc00:10:99:102::1 ESTABLISHED
-gobgp/wait-state -s rr-v4       10.99.102.1       ESTABLISHED
+gobgp/wait-state -s rr-v4       11.99.102.1       ESTABLISHED
 gobgp/wait-state -s rr-v6       fc00:10:99:102::1 ESTABLISHED
-gobgp/wait-state -s external-v4 10.99.102.1       ESTABLISHED
+gobgp/wait-state -s external-v4 11.99.102.1       ESTABLISHED
 gobgp/wait-state -s external-v6 fc00:10:99:102::1 ESTABLISHED
-gobgp/wait-state -s internal-v4 10.99.102.1       ESTABLISHED
+gobgp/wait-state -s internal-v4 11.99.102.1       ESTABLISHED
 gobgp/wait-state -s internal-v6 fc00:10:99:102::1 ESTABLISHED
 
 # Advertise route from route-reflectors and clients
@@ -102,7 +102,7 @@ metadata:
   name: test-node
 spec:
   addresses:
-  - ip: 10.99.102.1
+  - ip: 11.99.102.1
     type: InternalIP
   ipam:
     podCIDRs:
@@ -122,8 +122,8 @@ spec:
     peers:
     - name: client-v4
       peerASN: 65010
-      peerAddress: 10.99.102.2
-      localAddress: 10.99.102.1
+      peerAddress: 11.99.102.2
+      localAddress: 11.99.102.1
       peerConfigRef:
         name: common
       routeReflector:
@@ -140,8 +140,8 @@ spec:
         clusterID: 255.0.0.1
     - name: rr-v4
       peerASN: 65010
-      peerAddress: 10.99.102.3
-      localAddress: 10.99.102.1
+      peerAddress: 11.99.102.3
+      localAddress: 11.99.102.1
       peerConfigRef:
         name: common
       routeReflector:
@@ -158,8 +158,8 @@ spec:
         clusterID: 255.0.0.1
     - name: external-v4
       peerASN: 65011
-      peerAddress: 10.99.102.4
-      localAddress: 10.99.102.1
+      peerAddress: 11.99.102.4
+      localAddress: 11.99.102.1
       peerConfigRef:
         name: common
     - name: external-v6
@@ -170,8 +170,8 @@ spec:
         name: common
     - name: internal-v4
       peerASN: 65010
-      peerAddress: 10.99.102.5
-      localAddress: 10.99.102.1
+      peerAddress: 11.99.102.5
+      localAddress: 11.99.102.1
       peerConfigRef:
         name: common
     - name: internal-v6
@@ -223,15 +223,15 @@ spec:
 -- cilium-routes.expected --
 Instance          Peer        Prefix          NextHop             Best   Age   Error
 route-reflector   (self)      10.244.1.0/24   0.0.0.0             true   -     -
-                  client-v4   10.244.2.0/24   10.99.102.2         true   -     -
-                              10.244.6.0/24   10.99.102.2         true   -     -
+                  client-v4   10.244.2.0/24   11.99.102.2         true   -     -
+                              10.244.6.0/24   11.99.102.2         true   -     -
                   client-v6   10.244.3.0/24   fc00:10:99:102::2   true   -     -
                               10.244.6.0/24   fc00:10:99:102::2   true   -     -
-                  rr-v4       10.244.4.0/24   10.99.102.3         true   -     -
+                  rr-v4       10.244.4.0/24   11.99.102.3         true   -     -
                   rr-v6       10.244.5.0/24   fc00:10:99:102::3   true   -     -
 -- client-v4-routes.expected --
 Prefix          NextHop       Attrs
-10.244.1.0/24   10.99.102.1   [{Origin: i} {AsPath: } {LocalPref: 100} {Originator: 1.0.0.1} {ClusterList: [255.0.0.1]}]
+10.244.1.0/24   11.99.102.1   [{Origin: i} {AsPath: } {LocalPref: 100} {Originator: 1.0.0.1} {ClusterList: [255.0.0.1]}]
 10.244.2.0/24   0.0.0.0       [{Origin: i}]
 10.244.6.0/24   0.0.0.0       [{Origin: i}]
 -- client-v6-routes.expected --
@@ -241,7 +241,7 @@ Prefix          NextHop             Attrs
 10.244.6.0/24   0.0.0.0             [{Origin: i}]
 -- rr-v4-routes.expected --
 Prefix          NextHop       Attrs
-10.244.1.0/24   10.99.102.1   [{Origin: i} {AsPath: } {LocalPref: 100} {Originator: 1.0.0.1} {ClusterList: [255.0.0.1]}]
+10.244.1.0/24   11.99.102.1   [{Origin: i} {AsPath: } {LocalPref: 100} {Originator: 1.0.0.1} {ClusterList: [255.0.0.1]}]
 10.244.4.0/24   0.0.0.0       [{Origin: i}]
 -- rr-v6-routes.expected --
 Prefix          NextHop             Attrs
@@ -249,39 +249,39 @@ Prefix          NextHop             Attrs
 10.244.5.0/24   0.0.0.0             [{Origin: i}]
 -- external-v4-routes.expected --
 Prefix          NextHop             Attrs
-10.244.1.0/24   10.99.102.1         [{Origin: i} {AsPath: 65010}]
-10.244.2.0/24   10.99.102.2         [{Origin: i} {AsPath: 65010}]
+10.244.1.0/24   11.99.102.1         [{Origin: i} {AsPath: 65010}]
+10.244.2.0/24   11.99.102.2         [{Origin: i} {AsPath: 65010}]
 10.244.3.0/24   fc00:10:99:102::2   [{Origin: i} {AsPath: 65010}]
-10.244.4.0/24   10.99.102.3         [{Origin: i} {AsPath: 65010}]
+10.244.4.0/24   11.99.102.3         [{Origin: i} {AsPath: 65010}]
 10.244.5.0/24   fc00:10:99:102::3   [{Origin: i} {AsPath: 65010}]
 10.244.6.0/24   fc00:10:99:102::2   [{Origin: i} {AsPath: 65010}]
-10.244.6.0/24   10.99.102.2         [{Origin: i} {AsPath: 65010}]
+10.244.6.0/24   11.99.102.2         [{Origin: i} {AsPath: 65010}]
 -- external-v6-routes.expected --
 Prefix          NextHop             Attrs
 10.244.1.0/24   fc00:10:99:102::1   [{Origin: i} {AsPath: 65010}]
-10.244.2.0/24   10.99.102.2         [{Origin: i} {AsPath: 65010}]
+10.244.2.0/24   11.99.102.2         [{Origin: i} {AsPath: 65010}]
 10.244.3.0/24   fc00:10:99:102::2   [{Origin: i} {AsPath: 65010}]
-10.244.4.0/24   10.99.102.3         [{Origin: i} {AsPath: 65010}]
+10.244.4.0/24   11.99.102.3         [{Origin: i} {AsPath: 65010}]
 10.244.5.0/24   fc00:10:99:102::3   [{Origin: i} {AsPath: 65010}]
 10.244.6.0/24   fc00:10:99:102::2   [{Origin: i} {AsPath: 65010}]
-10.244.6.0/24   10.99.102.2         [{Origin: i} {AsPath: 65010}]
+10.244.6.0/24   11.99.102.2         [{Origin: i} {AsPath: 65010}]
 -- internal-v4-routes.expected --
 Prefix          NextHop             Attrs
-10.244.1.0/24   10.99.102.1         [{Origin: i} {AsPath: } {LocalPref: 100}]
-10.244.2.0/24   10.99.102.2         [{Origin: i} {AsPath: } {LocalPref: 100}]
+10.244.1.0/24   11.99.102.1         [{Origin: i} {AsPath: } {LocalPref: 100}]
+10.244.2.0/24   11.99.102.2         [{Origin: i} {AsPath: } {LocalPref: 100}]
 10.244.3.0/24   fc00:10:99:102::2   [{Origin: i} {AsPath: } {LocalPref: 100}]
-10.244.4.0/24   10.99.102.3         [{Origin: i} {AsPath: } {LocalPref: 100}]
+10.244.4.0/24   11.99.102.3         [{Origin: i} {AsPath: } {LocalPref: 100}]
 10.244.5.0/24   fc00:10:99:102::3   [{Origin: i} {AsPath: } {LocalPref: 100}]
 10.244.6.0/24   fc00:10:99:102::2   [{Origin: i} {AsPath: } {LocalPref: 100}]
-10.244.6.0/24   10.99.102.2         [{Origin: i} {AsPath: } {LocalPref: 100}]
+10.244.6.0/24   11.99.102.2         [{Origin: i} {AsPath: } {LocalPref: 100}]
 -- internal-v6-routes.expected --
 Prefix          NextHop             Attrs
 10.244.1.0/24   fc00:10:99:102::1   [{Origin: i} {AsPath: } {LocalPref: 100}]
-10.244.2.0/24   10.99.102.2         [{Origin: i} {AsPath: } {LocalPref: 100}]
+10.244.2.0/24   11.99.102.2         [{Origin: i} {AsPath: } {LocalPref: 100}]
 10.244.3.0/24   fc00:10:99:102::2   [{Origin: i} {AsPath: } {LocalPref: 100}]
-10.244.4.0/24   10.99.102.3         [{Origin: i} {AsPath: } {LocalPref: 100}]
+10.244.4.0/24   11.99.102.3         [{Origin: i} {AsPath: } {LocalPref: 100}]
 10.244.5.0/24   fc00:10:99:102::3   [{Origin: i} {AsPath: } {LocalPref: 100}]
 10.244.6.0/24   fc00:10:99:102::2   [{Origin: i} {AsPath: } {LocalPref: 100}]
-10.244.6.0/24   10.99.102.2         [{Origin: i} {AsPath: } {LocalPref: 100}]
+10.244.6.0/24   11.99.102.2         [{Origin: i} {AsPath: } {LocalPref: 100}]
 -- desired-routes.expected --
 Owner                       Prefix

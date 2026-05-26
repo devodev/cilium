@@ -1,4 +1,4 @@
-#! --test-peering-ips=10.99.4.201,10.99.4.202
+#! --test-peering-ips=11.99.4.201,11.99.4.202
 
 # Tests sharing of the same LB VIP across multiple services.
 # VIP should be advertised if one of the shared services disappears but the other one remains.
@@ -7,10 +7,10 @@
 hive start
 
 # Configure gobgp server
-gobgp/add-server test 65010 10.99.4.201 1790
+gobgp/add-server test 65010 11.99.4.201 1790
 
 # Configure peers on GoBGP
-gobgp/add-peer 10.99.4.202 65001
+gobgp/add-peer 11.99.4.202 65001
 
 # Add k8s services
 k8s/add service-1.yaml service-2.yaml
@@ -20,7 +20,7 @@ k8s/add cilium-node.yaml bgp-node-config.yaml bgp-peer-config.yaml bgp-advertise
 * bgptest/sync-oss-resources
 
 # Wait for peering to be established
-gobgp/wait-state 10.99.4.202 ESTABLISHED
+gobgp/wait-state 11.99.4.202 ESTABLISHED
 
 # Validate that LB IP is advertised
 gobgp/routes -o routes.actual
@@ -50,7 +50,7 @@ metadata:
   name: test-node
 spec:
   addresses:
-  - ip: 10.99.4.202
+  - ip: 11.99.4.202
     type: InternalIP
   ipam:
     podCIDRs:
@@ -68,8 +68,8 @@ spec:
     peers:
     - name: gobgp-peer-1
       peerASN: 65010
-      peerAddress: 10.99.4.201
-      localAddress: 10.99.4.202
+      peerAddress: 11.99.4.201
+      localAddress: 11.99.4.202
       peerConfigRef:
         name: gobgp-peer-config
 
@@ -175,6 +175,6 @@ status:
 
 -- gobgp-routes.expected --
 Prefix          NextHop       Attrs
-172.16.1.1/32   10.99.4.202   [{Origin: i} {AsPath: 65001}]
+172.16.1.1/32   11.99.4.202   [{Origin: i} {AsPath: 65001}]
 -- gobgp-routes-empty.expected --
 Prefix   NextHop   Attrs

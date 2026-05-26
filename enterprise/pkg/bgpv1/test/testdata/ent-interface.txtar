@@ -1,4 +1,4 @@
-#! --test-peering-ips=10.99.5.1,10.99.5.2,fd00::aa:bb:55:1,fd00::aa:bb:55:2
+#! --test-peering-ips=11.99.5.1,11.99.5.2,fc00::aa:bb:55:1,fc00::aa:bb:55:2
 
 # Tests Interface advertisements for IPv4-only and dual-stack peers.
 
@@ -6,20 +6,20 @@
 hive start
 
 # Configure GoBGP servers
-gobgp/add-server v4-only   65010 10.99.5.1        1790
-gobgp/add-server dualstack 65010 fd00::aa:bb:55:1 1790 --router-id 1.0.0.1
+gobgp/add-server v4-only   65010 11.99.5.1        1790
+gobgp/add-server dualstack 65010 fc00::aa:bb:55:1 1790 --router-id 1.0.0.1
 
 # Configure peers on GoBGP
-gobgp/add-peer -s v4-only   10.99.5.2        65001
-gobgp/add-peer -s dualstack fd00::aa:bb:55:2 65001
+gobgp/add-peer -s v4-only   11.99.5.2        65001
+gobgp/add-peer -s dualstack fc00::aa:bb:55:2 65001
 
 # Configure BGP on Cilium
 k8s/add cilium-node.yaml bgp-node-config.yaml bgp-peer-config-v4.yaml bgp-peer-config-dualstack.yaml bgp-advertisement.yaml
 * bgptest/sync-oss-resources
 
 # Wait for peerings to be established
-gobgp/wait-state -s v4-only   10.99.5.2        ESTABLISHED
-gobgp/wait-state -s dualstack fd00::aa:bb:55:2 ESTABLISHED
+gobgp/wait-state -s v4-only   11.99.5.2        ESTABLISHED
+gobgp/wait-state -s dualstack fc00::aa:bb:55:2 ESTABLISHED
 
 # Validate that no IPv4 routes are advertised yet
 gobgp/routes -s v4-only -o routes.actual ipv4 unicast
@@ -102,7 +102,7 @@ metadata:
   name: test-node
 spec:
   addresses:
-  - ip: 10.99.5.2
+  - ip: 11.99.5.2
     type: InternalIP
   ipam:
     podCIDRs:
@@ -120,14 +120,14 @@ spec:
     peers:
     - name: v4-peer
       peerASN: 65010
-      peerAddress: 10.99.5.1
-      localAddress: 10.99.5.2
+      peerAddress: 11.99.5.1
+      localAddress: 11.99.5.2
       peerConfigRef:
         name: v4-peer-config
     - name: dualstack-peer
       peerASN: 65010
-      peerAddress: fd00::aa:bb:55:1
-      localAddress: fd00::aa:bb:55:2
+      peerAddress: fc00::aa:bb:55:1
+      localAddress: fc00::aa:bb:55:2
       peerConfigRef:
         name: dualstack-peer-config
 
@@ -232,13 +232,13 @@ operstatus: unknown # for loopback always unknown
 Prefix   NextHop   Attrs
 -- gobgp-routes-ipv4.expected --
 Prefix               NextHop     Attrs
-192.168.100.100/32   10.99.5.2   [{Origin: i} {AsPath: 65001 65001 65001} {Communities: 65001:100}]
-192.168.100.101/32   10.99.5.2   [{Origin: i} {AsPath: 65001 65001 65001} {Communities: 65001:100}]
+192.168.100.100/32   11.99.5.2   [{Origin: i} {AsPath: 65001 65001 65001} {Communities: 65001:100}]
+192.168.100.101/32   11.99.5.2   [{Origin: i} {AsPath: 65001 65001 65001} {Communities: 65001:100}]
 -- gobgp-routes-ipv4-ds.expected --
 Prefix               NextHop            Attrs
-192.168.100.100/32   fd00::aa:bb:55:2   [{Origin: i} {AsPath: 65001 65001 65001} {Communities: 65001:100}]
-192.168.100.101/32   fd00::aa:bb:55:2   [{Origin: i} {AsPath: 65001 65001 65001} {Communities: 65001:100}]
+192.168.100.100/32   fc00::aa:bb:55:2   [{Origin: i} {AsPath: 65001 65001 65001} {Communities: 65001:100}]
+192.168.100.101/32   fc00::aa:bb:55:2   [{Origin: i} {AsPath: 65001 65001 65001} {Communities: 65001:100}]
 -- gobgp-routes-ipv6.expected --
 Prefix             NextHop            Attrs
-fd00::aabb:1/128   fd00::aa:bb:55:2   [{Origin: i} {AsPath: 65001 65001 65001} {Communities: 65001:100}]
-fd00::aabb:2/128   fd00::aa:bb:55:2   [{Origin: i} {AsPath: 65001 65001 65001} {Communities: 65001:100}]
+fd00::aabb:1/128   fc00::aa:bb:55:2   [{Origin: i} {AsPath: 65001 65001 65001} {Communities: 65001:100}]
+fd00::aabb:2/128   fc00::aa:bb:55:2   [{Origin: i} {AsPath: 65001 65001 65001} {Communities: 65001:100}]

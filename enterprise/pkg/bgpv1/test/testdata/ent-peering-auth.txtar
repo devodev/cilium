@@ -1,4 +1,4 @@
-#! --probe-tcp-md5 --test-peering-ips=fd00::aa:bb:cc:101,fd00::aa:bb:cc:102
+#! --probe-tcp-md5 --test-peering-ips=fc00::aa:bb:cc:101,fc00::aa:bb:cc:102
 
 # Tests IPv6 peering with authentication.
 
@@ -6,15 +6,15 @@
 hive start
 
 # Configure gobgp server
-gobgp/add-server test --router-id=1.2.3.4 65001 fd00::aa:bb:cc:101 1790
-gobgp/add-peer --password=Cilium123 fd00::aa:bb:cc:102 65001
+gobgp/add-server test --router-id=1.2.3.4 65001 fc00::aa:bb:cc:101 1790
+gobgp/add-peer --password=Cilium123 fc00::aa:bb:cc:102 65001
 
 # Configure BGP on Cilium
 k8s/add cilium-node.yaml bgp-node-config.yaml bgp-peer-config.yaml bgp-advertisement.yaml auth-secret.yaml
 * bgptest/sync-oss-resources
 
 # Wait for peering to be established
-gobgp/wait-state fd00::aa:bb:cc:102 ESTABLISHED
+gobgp/wait-state fc00::aa:bb:cc:102 ESTABLISHED
 
 # Validate peering state
 gobgp/peers -o peers.actual
@@ -29,7 +29,7 @@ metadata:
   name: test-node
 spec:
   addresses:
-  - ip: fd00::aa:bb:cc:102
+  - ip: fc00::aa:bb:cc:102
     type: InternalIP
   ipam:
     podCIDRs:
@@ -49,8 +49,8 @@ spec:
     peers:
     - name: gobgp-peer
       peerASN: 65001
-      peerAddress: fd00::aa:bb:cc:101
-      localAddress: fd00::aa:bb:cc:102
+      peerAddress: fc00::aa:bb:cc:101
+      localAddress: fc00::aa:bb:cc:102
       peerConfigRef:
         name: gobgp-peer-config
 
@@ -100,4 +100,4 @@ data:
 
 -- gobgp-peers.expected --
 PeerAddress          RouterID   PeerASN   SessionState   KeepAlive   HoldTime   GracefulRestartTime
-fd00::aa:bb:cc:102   5.6.7.8    65001     ESTABLISHED    30          90         0
+fc00::aa:bb:cc:102   5.6.7.8    65001     ESTABLISHED    30          90         0

@@ -1,4 +1,4 @@
-#! --test-peering-ips=10.99.0.101,10.99.0.102,10.99.0.103,10.99.0.110
+#! --test-peering-ips=11.99.0.101,11.99.0.102,11.99.0.103,11.99.0.110
 
 # Tests peering with 3 BGP peers across 2 BGP instances.
 
@@ -6,14 +6,14 @@
 hive start
 
 # Configure gobgp servers
-gobgp/add-server test0 65010 10.99.0.101 1790
-gobgp/add-server test1 65011 10.99.0.102 1790
-gobgp/add-server test2 65012 10.99.0.103 1790
+gobgp/add-server test0 65010 11.99.0.101 1790
+gobgp/add-server test1 65011 11.99.0.102 1790
+gobgp/add-server test2 65012 11.99.0.103 1790
 
 # Configure peers on GoBGP
-gobgp/add-peer -s test0 10.99.0.110 65001
-gobgp/add-peer -s test1 10.99.0.110 65001
-gobgp/add-peer -s test2 10.99.0.110 65002
+gobgp/add-peer -s test0 11.99.0.110 65001
+gobgp/add-peer -s test1 11.99.0.110 65001
+gobgp/add-peer -s test2 11.99.0.110 65002
 
 # Configure BGP on Cilium - only first peer
 k8s/add cilium-node.yaml bgp-peer-config.yaml bgp-advertisement.yaml
@@ -21,7 +21,7 @@ k8s/add bgp-node-config-1.yaml
 * bgptest/sync-oss-resources
 
 # Wait for first peering to be established
-gobgp/wait-state -s test0 10.99.0.110 ESTABLISHED
+gobgp/wait-state -s test0 11.99.0.110 ESTABLISHED
 
 # Validate peering state (server 65010)
 gobgp/peers -s test0 -o peers.actual
@@ -36,10 +36,10 @@ k8s/update bgp-node-config-2.yaml
 * bgptest/sync-oss-resources
 
 # Wait for second peering to be established
-gobgp/wait-state -s test1 10.99.0.110 ESTABLISHED
+gobgp/wait-state -s test1 11.99.0.110 ESTABLISHED
 
 # Wait for third peering to be established
-gobgp/wait-state -s test2 10.99.0.110 ESTABLISHED
+gobgp/wait-state -s test2 11.99.0.110 ESTABLISHED
 
 # Validate peering state (server 65011)
 gobgp/peers -s test1 -o peers.actual
@@ -104,7 +104,7 @@ metadata:
   name: test-node
 spec:
   addresses:
-  - ip: 10.99.0.110
+  - ip: 11.99.0.110
     type: InternalIP
   ipam:
     podCIDRs:
@@ -122,8 +122,8 @@ spec:
     peers:
     - name: gobgp-peer-1
       peerASN: 65010
-      peerAddress: 10.99.0.101
-      localAddress: 10.99.0.110
+      peerAddress: 11.99.0.101
+      localAddress: 11.99.0.110
       peerConfigRef:
         name: gobgp-peer-config
 
@@ -139,14 +139,14 @@ spec:
     peers:
     - name: gobgp-peer-1
       peerASN: 65010
-      peerAddress: 10.99.0.101
-      localAddress: 10.99.0.110
+      peerAddress: 11.99.0.101
+      localAddress: 11.99.0.110
       peerConfigRef:
         name: gobgp-peer-config
     - name: gobgp-peer-2
       peerASN: 65011
-      peerAddress: 10.99.0.102
-      localAddress: 10.99.0.110
+      peerAddress: 11.99.0.102
+      localAddress: 11.99.0.110
       peerConfigRef:
         name: gobgp-peer-config
   - localASN: 65002
@@ -154,8 +154,8 @@ spec:
     peers:
     - name: gobgp-peer-3
       peerASN: 65012
-      peerAddress: 10.99.0.103
-      localAddress: 10.99.0.110
+      peerAddress: 11.99.0.103
+      localAddress: 11.99.0.110
       peerConfigRef:
         name: gobgp-peer-config
 
@@ -220,24 +220,24 @@ spec:
 
 -- gobgp-peers-65001.expected --
 PeerAddress   RouterID      PeerASN   SessionState   KeepAlive   HoldTime   GracefulRestartTime
-10.99.0.110   10.99.0.110   65001     ESTABLISHED    3           9          30
+11.99.0.110   11.99.0.110   65001     ESTABLISHED    3           9          30
 -- gobgp-routes-podcidr-65001.expected --
 Prefix          NextHop       Attrs
-10.244.0.0/24   10.99.0.110   [{Origin: i} {AsPath: 65001}]
+10.244.0.0/24   11.99.0.110   [{Origin: i} {AsPath: 65001}]
 -- gobgp-routes-all-65001.expected --
 Prefix            NextHop       Attrs
-10.244.0.0/24     10.99.0.110   [{Origin: i} {AsPath: 65001}]
-10.96.50.104/32   10.99.0.110   [{Origin: i} {AsPath: 65001}]
+10.244.0.0/24     11.99.0.110   [{Origin: i} {AsPath: 65001}]
+10.96.50.104/32   11.99.0.110   [{Origin: i} {AsPath: 65001}]
 -- gobgp-peers-65002.expected --
 PeerAddress   RouterID      PeerASN   SessionState   KeepAlive   HoldTime   GracefulRestartTime
-10.99.0.110   10.99.0.110   65002     ESTABLISHED    3           9          30
+11.99.0.110   11.99.0.110   65002     ESTABLISHED    3           9          30
 -- gobgp-routes-podcidr-65002.expected --
 Prefix          NextHop       Attrs
-10.244.0.0/24   10.99.0.110   [{Origin: i} {AsPath: 65002}]
+10.244.0.0/24   11.99.0.110   [{Origin: i} {AsPath: 65002}]
 -- gobgp-routes-all-65002.expected --
 Prefix            NextHop       Attrs
-10.244.0.0/24     10.99.0.110   [{Origin: i} {AsPath: 65002}]
-10.96.50.104/32   10.99.0.110   [{Origin: i} {AsPath: 65002}]
+10.244.0.0/24     11.99.0.110   [{Origin: i} {AsPath: 65002}]
+10.96.50.104/32   11.99.0.110   [{Origin: i} {AsPath: 65002}]
 -- cilium-peers.expected --
 Instance    Peer           Session State   Uptime   Family         Received   Accepted   Advertised
 tor-65001   gobgp-peer-1   established     -        ipv4-unicast   0          0          2
@@ -245,19 +245,19 @@ tor-65001   gobgp-peer-1   established     -        ipv4-unicast   0          0 
 tor-65002   gobgp-peer-3   established     -        ipv4-unicast   0          0          2
 -- cilium-routes.expected --
 Instance    Peer           Prefix            NextHop       Age
-tor-65001   gobgp-peer-1   10.244.0.0/24     10.99.0.110   -
-                           10.96.50.104/32   10.99.0.110   -
-            gobgp-peer-2   10.244.0.0/24     10.99.0.110   -
-                           10.96.50.104/32   10.99.0.110   -
-tor-65002   gobgp-peer-3   10.244.0.0/24     10.99.0.110   -
-                           10.96.50.104/32   10.99.0.110   -
+tor-65001   gobgp-peer-1   10.244.0.0/24     11.99.0.110   -
+                           10.96.50.104/32   11.99.0.110   -
+            gobgp-peer-2   10.244.0.0/24     11.99.0.110   -
+                           10.96.50.104/32   11.99.0.110   -
+tor-65002   gobgp-peer-3   10.244.0.0/24     11.99.0.110   -
+                           10.96.50.104/32   11.99.0.110   -
 -- cilium-route-policies.expected --
 Instance    Policy Name                                     Type     Match Peers   Match Families   Match Prefixes (Min..Max Len)   Match Communities   RIB Action   Path Actions
 tor-65001   allow-local                                     import                                                                                      accept       
-tor-65001   gobgp-peer-1-ipv4-PodCIDR                       export   10.99.0.101                    10.244.0.0/24 (24..24)                              accept       
-tor-65001   gobgp-peer-1-ipv4-Service-echo-test-ClusterIP   export   10.99.0.101                    10.96.50.104/32 (32..32)                            accept       
-tor-65001   gobgp-peer-2-ipv4-PodCIDR                       export   10.99.0.102                    10.244.0.0/24 (24..24)                              accept       
-tor-65001   gobgp-peer-2-ipv4-Service-echo-test-ClusterIP   export   10.99.0.102                    10.96.50.104/32 (32..32)                            accept       
+tor-65001   gobgp-peer-1-ipv4-PodCIDR                       export   11.99.0.101                    10.244.0.0/24 (24..24)                              accept       
+tor-65001   gobgp-peer-1-ipv4-Service-echo-test-ClusterIP   export   11.99.0.101                    10.96.50.104/32 (32..32)                            accept       
+tor-65001   gobgp-peer-2-ipv4-PodCIDR                       export   11.99.0.102                    10.244.0.0/24 (24..24)                              accept       
+tor-65001   gobgp-peer-2-ipv4-Service-echo-test-ClusterIP   export   11.99.0.102                    10.96.50.104/32 (32..32)                            accept       
 tor-65002   allow-local                                     import                                                                                      accept       
-tor-65002   gobgp-peer-3-ipv4-PodCIDR                       export   10.99.0.103                    10.244.0.0/24 (24..24)                              accept       
-tor-65002   gobgp-peer-3-ipv4-Service-echo-test-ClusterIP   export   10.99.0.103                    10.96.50.104/32 (32..32)                            accept       
+tor-65002   gobgp-peer-3-ipv4-PodCIDR                       export   11.99.0.103                    10.244.0.0/24 (24..24)                              accept       
+tor-65002   gobgp-peer-3-ipv4-Service-echo-test-ClusterIP   export   11.99.0.103                    10.96.50.104/32 (32..32)                            accept       

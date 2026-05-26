@@ -1,4 +1,4 @@
-#! --test-peering-ips=10.99.0.135,10.99.0.136,fd00::aa:bb:cc:135,fd00::aa:bb:cc:136
+#! --test-peering-ips=11.99.0.135,11.99.0.136,fc00::aa:bb:cc:135,fc00::aa:bb:cc:136
 
 # Tests IPv4 & IPv6 peering using DefaultGateway auto-discovery method.
 
@@ -6,12 +6,12 @@
 hive start
 
 # Configure v4 GoBGP server
-gobgp/add-server v4 65010 10.99.0.135 1790
-gobgp/add-peer -s v4 10.99.0.136 65001
+gobgp/add-server v4 65010 11.99.0.135 1790
+gobgp/add-peer -s v4 11.99.0.136 65001
 
 # Configure v6 GoBGP server
-gobgp/add-server v6 --router-id=1.2.3.4 65011 fd00::aa:bb:cc:135 1790
-gobgp/add-peer -s v6 fd00::aa:bb:cc:136 65001
+gobgp/add-server v6 --router-id=1.2.3.4 65011 fc00::aa:bb:cc:135 1790
+gobgp/add-peer -s v6 fc00::aa:bb:cc:136 65001
 
 # Configure BGP on Cilium
 k8s/add cilium-node.yaml bgp-advertisement.yaml
@@ -30,10 +30,10 @@ db/insert devices devices.yaml
 db/insert routes routes.yaml
 
 # Wait for v4 peering to be established
-gobgp/wait-state -s v4 10.99.0.136 ESTABLISHED
+gobgp/wait-state -s v4 11.99.0.136 ESTABLISHED
 
 # Wait for v6 peering to be established
-gobgp/wait-state -s v6 fd00::aa:bb:cc:136 ESTABLISHED
+gobgp/wait-state -s v6 fc00::aa:bb:cc:136 ESTABLISHED
 
 # Validate discovered BGP peers
 bgp/peers -o peers.actual --no-uptime
@@ -65,11 +65,11 @@ operstatus: up
 -- routes.yaml --
 linkindex: 1
 dst: 0.0.0.0/0
-gw: 10.99.0.135
+gw: 11.99.0.135
 ---
 linkindex: 2
 dst: ::/0
-gw: fd00::aa:bb:cc:135
+gw: fc00::aa:bb:cc:135
 
 -- cilium-node.yaml --
 apiVersion: cilium.io/v2
@@ -78,9 +78,9 @@ metadata:
   name: test-node
 spec:
   addresses:
-  - ip: 10.99.0.136
+  - ip: 11.99.0.136
     type: InternalIP
-  - ip: fd00::aa:bb:cc:136
+  - ip: fc00::aa:bb:cc:136
     type: InternalIP
   ipam:
     podCIDRs:
@@ -99,7 +99,7 @@ spec:
     peers:
     - name: gw-peer-v4
       peerASN: 65010
-      localAddress: 10.99.0.136
+      localAddress: 11.99.0.136
       autoDiscovery:
         mode: DefaultGateway
         defaultGateway:
@@ -108,7 +108,7 @@ spec:
         name: gw-peer-config
     - name: gw-peer-v6
       peerASN: 65011
-      localAddress: fd00::aa:bb:cc:136
+      localAddress: fc00::aa:bb:cc:136
       autoDiscovery:
         mode: DefaultGateway
         defaultGateway:
@@ -188,9 +188,9 @@ tor        gw-peer-v4   established     -        ipv4-unicast   0          0    
            gw-peer-v6   established     -        ipv4-unicast   0          0          2
 -- gobgp-routes-v4.expected --
 Prefix          NextHop       Attrs
-10.244.0.0/24   10.99.0.136   [{Origin: i} {AsPath: 65001}]
-172.16.1.1/32   10.99.0.136   [{Origin: i} {AsPath: 65001}]
+10.244.0.0/24   11.99.0.136   [{Origin: i} {AsPath: 65001}]
+172.16.1.1/32   11.99.0.136   [{Origin: i} {AsPath: 65001}]
 -- gobgp-routes-v6.expected --
 Prefix          NextHop              Attrs
-10.244.0.0/24   fd00::aa:bb:cc:136   [{Origin: i} {AsPath: 65001}]
-172.16.1.1/32   fd00::aa:bb:cc:136   [{Origin: i} {AsPath: 65001}]
+10.244.0.0/24   fc00::aa:bb:cc:136   [{Origin: i} {AsPath: 65001}]
+172.16.1.1/32   fc00::aa:bb:cc:136   [{Origin: i} {AsPath: 65001}]

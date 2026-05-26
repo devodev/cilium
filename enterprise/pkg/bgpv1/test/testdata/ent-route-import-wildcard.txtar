@@ -1,13 +1,13 @@
-#! --test-peering-ips=10.100.101.1,fd00:10:100:101::1
+#! --test-peering-ips=11.100.101.1,fc00:10:100:101::1
 
 hive start
 db/initialized
 
 # Configure gobgp servers
-gobgp/add-server v4 --router-id=1.2.3.4 65001 10.100.101.1 1790
-gobgp/add-peer -s v4 10.100.101.1 65001
-gobgp/add-server v6 --router-id=1.2.3.4 65001 fd00:10:100:101::1 1790
-gobgp/add-peer -s v6 fd00:10:100:101::1 65001
+gobgp/add-server v4 --router-id=1.2.3.4 65001 11.100.101.1 1790
+gobgp/add-peer -s v4 11.100.101.1 65001
+gobgp/add-server v6 --router-id=1.2.3.4 65001 fc00:10:100:101::1 1790
+gobgp/add-peer -s v6 fc00:10:100:101::1 65001
 
 # Configure BGP on Cilium
 k8s/add cilium-node.yaml bgp-node-config.yaml bgp-peer-config-v4.yaml bgp-peer-config-v6.yaml bgp-policy.yaml
@@ -18,8 +18,8 @@ bgp/route-policies -o bgp-policy.actual
 * cmp bgp-policy.expected bgp-policy.actual
 
 # Wait for peering to be established
-gobgp/wait-state -s v4 10.100.101.1 ESTABLISHED
-gobgp/wait-state -s v6 fd00:10:100:101::1 ESTABLISHED
+gobgp/wait-state -s v4 11.100.101.1 ESTABLISHED
+gobgp/wait-state -s v6 fc00:10:100:101::1 ESTABLISHED
 
 # Routes to be imported using prefix match - check edge values and some in-betweens
 gobgp/add-route -s v4 0.0.0.0/0
@@ -57,12 +57,12 @@ spec:
     peers:
     - name: peer-v4
       peerASN: 65001
-      peerAddress: 10.100.101.1
+      peerAddress: 11.100.101.1
       peerConfigRef:
         name: peer-config-v4
     - name: peer-v6
       peerASN: 65001
-      peerAddress: fd00:10:100:101::1
+      peerAddress: fc00:10:100:101::1
       peerConfigRef:
         name: peer-config-v6
 
@@ -127,19 +127,19 @@ spec:
 -- bgp-policy.expected --
 Instance    Policy Name                                Type     Match Peers          Match Families   Match Prefixes (Min..Max Len)   Match Communities   RIB Action   Path Actions
 instance0   allow-local                                import                                                                                             accept       
-instance0   import-user-defined-peer-v4-ipv4-unicast   import   10.100.101.1         ipv4/unicast     0.0.0.0/0 (0..32)                                   accept       
-instance0   import-user-defined-peer-v6-ipv6-unicast   import   fd00:10:100:101::1   ipv6/unicast     ::/0 (0..128)                                       accept       
+instance0   import-user-defined-peer-v4-ipv4-unicast   import   11.100.101.1         ipv4/unicast     0.0.0.0/0 (0..32)                                   accept       
+instance0   import-user-defined-peer-v6-ipv6-unicast   import   fc00:10:100:101::1   ipv6/unicast     ::/0 (0..128)                                       accept       
 -- bgp-rib-v4.expected --
 Instance    Peer      Prefix        NextHop        Best   Age   Error
-instance0   peer-v4   0.0.0.0/0     10.100.101.1   true   -     -
-                      10.0.0.0/24   10.100.101.1   true   -     -
+instance0   peer-v4   0.0.0.0/0     11.100.101.1   true   -     -
+                      10.0.0.0/24   11.100.101.1   true   -     -
 -- bgp-rib-v6.expected --
 Instance    Peer      Prefix      NextHop              Best   Age   Error
-instance0   peer-v6   ::/0        fd00:10:100:101::1   true   -     -
-                      fd00::/64   fd00:10:100:101::1   true   -     -
+instance0   peer-v6   ::/0        fc00:10:100:101::1   true   -     -
+                      fd00::/64   fc00:10:100:101::1   true   -     -
 -- desired-routes.expected --
 Owner           Table        Prefix            Priority   AD    Selected   Nexthop              Src    Device   MultiPath   MTU    Scope      Type
-bgp-instance0   main (254)   ::/0              none       200   true       fd00:10:100:101::1   none   none     none        none   universe   unicast
-bgp-instance0   main (254)   0.0.0.0/0         none       200   true       10.100.101.1         none   none     none        none   universe   unicast
-bgp-instance0   main (254)   10.0.0.0/24       none       200   true       10.100.101.1         none   none     none        none   universe   unicast
-bgp-instance0   main (254)   fd00::/64         none       200   true       fd00:10:100:101::1   none   none     none        none   universe   unicast
+bgp-instance0   main (254)   ::/0              none       200   true       fc00:10:100:101::1   none   none     none        none   universe   unicast
+bgp-instance0   main (254)   0.0.0.0/0         none       200   true       11.100.101.1         none   none     none        none   universe   unicast
+bgp-instance0   main (254)   10.0.0.0/24       none       200   true       11.100.101.1         none   none     none        none   universe   unicast
+bgp-instance0   main (254)   fd00::/64         none       200   true       fc00:10:100:101::1   none   none     none        none   universe   unicast

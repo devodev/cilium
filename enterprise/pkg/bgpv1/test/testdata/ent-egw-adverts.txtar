@@ -1,4 +1,4 @@
-#! --test-peering-ips=10.99.100.1,10.99.100.2
+#! --test-peering-ips=11.99.100.1,11.99.100.2
 
 # Tests advertisement of Egress Gateway IPs.
 
@@ -6,10 +6,10 @@
 hive start
 
 # Configure gobgp server
-gobgp/add-server test 65010 10.99.100.1 1790
+gobgp/add-server test 65010 11.99.100.1 1790
 
 # Configure peers on GoBGP
-gobgp/add-peer 10.99.100.2 65001
+gobgp/add-peer 11.99.100.2 65001
 
 # Add EGW policy with one egress IP
 bgptest/upsert-egw-policy policy1 bgp=advertise 10.99.99.100
@@ -19,7 +19,7 @@ k8s/add cilium-node.yaml bgp-node-config.yaml bgp-peer-config.yaml bgp-advertise
 * bgptest/sync-oss-resources
 
 # Wait for peering to be established
-gobgp/wait-state 10.99.100.2 ESTABLISHED
+gobgp/wait-state 11.99.100.2 ESTABLISHED
 
 # Validate that EGW IP is advertised
 gobgp/routes -o routes.actual
@@ -69,7 +69,7 @@ metadata:
   name: test-node
 spec:
   addresses:
-  - ip: 10.99.100.2
+  - ip: 11.99.100.2
     type: InternalIP
   ipam:
     podCIDRs:
@@ -87,8 +87,8 @@ spec:
     peers:
     - name: gobgp-peer-1
       peerASN: 65010
-      peerAddress: 10.99.100.1
-      localAddress: 10.99.100.2
+      peerAddress: 11.99.100.1
+      localAddress: 11.99.100.2
       peerConfigRef:
         name: gobgp-peer-config
 
@@ -125,21 +125,21 @@ spec:
 
 -- gobgp-routes-100.expected --
 Prefix            NextHop       Attrs
-10.99.99.100/32   10.99.100.2   [{Origin: i} {AsPath: 65001}]
+10.99.99.100/32   11.99.100.2   [{Origin: i} {AsPath: 65001}]
 -- gobgp-routes-101.expected --
 Prefix            NextHop       Attrs
-10.99.99.101/32   10.99.100.2   [{Origin: i} {AsPath: 65001}]
+10.99.99.101/32   11.99.100.2   [{Origin: i} {AsPath: 65001}]
 -- gobgp-routes-102.expected --
 Prefix            NextHop       Attrs
-10.99.99.102/32   10.99.100.2   [{Origin: i} {AsPath: 65001}]
+10.99.99.102/32   11.99.100.2   [{Origin: i} {AsPath: 65001}]
 -- gobgp-routes-100-101.expected --
 Prefix            NextHop       Attrs
-10.99.99.100/32   10.99.100.2   [{Origin: i} {AsPath: 65001}]
-10.99.99.101/32   10.99.100.2   [{Origin: i} {AsPath: 65001}]
+10.99.99.100/32   11.99.100.2   [{Origin: i} {AsPath: 65001}]
+10.99.99.101/32   11.99.100.2   [{Origin: i} {AsPath: 65001}]
 -- gobgp-routes-all.expected --
 Prefix            NextHop       Attrs
-10.99.99.100/32   10.99.100.2   [{Origin: i} {AsPath: 65001}]
-10.99.99.101/32   10.99.100.2   [{Origin: i} {AsPath: 65001}]
-10.99.99.102/32   10.99.100.2   [{Origin: i} {AsPath: 65001}]
+10.99.99.100/32   11.99.100.2   [{Origin: i} {AsPath: 65001}]
+10.99.99.101/32   11.99.100.2   [{Origin: i} {AsPath: 65001}]
+10.99.99.102/32   11.99.100.2   [{Origin: i} {AsPath: 65001}]
 -- gobgp-routes-empty.expected --
 Prefix   NextHop   Attrs

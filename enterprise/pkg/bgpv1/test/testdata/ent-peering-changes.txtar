@@ -1,4 +1,4 @@
-#! --test-peering-ips=10.99.0.121,10.99.0.122,10.99.0.130
+#! --test-peering-ips=11.99.0.121,11.99.0.122,11.99.0.130
 
 # Tests changes in BGP peering config: peer IP change, KeepAlive, HoldTime & Graceful Restart time changes.
 
@@ -9,8 +9,8 @@ hive start
 k8s/add service-lb.yaml
 
 # Configure GoBGP server
-gobgp/add-server test 65010 10.99.0.121 1790
-gobgp/add-peer 10.99.0.130 65001
+gobgp/add-server test 65010 11.99.0.121 1790
+gobgp/add-peer 11.99.0.130 65001
 
 # Configure BGP on Cilium
 k8s/add cilium-node.yaml bgp-advertisement.yaml
@@ -18,7 +18,7 @@ k8s/add bgp-node-config-1.yaml bgp-peer-config-1.yaml
 * bgptest/sync-oss-resources
 
 # Wait for peering to be established
-gobgp/wait-state 10.99.0.130 ESTABLISHED
+gobgp/wait-state 11.99.0.130 ESTABLISHED
 
 # Validate peering state
 gobgp/peers -o peers.actual
@@ -30,15 +30,15 @@ gobgp/routes -o routes.actual
 
 # Re-configure GoBGP server with the new IP
 gobgp/delete-server test
-gobgp/add-server test 65010 10.99.0.122 1790
-gobgp/add-peer 10.99.0.130 65001
+gobgp/add-server test 65010 11.99.0.122 1790
+gobgp/add-peer 11.99.0.130 65001
 
 # Update peer IP
 k8s/update bgp-node-config-2.yaml
 * bgptest/sync-oss-resources
 
 # Wait for peering to be established
-gobgp/wait-state 10.99.0.130 ESTABLISHED
+gobgp/wait-state 11.99.0.130 ESTABLISHED
 
 # Validate peering state
 gobgp/peers -o peers.actual
@@ -53,10 +53,10 @@ k8s/update bgp-peer-config-2.yaml
 * bgptest/sync-oss-resources
 
 # Wait for peering to go down. There is 5s IdleHoldTime applied on the GoBGP side, so it will take about 5s to reconnect.
-gobgp/wait-state 10.99.0.130 IDLE
+gobgp/wait-state 11.99.0.130 IDLE
 
 # Wait for peering to be established
-gobgp/wait-state 10.99.0.130 ESTABLISHED
+gobgp/wait-state 11.99.0.130 ESTABLISHED
 
 # Validate peering state
 gobgp/peers -o peers.actual
@@ -71,7 +71,7 @@ metadata:
   name: test-node
 spec:
   addresses:
-  - ip: 10.99.0.130
+  - ip: 11.99.0.130
     type: InternalIP
   ipam:
     podCIDRs:
@@ -89,8 +89,8 @@ spec:
     peers:
     - name: gobgp-peer
       peerASN: 65010
-      peerAddress: 10.99.0.121
-      localAddress: 10.99.0.130
+      peerAddress: 11.99.0.121
+      localAddress: 11.99.0.130
       peerConfigRef:
         name: gobgp-peer-config
 
@@ -106,8 +106,8 @@ spec:
     peers:
     - name: gobgp-peer
       peerASN: 65010
-      peerAddress: 10.99.0.122
-      localAddress: 10.99.0.130
+      peerAddress: 11.99.0.122
+      localAddress: 11.99.0.130
       peerConfigRef:
         name: gobgp-peer-config
 
@@ -199,11 +199,11 @@ status:
 
 -- gobgp-peers-1.expected --
 PeerAddress   RouterID      PeerASN   SessionState   KeepAlive   HoldTime   GracefulRestartTime
-10.99.0.130   10.99.0.130   65001     ESTABLISHED    30          90         0
+11.99.0.130   11.99.0.130   65001     ESTABLISHED    30          90         0
 -- gobgp-peers-2.expected --
 PeerAddress   RouterID      PeerASN   SessionState   KeepAlive   HoldTime   GracefulRestartTime
-10.99.0.130   10.99.0.130   65001     ESTABLISHED    5           15         60
+11.99.0.130   11.99.0.130   65001     ESTABLISHED    5           15         60
 -- gobgp-routes.expected --
 Prefix          NextHop       Attrs
-10.244.0.0/24   10.99.0.130   [{Origin: i} {AsPath: 65001}]
-172.16.1.1/32   10.99.0.130   [{Origin: i} {AsPath: 65001}]
+10.244.0.0/24   11.99.0.130   [{Origin: i} {AsPath: 65001}]
+172.16.1.1/32   11.99.0.130   [{Origin: i} {AsPath: 65001}]

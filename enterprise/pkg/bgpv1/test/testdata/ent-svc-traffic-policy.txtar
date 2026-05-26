@@ -1,4 +1,4 @@
-#! --test-peering-ips=10.99.4.101,10.99.4.102
+#! --test-peering-ips=11.99.4.101,11.99.4.102
 
 # Tests advertisements with external / internal service traffic policy.
 # Service routes should be withdrawn for a service with local traffic policy in case of no local endpoints.
@@ -10,10 +10,10 @@
 hive start
 
 # Configure gobgp server
-gobgp/add-server test 65010 10.99.4.101 1790
+gobgp/add-server test 65010 11.99.4.101 1790
 
 # Configure peers on GoBGP
-gobgp/add-peer 10.99.4.102 65001
+gobgp/add-peer 11.99.4.102 65001
 
 # Add k8s services
 k8s/add service-lb.yaml service-cluster.yaml
@@ -23,7 +23,7 @@ k8s/add cilium-node.yaml bgp-node-config.yaml bgp-peer-config.yaml bgp-advertise
 * bgptest/sync-oss-resources
 
 # Wait for peering to be established
-gobgp/wait-state 10.99.4.102 ESTABLISHED
+gobgp/wait-state 11.99.4.102 ESTABLISHED
 
 # Validate that only ClusterIP with iTP=Cluster is advertised
 gobgp/routes -o routes.actual
@@ -52,7 +52,7 @@ metadata:
   name: test-node
 spec:
   addresses:
-  - ip: 10.99.4.102
+  - ip: 11.99.4.102
     type: InternalIP
   ipam:
     podCIDRs:
@@ -70,8 +70,8 @@ spec:
     peers:
     - name: gobgp-peer-1
       peerASN: 65010
-      peerAddress: 10.99.4.101
-      localAddress: 10.99.4.102
+      peerAddress: 11.99.4.101
+      localAddress: 11.99.4.102
       peerConfigRef:
         name: gobgp-peer-config
 
@@ -223,9 +223,9 @@ ports:
 
 -- gobgp-routes-tp-cluster.expected --
 Prefix            NextHop       Attrs
-10.96.50.105/32   10.99.4.102   [{Origin: i} {AsPath: 65001}]
+10.96.50.105/32   11.99.4.102   [{Origin: i} {AsPath: 65001}]
 -- gobgp-routes-all.expected --
 Prefix            NextHop       Attrs
-10.96.50.104/32   10.99.4.102   [{Origin: i} {AsPath: 65001}]
-10.96.50.105/32   10.99.4.102   [{Origin: i} {AsPath: 65001}]
-172.16.1.1/32     10.99.4.102   [{Origin: i} {AsPath: 65001}]
+10.96.50.104/32   11.99.4.102   [{Origin: i} {AsPath: 65001}]
+10.96.50.105/32   11.99.4.102   [{Origin: i} {AsPath: 65001}]
+172.16.1.1/32     11.99.4.102   [{Origin: i} {AsPath: 65001}]

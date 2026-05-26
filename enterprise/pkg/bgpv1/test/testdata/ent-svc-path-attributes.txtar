@@ -1,4 +1,4 @@
-#! --test-peering-ips=fd00::bb:cc:dd:101,fd00::bb:cc:dd:102
+#! --test-peering-ips=fc00::bb:cc:dd:101,fc00::bb:cc:dd:102
 
 # Tests service advertisements with various path attributes.
 # Also tests overlapping advertisements - 2 advertisements matching the same service,
@@ -8,8 +8,8 @@
 hive start
 
 # Configure gobgp server
-gobgp/add-server test --router-id=1.2.3.4 65001 fd00::bb:cc:dd:101 1790
-gobgp/add-peer fd00::bb:cc:dd:102 65001
+gobgp/add-server test --router-id=1.2.3.4 65001 fc00::bb:cc:dd:101 1790
+gobgp/add-peer fc00::bb:cc:dd:102 65001
 
 # Configure BGP on Cilium
 k8s/add cilium-node.yaml bgp-node-config.yaml bgp-peer-config.yaml
@@ -23,7 +23,7 @@ k8s/add bgp-advertisement-99.yaml
 * bgptest/sync-oss-resources
 
 # Wait for peering to be established
-gobgp/wait-state fd00::bb:cc:dd:102 ESTABLISHED
+gobgp/wait-state fc00::bb:cc:dd:102 ESTABLISHED
 
 # Validate peering state
 gobgp/peers -o peers.actual
@@ -63,15 +63,15 @@ gobgp/routes -o routes.actual ipv6 unicast
 
 # Switch to eBGP instance to test eBGP-specific attributes
 gobgp/delete-server test
-gobgp/add-server test --router-id=1.2.3.4 65001 fd00::bb:cc:dd:101 1790
-gobgp/add-peer fd00::bb:cc:dd:102 65000
+gobgp/add-server test --router-id=1.2.3.4 65001 fc00::bb:cc:dd:101 1790
+gobgp/add-peer fc00::bb:cc:dd:102 65000
 
 # Configure BGP on Cilium
 k8s/update bgp-node-config-ebgp.yaml
 * bgptest/sync-oss-resources
 
 # Wait for peering to be established
-gobgp/wait-state fd00::bb:cc:dd:102 ESTABLISHED
+gobgp/wait-state fc00::bb:cc:dd:102 ESTABLISHED
 
 # Validate IPv4 PodCIDR routes. Should have 3 ASNs instead of 2.
 gobgp/routes -o routes.actual ipv4 unicast
@@ -90,7 +90,7 @@ metadata:
   name: test-node
 spec:
   addresses:
-  - ip: fd00::bb:cc:dd:102
+  - ip: fc00::bb:cc:dd:102
     type: InternalIP
   ipam:
     podCIDRs:
@@ -110,8 +110,8 @@ spec:
     peers:
     - name: gobgp-peer
       peerASN: 65001
-      peerAddress: fd00::bb:cc:dd:101
-      localAddress: fd00::bb:cc:dd:102
+      peerAddress: fc00::bb:cc:dd:101
+      localAddress: fc00::bb:cc:dd:102
       peerConfigRef:
         name: gobgp-peer-config
 
@@ -128,8 +128,8 @@ spec:
     peers:
     - name: gobgp-peer
       peerASN: 65001
-      peerAddress: fd00::bb:cc:dd:101
-      localAddress: fd00::bb:cc:dd:102
+      peerAddress: fc00::bb:cc:dd:101
+      localAddress: fc00::bb:cc:dd:102
       peerConfigRef:
         name: gobgp-peer-config
 
@@ -272,36 +272,36 @@ status:
 
 -- gobgp-peers.expected --
 PeerAddress          RouterID   PeerASN   SessionState   KeepAlive   HoldTime   GracefulRestartTime
-fd00::bb:cc:dd:102   5.6.7.8    65001     ESTABLISHED    30          90         0
+fc00::bb:cc:dd:102   5.6.7.8    65001     ESTABLISHED    30          90         0
 -- gobgp-routes-99-ipv4.expected --
 Prefix            NextHop              Attrs
-10.96.50.104/32   fd00::bb:cc:dd:102   [{Origin: i} {AsPath: } {LocalPref: 99} {Communities: 65000:99}]
-172.16.1.1/32     fd00::bb:cc:dd:102   [{Origin: i} {AsPath: } {LocalPref: 99} {Communities: 65000:99}]
+10.96.50.104/32   fc00::bb:cc:dd:102   [{Origin: i} {AsPath: } {LocalPref: 99} {Communities: 65000:99}]
+172.16.1.1/32     fc00::bb:cc:dd:102   [{Origin: i} {AsPath: } {LocalPref: 99} {Communities: 65000:99}]
 -- gobgp-routes-99-ipv6.expected --
 Prefix                    NextHop              Attrs
-2001:db8:fd00::7ebc/128   fd00::bb:cc:dd:102   [{Origin: i} {AsPath: } {LocalPref: 99} {Communities: 65000:99}]
-fd00:aa:bb::1/128         fd00::bb:cc:dd:102   [{Origin: i} {AsPath: } {LocalPref: 99} {Communities: 65000:99}]
+2001:db8:fd00::7ebc/128   fc00::bb:cc:dd:102   [{Origin: i} {AsPath: } {LocalPref: 99} {Communities: 65000:99}]
+fd00:aa:bb::1/128         fc00::bb:cc:dd:102   [{Origin: i} {AsPath: } {LocalPref: 99} {Communities: 65000:99}]
 -- gobgp-routes-101-ipv4.expected --
 Prefix            NextHop              Attrs
-10.96.50.104/32   fd00::bb:cc:dd:102   [{Origin: i} {AsPath: } {LocalPref: 101} {Communities: 65000:101}]
-172.16.1.1/32     fd00::bb:cc:dd:102   [{Origin: i} {AsPath: } {LocalPref: 101} {Communities: 65000:101}]
+10.96.50.104/32   fc00::bb:cc:dd:102   [{Origin: i} {AsPath: } {LocalPref: 101} {Communities: 65000:101}]
+172.16.1.1/32     fc00::bb:cc:dd:102   [{Origin: i} {AsPath: } {LocalPref: 101} {Communities: 65000:101}]
 -- gobgp-routes-101-ipv6.expected --
 Prefix                    NextHop              Attrs
-2001:db8:fd00::7ebc/128   fd00::bb:cc:dd:102   [{Origin: i} {AsPath: } {LocalPref: 101} {Communities: 65000:101}]
-fd00:aa:bb::1/128         fd00::bb:cc:dd:102   [{Origin: i} {AsPath: } {LocalPref: 101} {Communities: 65000:101}]
+2001:db8:fd00::7ebc/128   fc00::bb:cc:dd:102   [{Origin: i} {AsPath: } {LocalPref: 101} {Communities: 65000:101}]
+fd00:aa:bb::1/128         fc00::bb:cc:dd:102   [{Origin: i} {AsPath: } {LocalPref: 101} {Communities: 65000:101}]
 -- gobgp-routes-overlapping-ipv4.expected --
 Prefix            NextHop              Attrs
-10.96.50.104/32   fd00::bb:cc:dd:102   [{Origin: i} {AsPath: } {LocalPref: 102} {Communities: 65000:102, 65000:98}]
-172.16.1.1/32     fd00::bb:cc:dd:102   [{Origin: i} {AsPath: } {LocalPref: 102} {Communities: 65000:102, 65000:98}]
+10.96.50.104/32   fc00::bb:cc:dd:102   [{Origin: i} {AsPath: } {LocalPref: 102} {Communities: 65000:102, 65000:98}]
+172.16.1.1/32     fc00::bb:cc:dd:102   [{Origin: i} {AsPath: } {LocalPref: 102} {Communities: 65000:102, 65000:98}]
 -- gobgp-routes-overlapping-ipv6.expected --
 Prefix                    NextHop              Attrs
-2001:db8:fd00::7ebc/128   fd00::bb:cc:dd:102   [{Origin: i} {AsPath: } {LocalPref: 102} {Communities: 65000:102, 65000:98}]
-fd00:aa:bb::1/128         fd00::bb:cc:dd:102   [{Origin: i} {AsPath: } {LocalPref: 102} {Communities: 65000:102, 65000:98}]
+2001:db8:fd00::7ebc/128   fc00::bb:cc:dd:102   [{Origin: i} {AsPath: } {LocalPref: 102} {Communities: 65000:102, 65000:98}]
+fd00:aa:bb::1/128         fc00::bb:cc:dd:102   [{Origin: i} {AsPath: } {LocalPref: 102} {Communities: 65000:102, 65000:98}]
 -- gobgp-routes-overlapping-ebgp-ipv4.expected --
 Prefix            NextHop              Attrs
-10.96.50.104/32   fd00::bb:cc:dd:102   [{Origin: i} {AsPath: 65000 65000 65000 65000} {Communities: 65000:102, 65000:98}]
-172.16.1.1/32     fd00::bb:cc:dd:102   [{Origin: i} {AsPath: 65000 65000 65000 65000} {Communities: 65000:102, 65000:98}]
+10.96.50.104/32   fc00::bb:cc:dd:102   [{Origin: i} {AsPath: 65000 65000 65000 65000} {Communities: 65000:102, 65000:98}]
+172.16.1.1/32     fc00::bb:cc:dd:102   [{Origin: i} {AsPath: 65000 65000 65000 65000} {Communities: 65000:102, 65000:98}]
 -- gobgp-routes-overlapping-ebgp-ipv6.expected --
 Prefix                    NextHop              Attrs
-2001:db8:fd00::7ebc/128   fd00::bb:cc:dd:102   [{Origin: i} {AsPath: 65000 65000 65000 65000} {Communities: 65000:102, 65000:98}]
-fd00:aa:bb::1/128         fd00::bb:cc:dd:102   [{Origin: i} {AsPath: 65000 65000 65000 65000} {Communities: 65000:102, 65000:98}]
+2001:db8:fd00::7ebc/128   fc00::bb:cc:dd:102   [{Origin: i} {AsPath: 65000 65000 65000 65000} {Communities: 65000:102, 65000:98}]
+fd00:aa:bb::1/128         fc00::bb:cc:dd:102   [{Origin: i} {AsPath: 65000 65000 65000 65000} {Communities: 65000:102, 65000:98}]

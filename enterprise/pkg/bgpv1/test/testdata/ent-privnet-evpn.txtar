@@ -1,4 +1,4 @@
-#! --test-peering-ips=10.99.103.1,10.99.103.2,10.99.103.3,fc00:10:99:103::1,fc00:10:99:103::2 --enable-evpn-security-group-tags --evpn-default-security-group-id=15
+#! --test-peering-ips=11.99.103.1,11.99.103.2,11.99.103.3,fc00:10:99:103::1,fc00:10:99:103::2 --enable-evpn-security-group-tags --evpn-default-security-group-id=15
 
 # Tests EVPN advertisement of Private Network IPs.
 # There are 2 IPv4 GoBGP peers (from which only one is enabled for EVPN advertisements in the peer config) and one IPv6 GoBGP peer.
@@ -7,13 +7,13 @@
 hive start
 
 # Configure gobgp servers
-gobgp/add-server evpn-v4  65001 10.99.103.2       1790
-gobgp/add-server non-evpn 65001 10.99.103.3       1790
+gobgp/add-server evpn-v4  65001 11.99.103.2       1790
+gobgp/add-server non-evpn 65001 11.99.103.3       1790
 gobgp/add-server evpn-v6  65001 fc00:10:99:103::2 1790 --router-id 1.0.0.2
 
 # Configure peers on GoBGP
-gobgp/add-peer -s evpn-v4   10.99.103.1       65001 --families=l2vpn/evpn
-gobgp/add-peer -s non-evpn  10.99.103.1       65001 --families=l2vpn/evpn
+gobgp/add-peer -s evpn-v4   11.99.103.1       65001 --families=l2vpn/evpn
+gobgp/add-peer -s non-evpn  11.99.103.1       65001 --families=l2vpn/evpn
 gobgp/add-peer -s evpn-v6   fc00:10:99:103::1 65001 --families=l2vpn/evpn
 
 # Configure BGP on Cilium
@@ -21,8 +21,8 @@ k8s/add cilium-node.yaml bgp-node-config.yaml bgp-peer-config-evpn.yaml bgp-peer
 * bgptest/sync-oss-resources
 
 # Wait for peerings to be established
-gobgp/wait-state -s evpn-v4  10.99.103.1       ESTABLISHED
-gobgp/wait-state -s non-evpn 10.99.103.1       ESTABLISHED
+gobgp/wait-state -s evpn-v4  11.99.103.1       ESTABLISHED
+gobgp/wait-state -s non-evpn 11.99.103.1       ESTABLISHED
 gobgp/wait-state -s evpn-v6  fc00:10:99:103::1 ESTABLISHED
 
 # Add vxlan device to statedb
@@ -133,7 +133,7 @@ metadata:
   name: test-node
 spec:
   addresses:
-  - ip: 10.99.103.1
+  - ip: 11.99.103.1
     type: InternalIP
   ipam:
     podCIDRs:
@@ -152,14 +152,14 @@ spec:
     peers:
     - name: evpn-peer-v4
       peerASN: 65001
-      peerAddress: 10.99.103.2
-      localAddress: 10.99.103.1
+      peerAddress: 11.99.103.2
+      localAddress: 11.99.103.1
       peerConfigRef:
         name: evpn-peer-config
     - name: non-evpn-peer
       peerASN: 65001
-      peerAddress: 10.99.103.3
-      localAddress: 10.99.103.1
+      peerAddress: 11.99.103.3
+      localAddress: 11.99.103.1
       peerConfigRef:
         name: non-evpn-peer-config
     - name: evpn-peer-v6
@@ -384,39 +384,39 @@ securitygroupid: 200
 Prefix   NextHop   Attrs
 -- gobgp-routes-a-ipv4.v1.expected --
 Prefix                                                               NextHop       Attrs
-[type:Prefix][rd:10.99.103.1:1][etag:0][prefix:192.168.100.33/32]    10.99.103.1   [{Origin: ?} {AsPath: } {LocalPref: 200} {Communities: 65001:111} {Extcomms: [Encap:vxlan], [RouteTarget:65001:101], [RouterMAC:aa:bb:cc:dd:ee:ff], [GroupPolicyID:15]} {LargeCommunity: [ 65001:111:222]}]
-[type:Prefix][rd:10.99.103.1:1][etag:0][prefix:fd10:0:100::33/128]   10.99.103.1   [{Origin: ?} {AsPath: } {LocalPref: 200} {Communities: 65001:111} {Extcomms: [Encap:vxlan], [RouteTarget:65001:101], [RouterMAC:aa:bb:cc:dd:ee:ff], [GroupPolicyID:15]} {LargeCommunity: [ 65001:111:222]}]
+[type:Prefix][rd:11.99.103.1:1][etag:0][prefix:192.168.100.33/32]    11.99.103.1   [{Origin: ?} {AsPath: } {LocalPref: 200} {Communities: 65001:111} {Extcomms: [Encap:vxlan], [RouteTarget:65001:101], [RouterMAC:aa:bb:cc:dd:ee:ff], [GroupPolicyID:15]} {LargeCommunity: [ 65001:111:222]}]
+[type:Prefix][rd:11.99.103.1:1][etag:0][prefix:fd10:0:100::33/128]   11.99.103.1   [{Origin: ?} {AsPath: } {LocalPref: 200} {Communities: 65001:111} {Extcomms: [Encap:vxlan], [RouteTarget:65001:101], [RouterMAC:aa:bb:cc:dd:ee:ff], [GroupPolicyID:15]} {LargeCommunity: [ 65001:111:222]}]
 -- gobgp-routes-a-ipv4.v2.expected --
 Prefix                                                               NextHop       Attrs
-[type:Prefix][rd:10.99.103.1:1][etag:0][prefix:192.168.100.33/32]    10.99.103.1   [{Origin: ?} {AsPath: } {LocalPref: 200} {Communities: 65001:111} {Extcomms: [Encap:vxlan], [RouteTarget:65001:101], [RouterMAC:aa:bb:cc:dd:ee:ff], [GroupPolicyID:100]} {LargeCommunity: [ 65001:111:222]}]
-[type:Prefix][rd:10.99.103.1:1][etag:0][prefix:fd10:0:100::33/128]   10.99.103.1   [{Origin: ?} {AsPath: } {LocalPref: 200} {Communities: 65001:111} {Extcomms: [Encap:vxlan], [RouteTarget:65001:101], [RouterMAC:aa:bb:cc:dd:ee:ff], [GroupPolicyID:100]} {LargeCommunity: [ 65001:111:222]}]
+[type:Prefix][rd:11.99.103.1:1][etag:0][prefix:192.168.100.33/32]    11.99.103.1   [{Origin: ?} {AsPath: } {LocalPref: 200} {Communities: 65001:111} {Extcomms: [Encap:vxlan], [RouteTarget:65001:101], [RouterMAC:aa:bb:cc:dd:ee:ff], [GroupPolicyID:100]} {LargeCommunity: [ 65001:111:222]}]
+[type:Prefix][rd:11.99.103.1:1][etag:0][prefix:fd10:0:100::33/128]   11.99.103.1   [{Origin: ?} {AsPath: } {LocalPref: 200} {Communities: 65001:111} {Extcomms: [Encap:vxlan], [RouteTarget:65001:101], [RouterMAC:aa:bb:cc:dd:ee:ff], [GroupPolicyID:100]} {LargeCommunity: [ 65001:111:222]}]
 -- gobgp-routes-all-ipv4.expected --
 Prefix                                                               NextHop       Attrs
-[type:Prefix][rd:10.99.103.1:1][etag:0][prefix:192.168.100.33/32]    10.99.103.1   [{Origin: ?} {AsPath: } {LocalPref: 200} {Communities: 65001:111} {Extcomms: [Encap:vxlan], [RouteTarget:65001:101], [RouterMAC:aa:bb:cc:dd:ee:ff], [GroupPolicyID:100]} {LargeCommunity: [ 65001:111:222]}]
-[type:Prefix][rd:10.99.103.1:1][etag:0][prefix:fd10:0:100::33/128]   10.99.103.1   [{Origin: ?} {AsPath: } {LocalPref: 200} {Communities: 65001:111} {Extcomms: [Encap:vxlan], [RouteTarget:65001:101], [RouterMAC:aa:bb:cc:dd:ee:ff], [GroupPolicyID:100]} {LargeCommunity: [ 65001:111:222]}]
-[type:Prefix][rd:10.99.103.1:2][etag:0][prefix:192.168.200.33/32]    10.99.103.1   [{Origin: ?} {AsPath: } {LocalPref: 200} {Communities: 65001:111} {Extcomms: [Encap:vxlan], [RouteTarget:65001:102], [RouterMAC:aa:bb:cc:dd:ee:ff], [GroupPolicyID:200]} {LargeCommunity: [ 65001:111:222]}]
-[type:Prefix][rd:10.99.103.1:2][etag:0][prefix:fd10:0:200::33/128]   10.99.103.1   [{Origin: ?} {AsPath: } {LocalPref: 200} {Communities: 65001:111} {Extcomms: [Encap:vxlan], [RouteTarget:65001:102], [RouterMAC:aa:bb:cc:dd:ee:ff], [GroupPolicyID:200]} {LargeCommunity: [ 65001:111:222]}]
+[type:Prefix][rd:11.99.103.1:1][etag:0][prefix:192.168.100.33/32]    11.99.103.1   [{Origin: ?} {AsPath: } {LocalPref: 200} {Communities: 65001:111} {Extcomms: [Encap:vxlan], [RouteTarget:65001:101], [RouterMAC:aa:bb:cc:dd:ee:ff], [GroupPolicyID:100]} {LargeCommunity: [ 65001:111:222]}]
+[type:Prefix][rd:11.99.103.1:1][etag:0][prefix:fd10:0:100::33/128]   11.99.103.1   [{Origin: ?} {AsPath: } {LocalPref: 200} {Communities: 65001:111} {Extcomms: [Encap:vxlan], [RouteTarget:65001:101], [RouterMAC:aa:bb:cc:dd:ee:ff], [GroupPolicyID:100]} {LargeCommunity: [ 65001:111:222]}]
+[type:Prefix][rd:11.99.103.1:2][etag:0][prefix:192.168.200.33/32]    11.99.103.1   [{Origin: ?} {AsPath: } {LocalPref: 200} {Communities: 65001:111} {Extcomms: [Encap:vxlan], [RouteTarget:65001:102], [RouterMAC:aa:bb:cc:dd:ee:ff], [GroupPolicyID:200]} {LargeCommunity: [ 65001:111:222]}]
+[type:Prefix][rd:11.99.103.1:2][etag:0][prefix:fd10:0:200::33/128]   11.99.103.1   [{Origin: ?} {AsPath: } {LocalPref: 200} {Communities: 65001:111} {Extcomms: [Encap:vxlan], [RouteTarget:65001:102], [RouterMAC:aa:bb:cc:dd:ee:ff], [GroupPolicyID:200]} {LargeCommunity: [ 65001:111:222]}]
 -- gobgp-routes-all-ipv6.expected --
 Prefix                                                               NextHop             Attrs
-[type:Prefix][rd:10.99.103.1:1][etag:0][prefix:192.168.100.33/32]    fc00:10:99:103::1   [{Origin: ?} {AsPath: } {LocalPref: 200} {Communities: 65001:111} {Extcomms: [Encap:vxlan], [RouteTarget:65001:101], [RouterMAC:aa:bb:cc:dd:ee:ff], [GroupPolicyID:100]} {LargeCommunity: [ 65001:111:222]}]
-[type:Prefix][rd:10.99.103.1:1][etag:0][prefix:fd10:0:100::33/128]   fc00:10:99:103::1   [{Origin: ?} {AsPath: } {LocalPref: 200} {Communities: 65001:111} {Extcomms: [Encap:vxlan], [RouteTarget:65001:101], [RouterMAC:aa:bb:cc:dd:ee:ff], [GroupPolicyID:100]} {LargeCommunity: [ 65001:111:222]}]
-[type:Prefix][rd:10.99.103.1:2][etag:0][prefix:192.168.200.33/32]    fc00:10:99:103::1   [{Origin: ?} {AsPath: } {LocalPref: 200} {Communities: 65001:111} {Extcomms: [Encap:vxlan], [RouteTarget:65001:102], [RouterMAC:aa:bb:cc:dd:ee:ff], [GroupPolicyID:200]} {LargeCommunity: [ 65001:111:222]}]
-[type:Prefix][rd:10.99.103.1:2][etag:0][prefix:fd10:0:200::33/128]   fc00:10:99:103::1   [{Origin: ?} {AsPath: } {LocalPref: 200} {Communities: 65001:111} {Extcomms: [Encap:vxlan], [RouteTarget:65001:102], [RouterMAC:aa:bb:cc:dd:ee:ff], [GroupPolicyID:200]} {LargeCommunity: [ 65001:111:222]}]
+[type:Prefix][rd:11.99.103.1:1][etag:0][prefix:192.168.100.33/32]    fc00:10:99:103::1   [{Origin: ?} {AsPath: } {LocalPref: 200} {Communities: 65001:111} {Extcomms: [Encap:vxlan], [RouteTarget:65001:101], [RouterMAC:aa:bb:cc:dd:ee:ff], [GroupPolicyID:100]} {LargeCommunity: [ 65001:111:222]}]
+[type:Prefix][rd:11.99.103.1:1][etag:0][prefix:fd10:0:100::33/128]   fc00:10:99:103::1   [{Origin: ?} {AsPath: } {LocalPref: 200} {Communities: 65001:111} {Extcomms: [Encap:vxlan], [RouteTarget:65001:101], [RouterMAC:aa:bb:cc:dd:ee:ff], [GroupPolicyID:100]} {LargeCommunity: [ 65001:111:222]}]
+[type:Prefix][rd:11.99.103.1:2][etag:0][prefix:192.168.200.33/32]    fc00:10:99:103::1   [{Origin: ?} {AsPath: } {LocalPref: 200} {Communities: 65001:111} {Extcomms: [Encap:vxlan], [RouteTarget:65001:102], [RouterMAC:aa:bb:cc:dd:ee:ff], [GroupPolicyID:200]} {LargeCommunity: [ 65001:111:222]}]
+[type:Prefix][rd:11.99.103.1:2][etag:0][prefix:fd10:0:200::33/128]   fc00:10:99:103::1   [{Origin: ?} {AsPath: } {LocalPref: 200} {Communities: 65001:111} {Extcomms: [Encap:vxlan], [RouteTarget:65001:102], [RouterMAC:aa:bb:cc:dd:ee:ff], [GroupPolicyID:200]} {LargeCommunity: [ 65001:111:222]}]
 -- gobgp-routes-b-ipv4.expected --
 Prefix                                                               NextHop       Attrs
-[type:Prefix][rd:10.99.103.1:2][etag:0][prefix:192.168.200.33/32]    10.99.103.1   [{Origin: ?} {AsPath: } {LocalPref: 200} {Communities: 65001:111} {Extcomms: [Encap:vxlan], [RouteTarget:65001:102], [RouterMAC:aa:bb:cc:dd:ee:ff], [GroupPolicyID:200]} {LargeCommunity: [ 65001:111:222]}]
-[type:Prefix][rd:10.99.103.1:2][etag:0][prefix:fd10:0:200::33/128]   10.99.103.1   [{Origin: ?} {AsPath: } {LocalPref: 200} {Communities: 65001:111} {Extcomms: [Encap:vxlan], [RouteTarget:65001:102], [RouterMAC:aa:bb:cc:dd:ee:ff], [GroupPolicyID:200]} {LargeCommunity: [ 65001:111:222]}]
+[type:Prefix][rd:11.99.103.1:2][etag:0][prefix:192.168.200.33/32]    11.99.103.1   [{Origin: ?} {AsPath: } {LocalPref: 200} {Communities: 65001:111} {Extcomms: [Encap:vxlan], [RouteTarget:65001:102], [RouterMAC:aa:bb:cc:dd:ee:ff], [GroupPolicyID:200]} {LargeCommunity: [ 65001:111:222]}]
+[type:Prefix][rd:11.99.103.1:2][etag:0][prefix:fd10:0:200::33/128]   11.99.103.1   [{Origin: ?} {AsPath: } {LocalPref: 200} {Communities: 65001:111} {Extcomms: [Encap:vxlan], [RouteTarget:65001:102], [RouterMAC:aa:bb:cc:dd:ee:ff], [GroupPolicyID:200]} {LargeCommunity: [ 65001:111:222]}]
 -- gobgp-routes-b-modified-mac.expected --
 Prefix                                                               NextHop       Attrs
-[type:Prefix][rd:10.99.103.1:2][etag:0][prefix:192.168.200.33/32]    10.99.103.1   [{Origin: ?} {AsPath: } {LocalPref: 200} {Communities: 65001:111} {Extcomms: [Encap:vxlan], [RouteTarget:65001:102], [RouterMAC:11:22:33:44:55:66], [GroupPolicyID:200]} {LargeCommunity: [ 65001:111:222]}]
-[type:Prefix][rd:10.99.103.1:2][etag:0][prefix:fd10:0:200::33/128]   10.99.103.1   [{Origin: ?} {AsPath: } {LocalPref: 200} {Communities: 65001:111} {Extcomms: [Encap:vxlan], [RouteTarget:65001:102], [RouterMAC:11:22:33:44:55:66], [GroupPolicyID:200]} {LargeCommunity: [ 65001:111:222]}]
+[type:Prefix][rd:11.99.103.1:2][etag:0][prefix:192.168.200.33/32]    11.99.103.1   [{Origin: ?} {AsPath: } {LocalPref: 200} {Communities: 65001:111} {Extcomms: [Encap:vxlan], [RouteTarget:65001:102], [RouterMAC:11:22:33:44:55:66], [GroupPolicyID:200]} {LargeCommunity: [ 65001:111:222]}]
+[type:Prefix][rd:11.99.103.1:2][etag:0][prefix:fd10:0:200::33/128]   11.99.103.1   [{Origin: ?} {AsPath: } {LocalPref: 200} {Communities: 65001:111} {Extcomms: [Encap:vxlan], [RouteTarget:65001:102], [RouterMAC:11:22:33:44:55:66], [GroupPolicyID:200]} {LargeCommunity: [ 65001:111:222]}]
 -- gobgp-routes-b-modified-vni.expected --
 Prefix                                                               NextHop       Attrs
-[type:Prefix][rd:10.99.103.1:2][etag:0][prefix:192.168.200.33/32]    10.99.103.1   [{Origin: ?} {AsPath: } {LocalPref: 200} {Communities: 65001:111} {Extcomms: [Encap:vxlan], [RouteTarget:65001:202], [RouterMAC:11:22:33:44:55:66], [GroupPolicyID:200]} {LargeCommunity: [ 65001:111:222]}]
-[type:Prefix][rd:10.99.103.1:2][etag:0][prefix:fd10:0:200::33/128]   10.99.103.1   [{Origin: ?} {AsPath: } {LocalPref: 200} {Communities: 65001:111} {Extcomms: [Encap:vxlan], [RouteTarget:65001:202], [RouterMAC:11:22:33:44:55:66], [GroupPolicyID:200]} {LargeCommunity: [ 65001:111:222]}]
+[type:Prefix][rd:11.99.103.1:2][etag:0][prefix:192.168.200.33/32]    11.99.103.1   [{Origin: ?} {AsPath: } {LocalPref: 200} {Communities: 65001:111} {Extcomms: [Encap:vxlan], [RouteTarget:65001:202], [RouterMAC:11:22:33:44:55:66], [GroupPolicyID:200]} {LargeCommunity: [ 65001:111:222]}]
+[type:Prefix][rd:11.99.103.1:2][etag:0][prefix:fd10:0:200::33/128]   11.99.103.1   [{Origin: ?} {AsPath: } {LocalPref: 200} {Communities: 65001:111} {Extcomms: [Encap:vxlan], [RouteTarget:65001:202], [RouterMAC:11:22:33:44:55:66], [GroupPolicyID:200]} {LargeCommunity: [ 65001:111:222]}]
 -- gobgp-routes-b-v4-only-ipv4-peer.expected --
 Prefix                                                              NextHop       Attrs
-[type:Prefix][rd:10.99.103.1:2][etag:0][prefix:192.168.200.33/32]   10.99.103.1   [{Origin: ?} {AsPath: } {LocalPref: 200} {Communities: 65001:111} {Extcomms: [Encap:vxlan], [RouteTarget:65001:202], [RouterMAC:11:22:33:44:55:66], [GroupPolicyID:200]} {LargeCommunity: [ 65001:111:222]}]
+[type:Prefix][rd:11.99.103.1:2][etag:0][prefix:192.168.200.33/32]   11.99.103.1   [{Origin: ?} {AsPath: } {LocalPref: 200} {Communities: 65001:111} {Extcomms: [Encap:vxlan], [RouteTarget:65001:202], [RouterMAC:11:22:33:44:55:66], [GroupPolicyID:200]} {LargeCommunity: [ 65001:111:222]}]
 -- gobgp-routes-b-v4-only-ipv6-peer.expected --
 Prefix                                                              NextHop             Attrs
-[type:Prefix][rd:10.99.103.1:2][etag:0][prefix:192.168.200.33/32]   fc00:10:99:103::1   [{Origin: ?} {AsPath: } {LocalPref: 200} {Communities: 65001:111} {Extcomms: [Encap:vxlan], [RouteTarget:65001:202], [RouterMAC:11:22:33:44:55:66], [GroupPolicyID:200]} {LargeCommunity: [ 65001:111:222]}]
+[type:Prefix][rd:11.99.103.1:2][etag:0][prefix:192.168.200.33/32]   fc00:10:99:103::1   [{Origin: ?} {AsPath: } {LocalPref: 200} {Communities: 65001:111} {Extcomms: [Encap:vxlan], [RouteTarget:65001:202], [RouterMAC:11:22:33:44:55:66], [GroupPolicyID:200]} {LargeCommunity: [ 65001:111:222]}]
