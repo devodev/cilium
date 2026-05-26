@@ -1562,7 +1562,8 @@ privnet_unknown_policy_ingress4(struct __ctx_buff *ctx,
 }
 
 /* privnet_lxc_ingress_ipv4 should be called for privnet enabled endpoints when traffic is going to
- * those endpoints.
+ * those endpoints, but only if the packet is in PIP space, i.e. not for unknown flow or local
+ * access.
  *
  * Following changes are done in this call
  * - Lookup of private IP from PIPs.
@@ -1571,27 +1572,14 @@ privnet_unknown_policy_ingress4(struct __ctx_buff *ctx,
  * - Enforce segmentation to prevent invalid traffic from going to the destination.
  */
 static __always_inline int
-privnet_lxc_ingress_ipv4(struct __ctx_buff *ctx,
-			 __u32 sec_label, __u16 net_id,
-			 bool unknown_flow, bool unxlated_flow,
-			 struct trace_ctx *trace)
+privnet_lxc_ingress_ipv4(struct __ctx_buff *ctx, __u16 net_id)
 {
-	void *data, *data_end;
-	struct iphdr *ip4;
 	const struct privnet_pip_val *sip_val = NULL;
 	const struct privnet_pip_val *dip_val = NULL;
-	int ret = CTX_ACT_OK;
 	bool host_traffic = false; /* pkt originating from a (remote) host identity */
-
-	/* unxlated_flow means both src and dst are in private-network space. As such
-	 * there will be no entry for such src/dst in pip map.
-	 * Set net_ids based on passed net_id and check ingress unknown policy.
-	 * And return early after ingress policy check.
-	 */
-	if (unxlated_flow) {
-		set_privnet_net_ids(net_id, net_id);
-		return privnet_unknown_policy_ingress4(ctx, net_id, sec_label, trace);
-	}
+	void *data, *data_end;
+	int ret = CTX_ACT_OK;
+	struct iphdr *ip4;
 
 	if (!revalidate_data(ctx, &data, &data_end, &ip4))
 		return DROP_INVALID;
@@ -1601,8 +1589,7 @@ privnet_lxc_ingress_ipv4(struct __ctx_buff *ctx,
 	/* SNAT (remote) host request. This must happen be before the stateless P-IP SNAT, as
 	 * the host SNAT uses global CT/NAT maps (P-IP and PrivNet netIP can collide).
 	 */
-	if (CONFIG(privnet_host_reachability) &&
-	    !sip_val && !unknown_flow) {
+	if (CONFIG(privnet_host_reachability) && !sip_val) {
 		const struct remote_endpoint_info *info = lookup_ip4_remote_endpoint(ip4->saddr, 0);
 		__u32 src_sec_identity = info ? info->sec_identity : UNKNOWN_ID;
 
@@ -1617,10 +1604,9 @@ privnet_lxc_ingress_ipv4(struct __ctx_buff *ctx,
 
 	/* Perform source NAT only if :
 	 * (a) corresponding netIP exist, and
-	 * (b) not an unknown flow, since that traffic comes with source in private-network space, and
-	 * (c) the network ID matches the expected one.
+	 * (b) the network ID matches the expected one.
 	 */
-	if (sip_val && !unknown_flow && net_id == sip_val->net_id) {
+	if (sip_val && net_id == sip_val->net_id) {
 		ret = privnet_nat_v4_addr(ctx, ip4->saddr, sip_val->ip4.be32, IPV4_SADDR_OFF);
 		if (IS_ERR(ret)) {
 			if (ret == DROP_CSUM_L3 || ret == DROP_CSUM_L4)
@@ -1654,22 +1640,82 @@ privnet_lxc_ingress_ipv4(struct __ctx_buff *ctx,
 		}
 		/* Set net id to target network.*/
 		set_privnet_net_dst_id(dip_val->net_id);
-		if (unknown_flow)
-			/* If we're in unknown flow - the source is also in th target
-			 * network, even though we did not NAT it.
-			 */
-			set_privnet_net_src_id(dip_val->net_id);
+	}
+
+	return enforce_privnet_ingress_segmentation_at_lxc(false, host_traffic,
+							   net_id, sip_val, dip_val);
+}
+
+/* privnet_lxc_unknown_ingress_ipv4 should be called for privnet enabled endpoints when unknown
+ * flow traffic is going to those endpoints, i.e. when the destination is translated, but the
+ * source is in netIP space.
+ *
+ * Following changes are done in this call
+ * - Lookup of destination IP from PIPs.
+ * - Translating PIP to private IPs, fordestination.
+ * - Do unknown flow policy enforcement.
+ * - Enforce segmentation to prevent invalid traffic from going to the destination.
+ */
+static __always_inline int
+privnet_lxc_unknown_ingress_ipv4(struct __ctx_buff *ctx,
+				 __u32 sec_label, __u16 net_id,
+				 struct trace_ctx *trace)
+{
+	const struct privnet_pip_val *dip_val = NULL;
+	void *data, *data_end;
+	int ret = CTX_ACT_OK;
+	struct iphdr *ip4;
+
+	if (!revalidate_data(ctx, &data, &data_end, &ip4))
+		return DROP_INVALID;
+
+	dip_val = privnet_pip_lookup4(ip4->daddr);
+	if (dip_val && net_id == dip_val->net_id) {
+		/* Perform destination NAT only if:
+		 * (a) the network ID matches the expected one
+		 */
+		ret = privnet_nat_v4_addr(ctx, ip4->daddr, dip_val->ip4.be32, IPV4_DADDR_OFF);
+		if (IS_ERR(ret)) {
+			if (ret == DROP_CSUM_L3 || ret == DROP_CSUM_L4)
+				/* Checksum failure still means we (somewhat)
+				 * successfully NATed the packet
+				 */
+				set_privnet_net_ids(dip_val->net_id, dip_val->net_id);
+			return ret;
+		}
+		/* Set net id to target network.
+		 * For unknown flow - the source is also in the target
+		 * network, even though we did not NAT it.
+		 */
+		set_privnet_net_ids(dip_val->net_id, dip_val->net_id);
 	}
 
 	/* enforce ingress policy for unknown flow */
-	if (unknown_flow) {
-		ret = privnet_unknown_policy_ingress4(ctx, net_id, sec_label, trace);
-		if (ret != CTX_ACT_OK)
-			return ret;
-	}
+	ret = privnet_unknown_policy_ingress4(ctx, net_id, sec_label, trace);
+	if (ret != CTX_ACT_OK)
+		return ret;
 
-	return enforce_privnet_ingress_segmentation_at_lxc(unknown_flow, host_traffic,
-							   net_id, sip_val, dip_val);
+	return enforce_privnet_ingress_segmentation_at_lxc(true, false,
+							   net_id, NULL, dip_val);
+}
+
+/* privnet_lxc_unxlated_ingress_ipv4 should be called for privnet enabled endpoints when unxlated
+ * traffic is going to those endpoints, i.e. traffic from local access or EVPN.
+ *
+ * The call does unknown flow policy
+ */
+static __always_inline int
+privnet_lxc_unxlated_ingress_ipv4(struct __ctx_buff *ctx,
+				  __u32 sec_label, __u16 net_id,
+				  struct trace_ctx *trace)
+{
+	/* unxlated_flow means both src and dst are in private-network space. As such
+	 * there will be no entry for such src/dst in pip map.
+	 * Set net_ids based on passed net_id and check ingress unknown policy.
+	 * And return early after ingress policy check.
+	 */
+	set_privnet_net_ids(net_id, net_id);
+	return privnet_unknown_policy_ingress4(ctx, net_id, sec_label, trace);
 }
 
 /* privnet_inb_ingress_ipv4 should be called from overlay device in INB for traffic
@@ -1810,6 +1856,7 @@ privnet_unknown_policy_ingress6(struct __ctx_buff *ctx,
 		trace->monitor = monitor;
 		trace->reason = (enum trace_reason)ct_ret;
 	}
+
 	/* Skip policy enforcement for return traffic. */
 	if (ct_ret == CT_REPLY || ct_ret == CT_RELATED)
 		return CTX_ACT_OK;
@@ -1847,22 +1894,15 @@ privnet_unknown_policy_ingress6(struct __ctx_buff *ctx,
 }
 
 static __always_inline int
-privnet_lxc_ingress_ipv6(struct __ctx_buff *ctx, __u32 sec_label, __u16 net_id,
-			 bool unknown_flow, bool unxlated_flow, struct trace_ctx *trace)
+privnet_lxc_ingress_ipv6(struct __ctx_buff *ctx, __u16 net_id)
 {
-	void *data, *data_end;
-	struct ipv6hdr *ip6;
 	const struct privnet_pip_val *sip_val = NULL;
 	const struct privnet_pip_val *dip_val = NULL;
 	union v6addr orig_sip, orig_dip;
-	int ret = CTX_ACT_OK;
 	bool host_traffic = false;
-
-	/* check comment in privnet_lxc_ingress_ipv4 */
-	if (unxlated_flow) {
-		set_privnet_net_ids(net_id, net_id);
-		return privnet_unknown_policy_ingress6(ctx, net_id, sec_label, trace);
-	}
+	void *data, *data_end;
+	int ret = CTX_ACT_OK;
+	struct ipv6hdr *ip6;
 
 	if (!revalidate_data(ctx, &data, &data_end, &ip6))
 		return DROP_INVALID;
@@ -1873,9 +1913,7 @@ privnet_lxc_ingress_ipv6(struct __ctx_buff *ctx, __u32 sec_label, __u16 net_id,
 	sip_val = privnet_pip_lookup6(orig_sip);
 
 	/* Host reachability is disabled for v6 due to BPF complexity limits */
-	if (is_defined(WIP) &&
-	    CONFIG(privnet_host_reachability) &&
-	    !sip_val && !unknown_flow) {
+	if (is_defined(WIP) && CONFIG(privnet_host_reachability) && !sip_val) {
 		const struct remote_endpoint_info *info = lookup_ip6_remote_endpoint(&orig_sip, 0);
 		__u32 src_sec_identity = info ? info->sec_identity : UNKNOWN_ID;
 
@@ -1888,8 +1926,8 @@ privnet_lxc_ingress_ipv6(struct __ctx_buff *ctx, __u32 sec_label, __u16 net_id,
 		}
 	}
 
-	/* check comment in privnet_lxc_ingress_ipv4 */
-	if (sip_val && !unknown_flow && net_id == sip_val->net_id) {
+	/* Perform source NAT only if corresponding netIP exists and the network ID matches. */
+	if (sip_val && net_id == sip_val->net_id) {
 		ret = privnet_nat_v6_addr(ctx, &orig_sip, &sip_val->ip6,
 					  IPV6_SADDR_OFF);
 		if (IS_ERR(ret))
@@ -1906,22 +1944,56 @@ privnet_lxc_ingress_ipv6(struct __ctx_buff *ctx, __u32 sec_label, __u16 net_id,
 			return ret;
 		/* Set net id to target network.*/
 		set_privnet_net_dst_id(dip_val->net_id);
-		if (unknown_flow)
-			/* If we're in unknown flow - the source is also in th target
-			 * network, even though we did not NAT it.
-			 */
-			set_privnet_net_src_id(dip_val->net_id);
+	}
+
+	return enforce_privnet_ingress_segmentation_at_lxc(false, host_traffic,
+							   net_id, sip_val, dip_val);
+}
+
+static __always_inline int
+privnet_lxc_unknown_ingress_ipv6(struct __ctx_buff *ctx, __u32 sec_label, __u16 net_id,
+				 struct trace_ctx *trace)
+{
+	const struct privnet_pip_val *dip_val = NULL;
+	void *data, *data_end;
+	union v6addr orig_dip;
+	int ret = CTX_ACT_OK;
+	struct ipv6hdr *ip6;
+
+	if (!revalidate_data(ctx, &data, &data_end, &ip6))
+		return DROP_INVALID;
+
+	ipv6_addr_copy(&orig_dip, (union v6addr *)&ip6->daddr);
+
+	dip_val = privnet_pip_lookup6(orig_dip);
+	if (dip_val && net_id == dip_val->net_id) {
+		ret = privnet_nat_v6_addr(ctx, &orig_dip, &dip_val->ip6,
+					  IPV6_DADDR_OFF);
+		if (IS_ERR(ret))
+			return ret;
+
+		/* Set net ids to target network.
+		 * For in unknown flow - the source is also in the target
+		 * network, even though we did not NAT it.
+		 */
+		set_privnet_net_ids(dip_val->net_id, dip_val->net_id);
 	}
 
 	/* enforce ingress policy for unknown flow */
-	if (unknown_flow) {
-		ret = privnet_unknown_policy_ingress6(ctx, net_id, sec_label, trace);
-		if (ret != CTX_ACT_OK)
-			return ret;
-	}
+	ret = privnet_unknown_policy_ingress6(ctx, net_id, sec_label, trace);
+	if (ret != CTX_ACT_OK)
+		return ret;
 
-	return enforce_privnet_ingress_segmentation_at_lxc(unknown_flow, host_traffic,
-							   net_id, sip_val, dip_val);
+	return enforce_privnet_ingress_segmentation_at_lxc(true, false,
+							   net_id, NULL, dip_val);
+}
+
+static __always_inline int
+privnet_lxc_unxlated_ingress_ipv6(struct __ctx_buff *ctx, __u32 sec_label, __u16 net_id,
+				  struct trace_ctx *trace)
+{
+	set_privnet_net_ids(net_id, net_id);
+	return privnet_unknown_policy_ingress6(ctx, net_id, sec_label, trace);
 }
 
 /* See comments in privnet_inb_ingress_ipv4 */

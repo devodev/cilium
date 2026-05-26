@@ -245,7 +245,7 @@ enterprise_privnet_to_lxc_ipv4_after_policy(struct __ctx_buff *ctx)
 		if (unlikely(!net_id || !(*net_id)))
 			return DROP_UNROUTABLE;
 
-		ret = privnet_lxc_ingress_ipv4(ctx, SECLABEL_IPV4, *net_id, false, false, NULL);
+		ret = privnet_lxc_ingress_ipv4(ctx, *net_id);
 		if (IS_ERR(ret))
 			return ret;
 	}
@@ -265,7 +265,7 @@ enterprise_privnet_to_lxc_ipv6_after_policy(struct __ctx_buff *ctx)
 		if (unlikely(!net_id || !(*net_id)))
 			return DROP_UNROUTABLE;
 
-		ret = privnet_lxc_ingress_ipv6(ctx, SECLABEL_IPV6, *net_id, false, false, NULL);
+		ret = privnet_lxc_ingress_ipv6(ctx, *net_id);
 		if (IS_ERR(ret))
 			return ret;
 	}
@@ -367,11 +367,13 @@ static __always_inline int tail_handle_ipv4_privnet_unknown_ingress(struct __ctx
 	from_tunnel = ctx_load_meta(ctx, CB_FROM_TUNNEL);
 #endif
 
-	ret = privnet_lxc_ingress_ipv4(ctx, SECLABEL_IPV4, *net_id,
-				       is_privnet_unknown_inb_flow(ctx),
-				       is_privnet_evpn_flow(ctx) ||
-					       is_privnet_local_access_flow(ctx),
-				       &trace);
+	if (is_privnet_unknown_inb_flow(ctx))
+		ret = privnet_lxc_unknown_ingress_ipv4(ctx, SECLABEL_IPV4, *net_id, &trace);
+	else if (is_privnet_evpn_flow(ctx) || is_privnet_local_access_flow(ctx))
+		ret = privnet_lxc_unxlated_ingress_ipv4(ctx, SECLABEL_IPV4, *net_id, &trace);
+	else
+		return DROP_UNROUTABLE;
+
 	if (IS_ERR(ret))
 		return ret;
 
@@ -407,11 +409,13 @@ static __always_inline int tail_handle_ipv6_privnet_unknown_ingress(struct __ctx
 	from_tunnel = ctx_load_meta(ctx, CB_FROM_TUNNEL);
 #endif
 
-	ret = privnet_lxc_ingress_ipv6(ctx, SECLABEL_IPV6, *net_id,
-				       is_privnet_unknown_inb_flow(ctx),
-				       is_privnet_evpn_flow(ctx) ||
-					       is_privnet_local_access_flow(ctx),
-				       &trace);
+	if (is_privnet_unknown_inb_flow(ctx))
+		ret = privnet_lxc_unknown_ingress_ipv6(ctx, SECLABEL_IPV6, *net_id, &trace);
+	else if (is_privnet_evpn_flow(ctx) || is_privnet_local_access_flow(ctx))
+		ret = privnet_lxc_unxlated_ingress_ipv6(ctx, SECLABEL_IPV6, *net_id, &trace);
+	else
+		return DROP_UNROUTABLE;
+
 	if (IS_ERR(ret))
 		return ret;
 
