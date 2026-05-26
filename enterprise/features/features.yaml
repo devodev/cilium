@@ -306,6 +306,14 @@ features:
     helm:
       bpf.datapathMode: "netkit-l2"
 
+  DatapathModeAuto:
+    maturity: Limited
+    description: Enable auto datapath mode
+    flags:
+      datapath-mode: "auto"
+    helm:
+      bpf.datapathMode: "auto"
+
   DatapathModeLBOnly:
     maturity: Stable
     description: |
