@@ -347,6 +347,7 @@ __declare_tail(CILIUM_CALL_IPV4_PRIVNET_UNKNOWN_INGRESS)
 static __always_inline int tail_handle_ipv4_privnet_unknown_ingress(struct __ctx_buff *ctx)
 {
 	bool from_host = ctx_load_meta(ctx, CB_FROM_HOST);
+	__u32 src_sec_id = UNKNOWN_ID;
 	bool from_tunnel = false;
 	int ret = CTX_ACT_OK;
 	const __u16 *net_id;
@@ -368,16 +369,18 @@ static __always_inline int tail_handle_ipv4_privnet_unknown_ingress(struct __ctx
 #endif
 
 	if (is_privnet_unknown_inb_flow(ctx))
-		ret = privnet_lxc_unknown_ingress_ipv4(ctx, SECLABEL_IPV4, *net_id, &trace);
+		ret = privnet_lxc_unknown_ingress_ipv4(ctx, SECLABEL_IPV4, *net_id,
+						       &src_sec_id, &trace);
 	else if (is_privnet_evpn_flow(ctx) || is_privnet_local_access_flow(ctx))
-		ret = privnet_lxc_unxlated_ingress_ipv4(ctx, SECLABEL_IPV4, *net_id, &trace);
+		ret = privnet_lxc_unxlated_ingress_ipv4(ctx, SECLABEL_IPV4, *net_id,
+							&src_sec_id, &trace);
 	else
 		return DROP_UNROUTABLE;
 
 	if (IS_ERR(ret))
 		return ret;
 
-	send_trace_notify(ctx, TRACE_TO_LXC, WORLD_IPV4_ID, SECLABEL_IPV4, LXC_ID,
+	send_trace_notify(ctx, TRACE_TO_LXC, src_sec_id, SECLABEL_IPV4, LXC_ID,
 			  CONFIG(interface_ifindex), trace.reason, trace.monitor,
 			  bpf_htons(ETH_P_IP));
 
@@ -389,6 +392,7 @@ __declare_tail(CILIUM_CALL_IPV6_PRIVNET_UNKNOWN_INGRESS)
 static __always_inline int tail_handle_ipv6_privnet_unknown_ingress(struct __ctx_buff *ctx)
 {
 	bool from_host = ctx_load_meta(ctx, CB_FROM_HOST);
+	__u32 src_sec_id = UNKNOWN_ID;
 	bool from_tunnel = false;
 	int ret = CTX_ACT_OK;
 	const __u16 *net_id;
@@ -410,16 +414,18 @@ static __always_inline int tail_handle_ipv6_privnet_unknown_ingress(struct __ctx
 #endif
 
 	if (is_privnet_unknown_inb_flow(ctx))
-		ret = privnet_lxc_unknown_ingress_ipv6(ctx, SECLABEL_IPV6, *net_id, &trace);
+		ret = privnet_lxc_unknown_ingress_ipv6(ctx, SECLABEL_IPV6, *net_id,
+						       &src_sec_id, &trace);
 	else if (is_privnet_evpn_flow(ctx) || is_privnet_local_access_flow(ctx))
-		ret = privnet_lxc_unxlated_ingress_ipv6(ctx, SECLABEL_IPV6, *net_id, &trace);
+		ret = privnet_lxc_unxlated_ingress_ipv6(ctx, SECLABEL_IPV6, *net_id,
+							&src_sec_id, &trace);
 	else
 		return DROP_UNROUTABLE;
 
 	if (IS_ERR(ret))
 		return ret;
 
-	send_trace_notify(ctx, TRACE_TO_LXC, WORLD_IPV6_ID, SECLABEL_IPV6, LXC_ID,
+	send_trace_notify(ctx, TRACE_TO_LXC, src_sec_id, SECLABEL_IPV6, LXC_ID,
 			  CONFIG(interface_ifindex), trace.reason, trace.monitor,
 			  bpf_htons(ETH_P_IPV6));
 
