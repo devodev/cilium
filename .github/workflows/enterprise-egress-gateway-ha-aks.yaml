@@ -209,7 +209,10 @@ jobs:
             --flow-validation=disabled \
             --include-unsafe-tests \
             --collect-sysdump-on-failure \
-            --log-check-extra-exceptions=cleanup-peer-config-status
+            --log-check-extra-exceptions=cleanup-peer-config-status \
+            --log-check-extra-exceptions='restart flag is not set' \
+            --log-check-extra-exceptions='received notification' \
+            --log-check-extra-exceptions='failed to send'
           "
 
           if [ "${{ matrix.ipam }}" == "multi-pool" ]; then

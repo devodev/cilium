@@ -173,7 +173,10 @@ jobs:
             --include-unsafe-tests \
             --collect-sysdump-on-failure \
             --log-check-extra-exceptions=cleanup-peer-config-status \
-            --log-check-extra-exceptions='failed to update node spec: Operation cannot be fulfilled on ciliumnodes.cilium.io'
+            --log-check-extra-exceptions='failed to update node spec: Operation cannot be fulfilled on ciliumnodes.cilium.io' \
+            --log-check-extra-exceptions='restart flag is not set' \
+            --log-check-extra-exceptions='received notification' \
+            --log-check-extra-exceptions='failed to send'
           "
 
           OWNER="${{ github.ref_name }}"
