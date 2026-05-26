@@ -60,6 +60,10 @@ kind-privnet-up:  ## Setup the privnet environment
 		sudo ip link add local-sgmnts type bridge vlan_filtering 1 vlan_default_pvid 0
 	$(QUIET) sudo ip link set local-sgmnts up
 
+	$(QUIET) ip link sh dev privnet-dp >/dev/null 2>/dev/null || \
+		sudo ip link add privnet-dp type bridge
+	$(QUIET) sudo ip link set privnet-dp up
+
 	# Containerlab needs to be run as root, either via sudo, or typically via
 	# being configured as a SUID binary. However, that also means that the
 	# kubeconfig ends up being owned by root, which is undesired. Hence, let's
@@ -71,6 +75,7 @@ kind-privnet-up:  ## Setup the privnet environment
 		KIND_EXPERIMENTAL_DOCKER_NETWORK=privnet \
 		PRIVNET_BRIDGE=privnet-sgmnts \
 		LOCAL_BRIDGE=local-sgmnts \
+		PRIVNET_DP_BRIDGE=privnet-dp \
 		PRIVNET_KIND_IMAGE=$(PRIVNET_KIND_IMAGE) \
 		PRIVNET_CONTAINER_IMAGE=$(PRIVNET_CONTAINER_IMAGE) \
 		PRIVNET_DNSMASQ_IMAGE=$(PRIVNET_DNSMASQ_IMAGE) \
@@ -105,6 +110,9 @@ kind-privnet-down:  ## Tear down the privnet environment
 
 	$(QUIET) ip link sh dev local-sgmnts >/dev/null 2>/dev/null && \
 		sudo ip link del local-sgmnts type bridge || true
+
+	$(QUIET) ip link sh dev privnet-dp >/dev/null 2>/dev/null && \
+		sudo ip link del privnet-dp type bridge || true
 
 .PHONY: kind-privnet-ready
 kind-privnet-ready:  ## Check the readiness of the privnet environment

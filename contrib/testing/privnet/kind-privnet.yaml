@@ -32,6 +32,7 @@ debug:
 
 devices:
   - eth+
+  - dp0
 
 enterprise:
   featureGate:
