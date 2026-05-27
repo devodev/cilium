@@ -41,6 +41,7 @@ echo "CILIUM_CLI_RELEASE_REPO=isovalent/cilium-cli-releases" >> "$GITHUB_ENV"
 CILIUM_CLI_VERSION=""
 echo "CILIUM_CLI_VERSION=$CILIUM_CLI_VERSION" >> "$GITHUB_ENV"
 echo "CILIUM_CLI_IMAGE_REPO=${REGISTRY_DEV}/isovalent-dev/cilium-cli-ci" >> $GITHUB_ENV
+echo "CILIUM_CLI_IMAGE_REPO_ARTIFACTORY=${ARTIFACTORY_DEV}/isovalent-eng-docker/cilium-cli-ci" >> $GITHUB_ENV
 echo "CILIUM_CLI_SKIP_BUILD=false" >> $GITHUB_ENV
 echo "CILIUM_CLI_CODE_OWNERS_PATHS=CODEOWNERS,TESTOWNERS.enterprise" >> $GITHUB_ENV
 echo "CILIUM_CLI_EXCLUDE_OWNERS=@isovalent/core-structure" >> $GITHUB_ENV
