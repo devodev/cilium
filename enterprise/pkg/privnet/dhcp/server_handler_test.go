@@ -420,3 +420,78 @@ func TestHandlerIgnoresOfferOutsideWorkloadSubnet(t *testing.T) {
 	_, _, found := leases.Get(txn, tables.DHCPLeaseByNetworkMAC("blue", mac.MAC(reqMAC)))
 	require.False(t, found)
 }
+
+func TestHandlerRewritesRoutes(t *testing.T) {
+	var (
+		zero = net.IPv4zero.To4()
+		gw1  = net.IPv4(169, 254, 0, 1).To4()
+		gw3  = net.IPv4(169, 254, 0, 3).To4()
+
+		mutator = func(nic uint8) func(tables.LocalWorkload) *tables.LocalWorkload {
+			return func(lw tables.LocalWorkload) *tables.LocalWorkload {
+				lw.NICIndex = nic
+				return &lw
+			}
+		}
+
+		tests = []struct {
+			name    string
+			mutator func(tables.LocalWorkload) *tables.LocalWorkload
+			routers []net.IP
+			routes  []*dhcpv4.Route
+		}{
+			{
+				name:    "primary",
+				mutator: mutator(0),
+				routers: []net.IP{gw1},
+				routes: []*dhcpv4.Route{
+					{Dest: &net.IPNet{IP: zero, Mask: net.CIDRMask(0, 32)}, Router: gw1},
+					{Dest: &net.IPNet{IP: gw1, Mask: net.CIDRMask(32, 32)}, Router: zero},
+				},
+			},
+			{
+				name:    "secondary",
+				mutator: mutator(2),
+				routes: []*dhcpv4.Route{
+					{Dest: &net.IPNet{IP: net.IPv4(192, 168, 1, 0).To4(), Mask: net.CIDRMask(24, 32)}, Router: gw3},
+					{Dest: &net.IPNet{IP: gw3, Mask: net.CIDRMask(32, 32)}, Router: zero},
+				},
+			},
+		}
+	)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			db, workloads, leaseWriter, _, subnets, lw, req, _ := setupHandlerTestState(t)
+
+			wtx := db.WriteTxn(workloads)
+			workloads.Insert(wtx, tt.mutator(*lw))
+			wtx.Commit()
+
+			resp, err := dhcpv4.NewReplyFromRequest(req,
+				dhcpv4.WithMessageType(dhcpv4.MessageTypeOffer),
+				dhcpv4.WithYourIP(net.IPv4(192, 168, 1, 1)),
+				dhcpv4.WithRouter(net.IPv4(1, 2, 3, 4)),
+				dhcpv4.WithOption(
+					dhcpv4.OptClasslessStaticRoute(&dhcpv4.Route{
+						Dest:   &net.IPNet{IP: net.IPv4zero, Mask: net.CIDRMask(0, 32)},
+						Router: net.IPv4(1, 2, 3, 4),
+					}),
+				),
+			)
+			require.NoError(t, err)
+			factory := &fakeRelayFactory{relay: &fakeRelay{resp: resp}}
+
+			h := newServerHandler(slog.Default(), db, workloads, leaseWriter, subnets, factory, 500*time.Millisecond)
+			h.now = func() time.Time { return time.Date(2024, 1, 2, 3, 4, 5, 0, time.UTC) }
+
+			// Process the DHCP request and the returning ack via the [fakeRelay].
+			_, resps, err := h.serverHandler()(t.Context(), nil, lw.EndpointID, req)
+			require.NoError(t, err)
+			require.Len(t, resps, 1)
+
+			require.Equal(t, tt.routers, resps[0].Router())
+			require.Equal(t, tt.routes, resps[0].ClasslessStaticRoute())
+		})
+	}
+}
