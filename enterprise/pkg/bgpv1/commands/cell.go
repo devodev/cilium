@@ -36,6 +36,7 @@ var Cell = cell.Group(
 				// Override the OSS BGP commands with the
 				// enterprise-extended versions when both OSS and
 				// enterprise BGP Control Plane are enabled.
+				ossCmds["bgp/peers"] = ossCommands.BGPPeersCmd(bgpMgr)
 				ossCmds["bgp/routes"] = BGPRoutesCmd(bgpMgr, errorPathStore)
 				ossCmds["bgp/route-policies"] = BGPPRoutePolicies(bgpMgr)
 			}
@@ -67,6 +68,7 @@ var Cell = cell.Group(
 			// provide the enterprise-extended BGP commands
 			// directly.
 			return hive.NewScriptCmds(map[string]script.Cmd{
+				"bgp/peers":          ossCommands.BGPPeersCmd(bgpMgr),
 				"bgp/routes":         BGPRoutesCmd(bgpMgr, errorPathStore),
 				"bgp/route-policies": BGPPRoutePolicies(bgpMgr),
 			})
