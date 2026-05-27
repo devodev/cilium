@@ -8,7 +8,7 @@
 # or reproduction of this material is strictly forbidden unless prior written
 # permission is obtained from Isovalent Inc.
 
-ARG BASE_IMAGE=registry.redhat.io/ubi9/ubi-minimal@sha256:bb08f2300cb8d12a7eb91dddf28ea63692b3ec99e7f0fa71a1b300f2756ea829
+ARG BASE_IMAGE=registry.redhat.io/ubi9/ubi-minimal@sha256:5b74fce9d6e629942a0c6dc0f546c193e70d7f974d999a48c948c53dd3d36362
 ARG CILIUM_BUILDER_IMAGE=quay.io/cilium/cilium-builder:1455651dae8605e072b29d74e22c90a7be2ea885@sha256:a299c3ef5549e6ab80e5249c1bd44cb85b930441bbe1bdcd7dd278295429aeae
 
 # BUILDPLATFORM is an automatic platform ARG enabled by Docker BuildKit.
