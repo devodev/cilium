@@ -22,6 +22,7 @@ import (
 
 	daemon_k8s "github.com/cilium/cilium/daemon/k8s"
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
+	"github.com/cilium/cilium/enterprise/pkg/bgpv1/manager/instance"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
 	"github.com/cilium/cilium/pkg/bgp/agent/signaler"
 	"github.com/cilium/cilium/pkg/bgp/manager/reconciler"
@@ -57,15 +58,12 @@ type EnterpriseStateReconcileParams struct {
 	DeletedInstance string
 }
 
-// EnterpriseBGPInstance is an enterprise specific version of
-// reconcilerv2.BGPInstance. It must be created with
-// reconcileParamsUpgrader.upgrade.
-type EnterpriseBGPInstance struct {
-	Name   string
-	Config *v1.IsovalentBGPNodeInstance
-	Router types.EnterpriseRouter
-	Global ossTypes.BGPGlobal
-}
+// FIXME: EnterpriseBGPInstance keeps the existing reconciler code on its
+// current local name while the native manager starts using manager/instance
+// directly. This is a temporary type alias to minimize the code churn. We can
+// remove it once reconcilers fully migrate to the enterprise native
+// implementation.
+type EnterpriseBGPInstance = instance.EnterpriseBGPInstance
 
 type paramUpgrader interface {
 	upgrade(params reconciler.ReconcileParams) (EnterpriseReconcileParams, error)
