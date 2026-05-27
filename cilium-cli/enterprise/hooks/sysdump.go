@@ -1078,6 +1078,27 @@ func addSysdumpTasks(collector *sysdump.Collector, opts *EnterpriseOptions) erro
 			},
 		},
 		{
+			Description: "Collecting InspectionConfigs",
+			Quick:       true,
+			Task: func(ctx context.Context) error {
+				resource := "isovalentinspectionconfigs"
+				inspectionCfgs := schema.GroupVersionResource{
+					Group:    "isovalent.com",
+					Resource: resource,
+					Version:  "v1alpha1",
+				}
+				n := corev1.NamespaceAll
+				v, err := collector.Client.ListUnstructured(ctx, inspectionCfgs, &n, metav1.ListOptions{})
+				if err != nil {
+					return fmt.Errorf("failed to collect InspectionConfigs: %w", err)
+				}
+				if err := collector.WriteYAML(fmt.Sprintf("cilium-enterprise-%s-<ts>.yaml", resource), v); err != nil {
+					return fmt.Errorf("failed to collect InspectionConfigs: %w", err)
+				}
+				return nil
+			},
+		},
+		{
 			Description: "Collecting diagnostics",
 			Task: func(ctx context.Context) error {
 				return collector.WithFileSink("diagnostics.txt", func(w io.Writer) error {
