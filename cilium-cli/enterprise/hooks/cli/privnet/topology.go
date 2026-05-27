@@ -567,7 +567,7 @@ var networkTopology = struct {
 					NAD:       NADFor(NetworkA, SubnetName0),
 					IPv4:      netip.MustParseAddr("0.0.0.0"), /* zero or missing IPv4 signals use of DHCP */
 					IPv6:      netip.MustParseAddr("fd10:0:250::15"),
-					Routes:    slices.Concat(newVMRoutes("192.168.250.0/24", 1), newVMRoutes("fd10:0:250::/64", 1)),
+					Routes:    newVMRoutes("fd10:0:250::/64", 1),
 					DNSServer: netip.MustParseAddr("192.168.250.254"),
 					MAC:       "02:00:00:e6:bb:ff",
 				},
