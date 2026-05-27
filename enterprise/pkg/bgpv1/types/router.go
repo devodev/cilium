@@ -12,6 +12,7 @@ package types
 
 import (
 	"context"
+	"log/slog"
 	"net/netip"
 
 	ossTypes "github.com/cilium/cilium/pkg/bgp/types"
@@ -45,6 +46,11 @@ type EnterpriseRouter interface {
 
 	// UpdateNeighborExtended updates enterprise-specific BGP peer
 	UpdateNeighborExtended(ctx context.Context, n *EnterpriseNeighbor) error
+}
+
+// EnterpriseRouterProvider provides enterprise BGP router instances.
+type EnterpriseRouterProvider interface {
+	NewEnterpriseRouter(ctx context.Context, log *slog.Logger, params ossTypes.ServerParameters) (EnterpriseRouter, error)
 }
 
 type GetRoutesExtendedRequest struct {

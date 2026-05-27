@@ -14,16 +14,32 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/cilium/cilium/pkg/bgp/types"
+	"github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
+	ossTypes "github.com/cilium/cilium/pkg/bgp/types"
 )
 
-// EnterpriseRouterProvider provides enterprise GoBGP server instances.
+// EnterpriseRouterProvider provides enterprise GoBGP server instances. It
+// implements both the OSS RouterProvider interface and the
+// EnterpriseRouterProvider interface, allowing it to be used in both contexts.
 type EnterpriseRouterProvider struct{}
 
-func NewEnterpriseRouterProvider() types.RouterProvider {
+var (
+	_ ossTypes.RouterProvider        = (*EnterpriseRouterProvider)(nil)
+	_ types.EnterpriseRouterProvider = (*EnterpriseRouterProvider)(nil)
+)
+
+func NewEnterpriseRouterProvider() types.EnterpriseRouterProvider {
 	return &EnterpriseRouterProvider{}
 }
 
-func (p *EnterpriseRouterProvider) NewRouter(ctx context.Context, log *slog.Logger, params types.ServerParameters) (types.Router, error) {
+func NewEnterpriseRouterProviderAsOSS() ossTypes.RouterProvider {
+	return &EnterpriseRouterProvider{}
+}
+
+func (p *EnterpriseRouterProvider) NewRouter(ctx context.Context, log *slog.Logger, params ossTypes.ServerParameters) (ossTypes.Router, error) {
+	return NewEnterpriseGoBGPServer(ctx, log, params)
+}
+
+func (p *EnterpriseRouterProvider) NewEnterpriseRouter(ctx context.Context, log *slog.Logger, params ossTypes.ServerParameters) (types.EnterpriseRouter, error) {
 	return NewEnterpriseGoBGPServer(ctx, log, params)
 }

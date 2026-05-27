@@ -247,7 +247,7 @@ func TestNeighborReconciler(t *testing.T) {
 				},
 			}
 
-			testInstance, err := instance.NewBGPInstance(context.Background(), gobgp.NewEnterpriseRouterProvider(), logger, "test-instance", srvParams)
+			testInstance, err := instance.NewBGPInstance(context.Background(), gobgp.NewEnterpriseRouterProviderAsOSS(), logger, "test-instance", srvParams)
 			req.NoError(err)
 
 			t.Cleanup(func() {
@@ -455,7 +455,7 @@ func TestNeighborReconciler_SourceInterfaceAddress(t *testing.T) {
 			ListenPort: -1,
 		},
 	}
-	testInstance, err := instance.NewBGPInstance(context.Background(), gobgp.NewEnterpriseRouterProvider(), hivetest.Logger(t), "test-instance", srvParams)
+	testInstance, err := instance.NewBGPInstance(context.Background(), gobgp.NewEnterpriseRouterProviderAsOSS(), hivetest.Logger(t), "test-instance", srvParams)
 	req.NoError(err)
 	t.Cleanup(func() {
 		testInstance.Router.Stop(context.Background(), types.StopRequest{FullDestroy: true})

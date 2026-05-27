@@ -56,7 +56,7 @@ var Cell = cell.Module(
 	// override GoBGP router provider with the enterprise version
 	cell.DecorateAll(
 		func(_ types.RouterProvider) types.RouterProvider {
-			return gobgp.NewEnterpriseRouterProvider()
+			return gobgp.NewEnterpriseRouterProviderAsOSS()
 		},
 	),
 
