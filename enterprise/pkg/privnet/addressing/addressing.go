@@ -287,6 +287,8 @@ func (n *PrivNetAPI) getAttachmentFor(pod metav1.Object, ifname string) (*types.
 		return nil, 0, fmt.Errorf("duplicate entry found for interface %q in %q annotation", ifname, multusv1.NetworkAttachmentAnnot)
 	case nicidx == -1:
 		return nil, 0, fmt.Errorf("no entry found for interface %q in %q annotation", ifname, multusv1.NetworkAttachmentAnnot)
+	case nicidx >= 64:
+		return nil, 0, fmt.Errorf("at most 64 secondary interfaces are supported")
 	}
 
 	// If the attachments specify the interface name, we can rely on it to retrieve the matching one.
@@ -316,8 +318,6 @@ func (n *PrivNetAPI) getAttachmentFor(pod metav1.Object, ifname string) (*types.
 	case naidx == -1 || naidx >= len(attachments):
 		return nil, 0, fmt.Errorf("no network attachment found for interface %q in %q annotation",
 			ifname, types.PrivateNetworkSecondaryAttachmentsAnnotation)
-	case naidx >= 64:
-		return nil, 0, fmt.Errorf("at most 64 secondary interfaces are supported")
 	default:
 		var attachment = attachments[naidx]
 		if len(attachment.MAC) == 0 {

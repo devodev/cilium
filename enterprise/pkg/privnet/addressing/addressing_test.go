@@ -14,6 +14,8 @@ import (
 	"cmp"
 	"fmt"
 	"net/netip"
+	"slices"
+	"strings"
 	"testing"
 	"testing/synctest"
 
@@ -1018,6 +1020,31 @@ func TestPrivNetAPI_GetPrivateNetworkAddressing(t *testing.T) {
 				},
 			),
 			wantErr: `invalid MAC address request in "k8s.v1.cni.cncf.io/networks" annotation`,
+		},
+		{
+			name:     "too many secondary interfaces, match by index",
+			override: override{ifname: "net65"},
+			pod: newPod("default", "client", "uid",
+				map[string]string{
+					types.PrivateNetworkSecondaryAttachmentsAnnotation: fmt.Sprintf("[%s]", strings.Join(
+						slices.Repeat([]string{`{ "network": "green-network", "ipv4": "192.168.10.11", "ipv6": "fd10:0:140::11" }`}, 65), ",")),
+					multusv1.NetworkAttachmentAnnot: strings.Join(slices.Repeat([]string{"foo"}, 65), ","),
+				},
+			),
+			wantErr: "at most 64 secondary interfaces are supported",
+		},
+		{
+			name:     "too many secondary interfaces, match by name",
+			override: override{ifname: "net65"},
+			pod: newPod("default", "client", "uid",
+				map[string]string{
+					types.PrivateNetworkSecondaryAttachmentsAnnotation: `[
+						{ "network": "green-network", "ipv4": "192.168.10.11", "ipv6": "fd10:0:140::11", "interface": "net65" }
+					]`,
+					multusv1.NetworkAttachmentAnnot: strings.Join(slices.Repeat([]string{"foo"}, 65), ","),
+				},
+			),
+			wantErr: "at most 64 secondary interfaces are supported",
 		},
 	}
 
