@@ -29,6 +29,42 @@ static __always_inline int mock_ctx_redirect(const struct __sk_buff __maybe_unus
 	return CTX_ACT_REDIRECT;
 }
 
+#include <bpf/config/node.h>
+#include "node_config.h"
+#include "lib/trace.h"
+#undef EVENT_SOURCE
+
+#undef send_trace_notify
+#define send_trace_notify(ctx, obs_point, src, dst, dst_id, ifindex, reason, monitor, proto) \
+	mock_send_trace_notify(ctx, obs_point, src, dst, dst_id, ifindex, reason, monitor, proto)
+
+static struct {
+	bool valid;
+	enum trace_point obs_point;
+	__u32		src_label;
+	__u32		dst_label;
+} last_notify;
+
+static __always_inline void
+mock_send_trace_notify(struct __ctx_buff *ctx __maybe_unused, enum trace_point obs_point,
+		       __u32 src, __u32 dst, __u16 dst_id __maybe_unused,
+		       __u32 ifindex __maybe_unused, enum trace_reason reason __maybe_unused,
+		       __u32 monitor __maybe_unused, __be16 proto __maybe_unused)
+{
+	last_notify.valid = true;
+	last_notify.obs_point = obs_point;
+	last_notify.src_label = src;
+	last_notify.dst_label = dst;
+}
+
+static __always_inline void reset_mock_notify(void)
+{
+	last_notify.valid = false;
+	last_notify.obs_point = 0;
+	last_notify.src_label = 0;
+	last_notify.dst_label = 0;
+}
+
 #include "enterprise_privnet_common.h"
 
 /* packets defined in ./scapy/enterprise_privnet_pkt_defs.py */
@@ -231,6 +267,8 @@ int privnet_icmp_from_container_nat_src_route_dst_setup(struct __ctx_buff *ctx)
 	/* allow traffic from endpoints */
 	policy_add_egress_allow_all_entry();
 
+	reset_mock_notify();
+
 	return pod_send_packet(ctx);
 }
 
@@ -248,6 +286,16 @@ int privnet_icmp_from_container_nat_src_route_dst_check(struct __ctx_buff *ctx)
 			   sizeof(privnet_unknown_flow_icmp_req_out));
 
 	assert_privnet_net_ids(PRIVNET_PIP_NET_ID, NET_ID);
+
+	if (!last_notify.valid || last_notify.obs_point != TRACE_TO_OVERLAY)
+		test_fatal("expected TRACE_TO_OVERLAY trace_notify to be emitted");
+
+	if (last_notify.dst_label != WORLD_IPV4_ID)
+		test_fatal("expected TRACE_TO_OVERLAY dst_label %d, got %d",
+			   WORLD_IPV4_ID, last_notify.dst_label);
+	if (last_notify.src_label != 99)
+		test_fatal("expected TRACE_TO_OVERLAY src_label %d, got %d",
+			   98, last_notify.src_label);
 
 	policy_delete_egress_all_entry();
 	privnet_v4_del_endpoint_entry(NET_ID, SUBNET_ID, V4_NET_IP_1, V4_POD_IP_1);
@@ -423,6 +471,7 @@ int privnet_icmp_to_container_unknown_src_nat_dst_setup(struct __ctx_buff *ctx)
 
 	policy_add_ingress_allow_l3_l4_entry(0, 0, 0, 0);
 	ctx_store_meta(ctx, CB_FROM_TUNNEL, 1);
+	reset_mock_notify();
 	return pod_receive_packet_by_tailcall(ctx);
 }
 
@@ -438,6 +487,13 @@ int privnet_icmp_to_container_unknown_src_nat_dst_check(struct __ctx_buff *ctx)
 			   sizeof(privnet_unknown_flow_icmp_req_out));
 
 	assert_privnet_net_ids(NET_ID, NET_ID);
+
+	if (!last_notify.valid || last_notify.obs_point != TRACE_TO_LXC)
+		test_fatal("expected TRACE_TO_LXC trace_notify to be emitted");
+
+	if (last_notify.src_label != WORLD_IPV4_ID)
+		test_fatal("expected TRACE_TO_LXC src_label %d, got %d",
+			   WORLD_IPV4_ID, last_notify.src_label);
 
 	policy_delete_entry(false, 0, 0, 0, 0);
 	privnet_v4_del_endpoint_entry(NET_ID, SUBNET_ID, V4_NET_IP_2, V4_POD_IP_2);
@@ -1100,6 +1156,8 @@ int privnet_icmp_from_container_unknown_policy_allowed_setup(struct __ctx_buff *
 	policy_add_egress_allow_l3_entry(CIDR_IDENTITY);
 	privnet_v4_add_cidr_identity_entry(SUBNET_V4, SUBNET_V4_LEN, CIDR_IDENTITY);
 
+	reset_mock_notify();
+
 	return pod_send_packet(ctx);
 }
 
@@ -1109,6 +1167,13 @@ int privnet_icmp_from_container_unknown_policy_allowed_check(struct __ctx_buff *
 	test_init();
 
 	assert_status_code(ctx, TC_ACT_REDIRECT);
+
+	if (!last_notify.valid || last_notify.obs_point != TRACE_TO_OVERLAY)
+		test_fatal("expected TRACE_TO_OVERLAY trace_notify to be emitted");
+
+	if (last_notify.dst_label != CIDR_IDENTITY)
+		test_fatal("expected TRACE_TO_OVERLAY dst_label %d, got %d",
+			   CIDR_IDENTITY, last_notify.dst_label);
 
 	privnet_v4_del_cidr_identity_entry(SUBNET_V4, SUBNET_V4_LEN);
 	policy_delete_egress_l3_entry(CIDR_IDENTITY);
