@@ -47,6 +47,9 @@ var Cell = cell.Group(
 	cell.Provide(newPrivNetAPIHandler),
 )
 
+// MaxSecondaryInterfaces is the maximum number of supported secondary interfaces.
+const MaxSecondaryInterfaces = 64
+
 // vNICIndex represents the index of a vNIC. The zero index represents the primary
 // interface, and subsequent ones correspond to secondary interfaces, computed based
 // on the position of the corresponding entry in the Multus network attachment annotation.
@@ -216,6 +219,7 @@ func (n *PrivNetAPI) GetPrivateNetworkAddressing(p network.GetNetworkPrivateAddr
 		Network:     attachment.Network,
 		Subnet:      string(subnet.Name),
 		ActivatedAt: strfmt.DateTime(activatedAt),
+		NicIndex:    new(int64(nicidx)),
 	}
 
 	if n.cfg.enableIPv4 {
@@ -287,8 +291,8 @@ func (n *PrivNetAPI) getAttachmentFor(pod metav1.Object, ifname string) (*types.
 		return nil, 0, fmt.Errorf("duplicate entry found for interface %q in %q annotation", ifname, multusv1.NetworkAttachmentAnnot)
 	case nicidx == -1:
 		return nil, 0, fmt.Errorf("no entry found for interface %q in %q annotation", ifname, multusv1.NetworkAttachmentAnnot)
-	case nicidx >= 64:
-		return nil, 0, fmt.Errorf("at most 64 secondary interfaces are supported")
+	case nicidx >= MaxSecondaryInterfaces:
+		return nil, 0, fmt.Errorf("at most %d secondary interfaces are supported", MaxSecondaryInterfaces)
 	}
 
 	// If the attachments specify the interface name, we can rely on it to retrieve the matching one.

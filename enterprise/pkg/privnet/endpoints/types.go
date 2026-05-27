@@ -16,12 +16,14 @@ import (
 	"iter"
 	"net"
 	"net/netip"
+	"strconv"
 
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/stream"
 	k8sTypes "k8s.io/apimachinery/pkg/types"
 
 	"github.com/cilium/cilium/api/v1/models"
+	"github.com/cilium/cilium/enterprise/pkg/privnet/addressing"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/observers"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/types"
 	"github.com/cilium/cilium/pkg/endpoint"
@@ -201,6 +203,27 @@ func (p *EndpointProperties) ActivatedAt() (time.Time, error) {
 	}
 
 	return time.Parse(time.RFC3339Nano, datetime)
+}
+
+func (p *EndpointProperties) NICIndex() (uint8, error) {
+	idxstr, ok := p.ep.GetPropertyValue(types.PropertyPrivNetNICIndex).(string)
+	if !ok {
+		// The property is missing which implies that the endpoint was created
+		// before this property was added and thus we don't know its NIC index.
+		// Lean on the safe side and treat it as primary.
+		return 0, nil
+	}
+
+	idx, err := strconv.ParseUint(idxstr, 10, 8)
+	if err != nil {
+		return 0, fmt.Errorf("parsing NIC index property: %w", err)
+	}
+
+	if idx > addressing.MaxSecondaryInterfaces {
+		return 0, fmt.Errorf("parsing NIC index property: at most %d secondary interfaces are supported", addressing.MaxSecondaryInterfaces)
+	}
+
+	return uint8(idx), nil
 }
 
 // FormatActivatedAtProperty is a helper to be used to format the PropertyPrivNetActivatedAt property.

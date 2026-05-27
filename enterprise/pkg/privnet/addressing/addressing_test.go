@@ -223,6 +223,7 @@ func TestPrivNetAPI_GetPrivateNetworkAddressing(t *testing.T) {
 					{Destination: "fe80::1/128"},
 					{Destination: "::/0", Gateway: "fe80::1"},
 				},
+				NicIndex: new(int64(0)),
 			},
 		},
 		{
@@ -248,6 +249,7 @@ func TestPrivNetAPI_GetPrivateNetworkAddressing(t *testing.T) {
 					{Destination: "fe80::1/128"},
 					{Destination: "::/0", Gateway: "fe80::1"},
 				},
+				NicIndex: new(int64(0)),
 			},
 		},
 		{
@@ -391,6 +393,7 @@ func TestPrivNetAPI_GetPrivateNetworkAddressing(t *testing.T) {
 					{Destination: "fe80::1/128"},
 					{Destination: "::/0", Gateway: "fe80::1"},
 				},
+				NicIndex: new(int64(0)),
 			},
 		},
 		{
@@ -413,6 +416,7 @@ func TestPrivNetAPI_GetPrivateNetworkAddressing(t *testing.T) {
 					{Destination: "169.254.0.1/32"},
 					{Destination: "0.0.0.0/0", Gateway: "169.254.0.1"},
 				},
+				NicIndex: new(int64(0)),
 			},
 		},
 		{
@@ -511,6 +515,7 @@ func TestPrivNetAPI_GetPrivateNetworkAddressing(t *testing.T) {
 					{Destination: "169.254.0.1/32"},
 					{Destination: "0.0.0.0/0", Gateway: "169.254.0.1"},
 				},
+				NicIndex: new(int64(0)),
 			},
 		},
 		{
@@ -533,6 +538,7 @@ func TestPrivNetAPI_GetPrivateNetworkAddressing(t *testing.T) {
 					{Destination: "169.254.0.1/32"},
 					{Destination: "0.0.0.0/0", Gateway: "169.254.0.1"},
 				},
+				NicIndex: new(int64(0)),
 			},
 		},
 
@@ -557,6 +563,7 @@ func TestPrivNetAPI_GetPrivateNetworkAddressing(t *testing.T) {
 					{Destination: "169.254.0.1/32"},
 					{Destination: "0.0.0.0/0", Gateway: "169.254.0.1"},
 				},
+				NicIndex: new(int64(0)),
 			},
 		},
 		{
@@ -624,6 +631,7 @@ func TestPrivNetAPI_GetPrivateNetworkAddressing(t *testing.T) {
 					{Destination: "fe80::1/128"},
 					{Destination: "::/0", Gateway: "fe80::1"},
 				},
+				NicIndex: new(int64(0)),
 			},
 		},
 		{
@@ -655,6 +663,7 @@ func TestPrivNetAPI_GetPrivateNetworkAddressing(t *testing.T) {
 					{Destination: "fe80::3/128"},
 					{Destination: "fd10:0:140::/64", Gateway: "fe80::3"},
 				},
+				NicIndex: new(int64(2)),
 			},
 		},
 		{
@@ -686,6 +695,7 @@ func TestPrivNetAPI_GetPrivateNetworkAddressing(t *testing.T) {
 					{Destination: "fe80::2/128"},
 					{Destination: "fd10:0:152::/64", Gateway: "fe80::2"},
 				},
+				NicIndex: new(int64(1)),
 			},
 		},
 		{
@@ -790,6 +800,7 @@ func TestPrivNetAPI_GetPrivateNetworkAddressing(t *testing.T) {
 					{Destination: "fe80::3/128"},
 					{Destination: "fd10:0:140::/64", Gateway: "fe80::3"},
 				},
+				NicIndex: new(int64(2)),
 			},
 		},
 		{
@@ -821,6 +832,7 @@ func TestPrivNetAPI_GetPrivateNetworkAddressing(t *testing.T) {
 					{Destination: "fe80::4/128"},
 					{Destination: "fd10:0:152::/64", Gateway: "fe80::4"},
 				},
+				NicIndex: new(int64(3)),
 			},
 		},
 		{
@@ -851,6 +863,7 @@ func TestPrivNetAPI_GetPrivateNetworkAddressing(t *testing.T) {
 					{Destination: "fe80::3/128"},
 					{Destination: "fd10:0:152::/64", Gateway: "fe80::3"},
 				},
+				NicIndex: new(int64(2)),
 			},
 		},
 		{
@@ -910,6 +923,7 @@ func TestPrivNetAPI_GetPrivateNetworkAddressing(t *testing.T) {
 					{Destination: "fe80::3/128"},
 					{Destination: "fd10:0:140::/64", Gateway: "fe80::3"},
 				},
+				NicIndex: new(int64(2)),
 			},
 		},
 		{
@@ -937,6 +951,7 @@ func TestPrivNetAPI_GetPrivateNetworkAddressing(t *testing.T) {
 					{Destination: "fe80::2/128"},
 					{Destination: "fd10:0:140::/64", Gateway: "fe80::2"},
 				},
+				NicIndex: new(int64(1)),
 			},
 		},
 		{
@@ -965,6 +980,7 @@ func TestPrivNetAPI_GetPrivateNetworkAddressing(t *testing.T) {
 					{Destination: "fe80::2/128"},
 					{Destination: "fd10:0:140::/64", Gateway: "fe80::2"},
 				},
+				NicIndex: new(int64(1)),
 			},
 		},
 		{
@@ -993,6 +1009,7 @@ func TestPrivNetAPI_GetPrivateNetworkAddressing(t *testing.T) {
 					{Destination: "fe80::2/128"},
 					{Destination: "fd10:0:140::/64", Gateway: "fe80::2"},
 				},
+				NicIndex: new(int64(1)),
 			},
 		},
 		{

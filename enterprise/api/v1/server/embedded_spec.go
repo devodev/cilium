@@ -279,6 +279,11 @@ func init() {
           "description": "Private network name",
           "type": "string"
         },
+        "nicIndex": {
+          "description": "The index of the NIC this endpoint refers to; it is 0 for the primary interface, 1 for the first secondary interface, and so on.\n",
+          "type": "integer",
+          "maximum": 64
+        },
         "routes": {
           "description": "Network routes to configure for this endpoint",
           "type": "array",
@@ -646,6 +651,12 @@ func init() {
         "network": {
           "description": "Private network name",
           "type": "string"
+        },
+        "nicIndex": {
+          "description": "The index of the NIC this endpoint refers to; it is 0 for the primary interface, 1 for the first secondary interface, and so on.\n",
+          "type": "integer",
+          "maximum": 64,
+          "minimum": 0
         },
         "routes": {
           "description": "Network routes to configure for this endpoint",

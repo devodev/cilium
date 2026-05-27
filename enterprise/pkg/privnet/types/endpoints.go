@@ -38,6 +38,9 @@ const (
 
 	// PropertyPrivNetActivatedAt contains the timestamp when the endpoint became active.
 	PropertyPrivNetActivatedAt = "isovalent-privnet-activated-at"
+
+	// PropertyPrivNetNICIndex contains the index of the NIC of the workload.
+	PropertyPrivNetNICIndex = "isovalent-privnet-nic-index"
 )
 
 type EndpointProperties struct {

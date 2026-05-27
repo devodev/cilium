@@ -30,19 +30,19 @@ privnet/epm-delete foo/curious-koala
 db/cmp privnet-local-workloads local-workloads.v3.table
 
 -- local-workloads.v1.table --
-Endpoint             ID   Network         NetworkIPv4     NetworkIPv6           PodIPv4        PodIPv6              ActivatedAt
-foo/curious-koala    15   green-network   10.20.0.10      fd00:10:20::10        10.244.5.115   fd00:10:244:5::115   2025-09-17T12:40:00Z
+Endpoint             ID   NIC   Network         NetworkIPv4     NetworkIPv6           PodIPv4        PodIPv6              ActivatedAt
+foo/curious-koala    15   0     green-network   10.20.0.10      fd00:10:20::10        10.244.5.115   fd00:10:244:5::115   2025-09-17T12:40:00Z
 
 -- local-workloads.v2.table --
-Endpoint             ID   Network         NetworkIPv4     NetworkIPv6           PodIPv4        PodIPv6              ActivatedAt
-foo/curious-koala    15   green-network   10.20.0.10      fd00:10:20::10        10.244.5.115   fd00:10:244:5::115   2025-09-17T12:40:00Z
-bar/speedy-cheetah   16   green-network   10.20.0.11      fd00:10:20::11        10.244.5.116   fd00:10:244:5::116   2025-09-17T12:41:00Z
-qux/sleepy-sloth     17   blue-network    192.168.30.10   fd00:192:168:30::10   10.244.5.117   fd00:10:244:5::117   2025-09-17T12:42:00Z
+Endpoint             ID   NIC   Network         NetworkIPv4     NetworkIPv6           PodIPv4        PodIPv6              ActivatedAt
+foo/curious-koala    15   0     green-network   10.20.0.10      fd00:10:20::10        10.244.5.115   fd00:10:244:5::115   2025-09-17T12:40:00Z
+bar/speedy-cheetah   16   0     green-network   10.20.0.11      fd00:10:20::11        10.244.5.116   fd00:10:244:5::116   2025-09-17T12:41:00Z
+qux/sleepy-sloth     17   2     blue-network    192.168.30.10   fd00:192:168:30::10   10.244.5.117   fd00:10:244:5::117   2025-09-17T12:42:00Z
 
 -- local-workloads.v3.table --
-Endpoint             ID   Network         NetworkIPv4     NetworkIPv6           PodIPv4        PodIPv6              ActivatedAt
-bar/speedy-cheetah   16   green-network   10.20.0.11      fd00:10:20::11        10.244.5.116   fd00:10:244:5::116   <inactive>
-qux/sleepy-sloth     17   blue-network    192.168.30.10   fd00:192:168:30::10   10.244.5.117   fd00:10:244:5::117   2025-09-17T12:42:00Z
+Endpoint             ID   NIC   Network         NetworkIPv4     NetworkIPv6           PodIPv4        PodIPv6              ActivatedAt
+bar/speedy-cheetah   16   0     green-network   10.20.0.11      fd00:10:20::11        10.244.5.116   fd00:10:244:5::116   <inactive>
+qux/sleepy-sloth     17   2     blue-network    192.168.30.10   fd00:192:168:30::10   10.244.5.117   fd00:10:244:5::117   2025-09-17T12:42:00Z
 
 -- ep-curious-koala.json --
 {
@@ -76,7 +76,8 @@ qux/sleepy-sloth     17   blue-network    192.168.30.10   fd00:192:168:30::10   
     "isovalent-privnet-network": "green-network",
     "isovalent-privnet-activated-at": "2025-09-17T12:41:00.000000Z",
     "isovalent-privnet-ipv4-addr": "10.20.0.11",
-    "isovalent-privnet-ipv6-addr": "fd00:10:20::11"
+    "isovalent-privnet-ipv6-addr": "fd00:10:20::11",
+    "isovalent-privnet-nic-index": "0"
   }
 }
 
@@ -94,7 +95,8 @@ qux/sleepy-sloth     17   blue-network    192.168.30.10   fd00:192:168:30::10   
     "isovalent-privnet-network": "blue-network",
     "isovalent-privnet-activated-at": "2025-09-17T12:42:00.000000Z",
     "isovalent-privnet-ipv4-addr": "192.168.30.10",
-    "isovalent-privnet-ipv6-addr": "fd00:192:168:30::10"
+    "isovalent-privnet-ipv6-addr": "fd00:192:168:30::10",
+    "isovalent-privnet-nic-index": "2"
   }
 }
 
