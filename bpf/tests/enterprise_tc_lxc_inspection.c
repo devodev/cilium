@@ -188,8 +188,8 @@ SETUP("tc", "tc_lxc_inspection_ingress_v6_tailcall")
 int tc_lxc_inspection_ingress_v6_tailcall_setup(struct __ctx_buff *ctx)
 {
 	RESET_CLONE_STATE();
-	ctx_store_meta(ctx, CB_SRC_LABEL, WORLD_IPV6_ID);
-	ctx_store_meta(ctx, CB_FROM_TUNNEL, 1);
+
+	local_delivery_fill_meta(ctx, WORLD_IPV6_ID, false, false, false, true, 0);
 	policy_add_ingress_allow_l3_l4_entry(0, 0, 0, 0);
 	return pod_receive_packet_by_tailcall(ctx);
 }

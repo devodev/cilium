@@ -470,7 +470,8 @@ int privnet_icmp_to_container_unknown_src_nat_dst_setup(struct __ctx_buff *ctx)
 	set_privnet_net_ids(PRIVNET_UNKNOWN_NET_ID, PRIVNET_PIP_NET_ID);
 
 	policy_add_ingress_allow_l3_l4_entry(0, 0, 0, 0);
-	ctx_store_meta(ctx, CB_FROM_TUNNEL, 1);
+
+	local_delivery_fill_meta(ctx, UNKNOWN_ID, false, false, false, true, 0);
 	reset_mock_notify();
 	return pod_receive_packet_by_tailcall(ctx);
 }
@@ -516,7 +517,7 @@ SETUP("tc", "08_icmp_to_container_unknown_src_miss_dst")
 int privnet_icmp_to_container_unknown_src_miss_dst_setup(struct __ctx_buff *ctx)
 {
 	/* no entry for dst */
-	ctx_store_meta(ctx, CB_FROM_TUNNEL, 1);
+	local_delivery_fill_meta(ctx, UNKNOWN_ID, false, false, false, true, 0);
 
 	set_privnet_net_ids(PRIVNET_PIP_NET_ID, PRIVNET_PIP_NET_ID);
 
@@ -1205,7 +1206,7 @@ int privnet_to_container_unknown_policy_denied_setup(struct __ctx_buff *ctx)
 
 	set_privnet_net_ids(PRIVNET_UNKNOWN_NET_ID, PRIVNET_PIP_NET_ID);
 
-	ctx_store_meta(ctx, CB_FROM_TUNNEL, 1);
+	local_delivery_fill_meta(ctx, UNKNOWN_ID, false, false, false, true, 0);
 	return pod_receive_packet_by_tailcall(ctx);
 }
 
@@ -1248,7 +1249,7 @@ int privnet_to_container_unknown_policy_explicit_deny_setup(struct __ctx_buff *c
 	policy_add_entry(false, CIDR_IDENTITY, 0, 0, 0, true, 0);
 	privnet_v4_add_cidr_identity_entry(SUBNET_V4, SUBNET_V4_LEN, CIDR_IDENTITY);
 
-	ctx_store_meta(ctx, CB_FROM_TUNNEL, 1);
+	local_delivery_fill_meta(ctx, UNKNOWN_ID, false, false, false, true, 0);
 	return pod_receive_packet_by_tailcall(ctx);
 }
 

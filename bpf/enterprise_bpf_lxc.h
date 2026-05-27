@@ -277,7 +277,7 @@ static __always_inline bool
 is_privnet_unknown_inb_flow(struct __ctx_buff *ctx __maybe_unused)
 {
 #ifdef HAVE_ENCAP
-	if (ctx_load_meta(ctx, CB_FROM_TUNNEL)) {
+	if (ctx_load_meta(ctx, CB_DELIVERY_FLAGS) & CB_DELIVERY_FLAGS_FROM_TUNNEL) {
 		struct bpf_tunnel_key tunnel_key = {};
 
 		if (ctx_get_tunnel_key(ctx, &tunnel_key, TUNNEL_KEY_WITHOUT_SRC_IP, 0) < 0)
@@ -347,7 +347,7 @@ privnet_should_enforce_unknown_policy(struct __ctx_buff *ctx)
 __declare_tail(CILIUM_CALL_IPV4_PRIVNET_UNKNOWN_INGRESS)
 static __always_inline int tail_handle_ipv4_privnet_unknown_ingress(struct __ctx_buff *ctx)
 {
-	bool from_host = ctx_load_meta(ctx, CB_FROM_HOST);
+	__u32 delivery_flags = ctx_load_meta(ctx, CB_DELIVERY_FLAGS);
 	__u32 src_sec_id = UNKNOWN_ID;
 	bool from_tunnel = false;
 	int ret = CTX_ACT_OK;
@@ -366,7 +366,7 @@ static __always_inline int tail_handle_ipv4_privnet_unknown_ingress(struct __ctx
 		return DROP_UNROUTABLE;
 
 #ifdef HAVE_ENCAP
-	from_tunnel = ctx_load_meta(ctx, CB_FROM_TUNNEL);
+	from_tunnel = delivery_flags & CB_DELIVERY_FLAGS_FROM_TUNNEL;
 #endif
 
 	if (is_privnet_unknown_inb_flow(ctx))
@@ -386,13 +386,14 @@ static __always_inline int tail_handle_ipv4_privnet_unknown_ingress(struct __ctx
 			  bpf_htons(ETH_P_IP));
 
 	return redirect_ep(ctx, CONFIG(interface_ifindex),
-			   should_redirect_peer(ctx, from_host), from_tunnel);
+			   delivery_flags & CB_DELIVERY_FLAGS_USE_REDIRECT_PEER,
+			   from_tunnel);
 }
 
 __declare_tail(CILIUM_CALL_IPV6_PRIVNET_UNKNOWN_INGRESS)
 static __always_inline int tail_handle_ipv6_privnet_unknown_ingress(struct __ctx_buff *ctx)
 {
-	bool from_host = ctx_load_meta(ctx, CB_FROM_HOST);
+	__u32 delivery_flags = ctx_load_meta(ctx, CB_DELIVERY_FLAGS);
 	__u32 src_sec_id = UNKNOWN_ID;
 	bool from_tunnel = false;
 	int ret = CTX_ACT_OK;
@@ -411,7 +412,7 @@ static __always_inline int tail_handle_ipv6_privnet_unknown_ingress(struct __ctx
 		return DROP_UNROUTABLE;
 
 #ifdef HAVE_ENCAP
-	from_tunnel = ctx_load_meta(ctx, CB_FROM_TUNNEL);
+	from_tunnel = delivery_flags & CB_DELIVERY_FLAGS_FROM_TUNNEL;
 #endif
 
 	if (is_privnet_unknown_inb_flow(ctx))
@@ -431,7 +432,8 @@ static __always_inline int tail_handle_ipv6_privnet_unknown_ingress(struct __ctx
 			  bpf_htons(ETH_P_IPV6));
 
 	return redirect_ep(ctx, CONFIG(interface_ifindex),
-			   should_redirect_peer(ctx, from_host), from_tunnel);
+			   delivery_flags & CB_DELIVERY_FLAGS_USE_REDIRECT_PEER,
+			   from_tunnel);
 }
 
 static __always_inline int
