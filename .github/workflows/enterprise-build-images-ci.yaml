@@ -437,6 +437,9 @@ jobs:
             echo build="true" >> $GITHUB_OUTPUT
           fi
 
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
       - name: CI Build ${{ matrix.name }} UBI
         if: ${{ steps.check.outputs.build != '' && matrix.distro == 'ubi' }}
         id: docker_build_ci_ubi
@@ -518,6 +521,63 @@ jobs:
         run: |
           digest=$(images/scripts/get-image-digest.sh "${{ steps.tag.outputs.artifactory_primary_tag }}")
           echo digest=${digest} >> $GITHUB_OUTPUT
+
+      - name: Sign and Attest Main CI Image (Quay)
+        if: ${{ matrix.name != 'cilium-cli' && steps.check.outputs.build != '' }}
+        uses: ./.github/actions/cosign
+        with:
+          image: "quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/${{ matrix.image_name }}-ci@${{ steps.docker_digest.outputs.digest }}"
+          image_tag: "${{ steps.tag.outputs.primary_tag }}"
+          install_cosign: false
+          generate_sbom: false
+          attach_sbom: false
+
+      - name: Generate SBOM, Sign, and Attest Main CI Image (Artifactory)
+        if: ${{ matrix.name != 'cilium-cli' && steps.check.outputs.build != '' }}
+        uses: ./.github/actions/cosign
+        with:
+          image: "${{ env.ARTIFACTORY_DEV }}/${{ env.ARTIFACTORY_ORGANIZATION_DEV }}/${{ matrix.image_name }}-ci@${{ steps.docker_digest_artifactory.outputs.digest }}"
+          image_tag: "${{ steps.tag.outputs.artifactory_primary_tag }}"
+          sbom_name: "ci_${{ matrix.name }}_${{ matrix.distro }}_${{ steps.tag.outputs.tag }}"
+          install_cosign: false
+
+      - name: Sign and Attest Race Detection Image (Quay)
+        if: ${{ matrix.name != 'cilium-cli' && steps.docker_build_ci_detect_race_condition.outcome != 'skipped' }}
+        uses: ./.github/actions/cosign
+        with:
+          image: "quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/${{ matrix.image_name }}-ci@${{ steps.docker_build_ci_detect_race_condition.outputs.digest }}"
+          image_tag: "${{ steps.tag.outputs.race_tag }}"
+          install_cosign: false
+          generate_sbom: false
+          attach_sbom: false
+
+      - name: Generate SBOM, Sign, and Attest Race Detection Image (Artifactory)
+        if: ${{ matrix.name != 'cilium-cli' && steps.docker_build_ci_detect_race_condition.outcome != 'skipped' }}
+        uses: ./.github/actions/cosign
+        with:
+          image: "${{ env.ARTIFACTORY_DEV }}/${{ env.ARTIFACTORY_ORGANIZATION_DEV }}/${{ matrix.image_name }}-ci@${{ steps.docker_build_ci_detect_race_condition.outputs.digest }}"
+          image_tag: "${{ steps.tag.outputs.artifactory_race_tag }}"
+          sbom_name: "ci_race_${{ matrix.name }}_${{ matrix.distro }}_${{ steps.tag.outputs.tag }}"
+          install_cosign: false
+
+      - name: Sign and Attest Unstripped Image (Quay)
+        if: ${{ matrix.name != 'cilium-cli' && steps.docker_build_ci_unstripped.outcome != 'skipped' }}
+        uses: ./.github/actions/cosign
+        with:
+          image: "quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/${{ matrix.image_name }}-ci@${{ steps.docker_build_ci_unstripped.outputs.digest }}"
+          image_tag: "${{ steps.tag.outputs.unstripped_tag }}"
+          install_cosign: false
+          generate_sbom: false
+          attach_sbom: false
+
+      - name: Generate SBOM, Sign, and Attest Unstripped Image (Artifactory)
+        if: ${{ matrix.name != 'cilium-cli' && steps.docker_build_ci_unstripped.outcome != 'skipped' }}
+        uses: ./.github/actions/cosign
+        with:
+          image: "${{ env.ARTIFACTORY_DEV }}/${{ env.ARTIFACTORY_ORGANIZATION_DEV }}/${{ matrix.image_name }}-ci@${{ steps.docker_build_ci_unstripped.outputs.digest }}"
+          image_tag: "${{ steps.tag.outputs.artifactory_unstripped_tag }}"
+          sbom_name: "ci_unstripped_${{ matrix.name }}_${{ matrix.distro }}_${{ steps.tag.outputs.tag }}"
+          install_cosign: false
 
       - name: CI Image Releases digests
         if: ${{ steps.check.outputs.build != '' }}
