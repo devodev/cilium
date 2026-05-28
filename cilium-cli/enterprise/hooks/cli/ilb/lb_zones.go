@@ -12,6 +12,7 @@ package ilb
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -19,7 +20,6 @@ import (
 	"regexp"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/google/uuid"
@@ -39,26 +39,63 @@ type t1ZoneScenario struct {
 	zoneBackend map[string]*hcAppContainer
 }
 
-type zoneFailoverAssert func(t T, client *frrContainer, zone string, node core_v1.Node, vipIP string, zoneBackend map[string]*hcAppContainer, rqMatcher requestMatcher)
-type requestMatcher func(t T, client *frrContainer, zone, nodeName, vipIP string, requestCount int) (requestLogMatcher, error)
+type zoneFailoverAssert func(t T, client *frrContainer, zone string, node core_v1.Node, vipIP string, zoneBackend map[string]*hcAppContainer, requestCount int)
 
 func TestTCPProxyT1OnlyPreferSameZone(t T) {
-	runT1ZoneTest(t, "tcp-proxy-t1-only-prefer-same-zone", withPreferSameZone(), assertPreferZoneFailover)
+	runT1ZoneTest(t, "tcp-proxy-t1-only-prefer-same-zone", withPreferSameZone(), assertPreferZoneFailover, 10)
 }
 
 func TestTCPProxyT1OnlyRequireSameZone(t T) {
-	runT1ZoneTest(t, "tcp-proxy-t1-only-require-same-zone", withRequireSameZone(), assertRequireZoneFailover)
+	runT1ZoneTest(t, "tcp-proxy-t1-only-require-same-zone", withRequireSameZone(), assertRequireZoneFailover, 10)
 }
 
 func TestT2HTTPPreferSameZone(t T) {
-	runT2HTTPZoneTest(t, "t2-http-prefer-same-zone", withPreferSameZone(), assertPreferZoneFailover)
+	runT2HTTPZoneTest(t, "t2-http-prefer-same-zone", withPreferSameZone(), assertPreferZoneFailover, 10)
 }
 
 func TestT2HTTPRequireSameZone(t T) {
-	runT2HTTPZoneTest(t, "t2-http-require-same-zone", withRequireSameZone(), assertRequireZoneFailover)
+	runT2HTTPZoneTest(t, "t2-http-require-same-zone", withRequireSameZone(), assertRequireZoneFailover, 10)
 }
 
-func runT2HTTPZoneTest(t T, testName string, mode zoneAware, failoverAssert zoneFailoverAssert) {
+func runT1ZoneTest(t T, testName string, zoneAwareOpt zoneAware, failoverAssert zoneFailoverAssert, requestCount int) {
+	scenario, ok := setupT1ZoneScenario(t,
+		testName,
+		withTrafficPolicy(
+			withZoneAware(
+				zoneAwareOpt,
+			),
+		),
+	)
+	if !ok {
+		return
+	}
+
+	assertVIPConnectivity(t, scenario.client, scenario.vipIP)
+
+	t.Log("Zone routing testing...")
+	for zone, nodes := range scenario.t1ZoneNodes {
+		withTrafficViaT1Node(t, scenario.client, zone, nodes[0], scenario.vipIP, func() {
+			t.Log("[%s] sending %d request to T1 %s node...", zone, requestCount, nodes[0].Name)
+			matcher, err := sendRequestsWithID(t, scenario.client, scenario.vipIP, requestCount)
+			if err != nil {
+				t.Failedf("failed to send request: %s", err)
+			}
+
+			assertSameZoneRequests(t, zone, scenario.zoneBackend, requestCount, matcher)
+		})
+	}
+
+	t.Log("Zone failover testing...")
+	for zone, nodes := range scenario.t1ZoneNodes {
+		withTrafficViaT1Node(t, scenario.client, zone, nodes[0], scenario.vipIP, func() {
+			withFailedZoneBackend(t, zone, scenario.zoneBackend, func() {
+				failoverAssert(t, scenario.client, zone, nodes[0], scenario.vipIP, scenario.zoneBackend, requestCount)
+			})
+		})
+	}
+}
+
+func runT2HTTPZoneTest(t T, testName string, mode zoneAware, failoverAssert zoneFailoverAssert, requestCount int) {
 	ciliumCli, k8sCli := NewCiliumAndK8sCli(t)
 	dockerCli := NewDockerCli(t)
 
@@ -123,40 +160,26 @@ func runT2HTTPZoneTest(t T, testName string, mode zoneAware, failoverAssert zone
 		return
 	}
 
-	t.Log("Starting zone testing...")
+	t.Log("Zone routing testing...")
 	for zone, nodes := range t1ZoneNodes {
-		assertSameZoneRouting(t, client, zone, nodes[0], vipIP, zoneBackend, sendAndCollectResponseIDs)
+		withTrafficViaT1Node(t, client, zone, nodes[0], vipIP, func() {
+			t.Log("[%s] sending %d request to T1 %s node...", zone, requestCount, nodes[0].Name)
+			matcher, err := sendRequestsWithID(t, client, vipIP, requestCount)
+			if err != nil {
+				t.Failedf("failed to send request: %s", err)
+			}
+
+			assertSameZoneRequests(t, zone, zoneBackend, requestCount, matcher)
+		})
 	}
 
-	t.Log("Starting zone failover testing...")
+	t.Log("Zone failover testing...")
 	for zone, nodes := range t1ZoneNodes {
-		failoverAssert(t, client, zone, nodes[0], vipIP, zoneBackend, sendAndCollectResponseIDs)
-	}
-}
-
-func runT1ZoneTest(t T, testName string, zoneAwareOpt zoneAware, failoverAssert zoneFailoverAssert) {
-	scenario, ok := setupT1ZoneScenario(t,
-		testName,
-		withTrafficPolicy(
-			withZoneAware(
-				zoneAwareOpt,
-			),
-		),
-	)
-	if !ok {
-		return
-	}
-
-	assertVIPConnectivity(t, scenario.client, scenario.vipIP)
-
-	t.Log("Starting zone routing testing...")
-	for zone, nodes := range scenario.t1ZoneNodes {
-		assertSameZoneRouting(t, scenario.client, zone, nodes[0], scenario.vipIP, scenario.zoneBackend, sendWithInjectedRequestID)
-	}
-
-	t.Log("Starting zone failover testing...")
-	for zone, nodes := range scenario.t1ZoneNodes {
-		failoverAssert(t, scenario.client, zone, nodes[0], scenario.vipIP, scenario.zoneBackend, sendWithInjectedRequestID)
+		withTrafficViaT1Node(t, client, zone, nodes[0], vipIP, func() {
+			withFailedZoneBackend(t, zone, zoneBackend, func() {
+				failoverAssert(t, client, zone, nodes[0], vipIP, zoneBackend, requestCount)
+			})
+		})
 	}
 }
 
@@ -343,108 +366,8 @@ func skipIfRequestIDUnavailable(t T, client *frrContainer, vipIP string) bool {
 	return false
 }
 
-func assertSameZoneRouting(t T, client *frrContainer, zone string, node core_v1.Node, vipIP string, zoneBackend map[string]*hcAppContainer, rqMatcher requestMatcher) {
-	withTrafficViaT1Node(t, client, zone, node, vipIP, func() {
-		requestCount := 10
-		matchRequestLog, err := rqMatcher(t, client, zone, node.Name, vipIP, requestCount)
-		if err != nil {
-			t.Failedf("%s", err)
-		}
-
-		for beZone, beApp := range zoneBackend {
-			count := countRequestsInBackendLogs(t, beApp, matchRequestLog)
-			if beZone == zone {
-				t.Log("[%s] asserting %d requests reached out backend in the same zone...", zone, requestCount)
-				if requestCount != count {
-					t.Failedf("zone %s test failed [sent %d requests, found %d requests]", zone, requestCount, count)
-				}
-				continue
-			}
-
-			t.Log("[%s] asserting 0 requests reached out backend in different zone...", zone)
-			if count > 0 {
-				t.Failedf("zone %s test failed [sent %d requests, found %d requests]", zone, requestCount, count)
-			}
-		}
-	})
-}
-
-func assertRequireZoneFailover(t T, client *frrContainer, zone string, node core_v1.Node, vipIP string, zoneBackend map[string]*hcAppContainer, _ requestMatcher) {
-	withTrafficViaT1Node(t, client, zone, node, vipIP, func() {
-		withFailedZoneBackend(t, zone, zoneBackend, func() {
-			requestID := fmt.Sprintf("e2e-test-%s-fail-%d", zone, time.Now().Unix())
-			testCmd := curlCmdVerbose(fmt.Sprintf("--max-time 10 http://%s:80/ -H \"%s: %s\"", vipIP, requestIDHeader, requestID))
-			requestIDs := waitForFailClosedResult(t, client, zone, testCmd)
-			hitCount := len(requestIDs)
-			matchRequestLog := func(line string) bool {
-				_, ok := requestIDs[getRequestIDValue(line)]
-				return ok
-			}
-
-			for beZone, beApp := range zoneBackend {
-				count := countRequestsInBackendLogs(t, beApp, matchRequestLog)
-				if beZone == zone {
-					t.Log("[%s] asserting that only %d requests reached backend in zone %s before fail...", zone, hitCount, beZone)
-					if count != hitCount {
-						t.Failedf("zone %s failover test failed [found %d requests in zone %s backend]", zone, count, beZone)
-					}
-					continue
-				}
-
-				t.Log("[%s] asserting 0 requests reached backend in zone %s after fail...", zone, beZone)
-				if count > 0 {
-					t.Failedf("zone %s failover test failed [found %d requests in zone %s backend]", zone, count, beZone)
-				}
-			}
-		})
-	})
-}
-
-func assertPreferZoneFailover(t T, client *frrContainer, zone string, node core_v1.Node, vipIP string, zoneBackend map[string]*hcAppContainer, rqMatcher requestMatcher) {
-	withTrafficViaT1Node(t, client, zone, node, vipIP, func() {
-		withFailedZoneBackend(t, zone, zoneBackend, func() {
-			eventually(t, func() error {
-				matchRequestLog, err := rqMatcher(t, client, zone, node.Name, vipIP, 1)
-				if err != nil {
-					return err
-				}
-				matchedZones := make([]string, 0, len(zoneBackend))
-				for beZone, app := range zoneBackend {
-					hitCount := countRequestsInBackendLogs(t, app, matchRequestLog)
-					if hitCount == 0 {
-						continue
-					}
-					if hitCount != 1 {
-						return fmt.Errorf("unexpectedly matched %d log lines in zone %s", hitCount, beZone)
-					}
-
-					matchedZones = append(matchedZones, beZone)
-				}
-
-				if len(matchedZones) == 0 {
-					return fmt.Errorf("request was not observed in backend logs")
-				}
-				if len(matchedZones) != 1 {
-					return fmt.Errorf("request unexpectedly reached multiple backend zones: %v", matchedZones)
-				}
-				if matchedZones[0] == zone {
-					return fmt.Errorf("request still reached same-zone backend %s", zone)
-				}
-
-				t.Log("[%s] request failed over to backend zone %s", zone, matchedZones[0])
-				return nil
-			}, longTimeout, longPollInterval)
-		})
-	})
-}
-
 func withTrafficViaT1Node(t T, client *frrContainer, zone string, node core_v1.Node, vipIP string, run func()) {
 	t.Log("[%s] targeting traffic from client to %s via T1 %s node...", zone, vipIP, node.Name)
-	defer routeTrafficViaT1Node(t, client, vipIP, node)()
-	run()
-}
-
-func routeTrafficViaT1Node(t T, client *frrContainer, vipIP string, node core_v1.Node) func() {
 	nodeIP := lookupNodeInternalIP(node)
 	if nodeIP == "" {
 		t.Failedf("failed to lookup %s node internal IP address", node.Name)
@@ -456,13 +379,14 @@ func routeTrafficViaT1Node(t T, client *frrContainer, vipIP string, node core_v1
 		t.Failedf("'ip route add' failed (cmd: %q, stdout: %q, stderr: %q): %s", routeCmd, stdout, stderr, err)
 	}
 
-	return func() {
+	defer func() {
 		routeCmd := fmt.Sprintf("ip route del %s/32 via %s metric 1", vipIP, nodeIP)
 		stdout, stderr, err := client.Exec(t.Context(), routeCmd)
 		if err != nil {
 			t.Failedf("'ip route del' failed (cmd: %q, stdout: %q, stderr: %q): %s", routeCmd, stdout, stderr, err)
 		}
-	}
+	}()
+	run()
 }
 
 func withFailedZoneBackend(t T, zone string, zoneBackend map[string]*hcAppContainer, run func()) {
@@ -476,72 +400,174 @@ func withFailedZoneBackend(t T, zone string, zoneBackend map[string]*hcAppContai
 	run()
 }
 
-func waitForFailClosedResult(t T, client *frrContainer, zone, testCmd string) map[string]struct{} {
-	requestIDs := map[string]struct{}{}
+func assertSameZoneRequests(t T, zone string, zoneBackend map[string]*hcAppContainer, requestCount int, matcher logMatcher) {
+	for beZone, beApp := range zoneBackend {
+		count := countRequestsInBackendLogs(t, beApp, matcher)
+		if beZone == zone {
+			t.Log("[%s] asserting %d requests reached out backend in the same zone...", zone, requestCount)
+			if requestCount != count {
+				t.Failedf("zone %s test failed [sent %d requests, found %d requests]", zone, requestCount, count)
+			}
+			continue
+		}
+
+		t.Log("[%s] asserting 0 requests reached out backend in different zone...", zone)
+		if count > 0 {
+			t.Failedf("zone %s test failed [sent %d requests, found %d requests]", zone, requestCount, count)
+		}
+	}
+}
+
+func assertOtherZonesRequests(t T, zone string, zoneBackend map[string]*hcAppContainer, requestCount int, matcher logMatcher) {
+	totalCount := 0
+	for beZone, beApp := range zoneBackend {
+		count := countRequestsInBackendLogs(t, beApp, matcher)
+		if beZone == zone {
+			t.Log("[%s] asserting 0 requests reached out backend in the same zone...", zone)
+			if count > 0 {
+				t.Failedf("zone %s test failed [sent %d requests, found %d requests]", zone, requestCount, count)
+			}
+			continue
+		}
+
+		totalCount += count
+	}
+
+	t.Log("[%s] asserting %d requests reached out backend in different zones...", zone, requestCount)
+	if requestCount != totalCount {
+		t.Failedf("zone %s test failed [sent %d requests, found %d requests]", zone, requestCount, totalCount)
+	}
+}
+
+func assertRequireZoneFailover(t T, client *frrContainer, zone string, node core_v1.Node, vipIP string, zoneBackend map[string]*hcAppContainer, requestCount int) {
+	hitCount := 0
+	matchers := []logMatcher{}
 	eventually(t, func() error {
 		t.Log("[%s] waiting for request to fail ...", zone)
-		stdout, stderr, err := client.Exec(t.Context(), testCmd)
+		matcher, err := sendRequestsWithID(t, client, vipIP, 1)
 		if err != nil {
-			if strings.Contains(stderr, "Could not connect to server") {
+			if errors.Is(err, errFailClosed) {
 				return nil
 			}
 			t.Log("[%s] unexpected error received: %v", zone, err)
 			return err
 		}
 
-		if requestID := getRequestIDValue(stdout); requestID != "" {
-			requestIDs[requestID] = struct{}{}
-		}
-		return fmt.Errorf("curl still succeeded unexpectedly (cmd: %q, stdout: %q, stderr: %q)", testCmd, stdout, stderr)
+		hitCount++
+		matchers = append(matchers, matcher)
+		return fmt.Errorf("curl still succeeded unexpectedly")
 	}, longTimeout, longPollInterval)
 
-	return requestIDs
+	matcher := func(line string) bool {
+		for _, matcher := range matchers {
+			if matcher(line) {
+				return true
+			}
+		}
+		return false
+	}
+	assertRequireZoneFailoverBackendLogs(t, zone, zoneBackend, matcher, hitCount)
+
+	t.Log("[%s] sending %d request to T1 %s node, all must fail...", zone, requestCount, node.Name)
+	for range requestCount {
+		if _, err := sendRequestsWithID(t, client, vipIP, 1); err != nil {
+			if errors.Is(err, errFailClosed) {
+				continue
+			}
+			t.Failedf("request failed with unexpected error: %s", err)
+		}
+		t.Failedf("request must fail")
+	}
 }
 
-type requestLogMatcher func(line string) bool
+func assertRequireZoneFailoverBackendLogs(t T, zone string, zoneBackend map[string]*hcAppContainer, matcher logMatcher, hitCount int) {
+	for beZone, beApp := range zoneBackend {
+		count := countRequestsInBackendLogs(t, beApp, matcher)
+		if beZone == zone {
+			t.Log("[%s] asserting that only %d requests reached backend in zone %s before fail...", zone, hitCount, beZone)
+			if count != hitCount {
+				t.Failedf("[%s] failover test failed [found %d requests in zone %s backend]", zone, count, beZone)
+			}
+			continue
+		}
 
-func sendWithInjectedRequestID(t T, client *frrContainer, zone, nodeName, vipIP string, requestCount int) (requestLogMatcher, error) {
-	requestID := uuid.New().String()
-
-	t.Log("[%s] sending %d request to T1 %s node...", zone, requestCount, nodeName)
-	for range requestCount {
-		testCmd := curlCmdVerbose(fmt.Sprintf("--max-time 10 http://%s:80/ -H \"%s: %s\"", vipIP, requestIDHeader, requestID))
-		stdout, stderr, err := client.Exec(t.Context(), testCmd)
-		if err != nil {
-			return nil, fmt.Errorf("curl failed (cmd: %q, stdout: %q, stderr: %q): %w", testCmd, stdout, stderr, err)
+		t.Log("[%s] asserting 0 requests reached backend in zone %s after fail...", zone, beZone)
+		if count > 0 {
+			t.Failedf("zone %s failover test failed [found %d requests in zone %s backend]", zone, count, beZone)
 		}
 	}
+}
 
+func assertPreferZoneFailover(t T, client *frrContainer, zone string, node core_v1.Node, vipIP string, zoneBackend map[string]*hcAppContainer, requestCount int) {
+	// wait for failover first
+	eventually(t, func() error {
+		t.Log("[%s] waiting for request to fail...", zone)
+		matcher, err := sendRequestsWithID(t, client, vipIP, 1)
+		if err != nil {
+			return err
+		}
+
+		matchedZones := make([]string, 0, len(zoneBackend))
+		for beZone, app := range zoneBackend {
+			hitCount := countRequestsInBackendLogs(t, app, matcher)
+			if hitCount == 0 {
+				continue
+			}
+			if hitCount != 1 {
+				t.Failedf("unexpectedly matched %d log lines in zone %s", hitCount, beZone)
+			}
+
+			matchedZones = append(matchedZones, beZone)
+		}
+
+		if len(matchedZones) == 1 && matchedZones[0] != zone {
+			t.Log("[%s] request failed over to backend zone %s", zone, matchedZones[0])
+			return nil
+		}
+
+		return fmt.Errorf("[%s] failover is still in progress...", zone)
+	}, longTimeout, longPollInterval)
+
+	// asserting cross zone routing
+	matcher, err := sendRequestsWithID(t, client, vipIP, requestCount)
+	if err != nil {
+		t.Failedf("failed to send request: %s", err)
+	}
+
+	assertOtherZonesRequests(t, zone, zoneBackend, requestCount, matcher)
+}
+
+type logMatcher func(line string) bool
+
+var errFailClosed = errors.New("request failed closed")
+
+func sendRequestsWithID(t T, client *frrContainer, vipIP string, count int) (logMatcher, error) {
+	ids := make([]string, 0, count)
+	for range count {
+		rqID := uuid.NewString()
+		testCmd := curlCmdVerbose(fmt.Sprintf("--fail --max-time 10 http://%s:80/ -I -H \"%s: %s\"", vipIP, requestIDHeader, rqID))
+		stdout, stderr, err := client.Exec(t.Context(), testCmd)
+		if err != nil {
+			if strings.Contains(stderr, "Could not connect to server") || strings.Contains(stderr, "requested URL returned error: 5") {
+				return nil, errFailClosed
+			}
+			return nil, fmt.Errorf("curl failed (cmd: %q, stdout: %q, stderr: %q): %w", testCmd, stdout, stderr, err)
+		}
+
+		// for T2 service we must collect ID from response header
+		if rsID := getRequestIDValue(stdout); rsID != "" {
+			ids = append(ids, rsID)
+			continue
+		}
+		// for T1 service we must collect ID from request header
+		ids = append(ids, rqID)
+	}
 	return func(line string) bool {
-		return getRequestIDValue(line) == requestID
+		return slices.Contains(ids, getRequestIDValue(line))
 	}, nil
 }
 
-func sendAndCollectResponseIDs(t T, client *frrContainer, zone, nodeName, vipIP string, requestCount int) (requestLogMatcher, error) {
-	requestIDs := make(map[string]struct{}, requestCount)
-
-	t.Log("[%s] sending %d request to T1 %s node...", zone, requestCount, nodeName)
-	for range requestCount {
-		testCmd := curlCmdVerbose(fmt.Sprintf("--max-time 10 http://%s:80/ -I -H \"%s: %s\"", vipIP, requestIDHeader, uuid.New().String()))
-		stdout, stderr, err := client.Exec(t.Context(), testCmd)
-		if err != nil {
-			return nil, fmt.Errorf("curl failed (cmd: %q, stdout: %q, stderr: %q): %w", testCmd, stdout, stderr, err)
-		}
-
-		requestID := getRequestIDValue(stdout)
-		if requestID == "" {
-			return nil, fmt.Errorf("failed due to %q header not found in response", requestIDHeader)
-		}
-		requestIDs[requestID] = struct{}{}
-	}
-
-	return func(line string) bool {
-		_, ok := requestIDs[getRequestIDValue(line)]
-		return ok
-	}, nil
-}
-
-func countRequestsInBackendLogs(t T, beApp *hcAppContainer, matchRequestLog requestLogMatcher) int {
+func countRequestsInBackendLogs(t T, beApp *hcAppContainer, matcher logMatcher) int {
 	beLog, err := beApp.dockerCli.ContainerLogs(t.Context(), beApp.id, container.LogsOptions{
 		ShowStdout: true,
 		ShowStderr: true,
@@ -561,7 +587,7 @@ func countRequestsInBackendLogs(t T, beApp *hcAppContainer, matchRequestLog requ
 			}
 			t.Failedf("failed to read logs: %s", err)
 		}
-		if matchRequestLog(line) {
+		if matcher(line) {
 			matchCount++
 		}
 	}
