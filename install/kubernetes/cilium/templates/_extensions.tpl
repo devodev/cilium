@@ -338,6 +338,9 @@ Allow packagers to add extra args to the cilium-envoy container.
 - '--restart-epoch $(RESTART_EPOCH)'
 - '--socket-path /var/run/cilium-envoy/hot-restart-sockets/hot-restart.sock'
 - '--skip-hot-restart-on-no-parent'
+- '--parent-shutdown-time-s {{ .Values.envoy.gracefulRestart.parentShutdownSeconds }}'
+- '--drain-time-s {{ .Values.envoy.gracefulRestart.drainTimeSeconds }}'
+- '--drain-strategy gradual'
 {{- end }}
 {{- end }}
 

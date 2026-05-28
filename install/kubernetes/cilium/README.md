@@ -560,8 +560,10 @@ contributors across the globe, there is almost always someone available to help.
 | envoy.extraHostPathMounts | list | `[]` | Additional envoy hostPath mounts. |
 | envoy.extraVolumeMounts | list | `[]` | Additional envoy volumeMounts. |
 | envoy.extraVolumes | list | `[]` | Additional envoy volumes. |
-| envoy.gracefulRestart | object | `{"enabled":false}` | Configure Cilium Envoy graceful shutdown. |
+| envoy.gracefulRestart | object | `{"drainTimeSeconds":60,"enabled":false,"parentShutdownSeconds":80}` | Configure Cilium Envoy graceful shutdown. |
+| envoy.gracefulRestart.drainTimeSeconds | int | `60` | The time in seconds that Envoy will drain connections during a graceful restart. Should generally be less than `parentShutdownSeconds` and `envoy.terminationGracePeriodSeconds` |
 | envoy.gracefulRestart.enabled | bool | `false` | Enables graceful shutdown and draining of traffic for Envoy pods in a standalone DaemonSet. During rolling update 2 pods of Cilium Envoy will exist per node (new and old). All new connections will go to the new pod and traffic will be gracefully drained on the old pod. Proxy will send “Connection: close” for HTTP1 requests or HTTP2 GOAWAY for HTTP2 requests and terminate connections on request completion. When enabling `gracefulRestart` for cilium-envoy daemonset make sure to configure `envoy.terminationGracePeriodSeconds` to a sufficiently large value to allow traffic to drain (e.g. 60 seconds). |
+| envoy.gracefulRestart.parentShutdownSeconds | int | `80` | The time in seconds that Envoy will wait before shutting down the parent process during a graceful restart. Should generally be less than `envoy.terminationGracePeriodSeconds` |
 | envoy.healthPort | int | `9878` | TCP port for the health API. |
 | envoy.httpRetryCount | int | `3` | Maximum number of retries for each HTTP request |
 | envoy.httpUpstreamLingerTimeout | string | `nil` | Time in seconds to block Envoy worker thread while an upstream HTTP connection is closing. If set to 0, the connection is closed immediately (with TCP RST). If set to -1, the connection is closed asynchronously in the background. |

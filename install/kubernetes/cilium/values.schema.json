@@ -3101,8 +3101,14 @@
         },
         "gracefulRestart": {
           "properties": {
+            "drainTimeSeconds": {
+              "type": "integer"
+            },
             "enabled": {
               "type": "boolean"
+            },
+            "parentShutdownSeconds": {
+              "type": "integer"
             }
           },
           "type": "object"
