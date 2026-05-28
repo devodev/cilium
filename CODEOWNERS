@@ -255,6 +255,7 @@
 /.github/actions/e2e/*lb* @cilium/sig-lb @cilium/github-sec @cilium/ci-structure
 /.github/actions/e2e/*netkit* @cilium/sig-datapath @cilium/github-sec @cilium/ci-structure
 /.github/actions/e2e/*wireguard* @cilium/wireguard @cilium/github-sec @cilium/ci-structure
+/.github/actions/e2e/enterprise-vrf.yaml @isovalent/cilium-datapath
 /.github/actions/kvstore/ @cilium/sig-clustermesh @cilium/kvstore @cilium/github-sec @cilium/ci-structure
 /.github/workflows/ @cilium/github-sec @cilium/ci-structure
 /.github/workflows/auto-approve.yaml @cilium/cilium-maintainers
@@ -928,6 +929,7 @@ Makefile* @cilium/build
 /cilium-cli/enterprise/hooks/connectivity/tests/mixedrouting.go @isovalent/clustermesh
 /cilium-cli/enterprise/hooks/connectivity/tests/multicast.go @isovalent/traffic-engineering
 /cilium-cli/enterprise/hooks/connectivity/tests/phantom.go @isovalent/clustermesh
+/cilium-cli/enterprise/hooks/connectivity/tests/vrf.go @isovalent/cilium-datapath
 /cilium-cli/enterprise/hooks/connectivity_egw_ha.go @isovalent/egress-gateway
 /cilium-cli/enterprise/hooks/connectivity_ingress.go @isovalent/service-mesh
 /cilium-cli/enterprise/hooks/k8s/vm_exec.go @isovalent/private-networking
@@ -948,12 +950,14 @@ Makefile* @cilium/build
 /contrib/testing/enterprise-kind-loadbalancer.yaml @isovalent/isovalent-loadbalancer
 /contrib/testing/kind-egressgwha-values.yaml @isovalent/egress-gateway
 /contrib/testing/privnet/ @isovalent/private-networking
+/contrib/testing/vrf/ @isovalent/cilium-datapath
 /contrib/scripts/enterprise-gomod-override.sh @isovalent/traffic-engineering
 /contrib/git/enterprise-setup-merge-drivers.sh @isovalent/backporters
 /Documentation/cmdref/
 /Makefile.fqdn-proxy @isovalent/dns-proxy
 /Makefile.gateway-api-controlplane @isovalent/service-mesh
 /Makefile.privnet @isovalent/private-networking
+/Makefile.vrf @isovalent/cilium-datapath
 /README.enterprise.md @isovalent/core-structure
 /renovate.json5 @isovalent/infrastructure
 *podnetwork* @isovalent/multi-network

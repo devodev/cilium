@@ -328,6 +328,7 @@ jobs:
       - name: Derive stable Cilium installation config
         id: cilium-stable-config
         if: ${{ steps.vars.outputs.downgrade_version != '' && steps.vars.outputs.skip_upgrade != 'true' }}
+        env: { ENTERPRISE_VRF: '${{ matrix.enterprise-vrf }}' }
         uses: ./.github/actions/cilium-config
         with:
           image-tag: ${{ steps.vars.outputs.image_tag }}
@@ -357,6 +358,7 @@ jobs:
       - name: Derive newest Cilium installation config
         id: cilium-newest-config
         if: ${{ steps.vars.outputs.downgrade_version != '' }}
+        env: { ENTERPRISE_VRF: '${{ matrix.enterprise-vrf }}' }
         uses: ./.github/actions/cilium-config
         with:
           image-tag: ${{ steps.vars.outputs.sha }}
