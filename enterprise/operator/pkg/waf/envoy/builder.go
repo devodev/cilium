@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	wafBlockPath           = "/__coraza_block__"
+	wafBlockPath           = "/__waf_block__"
 	wafResponseBlockStatus = 403
 	wafResponseBlockBody   = "blocked by waf"
 	wafBodyLimitBytes      = 1024 * 1024

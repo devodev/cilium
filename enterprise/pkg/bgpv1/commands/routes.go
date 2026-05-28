@@ -34,7 +34,7 @@ import (
 	"github.com/cilium/cilium/pkg/time"
 )
 
-func BGPRoutesExtendedCmd(bgpMgr agent.EnterpriseBGPRouterManager, errorPathStore *reconcilerv2.ErrorPathStore) script.Cmd {
+func BGPRoutesCmd(bgpMgr agent.EnterpriseBGPRouterManager, errorPathStore *reconcilerv2.ErrorPathStore) script.Cmd {
 	return script.Command(
 		script.CmdUsage{
 			Summary: "List BGP routes on Cilium",

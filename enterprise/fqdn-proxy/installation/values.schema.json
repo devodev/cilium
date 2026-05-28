@@ -200,6 +200,11 @@
       "type": "string"
     },
     "securityContext": {
+      "properties": {
+        "allowPrivilegeEscalation": {
+          "type": "boolean"
+        }
+      },
       "type": "object"
     },
     "serviceAccount": {

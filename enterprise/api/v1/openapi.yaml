@@ -215,6 +215,14 @@ definitions:
         type: array
         items:
           "$ref": "#/definitions/NetworkAttachmentRoute"
+      nicIndex:
+        description: >
+          The index of the NIC this endpoint refers to; it is 0 for the primary
+          interface, 1 for the first secondary interface, and so on.
+        type: integer
+        minimum: 0
+        maximum: 64
+
   AddressPair:
     description: Addressing information of an endpoint
     type: object

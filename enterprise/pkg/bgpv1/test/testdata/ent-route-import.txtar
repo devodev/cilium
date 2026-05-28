@@ -1,13 +1,13 @@
-#! --test-peering-ips=10.100.100.1,fd00:10:100:100::1
+#! --test-peering-ips=11.100.100.1,fc00:10:100:100::1
 
 hive start
 db/initialized
 
 # Configure gobgp servers
-gobgp/add-server v4 --router-id=1.2.3.4 65001 10.100.100.1 1790
-gobgp/add-peer -s v4 10.100.100.1 65001
-gobgp/add-server v6 --router-id=1.2.3.4 65001 fd00:10:100:100::1 1790
-gobgp/add-peer -s v6 fd00:10:100:100::1 65001
+gobgp/add-server v4 --router-id=1.2.3.4 65001 11.100.100.1 1790
+gobgp/add-peer -s v4 11.100.100.1 65001
+gobgp/add-server v6 --router-id=1.2.3.4 65001 fc00:10:100:100::1 1790
+gobgp/add-peer -s v6 fc00:10:100:100::1 65001
 
 # Configure BGP on Cilium
 k8s/add cilium-node.yaml bgp-node-config.yaml bgp-peer-config-v4.yaml bgp-peer-config-v6.yaml bgp-policy.yaml
@@ -18,8 +18,8 @@ bgp/route-policies -o bgp-policy.actual
 * cmp bgp-policy.expected bgp-policy.actual
 
 # Wait for peering to be established
-gobgp/wait-state -s v4 10.100.100.1 ESTABLISHED
-gobgp/wait-state -s v6 fd00:10:100:100::1 ESTABLISHED
+gobgp/wait-state -s v4 11.100.100.1 ESTABLISHED
+gobgp/wait-state -s v6 fc00:10:100:100::1 ESTABLISHED
 
 # Routes to be imported using prefix match - check edge values and some in-betweens
 gobgp/add-route -s v4 0.0.0.0/0
@@ -110,12 +110,12 @@ spec:
     peers:
     - name: peer-v4
       peerASN: 65001
-      peerAddress: 10.100.100.1
+      peerAddress: 11.100.100.1
       peerConfigRef:
         name: peer-config-v4
     - name: peer-v6
       peerASN: 65001
-      peerAddress: fd00:10:100:100::1
+      peerAddress: fc00:10:100:100::1
       peerConfigRef:
         name: peer-config-v6
 
@@ -216,14 +216,14 @@ spec:
 -- bgp-policy.expected --
 Instance    Policy Name                                Type     Match Peers          Match Families   Match Prefixes (Min..Max Len)                                               Match Communities                                          RIB Action   Path Actions
 instance0   allow-local                                import                                                                                                                                                                                accept       
-instance0   import-user-defined-peer-v4-ipv4-unicast   import   10.100.100.1         ipv4/unicast                                                                                 ^65535:666$                                                reject       
-                                                                10.100.100.1         ipv4/unicast     (any) {0.0.0.0/0 (0..0)} {10.0.0.0/24 (24..28)} {10.0.0.1/32 (32..32)}                                                                 accept       
-                                                                10.100.100.1         ipv4/unicast                                                                                 ^65001:100$                                                accept       
-                                                                10.100.100.1         ipv4/unicast                                                                                 (all) {^65001:200$} {^65001:201$} Large: ^65001:200:200$   accept       
-instance0   import-user-defined-peer-v6-ipv6-unicast   import   fd00:10:100:100::1   ipv6/unicast                                                                                 ^65535:666$                                                reject       
-                                                                fd00:10:100:100::1   ipv6/unicast     (any) {::/0 (0..0)} {2001:db8::/64 (64..80)} {2001:db8::1/128 (128..128)}                                                              accept       
-                                                                fd00:10:100:100::1   ipv6/unicast                                                                                 ^65001:100$                                                accept       
-                                                                fd00:10:100:100::1   ipv6/unicast                                                                                 (all) {^65001:200$} {^65001:201$} Large: ^65001:200:200$   accept       
+instance0   import-user-defined-peer-v4-ipv4-unicast   import   11.100.100.1         ipv4/unicast                                                                                 ^65535:666$                                                reject       
+                                                                11.100.100.1         ipv4/unicast     (any) {0.0.0.0/0 (0..0)} {10.0.0.0/24 (24..28)} {10.0.0.1/32 (32..32)}                                                                 accept       
+                                                                11.100.100.1         ipv4/unicast                                                                                 ^65001:100$                                                accept       
+                                                                11.100.100.1         ipv4/unicast                                                                                 (all) {^65001:200$} {^65001:201$} Large: ^65001:200:200$   accept       
+instance0   import-user-defined-peer-v6-ipv6-unicast   import   fc00:10:100:100::1   ipv6/unicast                                                                                 ^65535:666$                                                reject       
+                                                                fc00:10:100:100::1   ipv6/unicast     (any) {::/0 (0..0)} {2001:db8::/64 (64..80)} {2001:db8::1/128 (128..128)}                                                              accept       
+                                                                fc00:10:100:100::1   ipv6/unicast                                                                                 ^65001:100$                                                accept       
+                                                                fc00:10:100:100::1   ipv6/unicast                                                                                 (all) {^65001:200$} {^65001:201$} Large: ^65001:200:200$   accept       
 -- gobgp-rib-v4.expected --
 Prefix        NextHop   Attrs
 0.0.0.0/0     0.0.0.0   [{Origin: i}]
@@ -258,36 +258,36 @@ Prefix            NextHop   Attrs
 ::/0              ::        [{Origin: i}]
 -- bgp-rib-v4.expected --
 Instance    Peer      Prefix        NextHop        Best   Age   Error
-instance0   peer-v4   0.0.0.0/0     10.100.100.1   true   -     -
-                      10.0.0.0/24   10.100.100.1   true   -     -
-                      10.0.0.0/26   10.100.100.1   true   -     -
-                      10.0.0.0/28   10.100.100.1   true   -     -
+instance0   peer-v4   0.0.0.0/0     11.100.100.1   true   -     -
+                      10.0.0.0/24   11.100.100.1   true   -     -
+                      10.0.0.0/26   11.100.100.1   true   -     -
+                      10.0.0.0/28   11.100.100.1   true   -     -
                       10.0.0.1/32   fe80::1        true   -     Unsupported Nexthop
-                      10.1.0.0/24   10.100.100.1   true   -     -
-                      10.2.0.0/24   10.100.100.1   true   -     -
+                      10.1.0.0/24   11.100.100.1   true   -     -
+                      10.2.0.0/24   11.100.100.1   true   -     -
 -- bgp-rib-v6.expected --
 Instance    Peer      Prefix            NextHop              Best   Age   Error
-instance0   peer-v6   2001:db8:1::/64   fd00:10:100:100::1   true   -     -
-                      2001:db8:2::/64   fd00:10:100:100::1   true   -     -
-                      2001:db8::/64     fd00:10:100:100::1   true   -     -
-                      2001:db8::/72     fd00:10:100:100::1   true   -     -
-                      2001:db8::/80     fd00:10:100:100::1   true   -     -
+instance0   peer-v6   2001:db8:1::/64   fc00:10:100:100::1   true   -     -
+                      2001:db8:2::/64   fc00:10:100:100::1   true   -     -
+                      2001:db8::/64     fc00:10:100:100::1   true   -     -
+                      2001:db8::/72     fc00:10:100:100::1   true   -     -
+                      2001:db8::/80     fc00:10:100:100::1   true   -     -
                       2001:db8::1/128   fe80::1              true   -     Unsupported Nexthop
-                      ::/0              fd00:10:100:100::1   true   -     -
+                      ::/0              fc00:10:100:100::1   true   -     -
 -- desired-routes.expected --
 Owner           Table        Prefix            Priority   AD    Selected   Nexthop              Src    Device   MultiPath   MTU    Scope      Type
-bgp-instance0   main (254)   ::/0              none       200   true       fd00:10:100:100::1   none   none     none        none   universe   unicast
-bgp-instance0   main (254)   0.0.0.0/0         none       200   true       10.100.100.1         none   none     none        none   universe   unicast
-bgp-instance0   main (254)   10.0.0.0/24       none       200   true       10.100.100.1         none   none     none        none   universe   unicast
-bgp-instance0   main (254)   10.0.0.0/26       none       200   true       10.100.100.1         none   none     none        none   universe   unicast
-bgp-instance0   main (254)   10.0.0.0/28       none       200   true       10.100.100.1         none   none     none        none   universe   unicast
-bgp-instance0   main (254)   10.1.0.0/24       none       200   true       10.100.100.1         none   none     none        none   universe   unicast
-bgp-instance0   main (254)   10.2.0.0/24       none       200   true       10.100.100.1         none   none     none        none   universe   unicast
-bgp-instance0   main (254)   2001:db8::/64     none       200   true       fd00:10:100:100::1   none   none     none        none   universe   unicast
-bgp-instance0   main (254)   2001:db8::/72     none       200   true       fd00:10:100:100::1   none   none     none        none   universe   unicast
-bgp-instance0   main (254)   2001:db8::/80     none       200   true       fd00:10:100:100::1   none   none     none        none   universe   unicast
-bgp-instance0   main (254)   2001:db8:1::/64   none       200   true       fd00:10:100:100::1   none   none     none        none   universe   unicast
-bgp-instance0   main (254)   2001:db8:2::/64   none       200   true       fd00:10:100:100::1   none   none     none        none   universe   unicast
+bgp-instance0   main (254)   ::/0              none       200   true       fc00:10:100:100::1   none   none     none        none   universe   unicast
+bgp-instance0   main (254)   0.0.0.0/0         none       200   true       11.100.100.1         none   none     none        none   universe   unicast
+bgp-instance0   main (254)   10.0.0.0/24       none       200   true       11.100.100.1         none   none     none        none   universe   unicast
+bgp-instance0   main (254)   10.0.0.0/26       none       200   true       11.100.100.1         none   none     none        none   universe   unicast
+bgp-instance0   main (254)   10.0.0.0/28       none       200   true       11.100.100.1         none   none     none        none   universe   unicast
+bgp-instance0   main (254)   10.1.0.0/24       none       200   true       11.100.100.1         none   none     none        none   universe   unicast
+bgp-instance0   main (254)   10.2.0.0/24       none       200   true       11.100.100.1         none   none     none        none   universe   unicast
+bgp-instance0   main (254)   2001:db8::/64     none       200   true       fc00:10:100:100::1   none   none     none        none   universe   unicast
+bgp-instance0   main (254)   2001:db8::/72     none       200   true       fc00:10:100:100::1   none   none     none        none   universe   unicast
+bgp-instance0   main (254)   2001:db8::/80     none       200   true       fc00:10:100:100::1   none   none     none        none   universe   unicast
+bgp-instance0   main (254)   2001:db8:1::/64   none       200   true       fc00:10:100:100::1   none   none     none        none   universe   unicast
+bgp-instance0   main (254)   2001:db8:2::/64   none       200   true       fc00:10:100:100::1   none   none     none        none   universe   unicast
 -- bgp-rib-empty.expected --
 Instance   Peer   Prefix   NextHop   Best   Age   Error
 -- desired-routes-empty.expected --

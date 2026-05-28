@@ -164,7 +164,7 @@
    * - :spelling:ignore:`securityContext`
      - The pod security context, by default adds NET_ADMIN, NET_RAW and BPF (if needed).
      - object
-     - ``{}``
+     - ``{"allowPrivilegeEscalation":false}``
    * - :spelling:ignore:`serviceAccount.annotations`
      - Annotations for the service account
      - object

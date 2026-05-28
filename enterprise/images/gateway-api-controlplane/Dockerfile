@@ -1,5 +1,5 @@
 ARG BASE_IMAGE=quay.io/isovalent-dev/cilium-runtime-ubi:cd74ebc98d21b15e6fa66d02e7b73cccb75f5566@sha256:6d8d88e05a96cfe72ae28f71e762761e2f3d4234f465dc69c9cb1881f1f846cd
-ARG GOLANG_IMAGE=docker.io/library/golang:1.26.2@sha256:5f3787b7f902c07c7ec4f3aa91a301a3eda8133aa32661a3b3a3a86ab3a68a36
+ARG GOLANG_IMAGE=docker.io/library/golang:1.26.3@sha256:2d6c80227255c3112a4d08e67ba98e58efd3846daf15d9d7d4c389565d881b1a
 
 FROM --platform=${BUILDPLATFORM} ${GOLANG_IMAGE} AS builder
 

@@ -16,9 +16,11 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"strconv"
 
 	"github.com/containernetworking/cni/pkg/skel"
 	cniTypesV1 "github.com/containernetworking/cni/pkg/types/100"
+	"k8s.io/utils/ptr"
 
 	"github.com/cilium/cilium/api/v1/models"
 	enterpriseModels "github.com/cilium/cilium/enterprise/api/v1/models"
@@ -181,6 +183,8 @@ func (h *addHooks) OnInterfaceConfigReady(state *cmd.CmdState, ep *models.Endpoi
 	}
 	ep.Properties[privnetTypes.PropertyPrivNetNetwork] = h.privNetAddressing.Network
 	ep.Properties[privnetTypes.PropertyPrivNetSubnet] = h.privNetAddressing.Subnet
+	ep.Properties[privnetTypes.PropertyPrivNetNICIndex] = strconv.FormatInt(
+		ptr.Deref(h.privNetAddressing.NicIndex, 0), 10)
 
 	// TODO: Should we allow this kind of label to be set via API or should it be treated like `reserved` labels
 	// and be set by the daemon on endpoint creation?

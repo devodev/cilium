@@ -25,6 +25,7 @@ import (
 	"github.com/cilium/cilium/cilium-cli/connectivity/check"
 	"github.com/cilium/cilium/cilium-cli/defaults"
 	enterpriseTests "github.com/cilium/cilium/cilium-cli/enterprise/hooks/connectivity/tests"
+	enterpriseFeatures "github.com/cilium/cilium/cilium-cli/enterprise/hooks/utils/features"
 	"github.com/cilium/cilium/cilium-cli/k8s"
 	"github.com/cilium/cilium/cilium-cli/utils/features"
 	k8sconst "github.com/cilium/cilium/pkg/k8s/apis/cilium.io"
@@ -37,6 +38,7 @@ import (
 const (
 	kindMulticastName                       = "multicast"
 	inspectionNamespaceDeletionPollInterval = 500 * time.Millisecond
+	connDisruptEGWHASettleDelay             = 10 * time.Second
 )
 
 func waitForNamespaceDeletion(ctx context.Context, client *k8s.Client, ns string) error {
@@ -500,12 +502,25 @@ func (t *EnterpriseTest) deleteInspectionWorkloads(ctx context.Context) error {
 }
 
 // SetupConnDisruptEGWHA deploys the EGW HA conn-disrupt test resources
-// (IEGP, server, clients, CNP). BPF entry validation is handled separately.
+// (BGP peering, IEGP, server, clients, CNP).
 //
 //nolint:misspell
 func (ect *EnterpriseConnectivityTest) SetupConnDisruptEGWHA(ctx context.Context, egressCIDRs []string) error {
 	ct := ect.ConnectivityTest
 	ct.Logf("Setting up EGW HA conn-disrupt test resources...")
+
+	if len(enterpriseTests.Params.EgressGateway.PeerAddresses) > 0 {
+		bfdProfileName := ""
+		if bfdEnabled, _ := ct.Features.MatchRequirements(features.RequireEnabled(enterpriseFeatures.BFD)); bfdEnabled {
+			if err := enterpriseTests.CreateEGWBFDProfile(ctx, ct, nil); err != nil {
+				return fmt.Errorf("failed to configure BFD profile for conn-disrupt: %w", err)
+			}
+			bfdProfileName = enterpriseTests.EGWBFDProfileName
+		}
+		if err := enterpriseTests.CreateEGWBGPPeeringV1(ctx, ct, features.IPFamilyV4, bfdProfileName); err != nil {
+			return fmt.Errorf("failed to configure BGP peering for conn-disrupt: %w", err)
+		}
+	}
 
 	if len(egressCIDRs) != 0 && len(egressCIDRs) != 2 {
 		return fmt.Errorf("--conn-disrupt-egw-ha-egress-cidrs requires exactly 2 CIDRs (first for single-GW IEGP, second for two-GW IEGP), got %d", len(egressCIDRs))
@@ -551,10 +566,8 @@ func (ect *EnterpriseConnectivityTest) SetupConnDisruptEGWHA(ctx context.Context
 		enterpriseTests.ConnDisruptEGWHAClientNonGWNodeAppLabel, svcAddr, map[string]string{"kubernetes.io/hostname": nonGWNode}); err != nil {
 		return err
 	}
-	for _, name := range []string{enterpriseTests.ConnDisruptEGWHAClientGWNodeDeploymentName, enterpriseTests.ConnDisruptEGWHAClientNonGWNodeDeploymentName} {
-		if err := check.WaitForDeployment(ctx, ct, ect.clients.dst.Client, ct.Params().TestNamespace, name); err != nil {
-			return fmt.Errorf("%s deployment is not ready: %w", name, err)
-		}
+	if err := ect.waitForConnDisruptClientsReady(ctx); err != nil {
+		return err
 	}
 
 	// Wait for BPF egress-ha entries
@@ -562,7 +575,38 @@ func (ect *EnterpriseConnectivityTest) SetupConnDisruptEGWHA(ctx context.Context
 		return fmt.Errorf("failed waiting for BPF egress-ha entries: %w", err)
 	}
 
+	// Depending on timing, the client may first connect before the egress BPF entry
+	// is programmed, so the connection is initially masqueraded with the node IP.
+	// Once the egress entry is installed, matching traffic is SNATed with the egress
+	// IP, which can break that long-lived connection by changing its source address
+	// mid-stream.
+	//
+	// If that happens, the client hits its 5s no-reply timeout, restarts once, and
+	// reconnects with the egress IP. Sleep past this possible one-time transition
+	// before taking the baseline restart counts, so it is not later miscounted as an
+	// interrupted connection.
+	ct.Logf("Waiting %s for conn-disrupt clients to settle through the egress-SNAT transition...", connDisruptEGWHASettleDelay)
+	time.Sleep(connDisruptEGWHASettleDelay)
+
+	// Re-check readiness: after the possible transition restart above, this blocks
+	// until the clients have reconnected via the egress IP, so the baseline is taken
+	// on a settled, connected state.
+	if err := ect.waitForConnDisruptClientsReady(ctx); err != nil {
+		return err
+	}
+
 	ct.Logf("EGW HA conn-disrupt test setup complete")
+	return nil
+}
+
+//nolint:misspell
+func (ect *EnterpriseConnectivityTest) waitForConnDisruptClientsReady(ctx context.Context) error {
+	ct := ect.ConnectivityTest
+	for _, name := range []string{enterpriseTests.ConnDisruptEGWHAClientGWNodeDeploymentName, enterpriseTests.ConnDisruptEGWHAClientNonGWNodeDeploymentName} {
+		if err := check.WaitForDeployment(ctx, ct, ect.clients.dst.Client, ct.Params().TestNamespace, name); err != nil {
+			return fmt.Errorf("%s deployment is not ready: %w", name, err)
+		}
+	}
 	return nil
 }
 
@@ -573,6 +617,9 @@ func (ect *EnterpriseConnectivityTest) CleanupConnDisruptEGWHA(ctx context.Conte
 	ct := ect.ConnectivityTest
 	ct.Debugf("Cleaning up EGW HA conn-disrupt test resources...")
 	ns := ct.Params().TestNamespace
+
+	enterpriseTests.DeleteEGWBGPPeeringV1(ctx, ct)
+	enterpriseTests.DeleteEGWBFDProfile(ctx, ct)
 
 	for _, client := range ect.EntClients() {
 		_ = client.DeleteIsovalentEgressGatewayPolicy(ctx, enterpriseTests.ConnDisruptEGWHAIEGPGWNodeName, metav1.DeleteOptions{})
@@ -623,7 +670,8 @@ func (ect *EnterpriseConnectivityTest) deployConnDisruptIEGP(ctx context.Context
 			APIVersion: "isovalent.com/v1",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: iegpName,
+			Name:   iegpName,
+			Labels: map[string]string{"egw": "bgp-advertise"},
 		},
 		Spec: isovalentv1.IsovalentEgressGatewayPolicySpec{
 			Selectors: []isovalentv1.EgressRule{

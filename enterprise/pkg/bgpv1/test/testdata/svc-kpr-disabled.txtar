@@ -1,4 +1,4 @@
-#! --test-peering-ips=10.99.106.101,10.99.106.102 --kube-proxy-replacement=false
+#! --test-peering-ips=10.99.6.101,10.99.6.102 --kube-proxy-replacement=false
 
 # Tests ClusterIP / LoadBalancerIP / ExternalIP advertisements with kube-proxy-replacement disabled.
 
@@ -6,20 +6,19 @@
 hive start
 
 # Configure gobgp server
-gobgp/add-server test 65010 10.99.106.101 1790
+gobgp/add-server test 65010 10.99.6.101 1790
 
 # Configure peers on GoBGP
-gobgp/add-peer 10.99.106.102 65001
+gobgp/add-peer 10.99.6.102 65001
 
 # Add k8s services (LB service with eTP=Local)
 k8s/add service-clusterip.yaml service-lb-local.yaml
 
 # Configure BGP on Cilium
 k8s/add cilium-node.yaml bgp-node-config.yaml bgp-peer-config.yaml bgp-advertisement.yaml
-* bgptest/sync-oss-resources
 
 # Wait for peering to be established
-gobgp/wait-state 10.99.106.102 ESTABLISHED
+gobgp/wait-state 10.99.6.102 ESTABLISHED
 
 # Add endpoints for the LB service
 k8s/add endpoints-local.yaml
@@ -51,15 +50,15 @@ metadata:
   name: test-node
 spec:
   addresses:
-  - ip: 10.99.106.102
+  - ip: 10.99.6.102
     type: InternalIP
   ipam:
     podCIDRs:
     - 10.244.1.0/24
 
 -- bgp-node-config.yaml --
-apiVersion: isovalent.com/v1
-kind: IsovalentBGPNodeConfig
+apiVersion: cilium.io/v2
+kind: CiliumBGPNodeConfig
 metadata:
   name: test-node
 spec:
@@ -69,14 +68,14 @@ spec:
     peers:
     - name: gobgp-peer-1
       peerASN: 65010
-      peerAddress: 10.99.106.101
-      localAddress: 10.99.106.102
+      peerAddress: 10.99.6.101
+      localAddress: 10.99.6.102
       peerConfigRef:
         name: gobgp-peer-config
 
 -- bgp-peer-config.yaml --
-apiVersion: isovalent.com/v1
-kind: IsovalentBGPPeerConfig
+apiVersion: cilium.io/v2
+kind: CiliumBGPPeerConfig
 metadata:
   name: gobgp-peer-config
 spec:
@@ -92,8 +91,8 @@ spec:
         advertise: services
 
 -- bgp-advertisement.yaml --
-apiVersion: isovalent.com/v1
-kind: IsovalentBGPAdvertisement
+apiVersion: cilium.io/v2
+kind: CiliumBGPAdvertisement
 metadata:
   name: lb-only
   labels:
@@ -229,11 +228,11 @@ ports:
   protocol: TCP
 
 -- gobgp-routes-tp-cluster.expected --
-Prefix            NextHop         Attrs
-10.96.50.105/32   10.99.106.102   [{Origin: i} {AsPath: 65001}]
+Prefix            NextHop       Attrs
+10.96.50.105/32   10.99.6.102   [{Origin: i} {AsPath: 65001}]
 -- gobgp-routes-all.expected --
-Prefix            NextHop         Attrs
-10.96.50.104/32   10.99.106.102   [{Origin: i} {AsPath: 65001}]
-10.96.50.105/32   10.99.106.102   [{Origin: i} {AsPath: 65001}]
-172.16.1.1/32     10.99.106.102   [{Origin: i} {AsPath: 65001}]
-9.9.9.9/32        10.99.106.102   [{Origin: i} {AsPath: 65001}]
+Prefix            NextHop       Attrs
+10.96.50.104/32   10.99.6.102   [{Origin: i} {AsPath: 65001}]
+10.96.50.105/32   10.99.6.102   [{Origin: i} {AsPath: 65001}]
+172.16.1.1/32     10.99.6.102   [{Origin: i} {AsPath: 65001}]
+9.9.9.9/32        10.99.6.102   [{Origin: i} {AsPath: 65001}]

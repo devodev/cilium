@@ -22,6 +22,7 @@ import (
 	"github.com/cilium/statedb"
 	"github.com/vishvananda/netlink"
 
+	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
 	"github.com/cilium/cilium/pkg/bgp/manager/instance"
 	"github.com/cilium/cilium/pkg/bgp/manager/reconciler"
 	"github.com/cilium/cilium/pkg/bgp/types"
@@ -45,6 +46,7 @@ type InterfaceReconcilerIn struct {
 	cell.In
 
 	Logger     *slog.Logger
+	Config     config.Config
 	PeerAdvert *IsovalentAdvertisement
 
 	DB          *statedb.DB
@@ -67,6 +69,9 @@ type InterfaceReconcilerMetadata struct {
 }
 
 func NewInterfaceReconciler(params InterfaceReconcilerIn) InterfaceReconcilerOut {
+	if !params.Config.Enabled {
+		return InterfaceReconcilerOut{}
+	}
 	return InterfaceReconcilerOut{
 		Reconciler: &InterfaceReconciler{
 			logger:      params.Logger.With(types.ReconcilerLogField, InterfaceReconcilerName),

@@ -57,7 +57,7 @@ jobs:
           ./scripts/publish-img-checks-to-redhat.sh
 
       - name: Get Isovalent Bot Token (Operator PR)
-        uses: hashicorp/vault-action@4c06c5ccf5c0761b6029f56cfb1dcf5565918a3b # v3.4.0
+        uses: hashicorp/vault-action@892a26828f195e65540a40b4768ae4571f51ebfc # v4.0.0
         with:
           url: ${{ vars.VAULT_URL }}
           method: jwt
@@ -171,7 +171,7 @@ jobs:
           path: cilium
 
       - name: Get Release Management Github App Credentials
-        uses: hashicorp/vault-action@4c06c5ccf5c0761b6029f56cfb1dcf5565918a3b # v3.4.0
+        uses: hashicorp/vault-action@892a26828f195e65540a40b4768ae4571f51ebfc # v4.0.0
         with:
           url: ${{ vars.VAULT_URL }}
           method: jwt
@@ -182,7 +182,7 @@ jobs:
 
       - id: generate-token
         name: Generate Token
-        uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3.1.1
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           app-id: ${{ env.GH_READWRITE_APP_ID }}
           private-key: ${{ env.GH_READWRITE_APP_PEM }}

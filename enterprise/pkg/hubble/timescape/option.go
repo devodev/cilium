@@ -32,8 +32,15 @@ type options struct {
 	dialOptions                []grpc.DialOption
 	tlsConfigPromise           promise.Promise[*certloader.WatchedClientConfig]
 	backoff                    Backoff
+	ingestMode                 ingestMode
+	batchSize                  int
+	batchFlushInterval         time.Duration
 	maxBufferSize              int
 	reportDroppedFlowsInterval time.Duration
+
+	// clock is used to create timers for the batcher. It is set to a real timer
+	// clock by default, but can be overridden for testing purposes.
+	clock timerClock
 
 	allowFilters  filters.FilterFuncs
 	denyFilters   filters.FilterFuncs
@@ -46,6 +53,23 @@ type options struct {
 
 // Option customizes the configuration of the Exporter.
 type Option func(*options) error
+
+type ingestMode string
+
+const (
+	ingestModeAuto   ingestMode = "auto"
+	ingestModeBatch  ingestMode = "batch"
+	ingestModeSingle ingestMode = "single"
+)
+
+func parseIngestMode(mode string) (ingestMode, error) {
+	switch ingestMode(mode) {
+	case ingestModeAuto, ingestModeBatch, ingestModeSingle:
+		return ingestMode(mode), nil
+	default:
+		return "", fmt.Errorf("invalid ingest mode: %q, must be one of: auto, batch, single", mode)
+	}
+}
 
 // WithDialOptions sets the dial options for the Exporter.
 func WithDialOptions(dialOptions ...grpc.DialOption) Option {
@@ -67,6 +91,40 @@ func WithTLSConfigPromise(tlsConfigPromise promise.Promise[*certloader.WatchedCl
 func WithBackoff(backoff Backoff) Option {
 	return func(o *options) error {
 		o.backoff = backoff
+		return nil
+	}
+}
+
+// WithIngestMode sets the Timescape ingest RPC selection mode.
+func WithIngestMode(mode string) Option {
+	return func(o *options) error {
+		parsedMode, err := parseIngestMode(mode)
+		if err != nil {
+			return err
+		}
+		o.ingestMode = parsedMode
+		return nil
+	}
+}
+
+// WithBatchSize sets the maximum number of flows sent in a single batch.
+func WithBatchSize(size int) Option {
+	return func(o *options) error {
+		if size <= 0 {
+			return fmt.Errorf("invalid batch size: %d, must be greater than 0", size)
+		}
+		o.batchSize = size
+		return nil
+	}
+}
+
+// WithBatchFlushInterval sets the maximum time a partial batch is kept before it is flushed.
+func WithBatchFlushInterval(interval time.Duration) Option {
+	return func(o *options) error {
+		if interval <= 0 {
+			return fmt.Errorf("invalid batch flush interval: %v, must be greater than 0", interval)
+		}
+		o.batchFlushInterval = interval
 		return nil
 	}
 }
@@ -168,6 +226,14 @@ func WithOnExportEventFunc(onExportEvent OnExportEventFunc) Option {
 func WithResolvers(resolvers ...dial.Resolver) Option {
 	return func(o *options) error {
 		o.resolvers = append(o.resolvers, resolvers...)
+		return nil
+	}
+}
+
+// withTestClock sets a custom timerClock for testing purposes.
+func withTestClock(clock timerClock) Option {
+	return func(o *options) error {
+		o.clock = clock
 		return nil
 	}
 }

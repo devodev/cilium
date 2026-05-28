@@ -36,6 +36,6 @@ Merge required security context for dnsproxy with user supplied securityContext.
 {{- if .Values.offlineMode.enabled -}}
   {{- $caps = append $caps "BPF" -}}
 {{- end -}}
-{{- $ctx := dict "capabilities" (dict "add" $caps) -}}
+{{- $ctx := dict "capabilities" (dict "add" $caps "drop" (list "ALL")) -}}
 {{- mustMerge (deepCopy .Values.securityContext) $ctx | toYaml -}}
 {{- end -}}

@@ -15,7 +15,6 @@ gobgp/add-peer -s dualstack fd00::aa:bb:55:2 65001
 
 # Configure BGP on Cilium
 k8s/add cilium-node.yaml bgp-node-config.yaml bgp-peer-config-v4.yaml bgp-peer-config-dualstack.yaml bgp-advertisement.yaml
-* bgptest/sync-oss-resources
 
 # Wait for peerings to be established
 gobgp/wait-state -s v4-only   10.99.5.2        ESTABLISHED
@@ -109,8 +108,8 @@ spec:
     - 10.244.0.0/24
 
 -- bgp-node-config.yaml --
-apiVersion: isovalent.com/v1
-kind: IsovalentBGPNodeConfig
+apiVersion: cilium.io/v2
+kind: CiliumBGPNodeConfig
 metadata:
   name: test-node
 spec:
@@ -132,8 +131,8 @@ spec:
         name: dualstack-peer-config
 
 -- bgp-peer-config-v4.yaml --
-apiVersion: isovalent.com/v1
-kind: IsovalentBGPPeerConfig
+apiVersion: cilium.io/v2
+kind: CiliumBGPPeerConfig
 metadata:
   name: v4-peer-config
 spec:
@@ -149,8 +148,8 @@ spec:
         advertise: bgp
 
 -- bgp-peer-config-dualstack.yaml --
-apiVersion: isovalent.com/v1
-kind: IsovalentBGPPeerConfig
+apiVersion: cilium.io/v2
+kind: CiliumBGPPeerConfig
 metadata:
   name: dualstack-peer-config
 spec:
@@ -171,8 +170,8 @@ spec:
         advertise: bgp
 
 -- bgp-advertisement.yaml --
-apiVersion: isovalent.com/v1
-kind: IsovalentBGPAdvertisement
+apiVersion: cilium.io/v2
+kind: CiliumBGPAdvertisement
 metadata:
   labels:
     advertise: bgp
@@ -185,8 +184,6 @@ spec:
     attributes:
       communities:
         standard: [ "65001:100" ]
-      asPathPrepend:
-        repeat: 2
 
 -- device-eth0.yaml --
 index: 1
@@ -232,13 +229,13 @@ operstatus: unknown # for loopback always unknown
 Prefix   NextHop   Attrs
 -- gobgp-routes-ipv4.expected --
 Prefix               NextHop     Attrs
-192.168.100.100/32   10.99.5.2   [{Origin: i} {AsPath: 65001 65001 65001} {Communities: 65001:100}]
-192.168.100.101/32   10.99.5.2   [{Origin: i} {AsPath: 65001 65001 65001} {Communities: 65001:100}]
+192.168.100.100/32   10.99.5.2   [{Origin: i} {AsPath: 65001} {Communities: 65001:100}]
+192.168.100.101/32   10.99.5.2   [{Origin: i} {AsPath: 65001} {Communities: 65001:100}]
 -- gobgp-routes-ipv4-ds.expected --
 Prefix               NextHop            Attrs
-192.168.100.100/32   fd00::aa:bb:55:2   [{Origin: i} {AsPath: 65001 65001 65001} {Communities: 65001:100}]
-192.168.100.101/32   fd00::aa:bb:55:2   [{Origin: i} {AsPath: 65001 65001 65001} {Communities: 65001:100}]
+192.168.100.100/32   fd00::aa:bb:55:2   [{Origin: i} {AsPath: 65001} {Communities: 65001:100}]
+192.168.100.101/32   fd00::aa:bb:55:2   [{Origin: i} {AsPath: 65001} {Communities: 65001:100}]
 -- gobgp-routes-ipv6.expected --
 Prefix             NextHop            Attrs
-fd00::aabb:1/128   fd00::aa:bb:55:2   [{Origin: i} {AsPath: 65001 65001 65001} {Communities: 65001:100}]
-fd00::aabb:2/128   fd00::aa:bb:55:2   [{Origin: i} {AsPath: 65001 65001 65001} {Communities: 65001:100}]
+fd00::aabb:1/128   fd00::aa:bb:55:2   [{Origin: i} {AsPath: 65001} {Communities: 65001:100}]
+fd00::aabb:2/128   fd00::aa:bb:55:2   [{Origin: i} {AsPath: 65001} {Communities: 65001:100}]

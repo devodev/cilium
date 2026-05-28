@@ -64,6 +64,9 @@ type timescapeExporterConfig struct {
 	AggregationRenewTTL          bool          `mapstructure:"hubble-export-timescape-aggregation-renew-ttl"`
 	AggregationStateChangeFilter []string      `mapstructure:"hubble-export-timescape-aggregation-state-filter"`
 	AggregationTTL               time.Duration `mapstructure:"hubble-export-timescape-aggregation-ttl"`
+	IngestMode                   string        `mapstructure:"hubble-export-timescape-ingest-mode"`
+	BatchSize                    int           `mapstructure:"hubble-export-timescape-batch-size"`
+	BatchFlushInterval           time.Duration `mapstructure:"hubble-export-timescape-batch-flush-interval"`
 	MaxBufferSize                int           `mapstructure:"hubble-export-timescape-max-buffer-size"`
 	ReportDroppedFlowsInterval   time.Duration `mapstructure:"hubble-export-timescape-report-dropped-flows-interval"`
 	UseCiliumServiceResolver     bool          `mapstructure:"hubble-export-timescape-use-cilium-service-resolver"`
@@ -85,6 +88,9 @@ var defaultTimescapeExporterConfig = timescapeExporterConfig{
 	AggregationRenewTTL:          true,
 	AggregationStateChangeFilter: []string{"new", "error", "closed"},
 	AggregationTTL:               30 * time.Second,
+	IngestMode:                   "auto",
+	BatchSize:                    256,
+	BatchFlushInterval:           250 * time.Millisecond,
 	MaxBufferSize:                4096,
 	ReportDroppedFlowsInterval:   time.Minute,
 	UseCiliumServiceResolver:     true,
@@ -107,6 +113,11 @@ func (def timescapeExporterConfig) Flags(flags *pflag.FlagSet) {
 	flags.StringSlice("hubble-export-timescape-aggregation-state-filter", def.AggregationStateChangeFilter,
 		"The state changes to include while aggregating ('new', 'established', 'first_error', 'error', 'closed')")
 	flags.Duration("hubble-export-timescape-aggregation-ttl", def.AggregationTTL, "TTL for flow aggregation")
+	flags.String("hubble-export-timescape-ingest-mode", def.IngestMode,
+		"Timescape ingest RPC mode to use ('auto', 'batch', 'single')")
+	flags.Int("hubble-export-timescape-batch-size", def.BatchSize, "The maximum number of flows sent in a single batch")
+	flags.Duration("hubble-export-timescape-batch-flush-interval", def.BatchFlushInterval,
+		"The maximum time to wait before flushing a partial flow batch")
 	flags.Int("hubble-export-timescape-max-buffer-size", def.MaxBufferSize, "The maximum number of flows to buffer before dropping them")
 	flags.Duration("hubble-export-timescape-report-dropped-flows-interval", def.ReportDroppedFlowsInterval,
 		"The interval at which to report dropped flows in logs. Set to 0s to disable reporting")
@@ -175,6 +186,9 @@ func newHubbleTimescapeExporter(params params) (out, error) {
 				timescape.WithDenyListFilter(params.Logger, denyList),
 				timescape.WithFieldMask(params.Config.Fieldmask),
 				timescape.WithNodeName(params.Config.NodeName),
+				timescape.WithIngestMode(params.Config.IngestMode),
+				timescape.WithBatchSize(params.Config.BatchSize),
+				timescape.WithBatchFlushInterval(params.Config.BatchFlushInterval),
 				timescape.WithMaxBufferSize(params.Config.MaxBufferSize),
 				timescape.WithReportDroppedFlowsInterval(params.Config.ReportDroppedFlowsInterval),
 				timescape.WithTLSConfigPromise(params.TLSConfigPromise),

@@ -79,7 +79,8 @@ priorityClassName: "system-node-critical"
 # ref: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
 resources: {}
 # -- The pod security context, by default adds NET_ADMIN, NET_RAW and BPF (if needed).
-securityContext: {}
+securityContext:
+  allowPrivilegeEscalation: false
 # -- Node tolerations for proxy scheduling to nodes with taints
 # ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
 tolerations:

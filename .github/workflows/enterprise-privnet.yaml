@@ -68,7 +68,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Set initial commit status
-        uses: cilium/cilium/.github/actions/set-commit-status@380de320e1536b28487b0af6e9e0cac14c078b8e # main
+        uses: cilium/cilium/.github/actions/set-commit-status@9a9b223dbcb7cc1951cf06ba365d700e958059cd # main
         with:
           sha: ${{ inputs.SHA || github.sha }}
 
@@ -236,7 +236,7 @@ jobs:
           echo connectivity_test_defaults=${CONNECTIVITY_TEST_DEFAULTS} >> $GITHUB_OUTPUT
 
       - name: Install Cilium CLI
-        uses: cilium/cilium-cli@3ce83aa3b4ea3ce6d97023c4d83c22b73a4ed3b4 # v0.19.2
+        uses: cilium/cilium-cli@28724c91759fcfe797a1619994da9eb53399da9d # v0.19.3
         with:
           skip-build: ${{ env.CILIUM_CLI_SKIP_BUILD }}
           image-repo: ${{ env.CILIUM_CLI_IMAGE_REPO }}

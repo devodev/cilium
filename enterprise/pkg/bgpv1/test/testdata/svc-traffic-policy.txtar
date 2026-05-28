@@ -2,9 +2,6 @@
 
 # Tests advertisements with external / internal service traffic policy.
 # Service routes should be withdrawn for a service with local traffic policy in case of no local endpoints.
-# NOTE: ATM, BGP CP service diff reconciliation is not triggered after complete removal of
-# endpoint / endpointslice k8s resource of a service, therefore we are only testing endpoint changes here,
-# (see https://github.com/cilium/cilium/issues/38924).
 
 # Start the hive
 hive start
@@ -20,7 +17,6 @@ k8s/add service-lb.yaml service-cluster.yaml
 
 # Configure BGP on Cilium
 k8s/add cilium-node.yaml bgp-node-config.yaml bgp-peer-config.yaml bgp-advertisement.yaml
-* bgptest/sync-oss-resources
 
 # Wait for peering to be established
 gobgp/wait-state 10.99.4.102 ESTABLISHED
@@ -43,6 +39,20 @@ k8s/update endpoints-non-local.yaml
 gobgp/routes -o routes.actual
 * cmp gobgp-routes-tp-cluster.expected routes.actual
 
+# Update endpoints for the LB service (local endpoint exists)
+k8s/update endpoints-local.yaml
+
+# Validate that all svc IPs are advertised now
+gobgp/routes -o routes.actual
+* cmp gobgp-routes-all.expected routes.actual
+
+# Delete endpoints of the LB service
+k8s/delete endpoints-local.yaml
+
+# Validate that only ClusterIP with iTP=Cluster is advertised
+gobgp/routes -o routes.actual
+* cmp gobgp-routes-tp-cluster.expected routes.actual
+
 #####
 
 -- cilium-node.yaml --
@@ -59,8 +69,8 @@ spec:
     - 10.244.1.0/24
 
 -- bgp-node-config.yaml --
-apiVersion: isovalent.com/v1
-kind: IsovalentBGPNodeConfig
+apiVersion: cilium.io/v2
+kind: CiliumBGPNodeConfig
 metadata:
   name: test-node
 spec:
@@ -76,8 +86,8 @@ spec:
         name: gobgp-peer-config
 
 -- bgp-peer-config.yaml --
-apiVersion: isovalent.com/v1
-kind: IsovalentBGPPeerConfig
+apiVersion: cilium.io/v2
+kind: CiliumBGPPeerConfig
 metadata:
   name: gobgp-peer-config
 spec:
@@ -93,8 +103,8 @@ spec:
         advertise: services
 
 -- bgp-advertisement.yaml --
-apiVersion: isovalent.com/v1
-kind: IsovalentBGPAdvertisement
+apiVersion: cilium.io/v2
+kind: CiliumBGPAdvertisement
 metadata:
   name: lb-only
   labels:
@@ -169,8 +179,9 @@ kind: EndpointSlice
 metadata:
   labels:
     kubernetes.io/service-name: echo
-  name: echo-eps
+  name: echo-eps1
   namespace: test
+  uid: d1f517f6-ab88-4c76-9bd0-4906a17cdd75
 addressType: IPv4
 endpoints:
 - addresses:
@@ -198,8 +209,9 @@ kind: EndpointSlice
 metadata:
   labels:
     kubernetes.io/service-name: echo
-  name: echo-eps
+  name: echo-eps1
   namespace: test
+  uid: d1f517f6-ab88-4c76-9bd0-4906a17cdd75
 addressType: IPv4
 endpoints:
 - addresses:

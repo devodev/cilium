@@ -18,6 +18,7 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -287,7 +288,11 @@ func TestPrivilegedScript(t *testing.T) {
 			}
 		})
 		hive.AddConfigOverride(h, func(cfg *config.Config) {
-			cfg.Enabled = true
+			// Disable enterprise BGP Control Plane when we are
+			// testing OSS scripts.
+			if strings.HasPrefix(t.Name(), "TestPrivilegedScript/ent-") {
+				cfg.Enabled = true
+			}
 		})
 		hive.AddConfigOverride(h, func(cfg *svcrouteconfig.RoutesConfig) {
 			cfg.EnableNoServiceEndpointsRoutable = *enableNoEndpointsRoutable

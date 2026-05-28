@@ -11,11 +11,9 @@ gobgp/add-peer fd00::aa:bb:dd:102 65001
 
 # Configure BGP on Cilium
 k8s/add cilium-node.yaml bgp-node-config.yaml bgp-peer-config.yaml
-* bgptest/sync-oss-resources
 
 # Configure advertisement with communities ending with 99
 k8s/add bgp-advertisement-99.yaml
-* bgptest/sync-oss-resources
 
 # Wait for peering to be established
 gobgp/wait-state fd00::aa:bb:dd:102 ESTABLISHED
@@ -34,7 +32,6 @@ gobgp/routes -o routes.actual ipv6 unicast
 
 # Configure advertisement with communities ending with 101
 k8s/update bgp-advertisement-101.yaml
-* bgptest/sync-oss-resources
 
 # Validate IPv4 PodCIDR routes
 gobgp/routes -o routes.actual ipv4 unicast
@@ -46,7 +43,6 @@ gobgp/routes -o routes.actual ipv6 unicast
 
 # Configure advertisement with other types of communities
 k8s/update bgp-advertisement-other.yaml
-* bgptest/sync-oss-resources
 
 # Validate IPv4 PodCIDR routes
 gobgp/routes -o routes.actual ipv4 unicast
@@ -55,30 +51,6 @@ gobgp/routes -o routes.actual ipv4 unicast
 # Validate IPv6 PodCIDR routes
 gobgp/routes -o routes.actual ipv6 unicast
 * cmp gobgp-routes-other-ipv6.expected routes.actual
-
-# Switch to eBGP instance to test eBGP-specific attributes
-gobgp/delete-server test
-gobgp/add-server test --router-id=1.2.3.4 65000 fd00::aa:bb:dd:101 1790
-gobgp/add-peer fd00::aa:bb:dd:102 65001
-
-# Configure BGP on Cilium
-k8s/add bgp-node-config-ebgp.yaml
-* bgptest/sync-oss-resources
-
-# Wait for peering to be established
-gobgp/wait-state fd00::aa:bb:dd:102 ESTABLISHED
-
-# Validate peering state
-gobgp/peers -o peers.actual
-* cmp gobgp-peers.expected peers.actual
-
-# Validate IPv4 PodCIDR routes
-gobgp/routes -o routes.actual ipv4 unicast
-* cmp gobgp-routes-ebgp-ipv4.expected routes.actual
-
-# Validate IPv6 PodCIDR routes
-gobgp/routes -o routes.actual ipv6 unicast
-* cmp gobgp-routes-ebgp-ipv6.expected routes.actual
 
 #####
 
@@ -97,8 +69,8 @@ spec:
     - fd00:11:22::/64
 
 -- bgp-node-config.yaml --
-apiVersion: isovalent.com/v1
-kind: IsovalentBGPNodeConfig
+apiVersion: cilium.io/v2
+kind: CiliumBGPNodeConfig
 metadata:
   name: test-node
 spec:
@@ -114,27 +86,9 @@ spec:
       peerConfigRef:
         name: gobgp-peer-config
 
--- bgp-node-config-ebgp.yaml --
-apiVersion: isovalent.com/v1
-kind: IsovalentBGPNodeConfig
-metadata:
-  name: test-node
-spec:
-  bgpInstances:
-  - localASN: 65001
-    routerID: 5.6.7.8
-    name: tor
-    peers:
-    - name: gobgp-peer
-      peerASN: 65000
-      peerAddress: fd00::aa:bb:dd:101
-      localAddress: fd00::aa:bb:dd:102
-      peerConfigRef:
-        name: gobgp-peer-config
-
 -- bgp-peer-config.yaml --
-apiVersion: isovalent.com/v1
-kind: IsovalentBGPPeerConfig
+apiVersion: cilium.io/v2
+kind: CiliumBGPPeerConfig
 metadata:
   name: gobgp-peer-config
 spec:
@@ -155,8 +109,8 @@ spec:
         advertise: bgp
 
 -- bgp-advertisement-99.yaml --
-apiVersion: isovalent.com/v1
-kind: IsovalentBGPAdvertisement
+apiVersion: cilium.io/v2
+kind: CiliumBGPAdvertisement
 metadata:
   labels:
     advertise: bgp
@@ -170,8 +124,8 @@ spec:
       localPreference: 99
 
 -- bgp-advertisement-101.yaml --
-apiVersion: isovalent.com/v1
-kind: IsovalentBGPAdvertisement
+apiVersion: cilium.io/v2
+kind: CiliumBGPAdvertisement
 metadata:
   labels:
     advertise: bgp
@@ -185,8 +139,8 @@ spec:
       localPreference: 101
 
 -- bgp-advertisement-other.yaml --
-apiVersion: isovalent.com/v1
-kind: IsovalentBGPAdvertisement
+apiVersion: cilium.io/v2
+kind: CiliumBGPAdvertisement
 metadata:
   labels:
     advertise: bgp
@@ -198,8 +152,6 @@ spec:
       communities:
         wellKnown: [ "no-export" ]
         large: [ "65001:100:100" ]
-      asPathPrepend:
-        repeat: 2
 
 -- gobgp-peers.expected --
 PeerAddress          RouterID   PeerASN   SessionState   KeepAlive   HoldTime   GracefulRestartTime
@@ -222,9 +174,3 @@ Prefix          NextHop              Attrs
 -- gobgp-routes-other-ipv6.expected --
 Prefix            NextHop              Attrs
 fd00:11:22::/64   fd00::aa:bb:dd:102   [{Origin: i} {AsPath: } {LocalPref: 100} {Communities: no-export} {LargeCommunity: [ 65001:100:100]}]
--- gobgp-routes-ebgp-ipv4.expected --
-Prefix          NextHop              Attrs
-10.244.0.0/24   fd00::aa:bb:dd:102   [{Origin: i} {AsPath: 65001 65001 65001} {Communities: no-export} {LargeCommunity: [ 65001:100:100]}]
--- gobgp-routes-ebgp-ipv6.expected --
-Prefix            NextHop              Attrs
-fd00:11:22::/64   fd00::aa:bb:dd:102   [{Origin: i} {AsPath: 65001 65001 65001} {Communities: no-export} {LargeCommunity: [ 65001:100:100]}]

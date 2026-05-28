@@ -15,7 +15,6 @@ gobgp/add-peer 10.99.0.130 65001
 # Configure BGP on Cilium
 k8s/add cilium-node.yaml bgp-advertisement.yaml
 k8s/add bgp-node-config-1.yaml bgp-peer-config-1.yaml
-* bgptest/sync-oss-resources
 
 # Wait for peering to be established
 gobgp/wait-state 10.99.0.130 ESTABLISHED
@@ -35,7 +34,6 @@ gobgp/add-peer 10.99.0.130 65001
 
 # Update peer IP
 k8s/update bgp-node-config-2.yaml
-* bgptest/sync-oss-resources
 
 # Wait for peering to be established
 gobgp/wait-state 10.99.0.130 ESTABLISHED
@@ -50,7 +48,6 @@ gobgp/routes -o routes.actual
 
 # Update peering parameters
 k8s/update bgp-peer-config-2.yaml
-* bgptest/sync-oss-resources
 
 # Wait for peering to go down. There is 5s IdleHoldTime applied on the GoBGP side, so it will take about 5s to reconnect.
 gobgp/wait-state 10.99.0.130 IDLE
@@ -78,8 +75,8 @@ spec:
     - 10.244.0.0/24
 
 -- bgp-node-config-1.yaml --
-apiVersion: isovalent.com/v1
-kind: IsovalentBGPNodeConfig
+apiVersion: cilium.io/v2
+kind: CiliumBGPNodeConfig
 metadata:
   name: test-node
 spec:
@@ -95,8 +92,8 @@ spec:
         name: gobgp-peer-config
 
 -- bgp-node-config-2.yaml --
-apiVersion: isovalent.com/v1
-kind: IsovalentBGPNodeConfig
+apiVersion: cilium.io/v2
+kind: CiliumBGPNodeConfig
 metadata:
   name: test-node
 spec:
@@ -112,8 +109,8 @@ spec:
         name: gobgp-peer-config
 
 -- bgp-peer-config-1.yaml --
-apiVersion: isovalent.com/v1
-kind: IsovalentBGPPeerConfig
+apiVersion: cilium.io/v2
+kind: CiliumBGPPeerConfig
 metadata:
   name: gobgp-peer-config
 spec:
@@ -129,8 +126,8 @@ spec:
         advertise: bgp
 
 -- bgp-peer-config-2.yaml --
-apiVersion: isovalent.com/v1
-kind: IsovalentBGPPeerConfig
+apiVersion: cilium.io/v2
+kind: CiliumBGPPeerConfig
 metadata:
   name: gobgp-peer-config
 spec:
@@ -151,8 +148,8 @@ spec:
         advertise: bgp
 
 -- bgp-advertisement.yaml --
-apiVersion: isovalent.com/v1
-kind: IsovalentBGPAdvertisement
+apiVersion: cilium.io/v2
+kind: CiliumBGPAdvertisement
 metadata:
   labels:
     advertise: bgp

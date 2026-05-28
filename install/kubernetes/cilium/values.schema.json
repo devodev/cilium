@@ -3118,8 +3118,14 @@
         },
         "gracefulRestart": {
           "properties": {
+            "drainTimeSeconds": {
+              "type": "integer"
+            },
             "enabled": {
               "type": "boolean"
+            },
+            "parentShutdownSeconds": {
+              "type": "integer"
             }
           },
           "type": "object"
@@ -4006,6 +4012,18 @@
                     "array"
                   ]
                 },
+                "batchFlushInterval": {
+                  "type": [
+                    "null",
+                    "string"
+                  ]
+                },
+                "batchSize": {
+                  "type": [
+                    "null",
+                    "integer"
+                  ]
+                },
                 "denyList": {
                   "type": [
                     "null",
@@ -4022,6 +4040,12 @@
                   "type": [
                     "null",
                     "array"
+                  ]
+                },
+                "ingestMode": {
+                  "type": [
+                    "null",
+                    "string"
                   ]
                 },
                 "maxBufferSize": {

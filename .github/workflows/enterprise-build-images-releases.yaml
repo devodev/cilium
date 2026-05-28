@@ -232,7 +232,7 @@ jobs:
           - name: cilium
             dockerfile: ./enterprise/images/cilium/Dockerfile
             # renovate: datasource=docker
-            base_image: quay.io/isovalent-dev/cilium-runtime-ubi:196ba44803e236d2bb7ba1f888049ecf15d9c2ac
+            base_image: quay.io/isovalent-dev/cilium-runtime-ubi:a39cad1802dec56721b7d71c0b7e11e09242486a
             envoy_image: quay.io/${{ needs.mirror-envoy-image.outputs.org }}/cilium-envoy-ubi:${{ needs.mirror-envoy-image.outputs.version }}
             postfix: ubi
             image_name: cilium
@@ -478,7 +478,7 @@ jobs:
           # renovate: datasource=docker depName=mikefarah/yq
           yq_version: 4.53.2
           # renovate: datasource=github-releases depName=operator-framework/operator-registry
-          opm_version: 1.67.0
+          opm_version: 1.68.0
           VERSION: "${{ steps.tag.outputs.tag }}"
           CATALOG_TAG: "1.0.0"
           IMAGE_TAG_BASE: "${{ steps.tag.outputs.image_tag_base }}"

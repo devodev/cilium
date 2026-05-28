@@ -51,6 +51,11 @@ type LocalWorkload struct {
 
 	// LXC is the LXC interface associated with this endpoint.
 	LXC LocalWorkloadLXC
+
+	// NICIndex is the index of the NIC of the workload. The primary interface
+	// has index 0, the first secondary interface has index 1, and so on. At
+	// most [addressing.MaxSecondaryInterfaces] secondary interfaces are supported.
+	NICIndex uint8
 }
 
 // LocalWorkloadLXC is the LXC interface associated with an endpoint.
@@ -66,7 +71,7 @@ var _ statedb.TableWritable = &LocalWorkload{}
 
 func (lw *LocalWorkload) TableHeader() []string {
 	return []string{
-		"Endpoint", "ID",
+		"Endpoint", "ID", "NIC",
 		"Network", "NetworkIPv4", "NetworkIPv6",
 		"PodIPv4", "PodIPv6", "ActivatedAt",
 	}
@@ -76,6 +81,7 @@ func (lw *LocalWorkload) TableRow() []string {
 	return []string{
 		lw.Namespace + "/" + lw.Endpoint.Name,
 		strconv.FormatUint(uint64(lw.EndpointID), 10),
+		strconv.FormatUint(uint64(lw.NICIndex), 10),
 		lw.Interface.Network,
 		cmp.Or(lw.Interface.Addressing.IPv4, "N/A"),
 		cmp.Or(lw.Interface.Addressing.IPv6, "N/A"),

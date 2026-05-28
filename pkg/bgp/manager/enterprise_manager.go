@@ -17,6 +17,8 @@ import (
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/agent"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
 	ossTypes "github.com/cilium/cilium/pkg/bgp/types"
+	v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
+	v1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
 )
 
 var _ agent.EnterpriseBGPRouterManager = (*BGPRouterManager)(nil)
@@ -101,4 +103,11 @@ func (m *BGPRouterManager) GetRoutePoliciesExtended(ctx context.Context, instanc
 		}
 	}
 	return res, nil
+}
+
+// ReconcileEnterpriseInstances is not used by the OSS manager. This exists so
+// the OSS manager can satisfy EnterpriseBGPRouterManager while the OSS and CEE
+// BGP control planes are both enabled.
+func (m *BGPRouterManager) ReconcileEnterpriseInstances(context.Context, *v1.IsovalentBGPNodeConfig, *v2.CiliumNode) error {
+	return nil
 }

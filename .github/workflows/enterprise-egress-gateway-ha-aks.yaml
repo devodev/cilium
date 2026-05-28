@@ -60,13 +60,14 @@ concurrency:
 
 env:
   # renovate: datasource=github-releases depName=kubernetes/kubernetes
-  kubectl_version: v1.36.0
+  kubectl_version: v1.36.1
 
   test_name: egwha-aks
   cost_reduction: --node-vm-size Standard_B2s --node-osdisk-size 30
 
   peer_asn: 65001
   ipam_cidr: 10.0.100.1/30
+  conn_disrupt_egw_ha_egress_cidrs: 10.0.101.1/30,10.0.102.1/30
 jobs:
   echo-inputs:
     if: ${{ github.event_name == 'workflow_dispatch' }}
@@ -139,11 +140,16 @@ jobs:
             SHA="${{ github.sha }}"
           fi
 
+          CILIUM_DOWNGRADE_VERSION=$(contrib/scripts/print-downgrade-version.sh stable)
+          echo "CILIUM_DOWNGRADE_VERSION: ${CILIUM_DOWNGRADE_VERSION}"
+          if [ -z "${CILIUM_DOWNGRADE_VERSION}" ]; then
+            echo "::notice::No CILIUM_DOWNGRADE_VERSION returned; skipping upgrade/downgrade steps"
+          fi
+
           MATRIX_ID=${{ matrix.id }}
           NAME="${{ env.test_name }}-${{ github.run_id }}-${{ github.run_attempt }}-${MATRIX_ID}"
 
           CILIUM_INSTALL_DEFAULTS=" \
-            --chart-directory=untrusted/install/kubernetes/cilium \
             --wait=false \
             --set=debug.enabled=true \
             --set=cluster.name=${NAME} \
@@ -158,8 +164,8 @@ jobs:
             --set=kubeProxyReplacement=true \
             --set=ipv4.enabled=true \
             --set=ipv6.enabled=true \
-            --set=image.override=quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/cilium-ci:${SHA} \
-            --set=operator.image.override=quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/operator-generic-ci:${SHA} \
+            --set=updateStrategy.rollingUpdate.maxUnavailable=1 \
+            --set=minReadySeconds=15 \
             --nodes-without-cilium
           "
 
@@ -189,17 +195,24 @@ jobs:
 
           CILIUM_INSTALL_DEFAULTS+=" --set=enterprise.featureGate.approved='{${FEATURE_GATES}}' "
 
+          CILIUM_INSTALL_NEWEST=" \
+            --chart-directory=untrusted/cilium-newest/install/kubernetes/cilium \
+            ${CILIUM_INSTALL_DEFAULTS} \
+            --set=image.override=quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/cilium-ci:${SHA} \
+            --set=operator.image.override=quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/operator-generic-ci:${SHA}
+          "
+
           CONNECTIVITY_TEST_DEFAULTS=" \
             --hubble=false \
             --log-code-owners --code-owners=${CILIUM_CLI_CODE_OWNERS_PATHS} \
             --exclude-code-owners=${CILIUM_CLI_EXCLUDE_OWNERS} \
             --flow-validation=disabled \
             --include-unsafe-tests \
-            --test='seq-egress-gateway-ha-ipam-bgp-advertisement' \
-            --test='seq-egress-gateway-ha-ipam-bgp-advertisement-with-l7-policy' \
-            --test='seq-egress-gateway-ha-ipam-bgp-advertisement-virtual-ip' \
-            --test='check-log-errors' \
-            --collect-sysdump-on-failure
+            --collect-sysdump-on-failure \
+            --log-check-extra-exceptions=cleanup-peer-config-status \
+            --log-check-extra-exceptions='restart flag is not set' \
+            --log-check-extra-exceptions='received notification' \
+            --log-check-extra-exceptions='failed to send'
           "
 
           if [ "${{ matrix.ipam }}" == "multi-pool" ]; then
@@ -216,7 +229,9 @@ jobs:
           AKS_LOCATION=$(echo $aks_version_and_location | cut -d',' -f2)
 
           echo sha=${SHA} >> $GITHUB_OUTPUT
+          echo downgrade_version=${CILIUM_DOWNGRADE_VERSION} >> $GITHUB_OUTPUT
           echo cilium_install_defaults=${CILIUM_INSTALL_DEFAULTS} >> $GITHUB_OUTPUT
+          echo cilium_install_newest=${CILIUM_INSTALL_NEWEST} >> $GITHUB_OUTPUT
           echo connectivity_test_defaults=${CONNECTIVITY_TEST_DEFAULTS} >> $GITHUB_OUTPUT
           echo name=${NAME} >> $GITHUB_OUTPUT
           echo owner=${OWNER} >> $GITHUB_OUTPUT
@@ -272,6 +287,31 @@ jobs:
               throw new Error(`Invalid IP address: ${ip}`);
             }
             return `${ip}/32`;
+
+      - name: Checkout ${{ steps.vars.outputs.downgrade_version }} branch to get the Helm chart
+        if: ${{ steps.vars.outputs.downgrade_version != '' }}
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ steps.vars.outputs.downgrade_version }}
+          persist-credentials: false
+          path: untrusted/cilium-downgrade
+          sparse-checkout: |
+            install/kubernetes/cilium
+
+      - name: Retrieve downgrade target SHA
+        if: ${{ steps.vars.outputs.downgrade_version != '' }}
+        id: downgrade-branch
+        run: |
+          echo "sha=$(cd untrusted/cilium-downgrade && git rev-parse HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Wait for images to be available (downgrade)
+        if: ${{ steps.vars.outputs.downgrade_version != '' }}
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          for image in cilium-ci operator-generic-ci ; do
+            until docker manifest inspect quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/$image:${{ steps.downgrade-branch.outputs.sha }} &> /dev/null; do sleep 45s; done
+          done
 
       - name: Create AKS cluster
         run: |
@@ -354,7 +394,7 @@ jobs:
           kubeconfig: "~/.kube/config"
 
       - name: Install Cilium CLI
-        uses: cilium/cilium-cli@3ce83aa3b4ea3ce6d97023c4d83c22b73a4ed3b4 # v0.19.2
+        uses: cilium/cilium-cli@28724c91759fcfe797a1619994da9eb53399da9d # v0.19.3
         with:
           skip-build: ${{ env.CILIUM_CLI_SKIP_BUILD }}
           image-repo: ${{ env.CILIUM_CLI_IMAGE_REPO }}
@@ -365,25 +405,44 @@ jobs:
 
       # Warning: since this is a privileged workflow, subsequent workflow job
       # steps must take care not to execute untrusted code.
-      - name: Checkout context ref (NOT TRUSTED)
+      - name: Checkout pull request branch (NOT TRUSTED)
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          ref: ${{ steps.vars.outputs.SHA }}
+          ref: ${{ steps.vars.outputs.sha }}
           persist-credentials: false
-          path: untrusted
+          path: untrusted/cilium-newest
           sparse-checkout: |
             install/kubernetes/cilium
 
-      - name: Install Cilium
+      - name: Set up downgrade settings
+        if: ${{ steps.vars.outputs.downgrade_version != '' }}
+        id: downgrade-vars
+        run: |
+          CILIUM_INSTALL_STABLE=" \
+            --chart-directory=untrusted/cilium-downgrade/install/kubernetes/cilium \
+            ${{ steps.vars.outputs.cilium_install_defaults }} \
+            --set=image.override=quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/cilium-ci:${{ steps.downgrade-branch.outputs.sha }} \
+            --set=operator.image.override=quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/operator-generic-ci:${{ steps.downgrade-branch.outputs.sha }}
+          "
+          echo cilium_install_stable=${CILIUM_INSTALL_STABLE} >> $GITHUB_OUTPUT
+
+      - name: Install Cilium ${{ steps.vars.outputs.downgrade_version }}
         id: install-cilium
         run: |
           K8S_API_SRV_ADDR=$(kubectl config view -o jsonpath='{.clusters[0].cluster.server}' | sed 's|https://||')
           echo "Retrieved Kubernetes API Server address: '${K8S_API_SRV_ADDR}'"
 
-          cilium install --dry-run-helm-values ${{ steps.vars.outputs.cilium_install_defaults }} \
-            --set=k8sServiceHost="${K8S_API_SRV_ADDR}" --set=k8sServicePort=443
-          cilium install ${{ steps.vars.outputs.cilium_install_defaults }} \
-            --set=k8sServiceHost="${K8S_API_SRV_ADDR}" --set=k8sServicePort=443
+          CLUSTER_FLAGS="--set=k8sServiceHost=${K8S_API_SRV_ADDR} --set=k8sServicePort=443"
+
+          if [ -n "${{ steps.vars.outputs.downgrade_version }}" ]; then
+            cilium install --dry-run-helm-values ${{ steps.downgrade-vars.outputs.cilium_install_stable }} ${CLUSTER_FLAGS}
+            cilium install ${{ steps.downgrade-vars.outputs.cilium_install_stable }} ${CLUSTER_FLAGS}
+          else
+            cilium install --dry-run-helm-values ${{ steps.vars.outputs.cilium_install_newest }} ${CLUSTER_FLAGS}
+            cilium install ${{ steps.vars.outputs.cilium_install_newest }} ${CLUSTER_FLAGS}
+          fi
+
+          echo k8s_api_srv_addr=${K8S_API_SRV_ADDR} >> $GITHUB_OUTPUT
 
       # This installs a dummy CNI on nodes labeled cilium.io/no-schedule=true
       # to make kubelet report them as Ready.
@@ -444,10 +503,6 @@ jobs:
           kubectl -n kube-system wait --for=condition=complete --timeout=180s job/${JOB_NAME}
           kubectl wait --for=condition=Ready --timeout=180s node -l cilium.io/no-schedule=true
           kubectl get nodes -l cilium.io/no-schedule=true -o wide
-
-      - name: Delete context ref
-        run: |
-          rm -rf untrusted/
 
       - name: Wait for Cilium status to be ready
         run: |
@@ -519,15 +574,133 @@ jobs:
           echo ars_vrip1=${ARS_VRIP1} >> $GITHUB_OUTPUT
           echo ars_vrip2=${ARS_VRIP2} >> $GITHUB_OUTPUT
 
+      - name: Build conn-disrupt test args
+        id: conn-disrupt
+        run: |
+          CONN_DISRUPT_SETUP_ARGS=" \
+            --include-conn-disrupt-test-egw-ha \
+            --include-unsafe-tests \
+            --conn-disrupt-test-setup \
+            --conn-disrupt-dispatch-interval 0ms \
+            --conn-disrupt-test-restarts-path ./cilium-conn-disrupt-restarts \
+            --conn-disrupt-egw-ha-egress-cidrs ${{ env.conn_disrupt_egw_ha_egress_cidrs }} \
+            --egw-bgp-peer-addresses ${{ steps.setup-azure-route-server.outputs.ars_vrip1 }} \
+            --egw-bgp-peer-addresses ${{ steps.setup-azure-route-server.outputs.ars_vrip2 }} \
+            --egw-bgp-asn ${{ steps.setup-azure-route-server.outputs.ars_asn }}
+          "
+          CONN_DISRUPT_CHECK_ARGS=" \
+            --include-unsafe-tests \
+            --include-conn-disrupt-test-egw-ha \
+            --collect-sysdump-on-failure \
+            --sysdump-hubble-flows-count=1000000 \
+            --sysdump-hubble-flows-timeout=5m \
+            --sysdump-output-filename 'cilium-sysdump-conn-disrupt-<ts>' \
+            --conn-disrupt-test-restarts-path ./cilium-conn-disrupt-restarts \
+            --flush-ct \
+            --test no-interrupted-connections-for-enterprise
+          "
+          echo conn_disrupt_setup_args=${CONN_DISRUPT_SETUP_ARGS} >> $GITHUB_OUTPUT
+          echo conn_disrupt_check_args=${CONN_DISRUPT_CHECK_ARGS} >> $GITHUB_OUTPUT
+
+      - name: Setup conn-disrupt before upgrade
+        if: ${{ steps.vars.outputs.downgrade_version != '' }}
+        run: |
+          cilium connectivity test ${{ steps.conn-disrupt.outputs.conn_disrupt_setup_args }}
+
+      - name: Upgrade Cilium
+        if: ${{ steps.vars.outputs.downgrade_version != '' }}
+        shell: bash
+        run: |
+          cilium upgrade --reset-values \
+            --helm-set=disableEnvoyVersionCheck=true \
+            ${{ steps.vars.outputs.cilium_install_newest }} \
+            --set=k8sServiceHost="${{ steps.install-cilium.outputs.k8s_api_srv_addr }}" \
+            --set=k8sServicePort=443
+
+          cilium status --wait --interactive=false --wait-duration=10m
+          kubectl get pods --all-namespaces -o wide
+          kubectl -n kube-system exec daemonset/cilium -c cilium-agent -- cilium-dbg status
+
+      - name: Check conn-disrupt after upgrade
+        if: ${{ steps.vars.outputs.downgrade_version != '' }}
+        run: |
+          cilium connectivity test ${{ steps.conn-disrupt.outputs.conn_disrupt_check_args }}
+
       - name: Run connectivity egress gateway ha test
         run: |
           cilium connectivity test \
             --namespace kube-system \
             ${{ steps.vars.outputs.connectivity_test_defaults }} \
+            --test='seq-egress-gateway-ha-ipam-bgp-advertisement' \
+            --test='seq-egress-gateway-ha-ipam-bgp-advertisement-with-l7-policy' \
+            --test='seq-egress-gateway-ha-ipam-bgp-advertisement-virtual-ip' \
+            --test='check-log-errors' \
             --egw-bgp-peer-addresses ${{ steps.setup-azure-route-server.outputs.ars_vrip1 }} \
             --egw-bgp-peer-addresses ${{ steps.setup-azure-route-server.outputs.ars_vrip2 }} \
             --egw-bgp-asn ${{ steps.setup-azure-route-server.outputs.ars_asn }} \
             --egw-ipam-cidrs ${{ env.ipam_cidr }}
+
+      - name: Setup conn-disrupt before maintenance test
+        run: |
+          cilium connectivity test ${{ steps.conn-disrupt.outputs.conn_disrupt_setup_args }}
+
+      - name: Cordon GW nodes and restart Cilium
+        run: |
+          kubectl cordon -l egress-group=test,rr-role=client
+
+          # Wait for the operator to observe the cordon and remove the activeGatewayIPs
+          for _ in $(seq 30); do
+            active=$(kubectl get iegp \
+              -o jsonpath='{.items[*].status.groupStatuses[*].activeGatewayIPs[*]}')
+            if [ -z "$active" ]; then break; fi
+            echo "Waiting for active gateways to be removed (current: $active)"
+            sleep 2
+          done
+          if [ -n "$active" ]; then
+            echo "ERROR: IEGPs still have active gateways after 60s: $active"
+            kubectl get iegp -o yaml
+            exit 1
+          fi
+          echo "All IEGPs have no active gateways, operator observed cordon"
+
+          kubectl -n kube-system rollout restart daemonset/cilium
+          kubectl -n kube-system rollout restart deployment/cilium-operator
+          kubectl -n kube-system rollout status  daemonset/cilium --timeout=10m
+          kubectl -n kube-system rollout status  deployment/cilium-operator --timeout=5m
+
+          cilium status --wait --interactive=false --wait-duration=10m
+          kubectl get pods --all-namespaces -o wide
+          kubectl -n kube-system exec daemonset/cilium -c cilium-agent -- cilium-dbg status
+
+          kubectl uncordon -l egress-group=test,rr-role=client
+
+      - name: Check conn-disrupt after maintenance test
+        run: |
+          cilium connectivity test ${{ steps.conn-disrupt.outputs.conn_disrupt_check_args }}
+
+      - name: Setup conn-disrupt before downgrade
+        if: ${{ steps.vars.outputs.downgrade_version != '' }}
+        run: |
+          cilium connectivity test ${{ steps.conn-disrupt.outputs.conn_disrupt_setup_args }}
+
+      - name: Downgrade to Cilium ${{ steps.vars.outputs.downgrade_version }}
+        if: ${{ steps.vars.outputs.downgrade_version != '' }}
+        shell: bash
+        run: |
+          cilium upgrade --reset-values \
+            --helm-set=disableEnvoyVersionCheck=true \
+            ${{ steps.downgrade-vars.outputs.cilium_install_stable }} \
+            --set=k8sServiceHost="${{ steps.install-cilium.outputs.k8s_api_srv_addr }}" \
+            --set=k8sServicePort=443
+
+          cilium status --wait --interactive=false --wait-duration=10m
+          kubectl get pods --all-namespaces -o wide
+          kubectl -n kube-system exec daemonset/cilium -c cilium-agent -- cilium-dbg status
+
+      - name: Check conn-disrupt after downgrade
+        if: ${{ steps.vars.outputs.downgrade_version != '' }}
+        run: |
+          cilium connectivity test ${{ steps.conn-disrupt.outputs.conn_disrupt_check_args }}
 
       - name: Post-test information gathering
         if: ${{ !success() && steps.install-cilium.outcome != 'skipped' && steps.install-cilium.outcome != 'cancelled' }}
@@ -545,6 +718,11 @@ jobs:
           name: cilium-sysdumps
           path: cilium-sysdump-*.zip
           retention-days: 5
+
+      - name: Delete context refs
+        if: ${{ always() }}
+        run: |
+          rm -rf untrusted/
 
       - name: Clean up AKS
         if: ${{ always() }}

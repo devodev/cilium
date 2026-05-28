@@ -13,6 +13,7 @@ package dhcp
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net"
 	"net/netip"
@@ -20,6 +21,7 @@ import (
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/statedb"
 	"github.com/insomniacslk/dhcp/dhcpv4"
+	"go4.org/netipx"
 
 	"github.com/cilium/cilium/enterprise/pkg/privnet/tables"
 	"github.com/cilium/cilium/pkg/logging/logfields"
@@ -131,7 +133,7 @@ func (h *serverHandler) serverHandler() Handler {
 				continue
 			}
 			if resp.MessageType() == dhcpv4.MessageTypeOffer || resp.MessageType() == dhcpv4.MessageTypeAck {
-				resp, err = h.rewriteOffer(req, resp)
+				resp, err = h.rewriteOffer(txn, lw, req, resp)
 				if err != nil {
 					continue
 				}
@@ -207,9 +209,7 @@ func (h *serverHandler) offeredIPBelongsToWorkloadSubnet(lw *tables.LocalWorkloa
 	return false
 }
 
-var defaultGatewayAddress = net.IPv4(169, 254, 0, 1)
-
-func (h *serverHandler) rewriteOffer(req, offer *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, error) {
+func (h *serverHandler) rewriteOffer(txn statedb.ReadTxn, lw *tables.LocalWorkload, req, offer *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4, error) {
 	if req == nil || offer == nil {
 		return nil, nil
 	}
@@ -220,17 +220,36 @@ func (h *serverHandler) rewriteOffer(req, offer *dhcpv4.DHCPv4) (*dhcpv4.DHCPv4,
 	resp.UpdateOption(dhcpv4.OptMessageType(offer.MessageType()))
 	resp.YourIPAddr = offer.YourIPAddr
 
-	// Set the netmask to /32 and gateway to [defaultGatewayAddress]
-	// and add a route for the default gateway.
+	// Set the netmask to /32
 	resp.UpdateOption(dhcpv4.OptSubnetMask(net.IPv4Mask(255, 255, 255, 255)))
-	resp.UpdateOption(dhcpv4.OptRouter(defaultGatewayAddress))
+
+	// Configure the routes:
+	// * Primary interface: default route via $link_local_address
+	// * Secondary interfaces: route for the subnet CIDR via $link_local_address.
+	var (
+		gateway = net.IPv4(169, 254, 0, lw.NICIndex+1)
+		dest    net.IPNet
+	)
+
+	if lw.NICIndex == 0 {
+		resp.UpdateOption(dhcpv4.OptRouter(gateway))
+		dest = net.IPNet{IP: net.IPv4zero, Mask: net.CIDRMask(0, 32)}
+	} else {
+		subnet, _, found := h.subnets.Get(txn, tables.SubnetsByNetworkAndName(
+			tables.NetworkName(lw.Interface.Network), lw.Subnet,
+		))
+		if !found {
+			// We are actually always guaranteed to find a subnet if we reach this point.
+			return nil, fmt.Errorf("%s/%s subnet not found", lw.Interface.Network, lw.Subnet)
+		}
+
+		dest = *netipx.PrefixIPNet(subnet.CIDRv4)
+	}
+
 	resp.UpdateOption(dhcpv4.OptClasslessStaticRoute(
+		&dhcpv4.Route{Dest: &dest, Router: gateway},
 		&dhcpv4.Route{
-			Dest:   &net.IPNet{IP: net.IPv4zero, Mask: net.CIDRMask(0, 32)},
-			Router: defaultGatewayAddress,
-		},
-		&dhcpv4.Route{
-			Dest:   &net.IPNet{IP: defaultGatewayAddress, Mask: net.CIDRMask(32, 32)},
+			Dest:   &net.IPNet{IP: gateway, Mask: net.CIDRMask(32, 32)},
 			Router: net.IPv4zero,
 		},
 	))

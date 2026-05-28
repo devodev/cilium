@@ -122,6 +122,8 @@ jobs:
           - "multi-node-ipv4-hc-push"
           - "multi-node-ipv4-zones"
           - "multi-node-ipv4-waf"
+          - "multi-node-ipv4-all-t1t2-tunnel"
+          - "multi-node-ipv4-all-t1t2-tunnel-no-xdp"
         shard:
           - "1-of-2"
           - "2-of-2"
@@ -247,6 +249,29 @@ jobs:
             t2-nodes: "kind-worker2 kind-worker3"
             waf-enabled: "true"
             run-tests: "!LBK8sBackendCluster"
+          - name: "multi-node-ipv4-all-t1t2-tunnel"
+            mode: "multi-node"
+            kind-ip-family: "ipv4"
+            kernel: "6.1-20240710.064909"
+            use-remote-address: "true"
+            xff-num-trusted-hops: 0
+            nr-of-worker-nodes: 4
+            t1t2-nodes: "kind-control-plane kind-worker kind-worker2 kind-worker3 kind-worker4"
+            routing-mode: "tunnel"
+            tunnel-protocol: "vxlan"
+            run-tests: "!LBK8sBackendCluster"
+          - name: "multi-node-ipv4-all-t1t2-tunnel-no-xdp"
+            mode: "multi-node"
+            kind-ip-family: "ipv4"
+            kernel: "6.1-20240710.064909"
+            use-remote-address: "true"
+            xff-num-trusted-hops: 0
+            nr-of-worker-nodes: 4
+            t1t2-nodes: "kind-control-plane kind-worker kind-worker2 kind-worker3 kind-worker4"
+            routing-mode: "tunnel"
+            tunnel-protocol: "vxlan"
+            acceleration: "disabled"
+            run-tests: "!LBK8sBackendCluster"
 
     timeout-minutes: 120
 
@@ -285,7 +310,7 @@ jobs:
           echo kind-params="--xdp \"\" ${{ matrix.nr-of-worker-nodes }} \"\" \"\" \"none\" \"${{ matrix.kind-ip-family }}\"" >> $GITHUB_OUTPUT
 
       - name: Install Cilium CLI
-        uses: cilium/cilium-cli@3ce83aa3b4ea3ce6d97023c4d83c22b73a4ed3b4 # v0.19.2
+        uses: cilium/cilium-cli@28724c91759fcfe797a1619994da9eb53399da9d # v0.19.3
         with:
           skip-build: ${{ env.CILIUM_CLI_SKIP_BUILD }}
           image-repo: ${{ env.CILIUM_CLI_IMAGE_REPO }}
@@ -419,6 +444,21 @@ jobs:
             EXTRA+=" --helm-set=enterprise.waf.enabled=true"
           fi
 
+          ROUTING_MODE="${{ matrix.routing-mode }}"
+          if [[ -z "$ROUTING_MODE" ]]; then
+            ROUTING_MODE="native"
+          fi
+          if [[ "$ROUTING_MODE" == "native" ]]; then
+            EXTRA+=" --helm-set=autoDirectNodeRoutes=true"
+          elif [[ -n "${{ matrix.tunnel-protocol }}" ]]; then
+            EXTRA+=" --helm-set=tunnelProtocol=${{ matrix.tunnel-protocol }}"
+          fi
+
+          ACCELERATION="${{ matrix.acceleration }}"
+          if [[ -z "$ACCELERATION" ]]; then
+            ACCELERATION="native"
+          fi
+
           cilium install \
              --wait --chart-directory=./install/kubernetes/cilium \
              --helm-set=image.repository=quay.io/isovalent-dev/cilium-ci \
@@ -451,9 +491,8 @@ jobs:
              --helm-set=bpf.lbModeAnnotation=true \
              --helm-set=bpf.masquerade=true \
              --helm-set=kubeProxyReplacement=true \
-             --helm-set=routingMode=native \
-             --helm-set=autoDirectNodeRoutes=true \
-             --helm-set=loadBalancer.acceleration=native \
+             --helm-set=routingMode=$ROUTING_MODE \
+             --helm-set=loadBalancer.acceleration=$ACCELERATION \
              --helm-set=loadBalancer.dsrDispatch=ipip \
              --helm-set=loadBalancer.serviceTopology=true \
              --helm-set-string=extraConfig.loadbalancer-cp-accesslog-enable-hc=true \

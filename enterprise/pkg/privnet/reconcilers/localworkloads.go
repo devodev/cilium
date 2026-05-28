@@ -193,6 +193,7 @@ func (l *LocalWorkloads) upsertEndpoint(ep endpoints.Endpoint) {
 			IfName:  ep.HostInterface(),
 			IfIndex: ep.GetIfIndex(),
 		},
+		NICIndex: privNetAddr.nicIndex,
 	}
 	_, _, err = l.tbl.Insert(wtx, lw)
 	if err != nil {
@@ -250,6 +251,7 @@ type privateNetworkAddressing struct {
 	ipv6       string
 	mac        string
 	usesDHCPv4 bool
+	nicIndex   uint8
 
 	activatedAt time.Time
 }
@@ -268,12 +270,18 @@ func extractPrivateNetworkAddressing(ep endpoints.Endpoint) (*privateNetworkAddr
 		return nil, err
 	}
 
+	nicidx, err := properties.NICIndex()
+	if err != nil {
+		return nil, err
+	}
+
 	addr := &privateNetworkAddressing{
 		network:     properties.PrivateNetwork(),
 		subnet:      properties.PrivateSubnet(),
 		mac:         ep.LXCMac().String(),
 		activatedAt: activatedAt,
 		usesDHCPv4:  properties.NetworkIPv4UsesDHCP(),
+		nicIndex:    nicidx,
 	}
 
 	ipv4, err := properties.NetworkIPv4()

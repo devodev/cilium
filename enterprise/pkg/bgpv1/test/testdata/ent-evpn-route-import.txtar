@@ -1,11 +1,11 @@
-#! --test-peering-ips=10.100.96.1
+#! --test-peering-ips=11.100.96.1
 
 hive start
 db/initialized
 
 # Configure gobgp server
-gobgp/add-server server0 --router-id=1.2.3.4 65001 10.100.96.1 1790
-gobgp/add-peer -s server0 10.100.96.1 65001 --families=l2vpn/evpn
+gobgp/add-server server0 --router-id=1.2.3.4 65001 11.100.96.1 1790
+gobgp/add-peer -s server0 11.100.96.1 65001 --families=l2vpn/evpn
 
 # Configure BGP on Cilium
 k8s/add cilium-node.yaml bgp-node-config.yaml bgp-peer-config.yaml
@@ -15,7 +15,7 @@ k8s/add cilium-node.yaml bgp-node-config.yaml bgp-peer-config.yaml
 db/insert private-networks private-networks.yaml
 
 # Wait for peering to be established
-gobgp/wait-state -s server0 10.100.96.1 ESTABLISHED
+gobgp/wait-state -s server0 11.100.96.1 ESTABLISHED
 
 # Advertise EVPN routes to be imported
 gobgp/add-route -s server0 -c rt:65001:100,rtrmac:aa:bb:cc:dd:ee:ff,encap:vxlan EVPN[5][65001:100][single-homed][0][10.0.0.0/24][0.0.0.0][100] 100.64.1.1
@@ -59,7 +59,7 @@ spec:
     peers:
     - name: peer0
       peerASN: 65001
-      peerAddress: 10.100.96.1
+      peerAddress: 11.100.96.1
       peerConfigRef:
         name: peer-config
     vrfs:

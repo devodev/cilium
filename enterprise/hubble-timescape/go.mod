@@ -6,7 +6,7 @@ require (
 	github.com/cilium/cilium v1.19.3
 	github.com/cilium/fake/flow v0.7.0
 	github.com/google/go-cmp v0.7.0
-	github.com/isovalent/hubble-timescape/api v1.19.0-rc.3
+	github.com/isovalent/hubble-timescape/api v1.19.0
 	github.com/stretchr/testify v1.11.1
 	google.golang.org/grpc v1.81.1
 	google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af

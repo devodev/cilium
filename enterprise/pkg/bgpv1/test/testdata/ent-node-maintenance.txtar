@@ -1,4 +1,4 @@
-#! --test-peering-ips=10.99.101.1,10.99.101.2 --enable-node-maintenance-helpers
+#! --test-peering-ips=11.99.101.1,11.99.101.2 --enable-node-maintenance-helpers
 
 # Tests service advertisements with node maintenance status changes (node cordon / uncordon).
 
@@ -6,17 +6,17 @@
 hive start
 
 # Configure gobgp server
-gobgp/add-server test 65010 10.99.101.1 1790
+gobgp/add-server test 65010 11.99.101.1 1790
 
 # Configure peers on GoBGP
-gobgp/add-peer 10.99.101.2 65001
+gobgp/add-peer 11.99.101.2 65001
 
 # Configure BGP on Cilium
 k8s/add cilium-node.yaml k8s-node.yaml bgp-node-config.yaml bgp-peer-config.yaml bgp-advertisement.yaml service1.yaml
 * bgptest/sync-oss-resources
 
 # Wait for peering to be established
-gobgp/wait-state 10.99.101.2 ESTABLISHED
+gobgp/wait-state 11.99.101.2 ESTABLISHED
 
 # Validate that svc IPs are advertised
 gobgp/routes -o routes.actual
@@ -94,7 +94,7 @@ metadata:
   name: test-node
 spec:
   addresses:
-  - ip: 10.99.101.2
+  - ip: 11.99.101.2
     type: InternalIP
   ipam:
     podCIDRs:
@@ -136,8 +136,8 @@ spec:
     peers:
     - name: gobgp-peer-1
       peerASN: 65010
-      peerAddress: 10.99.101.1
-      localAddress: 10.99.101.2
+      peerAddress: 11.99.101.1
+      localAddress: 11.99.101.2
       peerConfigRef:
         name: gobgp-peer-config
 
@@ -155,8 +155,8 @@ spec:
     peers:
     - name: gobgp-peer-1
       peerASN: 65010
-      peerAddress: 10.99.101.1
-      localAddress: 10.99.101.2
+      peerAddress: 11.99.101.1
+      localAddress: 11.99.101.2
       peerConfigRef:
         name: gobgp-peer-config
 
@@ -290,33 +290,33 @@ status:
 
 -- gobgp-routes-1.expected --
 Prefix            NextHop       Attrs
-10.96.50.104/32   10.99.101.2   [{Origin: i} {AsPath: 65001}]
-172.16.1.1/32     10.99.101.2   [{Origin: i} {AsPath: 65001}]
+10.96.50.104/32   11.99.101.2   [{Origin: i} {AsPath: 65001}]
+172.16.1.1/32     11.99.101.2   [{Origin: i} {AsPath: 65001}]
 -- gobgp-routes-gs-1.expected --
 Prefix            NextHop       Attrs
-10.96.50.104/32   10.99.101.2   [{Origin: i} {AsPath: 65001} {Communities: planned-shut}]
-172.16.1.1/32     10.99.101.2   [{Origin: i} {AsPath: 65001} {Communities: planned-shut}]
+10.96.50.104/32   11.99.101.2   [{Origin: i} {AsPath: 65001} {Communities: planned-shut}]
+172.16.1.1/32     11.99.101.2   [{Origin: i} {AsPath: 65001} {Communities: planned-shut}]
 -- gobgp-routes-gs-2.expected --
 Prefix            NextHop       Attrs
-10.96.50.104/32   10.99.101.2   [{Origin: i} {AsPath: 65001} {Communities: planned-shut}]
-10.96.50.105/32   10.99.101.2   [{Origin: i} {AsPath: 65001} {Communities: planned-shut}]
-172.16.1.1/32     10.99.101.2   [{Origin: i} {AsPath: 65001} {Communities: planned-shut}]
-172.16.1.2/32     10.99.101.2   [{Origin: i} {AsPath: 65001} {Communities: planned-shut}]
+10.96.50.104/32   11.99.101.2   [{Origin: i} {AsPath: 65001} {Communities: planned-shut}]
+10.96.50.105/32   11.99.101.2   [{Origin: i} {AsPath: 65001} {Communities: planned-shut}]
+172.16.1.1/32     11.99.101.2   [{Origin: i} {AsPath: 65001} {Communities: planned-shut}]
+172.16.1.2/32     11.99.101.2   [{Origin: i} {AsPath: 65001} {Communities: planned-shut}]
 -- gobgp-routes-gs-3.expected --
 Prefix            NextHop       Attrs
-10.96.50.104/32   10.99.101.2   [{Origin: i} {AsPath: 65001} {Communities: planned-shut}]
-10.96.50.105/32   10.99.101.2   [{Origin: i} {AsPath: 65001} {Communities: planned-shut}]
-10.96.50.106/32   10.99.101.2   [{Origin: i} {AsPath: 65001} {Communities: planned-shut}]
-172.16.1.1/32     10.99.101.2   [{Origin: i} {AsPath: 65001} {Communities: planned-shut}]
-172.16.1.2/32     10.99.101.2   [{Origin: i} {AsPath: 65001} {Communities: planned-shut}]
-172.16.1.3/32     10.99.101.2   [{Origin: i} {AsPath: 65001} {Communities: planned-shut}]
+10.96.50.104/32   11.99.101.2   [{Origin: i} {AsPath: 65001} {Communities: planned-shut}]
+10.96.50.105/32   11.99.101.2   [{Origin: i} {AsPath: 65001} {Communities: planned-shut}]
+10.96.50.106/32   11.99.101.2   [{Origin: i} {AsPath: 65001} {Communities: planned-shut}]
+172.16.1.1/32     11.99.101.2   [{Origin: i} {AsPath: 65001} {Communities: planned-shut}]
+172.16.1.2/32     11.99.101.2   [{Origin: i} {AsPath: 65001} {Communities: planned-shut}]
+172.16.1.3/32     11.99.101.2   [{Origin: i} {AsPath: 65001} {Communities: planned-shut}]
 -- gobgp-routes-empty.expected --
 Prefix   NextHop   Attrs
 -- gobgp-routes-3.expected --
 Prefix            NextHop       Attrs
-10.96.50.104/32   10.99.101.2   [{Origin: i} {AsPath: 65001}]
-10.96.50.105/32   10.99.101.2   [{Origin: i} {AsPath: 65001}]
-10.96.50.106/32   10.99.101.2   [{Origin: i} {AsPath: 65001}]
-172.16.1.1/32     10.99.101.2   [{Origin: i} {AsPath: 65001}]
-172.16.1.2/32     10.99.101.2   [{Origin: i} {AsPath: 65001}]
-172.16.1.3/32     10.99.101.2   [{Origin: i} {AsPath: 65001}]
+10.96.50.104/32   11.99.101.2   [{Origin: i} {AsPath: 65001}]
+10.96.50.105/32   11.99.101.2   [{Origin: i} {AsPath: 65001}]
+10.96.50.106/32   11.99.101.2   [{Origin: i} {AsPath: 65001}]
+172.16.1.1/32     11.99.101.2   [{Origin: i} {AsPath: 65001}]
+172.16.1.2/32     11.99.101.2   [{Origin: i} {AsPath: 65001}]
+172.16.1.3/32     11.99.101.2   [{Origin: i} {AsPath: 65001}]

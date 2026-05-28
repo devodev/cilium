@@ -80,7 +80,6 @@ require (
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/ginkgo/v2 v2.28.1
 	github.com/onsi/gomega v1.40.0
-	github.com/osrg/gobgp/v3 v3.37.0
 	github.com/osrg/gobgp/v4 v4.5.0
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2
@@ -153,7 +152,7 @@ require (
 
 // Enterprise specific deps
 require (
-	github.com/YutaroHayakawa/bgplay v0.0.3
+	github.com/YutaroHayakawa/bgplay v0.0.4
 	github.com/YutaroHayakawa/go-ra v0.0.0-20241125075947-1274124821d6
 	github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2
 	github.com/coreos/go-oidc/v3 v3.17.0
@@ -161,8 +160,8 @@ require (
 	github.com/go-playground/validator/v10 v10.30.1
 	github.com/insomniacslk/dhcp v0.0.0-20251020182700-175e84fbb167
 	github.com/int128/listener v1.3.0
-	github.com/isovalent/hubble-timescape/api v1.19.0-rc.3
-	github.com/isovalent/ipa v1.19.0-rc.1
+	github.com/isovalent/hubble-timescape/api v1.19.0
+	github.com/isovalent/ipa v1.19.0
 	github.com/jonboulle/clockwork v0.5.0
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v1.7.6
 	github.com/lestrrat-go/jwx/v2 v2.1.6

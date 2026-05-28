@@ -11,18 +11,14 @@
 package reconcilerv2
 
 import (
-	"errors"
-	"io"
 	"log/slog"
 	"net/netip"
 	"testing"
 	"time"
 
-	"github.com/YutaroHayakawa/bgplay/pkg/bgpcap"
 	"github.com/YutaroHayakawa/bgplay/pkg/replayer"
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/hive/hivetest"
-	bgpv3 "github.com/osrg/gobgp/v3/pkg/packet/bgp"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -406,42 +402,19 @@ func TestSRv6RouteImport(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			file, err := bgpcap.Open(tt.bgpcapfile)
-			require.NoError(t, err)
-			defer file.Close()
+			rep := replayer.New(logger, replayer.ReplayerSpec{
+				PeerAddr: "127.0.0.1",
+				PeerPort: 11799,
+				FileName: tt.bgpcapfile,
+			})
+			defer rep.Close()
 
-			openMsg, err := file.Read()
-			require.NoError(t, err)
-
-			require.IsType(t, &bgpv3.BGPOpen{}, openMsg.Body,
-				"The first message should be an OPEN message")
-
-			d := replayer.Dialer{
-				OpenMessage: openMsg,
-			}
-
-			var conn *replayer.Conn
 			require.EventuallyWithT(t, func(ct *assert.CollectT) {
-				conn, err = d.Connect(
-					t.Context(),
-					netip.MustParseAddrPort("127.0.0.1:11799"),
-				)
+				err := rep.Replay()
 				if !assert.NoError(ct, err, "Failed to connect to GoBGP server") {
 					return
 				}
 			}, time.Second*5, 100*time.Millisecond)
-			defer conn.Close()
-
-			for {
-				msg, err := file.Read()
-				if err != nil && errors.Is(err, io.EOF) {
-					break
-				}
-				require.NoError(t, err)
-
-				err = conn.Write(msg)
-				require.NoError(t, err)
-			}
 
 			expectedRoutes := map[uint32]*bitlpm.CIDRTrie[*rib.Route]{}
 			for vrfID, routes := range tt.expectedRoutes {

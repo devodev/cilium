@@ -516,8 +516,8 @@ hubble:
       # @schema
       override: ~
       repository: artifactory.devhub-cloud.cisco.com/isovalent-iep-docker/hubble-timescape-lite
-      tag: v1.19.0-rc.3
-      digest: sha256:7a8ed5d61353fd48dea1d73f49b2e51a7cd8f7e49e5d369a0eba32999835d34f
+      tag: v1.19.0
+      digest: sha256:38a5427160b1ad0d89efa6bef44932bb1cb82a1a0309154df6c960bb2bf4121b
       useDigest: true
       pullPolicy: "Always"
     clickhouse:
@@ -535,7 +535,7 @@ hubble:
         # @schema
         override: ~
         repository: quay.io/isovalent/clickhouse-server
-        tag: 26.3.10.62-alpine-202605071406
+        tag: 26.3.10.62-alpine-202605191903
         digest: sha256:f55a1dec22cea056abb32eccf4fad01d4561d8fad47f1c116801ec41f9ae2dc4
         useDigest: true
         pullPolicy: "Always"
@@ -1079,6 +1079,25 @@ hubble:
       # @schema
       # @default -- `30s`
       aggregationTTL: ~
+      # -- Timescape ingest RPC mode to use.
+      # Supported values are `auto`, `batch`, and `single`.
+      # @schema
+      # type: [null, string]
+      # @schema
+      # @default -- `auto`
+      ingestMode: ~
+      # -- The maximum number of flows to send in a single batch.
+      # @schema
+      # type: [null, integer]
+      # @schema
+      # @default -- `256`
+      batchSize: ~
+      # -- The maximum time to wait before flushing a partial flow batch.
+      # @schema
+      # type: [null, string]
+      # @schema
+      # @default -- `250ms`
+      batchFlushInterval: ~
       # -- The maximum number of flows to buffer before dropping them.
       # @schema
       # type: [null, integer]
@@ -1206,4 +1225,10 @@ envoy:
     # cilium-envoy daemonset make sure to configure `envoy.terminationGracePeriodSeconds` to a sufficiently large value to allow
     # traffic to drain (e.g. 60 seconds).
     enabled: false
+    # -- The time in seconds that Envoy will wait before shutting down the parent process during a graceful restart.
+    # Should generally be less than `envoy.terminationGracePeriodSeconds`
+    parentShutdownSeconds: 80
+    # -- The time in seconds that Envoy will drain connections during a graceful restart.
+    # Should generally be less than `parentShutdownSeconds` and `envoy.terminationGracePeriodSeconds`
+    drainTimeSeconds: 60
 enableNonDefaultDenyPolicies: false

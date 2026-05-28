@@ -41,6 +41,12 @@ type PrivateNetworkAddressing struct {
 	// Private network name
 	Network string `json:"network,omitempty"`
 
+	// The index of the NIC this endpoint refers to; it is 0 for the primary interface, 1 for the first secondary interface, and so on.
+	//
+	// Maximum: 64
+	// Minimum: 0
+	NicIndex *int64 `json:"nicIndex,omitempty"`
+
 	// Network routes to configure for this endpoint
 	Routes []*NetworkAttachmentRoute `json:"routes"`
 
@@ -57,6 +63,10 @@ func (m *PrivateNetworkAddressing) Validate(formats strfmt.Registry) error {
 	}
 
 	if err := m.validateAddress(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.validateNicIndex(formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -100,6 +110,22 @@ func (m *PrivateNetworkAddressing) validateAddress(formats strfmt.Registry) erro
 
 			return err
 		}
+	}
+
+	return nil
+}
+
+func (m *PrivateNetworkAddressing) validateNicIndex(formats strfmt.Registry) error {
+	if swag.IsZero(m.NicIndex) { // not required
+		return nil
+	}
+
+	if err := validate.MinimumInt("nicIndex", "body", *m.NicIndex, 0, false); err != nil {
+		return err
+	}
+
+	if err := validate.MaximumInt("nicIndex", "body", *m.NicIndex, 64, false); err != nil {
+		return err
 	}
 
 	return nil

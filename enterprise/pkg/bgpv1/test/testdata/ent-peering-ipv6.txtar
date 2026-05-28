@@ -1,0 +1,93 @@
+#! --test-peering-ips=fc00:10:99:106::111,fc00:10:99:106::112
+
+# Tests IPv6-only peering and advertisement.
+
+# Start the hive
+hive start
+
+# Configure gobgp server
+gobgp/add-server test --router-id=1.2.3.4 65001 fc00:10:99:106::111 1790
+gobgp/add-peer fc00:10:99:106::112 65001 --families=ipv6/unicast
+
+# Configure BGP on Cilium
+k8s/add cilium-node.yaml bgp-node-config.yaml bgp-peer-config.yaml bgp-advertisement.yaml
+* bgptest/sync-oss-resources
+
+# Wait for peering to be established
+gobgp/wait-state fc00:10:99:106::112 ESTABLISHED
+
+# Validate peering state
+gobgp/peers -o peers.actual
+* cmp gobgp-peers.expected peers.actual
+
+# Validate routes
+gobgp/routes -o routes.actual ipv6 unicast
+* cmp gobgp-routes.expected routes.actual
+
+#####
+
+-- cilium-node.yaml --
+apiVersion: cilium.io/v2
+kind: CiliumNode
+metadata:
+  name: test-node
+spec:
+  addresses:
+  - ip: fc00:10:99:106::112
+    type: InternalIP
+  ipam:
+    podCIDRs:
+    - fd00:11:22::/64
+
+-- bgp-node-config.yaml --
+apiVersion: isovalent.com/v1
+kind: IsovalentBGPNodeConfig
+metadata:
+  name: test-node
+spec:
+  bgpInstances:
+  - localASN: 65001
+    routerID: 5.6.7.8
+    name: tor
+    peers:
+    - name: gobgp-peer
+      peerASN: 65001
+      peerAddress: fc00:10:99:106::111
+      localAddress: fc00:10:99:106::112
+      peerConfigRef:
+        name: gobgp-peer-config
+
+-- bgp-peer-config.yaml --
+apiVersion: isovalent.com/v1
+kind: IsovalentBGPPeerConfig
+metadata:
+  name: gobgp-peer-config
+spec:
+  transport:
+    peerPort: 1790
+  timers:
+    connectRetryTimeSeconds: 1
+  families:
+  - afi: ipv6
+    safi: unicast
+    advertisements:
+      matchLabels:
+        advertise: bgp
+
+-- bgp-advertisement.yaml --
+apiVersion: isovalent.com/v1
+kind: IsovalentBGPAdvertisement
+metadata:
+  labels:
+    advertise: bgp
+  name: bgp-advertisements
+spec:
+  advertisements:
+  - advertisementType: PodCIDR
+
+-- gobgp-peers.expected --
+PeerAddress           RouterID   PeerASN   SessionState   KeepAlive   HoldTime   GracefulRestartTime
+fc00:10:99:106::112   5.6.7.8    65001     ESTABLISHED    30          90         0
+-- gobgp-routes.expected --
+Prefix            NextHop               Attrs
+fd00:11:22::/64   fc00:10:99:106::112   [{Origin: i} {AsPath: } {LocalPref: 100}]

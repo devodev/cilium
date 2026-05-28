@@ -334,9 +334,12 @@ cilium-agent [flags]
       --hubble-export-timescape-aggregation-state-filter strings         The state changes to include while aggregating ('new', 'established', 'first_error', 'error', 'closed') (default [new,error,closed])
       --hubble-export-timescape-aggregation-ttl duration                 TTL for flow aggregation (default 30s)
       --hubble-export-timescape-allowlist string                         Specify allowlist as JSON encoded FlowFilters
+      --hubble-export-timescape-batch-flush-interval duration            The maximum time to wait before flushing a partial flow batch (default 250ms)
+      --hubble-export-timescape-batch-size int                           The maximum number of flows sent in a single batch (default 256)
       --hubble-export-timescape-denylist string                          Specify denylist as JSON encoded FlowFilters
       --hubble-export-timescape-enabled                                  Whether to enable the Hubble timescape exporter
       --hubble-export-timescape-fieldmask strings                        Specify list of fields to use for field mask in Hubble exporter
+      --hubble-export-timescape-ingest-mode string                       Timescape ingest RPC mode to use ('auto', 'batch', 'single') (default "auto")
       --hubble-export-timescape-max-buffer-size int                      The maximum number of flows to buffer before dropping them (default 4096)
       --hubble-export-timescape-node-name string                         Override the node_name field in exported flows
       --hubble-export-timescape-report-dropped-flows-interval duration   The interval at which to report dropped flows in logs. Set to 0s to disable reporting (default 1m0s)

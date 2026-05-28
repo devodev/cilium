@@ -57,7 +57,7 @@ env:
   test_name: cidr-scale
   cluster_name: ${{ github.run_id }}-${{ github.run_attempt }}
   # renovate: datasource=docker depName=google/cloud-sdk
-  gcloud_version: 567.0.0
+  gcloud_version: 568.0.0
 
 jobs:
   echo-inputs:
@@ -240,7 +240,7 @@ jobs:
           go build ./cmd/clusterloader.go
 
       - name: Install Cilium CLI
-        uses: cilium/cilium-cli@3ce83aa3b4ea3ce6d97023c4d83c22b73a4ed3b4 # v0.19.2
+        uses: cilium/cilium-cli@28724c91759fcfe797a1619994da9eb53399da9d # v0.19.3
         with:
           repository: ${{ env.CILIUM_CLI_RELEASE_REPO }}
           release-version: ${{ env.CILIUM_CLI_VERSION }}

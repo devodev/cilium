@@ -53,6 +53,9 @@ topology:
     ${LOCAL_BRIDGE:-local-sgmnts}:
       kind: bridge
 
+    ${PRIVNET_DP_BRIDGE:-privnet-dp}:
+      kind: bridge
+
     # Workload cluster
     privnet-cluster:
       kind: k8s-kind
@@ -65,6 +68,9 @@ topology:
 
     privnet-cluster-control-plane:
       kind: ext-container
+      exec:
+        - ip address add 172.255.0.11/24 dev dp0
+        - ip address add fc00:255::11/64 dev dp0
       stages:
         create:
           wait-for:
@@ -80,6 +86,9 @@ topology:
 
     privnet-cluster-worker:
       kind: ext-container
+      exec:
+        - ip address add 172.255.0.12/24 dev dp0
+        - ip address add fc00:255::12/64 dev dp0
       stages:
         create:
           wait-for:
@@ -95,6 +104,9 @@ topology:
 
     privnet-cluster-worker2:
       kind: ext-container
+      exec:
+        - ip address add 172.255.0.13/24 dev dp0
+        - ip address add fc00:255::13/64 dev dp0
       stages:
         create:
           wait-for:
@@ -121,6 +133,8 @@ topology:
     privnet-inb0-control-plane:
       kind: ext-container
       exec:
+        - ip address add 172.255.0.21/24 dev dp0
+        - ip address add fc00:255::21/64 dev dp0
         # Simplify testing INB failover by making sure that traffic to the
         # API server still works correctly.
         - iptables -A INPUT -p tcp --dport 6443 -j ACCEPT
@@ -158,6 +172,8 @@ topology:
     privnet-inb1-control-plane:
       kind: ext-container
       exec:
+        - ip address add 172.255.0.31/24 dev dp0
+        - ip address add fc00:255::31/64 dev dp0
         - ip link add link eth1 name ethA type vlan id 10
         - ip link add link eth1 name ethB type vlan id 11
         - ip link add link eth1 name ethC type vlan id 12
@@ -589,4 +605,16 @@ topology:
   - endpoints: ["${LOCAL_BRIDGE:-local-sgmnts}:lpn-net-e2", "privnet-cluster-worker2:eth1"]
     mtu: 1500
   - endpoints: ["${LOCAL_BRIDGE:-local-sgmnts}:lpn-net-e9", "router-net-e:ethE"]
+    mtu: 1500
+
+  # CP/DP separation
+  - endpoints: ["${PRIVNET_DP_BRIDGE:-privnet-dp}:dpn-c0", "privnet-cluster-control-plane:dp0"]
+    mtu: 1500
+  - endpoints: ["${PRIVNET_DP_BRIDGE:-privnet-dp}:dpn-c1", "privnet-cluster-worker:dp0"]
+    mtu: 1500
+  - endpoints: ["${PRIVNET_DP_BRIDGE:-privnet-dp}:dpn-c2", "privnet-cluster-worker2:dp0"]
+    mtu: 1500
+  - endpoints: ["${PRIVNET_DP_BRIDGE:-privnet-dp}:dpn-i0", "privnet-inb0-control-plane:dp0"]
+    mtu: 1500
+  - endpoints: ["${PRIVNET_DP_BRIDGE:-privnet-dp}:dpn-i1", "privnet-inb1-control-plane:dp0"]
     mtu: 1500

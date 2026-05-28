@@ -198,6 +198,15 @@ hubble-export-timescape-aggregation-state-filter: {{ . | join " " | quote }}
 {{- with .Values.hubble.export.timescape.aggregationTTL }}
 hubble-export-timescape-aggregation-ttl: {{ . | quote }}
 {{- end }}
+{{- with .Values.hubble.export.timescape.ingestMode }}
+hubble-export-timescape-ingest-mode: {{ . | quote }}
+{{- end }}
+{{- with .Values.hubble.export.timescape.batchSize }}
+hubble-export-timescape-batch-size: {{ . | quote }}
+{{- end }}
+{{- with .Values.hubble.export.timescape.batchFlushInterval }}
+hubble-export-timescape-batch-flush-interval: {{ . | quote }}
+{{- end }}
 {{- with .Values.hubble.export.timescape.maxBufferSize }}
 hubble-export-timescape-max-buffer-size: {{ . | quote }}
 {{- end }}

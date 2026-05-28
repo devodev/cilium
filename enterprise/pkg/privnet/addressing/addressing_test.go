@@ -14,6 +14,8 @@ import (
 	"cmp"
 	"fmt"
 	"net/netip"
+	"slices"
+	"strings"
 	"testing"
 	"testing/synctest"
 
@@ -221,6 +223,7 @@ func TestPrivNetAPI_GetPrivateNetworkAddressing(t *testing.T) {
 					{Destination: "fe80::1/128"},
 					{Destination: "::/0", Gateway: "fe80::1"},
 				},
+				NicIndex: new(int64(0)),
 			},
 		},
 		{
@@ -246,6 +249,7 @@ func TestPrivNetAPI_GetPrivateNetworkAddressing(t *testing.T) {
 					{Destination: "fe80::1/128"},
 					{Destination: "::/0", Gateway: "fe80::1"},
 				},
+				NicIndex: new(int64(0)),
 			},
 		},
 		{
@@ -389,6 +393,7 @@ func TestPrivNetAPI_GetPrivateNetworkAddressing(t *testing.T) {
 					{Destination: "fe80::1/128"},
 					{Destination: "::/0", Gateway: "fe80::1"},
 				},
+				NicIndex: new(int64(0)),
 			},
 		},
 		{
@@ -411,6 +416,7 @@ func TestPrivNetAPI_GetPrivateNetworkAddressing(t *testing.T) {
 					{Destination: "169.254.0.1/32"},
 					{Destination: "0.0.0.0/0", Gateway: "169.254.0.1"},
 				},
+				NicIndex: new(int64(0)),
 			},
 		},
 		{
@@ -509,6 +515,7 @@ func TestPrivNetAPI_GetPrivateNetworkAddressing(t *testing.T) {
 					{Destination: "169.254.0.1/32"},
 					{Destination: "0.0.0.0/0", Gateway: "169.254.0.1"},
 				},
+				NicIndex: new(int64(0)),
 			},
 		},
 		{
@@ -531,6 +538,7 @@ func TestPrivNetAPI_GetPrivateNetworkAddressing(t *testing.T) {
 					{Destination: "169.254.0.1/32"},
 					{Destination: "0.0.0.0/0", Gateway: "169.254.0.1"},
 				},
+				NicIndex: new(int64(0)),
 			},
 		},
 
@@ -555,6 +563,7 @@ func TestPrivNetAPI_GetPrivateNetworkAddressing(t *testing.T) {
 					{Destination: "169.254.0.1/32"},
 					{Destination: "0.0.0.0/0", Gateway: "169.254.0.1"},
 				},
+				NicIndex: new(int64(0)),
 			},
 		},
 		{
@@ -622,6 +631,7 @@ func TestPrivNetAPI_GetPrivateNetworkAddressing(t *testing.T) {
 					{Destination: "fe80::1/128"},
 					{Destination: "::/0", Gateway: "fe80::1"},
 				},
+				NicIndex: new(int64(0)),
 			},
 		},
 		{
@@ -653,6 +663,7 @@ func TestPrivNetAPI_GetPrivateNetworkAddressing(t *testing.T) {
 					{Destination: "fe80::3/128"},
 					{Destination: "fd10:0:140::/64", Gateway: "fe80::3"},
 				},
+				NicIndex: new(int64(2)),
 			},
 		},
 		{
@@ -684,6 +695,7 @@ func TestPrivNetAPI_GetPrivateNetworkAddressing(t *testing.T) {
 					{Destination: "fe80::2/128"},
 					{Destination: "fd10:0:152::/64", Gateway: "fe80::2"},
 				},
+				NicIndex: new(int64(1)),
 			},
 		},
 		{
@@ -788,6 +800,7 @@ func TestPrivNetAPI_GetPrivateNetworkAddressing(t *testing.T) {
 					{Destination: "fe80::3/128"},
 					{Destination: "fd10:0:140::/64", Gateway: "fe80::3"},
 				},
+				NicIndex: new(int64(2)),
 			},
 		},
 		{
@@ -819,6 +832,7 @@ func TestPrivNetAPI_GetPrivateNetworkAddressing(t *testing.T) {
 					{Destination: "fe80::4/128"},
 					{Destination: "fd10:0:152::/64", Gateway: "fe80::4"},
 				},
+				NicIndex: new(int64(3)),
 			},
 		},
 		{
@@ -849,6 +863,7 @@ func TestPrivNetAPI_GetPrivateNetworkAddressing(t *testing.T) {
 					{Destination: "fe80::3/128"},
 					{Destination: "fd10:0:152::/64", Gateway: "fe80::3"},
 				},
+				NicIndex: new(int64(2)),
 			},
 		},
 		{
@@ -908,6 +923,7 @@ func TestPrivNetAPI_GetPrivateNetworkAddressing(t *testing.T) {
 					{Destination: "fe80::3/128"},
 					{Destination: "fd10:0:140::/64", Gateway: "fe80::3"},
 				},
+				NicIndex: new(int64(2)),
 			},
 		},
 		{
@@ -935,6 +951,7 @@ func TestPrivNetAPI_GetPrivateNetworkAddressing(t *testing.T) {
 					{Destination: "fe80::2/128"},
 					{Destination: "fd10:0:140::/64", Gateway: "fe80::2"},
 				},
+				NicIndex: new(int64(1)),
 			},
 		},
 		{
@@ -963,6 +980,7 @@ func TestPrivNetAPI_GetPrivateNetworkAddressing(t *testing.T) {
 					{Destination: "fe80::2/128"},
 					{Destination: "fd10:0:140::/64", Gateway: "fe80::2"},
 				},
+				NicIndex: new(int64(1)),
 			},
 		},
 		{
@@ -991,6 +1009,7 @@ func TestPrivNetAPI_GetPrivateNetworkAddressing(t *testing.T) {
 					{Destination: "fe80::2/128"},
 					{Destination: "fd10:0:140::/64", Gateway: "fe80::2"},
 				},
+				NicIndex: new(int64(1)),
 			},
 		},
 		{
@@ -1018,6 +1037,31 @@ func TestPrivNetAPI_GetPrivateNetworkAddressing(t *testing.T) {
 				},
 			),
 			wantErr: `invalid MAC address request in "k8s.v1.cni.cncf.io/networks" annotation`,
+		},
+		{
+			name:     "too many secondary interfaces, match by index",
+			override: override{ifname: "net65"},
+			pod: newPod("default", "client", "uid",
+				map[string]string{
+					types.PrivateNetworkSecondaryAttachmentsAnnotation: fmt.Sprintf("[%s]", strings.Join(
+						slices.Repeat([]string{`{ "network": "green-network", "ipv4": "192.168.10.11", "ipv6": "fd10:0:140::11" }`}, 65), ",")),
+					multusv1.NetworkAttachmentAnnot: strings.Join(slices.Repeat([]string{"foo"}, 65), ","),
+				},
+			),
+			wantErr: "at most 64 secondary interfaces are supported",
+		},
+		{
+			name:     "too many secondary interfaces, match by name",
+			override: override{ifname: "net65"},
+			pod: newPod("default", "client", "uid",
+				map[string]string{
+					types.PrivateNetworkSecondaryAttachmentsAnnotation: `[
+						{ "network": "green-network", "ipv4": "192.168.10.11", "ipv6": "fd10:0:140::11", "interface": "net65" }
+					]`,
+					multusv1.NetworkAttachmentAnnot: strings.Join(slices.Repeat([]string{"foo"}, 65), ","),
+				},
+			),
+			wantErr: "at most 64 secondary interfaces are supported",
 		},
 	}
 

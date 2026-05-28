@@ -126,9 +126,9 @@ jobs:
             build_args: |
               PUSH=true
               # renovate: datasource=docker
-              RUNTIME_IMAGE=quay.io/isovalent-dev/cilium-runtime-ubi:196ba44803e236d2bb7ba1f888049ecf15d9c2ac
+              RUNTIME_IMAGE=quay.io/isovalent-dev/cilium-runtime-ubi:a39cad1802dec56721b7d71c0b7e11e09242486a
               # renovate: datasource=docker
-              UBI_IMAGE=quay.io/isovalent-dev/cilium-runtime-ubi:196ba44803e236d2bb7ba1f888049ecf15d9c2ac
+              UBI_IMAGE=quay.io/isovalent-dev/cilium-runtime-ubi:a39cad1802dec56721b7d71c0b7e11e09242486a
               CILIUM_ENVOY_IMAGE=quay.io/isovalent-dev/cilium-envoy-ubi:${{ needs.envoy-version.outputs.version }}
               OPERATOR_VARIANT=cilium-ubi
 
@@ -303,6 +303,13 @@ jobs:
           username: ${{ secrets.QUAY_USERNAME_CI }}
           password: ${{ secrets.QUAY_PASSWORD_CI }}
 
+      - name: Login to Artifactory
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ${{ env.ARTIFACTORY_DEV }}
+          username: ${{ vars.ARTIFACTORY_USERNAME }}
+          password: ${{ secrets.ARTIFACTORY_PASSWORD }}
+
       - name: Login to registry.redhat.io for CI
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
@@ -334,17 +341,27 @@ jobs:
             echo floating_tag=${floating_tag} >> $GITHUB_OUTPUT
           fi
 
+          # Quay tags
           normal_tag="quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/${{ matrix.image_name }}-ci:${tag}"
           race_tag="${normal_tag}-race"
           unstripped_tag="${normal_tag}-unstripped"
-          extra_tags="--tag ${normal_tag}"
           push_tags="${normal_tag}"
+
+          # Artifactory tags
+          artifactory_normal_tag="${{ env.ARTIFACTORY_DEV }}/${{ env.ARTIFACTORY_ORGANIZATION_DEV }}/${{ matrix.image_name }}-ci:${tag}"
+          artifactory_race_tag="${artifactory_normal_tag}-race"
+          artifactory_unstripped_tag="${artifactory_normal_tag}-unstripped"
+          artifactory_push_tags="${artifactory_normal_tag}"
+
+          extra_tags="--tag ${normal_tag} --tag ${artifactory_normal_tag}"
 
           if [ -n "${floating_tag}" ]; then
             floating_normal_tag="quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/${{ matrix.image_name }}-ci:${floating_tag}"
-            extra_tags="${extra_tags} --tag ${floating_normal_tag}"
+            artifactory_floating_normal_tag="${{ env.ARTIFACTORY_DEV }}/${{ env.ARTIFACTORY_ORGANIZATION_DEV }}/${{ matrix.image_name }}-ci:${floating_tag}"
+            extra_tags="${extra_tags} --tag ${floating_normal_tag} --tag ${artifactory_floating_normal_tag}"
             if [[ "${{ matrix.distro }}" != "ubi" ]]; then
               push_tags="${normal_tag},${floating_normal_tag}"
+              artifactory_push_tags="${artifactory_normal_tag},${artifactory_floating_normal_tag}"
             fi
           fi
 
@@ -352,6 +369,8 @@ jobs:
             # Don't build race and unstripped images for merge_group or push events.
             race_tag=""
             unstripped_tag=""
+            artifactory_race_tag=""
+            artifactory_unstripped_tag=""
           fi
 
           # digest lookups
@@ -360,6 +379,10 @@ jobs:
           echo push_tags=${push_tags} >> $GITHUB_OUTPUT
           echo race_tag=${race_tag} >> $GITHUB_OUTPUT
           echo unstripped_tag=${unstripped_tag} >> $GITHUB_OUTPUT
+          echo artifactory_primary_tag=${artifactory_normal_tag} >> $GITHUB_OUTPUT
+          echo artifactory_race_tag=${artifactory_race_tag} >> $GITHUB_OUTPUT
+          echo artifactory_unstripped_tag=${artifactory_unstripped_tag} >> $GITHUB_OUTPUT
+          echo artifactory_push_tags=${artifactory_push_tags} >> $GITHUB_OUTPUT
           echo extra_tags=${extra_tags} >> $GITHUB_OUTPUT
 
       - name: Check for disk usage
@@ -414,9 +437,6 @@ jobs:
             echo build="true" >> $GITHUB_OUTPUT
           fi
 
-      - name: Install Cosign
-        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
-
       - name: CI Build ${{ matrix.name }} UBI
         if: ${{ steps.check.outputs.build != '' && matrix.distro == 'ubi' }}
         id: docker_build_ci_ubi
@@ -426,7 +446,7 @@ jobs:
           # shellcheck disable=SC2046
           export $(echo "${{ matrix.build_args }}" | grep -v "^[[:space:]]*#" | xargs)
           IMAGE_TAG=${{ steps.tag.outputs.tag }} \
-          REGISTRIES=quay.io/${{ env.QUAY_ORGANIZATION_DEV }} \
+          REGISTRIES="quay.io/${{ env.QUAY_ORGANIZATION_DEV }} ${{ env.ARTIFACTORY_DEV }}/${{ env.ARTIFACTORY_ORGANIZATION_DEV }}" \
           EXTRA_ARGS="${{ steps.tag.outputs.extra_tags }}" \
           make ${{ matrix.name }}-image
 
@@ -440,7 +460,9 @@ jobs:
           file: ${{ matrix.dockerfile }}
           push: true
           platforms: ${{ matrix.platforms }}
-          tags: ${{ steps.tag.outputs.push_tags }}
+          tags: |
+            ${{ steps.tag.outputs.push_tags }}
+            ${{ steps.tag.outputs.artifactory_push_tags }}
           target: release
           build-args: ${{ matrix.build_args }}
 
@@ -454,7 +476,9 @@ jobs:
           file: ${{ matrix.dockerfile }}
           push: true
           platforms: linux/amd64
-          tags: ${{ steps.tag.outputs.race_tag }}
+          tags: |
+            ${{ steps.tag.outputs.race_tag }}
+            ${{ steps.tag.outputs.artifactory_race_tag }}
           target: release
           build-args: |
             BASE_IMAGE=quay.io/isovalent-dev/cilium-runtime-wfi:a23cb179a0f1ca69f3e0a03d46f4748fbf02d204@sha256:ad3ab1a22177673568e44cbbcb4a09ea521fff7c9dd39ee1b6a4386846fe5acd
@@ -471,7 +495,9 @@ jobs:
           file: ${{ matrix.dockerfile }}
           push: true
           platforms: linux/amd64
-          tags: ${{ steps.tag.outputs.unstripped_tag }}
+          tags: |
+            ${{ steps.tag.outputs.unstripped_tag }}
+            ${{ steps.tag.outputs.artifactory_unstripped_tag }}
           target: release
           build-args: |
             ${{ matrix.build_args }}
@@ -485,31 +511,13 @@ jobs:
           digest=$(images/scripts/get-image-digest.sh "${{ steps.tag.outputs.primary_tag }}")
           echo digest=${digest} >> $GITHUB_OUTPUT
 
-      - name: Generate SBOM, Sign, and Attest Main CI Image
-        if: ${{ matrix.name != 'cilium-cli' && steps.check.outputs.build != '' }}
-        uses: ./.github/actions/cosign
-        with:
-          image: "quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/${{ matrix.image_name }}-ci@${{ steps.docker_digest.outputs.digest }}"
-          image_tag: "${{ steps.tag.outputs.primary_tag }}"
-          sbom_name: "ci_${{ matrix.name }}_${{ matrix.distro }}_${{ steps.tag.outputs.tag }}"
-
-      - name: Generate SBOM, Sign, and Attest Race Detection Image
-        if: ${{ matrix.name != 'cilium-cli' && steps.docker_build_ci_detect_race_condition.outcome != 'skipped' }}
-        uses: ./.github/actions/cosign
-        with:
-          image: "quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/${{ matrix.image_name }}-ci@${{ steps.docker_build_ci_detect_race_condition.outputs.digest }}"
-          image_tag: "${{ steps.tag.outputs.race_tag }}"
-          sbom_name: "ci_race_${{ matrix.name }}_${{ matrix.distro }}_${{ steps.tag.outputs.tag }}"
-          install_cosign: "false"
-
-      - name: Generate SBOM, Sign, and Attest Unstripped Image
-        if: ${{ matrix.name != 'cilium-cli' && steps.docker_build_ci_unstripped.outcome != 'skipped' }}
-        uses: ./.github/actions/cosign
-        with:
-          image: "quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/${{ matrix.image_name }}-ci@${{ steps.docker_build_ci_unstripped.outputs.digest }}"
-          image_tag: "${{ steps.tag.outputs.unstripped_tag }}"
-          sbom_name: "ci_unstripped_${{ matrix.name }}_${{ matrix.distro }}_${{ steps.tag.outputs.tag }}"
-          install_cosign: "false"
+      - name: CI Build ${{ matrix.name }} digest (Artifactory)
+        id: docker_digest_artifactory
+        if: ${{ steps.check.outputs.build != '' }}
+        shell: bash
+        run: |
+          digest=$(images/scripts/get-image-digest.sh "${{ steps.tag.outputs.artifactory_primary_tag }}")
+          echo digest=${digest} >> $GITHUB_OUTPUT
 
       - name: CI Image Releases digests
         if: ${{ steps.check.outputs.build != '' }}
@@ -519,8 +527,10 @@ jobs:
           # shellcheck disable=SC2078
           if [ ${{ github.event_name == 'push' && !startsWith(github.ref_name, 'ft/') }} ]; then
             echo "quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/${{ matrix.image_name }}-ci:${{ steps.tag.outputs.floating_tag }}@${{ steps.docker_digest.outputs.digest }}" > image-digest/${{ matrix.image_name }}.txt
+            echo "${{ env.ARTIFACTORY_DEV }}/${{ env.ARTIFACTORY_ORGANIZATION_DEV }}/${{ matrix.image_name }}-ci:${{ steps.tag.outputs.floating_tag }}@${{ steps.docker_digest_artifactory.outputs.digest }}" >> image-digest/${{ matrix.image_name }}.txt
           fi
           echo "${{ steps.tag.outputs.primary_tag}}@${{ steps.docker_digest.outputs.digest }}" >> image-digest/${{ matrix.image_name }}.txt
+          echo "${{ steps.tag.outputs.artifactory_primary_tag }}@${{ steps.docker_digest_artifactory.outputs.digest }}" >> image-digest/${{ matrix.image_name }}.txt
 
       # Upload artifact digests
       - name: Upload artifact digests
@@ -605,7 +615,7 @@ jobs:
       }}
     steps:
       - name: Generate Github App Token
-        uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3.1.1
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         id: generate-token
         with:
           app-id: ${{ secrets.AUTO_COMMENT_BOT_APP_ID }}

@@ -1,0 +1,66 @@
+{{- if .Values.enterprise.privateNetworks.enabled }}
+
+{{- if .Values.endpointRoutes.enabled }}
+    {{- fail "Private networks is not compatible with endpoint routes" }}
+{{- end }}
+
+{{- if ne (toString .Values.kubeProxyReplacement) "true" }}
+    {{- fail "Private networks requires kube-proxy replacement to be enabled" }}
+{{- end }}
+
+{{- if .Values.hostFirewall.enabled }}
+    {{- fail "Private networks is not compatible with host firewall" }}
+{{- end }}
+
+{{- if ne .Values.bpf.datapathMode "veth" }}
+    {{- fail "Private networks requires bpf.datapathMode=veth" }}
+{{- end }}
+
+{{- if .Values.nat46x64Gateway.enabled }}
+    {{- fail "Private networks is not compatible with NAT46/NAT64 gateway" }}
+{{- end }}
+
+{{- if .Values.vtep.enabled }}
+    {{- fail "Private networks is not compatible with VXLAN Tunnel Endpoint (VTEP) integration" }}
+{{- end }}
+
+{{- if .Values.encryption.enabled }}
+    {{- fail "Private networks is not compatible with transparent encryption" }}
+{{- end }}
+
+{{- if and .Values.cni.chainingMode (ne .Values.cni.chainingMode "none") }}
+    {{- fail "Private networks is not compatible with CNI chaining" }}
+{{- end }}
+
+{{- if not (has .Values.ipam.mode (list "kubernetes" "cluster-pool" "multi-pool")) }}
+    {{- fail (printf "Private networks only supports IPAM modes 'kubernetes', 'cluster-pool', or 'multi-pool', but found '%s'" .Values.ipam.mode) }}
+{{- end }}
+
+{{- if ne .Values.loadBalancer.acceleration "disabled" }}
+    {{- fail "Private networks is not compatible with XDP acceleration" }}
+{{- end }}
+
+{{- if .Values.enterprise.clustermesh.enableOverlappingPodCIDRSupport }}
+    {{- fail "Private networks is not compatible with overlapping PodCIDR support" }}
+{{- end }}
+
+{{- if and (eq .Values.enterprise.privateNetworks.mode "bridge") .Values.routingMode (ne .Values.routingMode "tunnel") }}
+    {{- fail "Private networks 'bridge' mode requires routing-mode=tunnel" }}
+{{- end }}
+
+{{- if and .Values.enterprise.privateNetworks.api.tls.enabled (eq .Values.enterprise.privateNetworks.api.tls.method "manual") }}
+  {{- if not .Values.enterprise.privateNetworks.api.tls.manual.server.existingSecret }}
+    {{ fail "Private Networks API TLS method=manual requires that user specifies .Values.enterprise.privateNetworks.api.tls.manual.server.existingSecret" }}
+  {{- end }}
+  {{- if not .Values.enterprise.privateNetworks.api.tls.manual.client.existingSecret }}
+    {{ fail "Private Networks API TLS method=manual requires that user specifies .Values.enterprise.privateNetworks.api.tls.manual.client.existingSecret" }}
+  {{- end }}
+{{- else if and .Values.enterprise.privateNetworks.api.tls.enabled (eq .Values.enterprise.privateNetworks.api.tls.method "certmanager") }}
+  {{- if not .Values.enterprise.privateNetworks.api.tls.certmanager.issuerRef }}
+    {{ fail "Private Networks API TLS method=certmanager requires that user specifies .Values.enterprise.privateNetworks.api.tls.certmanager.issuerRef" }}
+  {{- end }}
+{{- else if and .Values.enterprise.privateNetworks.api.tls.enabled (ne .Values.enterprise.privateNetworks.api.tls.method "cronJob") }}
+  {{ fail "Unsupported TLS method for the Private Networks API" }}
+{{- end }}
+
+{{- end }}
