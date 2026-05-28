@@ -421,7 +421,7 @@ kind-privnet-deploy-external-endpoints: kind-privnet-test-namespace  ## Create t
 	$(call privnet_inb_extep,"privnet-vm-net-a1","network-a","kind-privnet-inb0")
 	$(call privnet_inb_extep,"privnet-vm-net-a2","network-a","kind-privnet-inb0")
 	$(call privnet_inb_extep,"privnet-vm-net-b1","network-b","kind-privnet-inb0")
-	$(call privnet_inb_extep,"privnet-vm-net-b2","network-b","kind-privnet-inb1")
+	$(call privnet_inb_extep,"privnet-vm-net-b2","network-b","kind-privnet-inb0")
 
 	$(call privnet_inb_extep,"privnet-vm-net-a1","network-a","kind-privnet-inb1")
 	$(call privnet_inb_extep,"privnet-vm-net-a2","network-a","kind-privnet-inb1")
