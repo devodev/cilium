@@ -482,7 +482,7 @@ func (c *CTMaps) Prune(ctx context.Context, txn statedb.ReadTxn, objs iter.Seq2[
 			return nil
 		}
 
-		err := c.tcp4Ops.Prune(ctx, txn, iterCtKeyVals(entries))
+		err := ops.Prune(ctx, txn, iterCtKeyVals(entries))
 		if err != nil {
 			return fmt.Errorf("%s: %w", name, err)
 		}
