@@ -211,9 +211,11 @@ func (sc *statusCollector) collectEndpointsForNet(tx statedb.ReadTxn, net tables
 	epsByName := map[string]status.EndpointStatus{}
 
 	activePIPs := set.Set[netip.Addr]{}
-	for activeEP := range sc.mapEntries.Prefix(tx, tables.MapEntriesByNetworkAndType(net, tables.MapEntryTypeEndpoint)) {
-		if activeEP.Routing.L2Announce {
-			activePIPs.Insert(activeEP.Routing.NextHop)
+	if sc.config.EnabledAsBridge() {
+		for activeEP := range sc.mapEntries.Prefix(tx, tables.MapEntriesByNetworkAndType(net, tables.MapEntryTypeEndpoint)) {
+			if activeEP.Routing.L2Announce {
+				activePIPs.Insert(activeEP.Routing.NextHop)
+			}
 		}
 	}
 
