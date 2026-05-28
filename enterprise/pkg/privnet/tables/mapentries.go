@@ -261,8 +261,8 @@ type MapEntryRouting struct {
 
 	// L2Announce is whether the local node should announce the target endpoint on
 	// the egress facing interface, replying to ARP/ND requests, as well as sending
-	// gratuitous ARP and ND packets. Currently applicable on the INB cluster(s) only,
-	// and for entries of type [MapEntryTypeEndpoint].
+	// gratuitous ARP and ND packets. Currently applicable for entries of type
+	// [MapEntryTypeEndpoint] only.
 	L2Announce bool
 
 	// PeerID contains the SubnetID and NetworkID of the target subnet.
