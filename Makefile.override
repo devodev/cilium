@@ -115,3 +115,6 @@ gomod-override: ## Override go.mod
 
 # Cilium private networks specific targets
 -include Makefile.privnet
+
+# Cilium VRF specific targets
+-include Makefile.vrf
