@@ -97,6 +97,10 @@ func (ec *EnterpriseConnectivity) addConnectivityTests(cts ...*check.Connectivit
 		return err
 	}
 
+	if err := ec.addVRFTests(cts[0]); err != nil {
+		return err
+	}
+
 	if err := ec.addIngressPolicyTests(cts[0], templates); err != nil {
 		return err
 	}
@@ -433,6 +437,15 @@ func (ec *EnterpriseConnectivity) addBFDTests(ct *check.ConnectivityTest) (err e
 			)
 	}
 	bfdBGPTest(ct).WithScenarios(enterpriseTests.BFDWithBGP())
+
+	return nil
+}
+
+func (ec *EnterpriseConnectivity) addVRFTests(ct *check.ConnectivityTest) (err error) {
+	enterpriseCheck.NewEnterpriseConnectivityTest(ct).
+		NewEnterpriseTest("vrf").
+		WithFeatureRequirements(features.RequireEnabled(enterpriseFeatures.VRF)).
+		WithScenarios(enterpriseTests.VRF())
 
 	return nil
 }
