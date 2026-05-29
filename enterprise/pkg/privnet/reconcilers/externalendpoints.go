@@ -339,6 +339,10 @@ func (e *ExternalEndpoints) registerK8sReflector(in struct {
 					logfields.K8sNamespace, new.Namespace,
 					logfields.Name, new.Name,
 				)
+				new.Network = old.Network
+				new.IPv4 = old.IPv4
+				new.IPv6 = old.IPv6
+				copy(new.MAC, old.MAC)
 			}
 
 			return new
