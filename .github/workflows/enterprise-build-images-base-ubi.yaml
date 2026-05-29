@@ -70,7 +70,8 @@ jobs:
         id: cilium-runtime-tag-in-repositories
         shell: bash
         run: |
-          if docker buildx imagetools inspect quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/cilium-runtime-ubi:${{  steps.runtime-tag.outputs.tag }} &>/dev/null; then
+          if docker buildx imagetools inspect quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/cilium-runtime-ubi:${{  steps.runtime-tag.outputs.tag }} && \
+             docker buildx imagetools inspect ${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}/cilium-runtime-ubi:${{  steps.runtime-tag.outputs.tag }} &>/dev/null; then
             echo exists="true" >> $GITHUB_OUTPUT
           else
             echo exists="false" >> $GITHUB_OUTPUT
@@ -91,6 +92,13 @@ jobs:
           username: ${{ secrets.QUAY_USERNAME_CI }}
           password: ${{ secrets.QUAY_PASSWORD_CI }}
 
+      - name: Login to Artifactory
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ${{ vars.ARTIFACTORY_HOST }}
+          username: ${{ vars.ARTIFACTORY_USERNAME }}
+          password: ${{ secrets.ARTIFACTORY_PASSWORD }}
+
       - name: Release build cilium-runtime
         if: ${{ steps.cilium-runtime-tag-in-repositories.outputs.exists == 'false' }}
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
@@ -104,18 +112,24 @@ jobs:
           target: release
           tags: |
             quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/cilium-runtime-ubi:${{ steps.runtime-tag.outputs.tag }}
+            ${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}/cilium-runtime-ubi:${{ steps.runtime-tag.outputs.tag }}
           build-args: |
             # renovate: datasource=docker
-            CILIUM_LLVM_IMAGE=quay.io/isovalent-dev/cilium-llvm-ubi:1773727319-1c694cf@sha256:04f1764c41706e9a285f90d2ab1eb85242333ca2d966ed0d1885607d84a2544d
+            CILIUM_LLVM_IMAGE=${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}/cilium-llvm-ubi:1779976356-aae733b@sha256:dc113aa42b9bf842c2a3498b0de74617c1ad72d76acd2b1700c5487d7108593b
             # renovate: datasource=docker
-            CILIUM_BPFTOOL_IMAGE=quay.io/isovalent-dev/cilium-bpftool-ubi:1773727319-1c694cf@sha256:c08fae92a12088b73d769d83246d68ce30d0e6a53810e39c6b132fce65beeb39
+            CILIUM_BPFTOOL_IMAGE=${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}/cilium-bpftool-ubi:1779976356-aae733b@sha256:103864a80fcd8f5be698864efcb1bd68e27f71e786398585ecf199f1b5f98430
             # renovate: datasource=docker
-            COMPILERS_IMAGE=quay.io/isovalent-dev/image-compilers-ubi:1773656974-2c62f04@sha256:5f74cfe5e037ba86cf50c5c570009bab11ceb608cc0096ca6e0a1d806130ec52
+            COMPILERS_IMAGE=${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}/image-compilers-ubi:1779976356-aae733b@sha256:2581c0a26170c8f0fa76f3c045aa0b2b52e32d819fde06e3f72e47e07c23c269
 
       - name: Sign Container Image Runtime
         if: ${{ steps.cilium-runtime-tag-in-repositories.outputs.exists == 'false' }}
         run: |
           cosign sign -y quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/cilium-runtime-ubi@${{ steps.docker_build_release_runtime.outputs.digest }}
+
+      - name: Sign Container Image Runtime Artifactory
+        if: ${{ steps.cilium-runtime-tag-in-repositories.outputs.exists == 'false' }}
+        run: |
+          cosign sign -y ${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}/cilium-runtime-ubi@${{ steps.docker_build_release_runtime.outputs.digest }}
 
       - name: Generate SBOM
         if: ${{ steps.cilium-runtime-tag-in-repositories.outputs.exists == 'false' }}
@@ -123,12 +137,13 @@ jobs:
         with:
           artifact-name: sbom_cilium-runtime_${{ steps.runtime-tag.outputs.tag }}.spdx.json
           output-file: ./sbom_cilium-runtime_${{ steps.runtime-tag.outputs.tag }}.spdx.json
-          image: quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/cilium-runtime-ubi:${{ steps.runtime-tag.outputs.tag }}
+          image: ${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}/cilium-runtime-ubi:${{ steps.runtime-tag.outputs.tag }}
 
       - name: Attach SBOM attestation to container image
         if: ${{ steps.cilium-runtime-tag-in-repositories.outputs.exists == 'false' }}
         run: |
           cosign attest -y --predicate sbom_cilium-runtime_${{ steps.runtime-tag.outputs.tag }}.spdx.json --type spdxjson quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/cilium-runtime-ubi@${{ steps.docker_build_release_runtime.outputs.digest }}
+          cosign attest -y --predicate sbom_cilium-runtime_${{ steps.runtime-tag.outputs.tag }}.spdx.json --type spdxjson ${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}/cilium-runtime-ubi@${{ steps.docker_build_release_runtime.outputs.digest }}
 
       - name: Image Release Digest Runtime
         if: ${{ steps.cilium-runtime-tag-in-repositories.outputs.exists == 'false' }}
@@ -137,7 +152,7 @@ jobs:
           mkdir -p image-digest/
           echo "## cilium-runtime-ubi" > image-digest/cilium-runtime-ubi.txt
           echo "" >> image-digest/cilium-runtime-ubi.txt
-          echo "\`quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/cilium-runtime-ubi:${{ steps.runtime-tag.outputs.tag }}@${{ steps.docker_build_release_runtime.outputs.digest }}\`" >> image-digest/cilium-runtime-ubi.txt
+          echo "\`${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}/cilium-runtime-ubi:${{ steps.runtime-tag.outputs.tag }}@${{ steps.docker_build_release_runtime.outputs.digest }}\`" >> image-digest/cilium-runtime-ubi.txt
           echo "" >> image-digest/cilium-runtime-ubi.txt
 
       - name: Upload artifact digests runtime
@@ -157,10 +172,10 @@ jobs:
         id: update-runtime-image
         shell: bash
         run: |
-          enterprise/images/runtime/update-runtime-image.sh quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/cilium-runtime-ubi:${{ steps.runtime-tag.outputs.tag }}
+          enterprise/images/runtime/update-runtime-image.sh ${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}/cilium-runtime-ubi:${{ steps.runtime-tag.outputs.tag }}
           if git commit -sam "images: update cilium-runtime-ubi"; then
             echo "# Changes to this file trigger OpenShift CI." > enterprise/olm/cilium-runtime-version.txt
-            echo "CILIUM_RUNTIME_UBI=quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/cilium-runtime-ubi:${{ steps.runtime-tag.outputs.tag }}" >> enterprise/olm/cilium-runtime-version.txt
+            echo "CILIUM_RUNTIME_UBI=${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}/cilium-runtime-ubi:${{ steps.runtime-tag.outputs.tag }}" >> enterprise/olm/cilium-runtime-version.txt
             echo "committed=true" >> $GITHUB_OUTPUT
           else
             echo "committed=false" >> $GITHUB_OUTPUT
@@ -170,7 +185,7 @@ jobs:
         if: ${{ steps.update-runtime-image.outputs.committed == 'true' }}
         env:
           ref: ${{ github.event.pull_request.head.ref || github.ref }}
-          repository:  ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
         run: |
           git diff HEAD^
           git push https://x-access-token:${{ steps.get_token.outputs.token }}@github.com/${{ env.repository }}.git HEAD:$ref

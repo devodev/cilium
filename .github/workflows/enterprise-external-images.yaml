@@ -58,7 +58,7 @@ jobs:
             echo "version=${version}" >> $GITHUB_OUTPUT
           fi
           # Don't rebuild if the image already exists
-          if docker manifest inspect quay.io/isovalent-dev/${{ inputs.image-name }}:${version}; then
+          if  ${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}/${{ inputs.image-name }}:${version} && docker manifest inspect quay.io/isovalent-dev/${{ inputs.image-name }}:${version}; then
             echo "Image already exist!"
             echo "rebuild=false" >> $GITHUB_OUTPUT
           else
@@ -89,6 +89,13 @@ jobs:
           username: ${{ secrets.QUAY_USERNAME_CI }}
           password: ${{ secrets.QUAY_PASSWORD_CI }}
 
+      - name: Login to Artifactory
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ${{ vars.ARTIFACTORY_HOST }}
+          username: ${{ vars.ARTIFACTORY_USERNAME }}
+          password: ${{ secrets.ARTIFACTORY_PASSWORD }}
+
       - name: Login to registry.redhat.io for pulling images
         uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
@@ -110,6 +117,8 @@ jobs:
           tags: |
             quay.io/isovalent-dev/${{ inputs.image-name }}:${{ needs.check-changes.outputs.version }}
             quay.io/isovalent-dev/${{ inputs.image-name }}:${{ github.run_id }}
+            ${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}/${{ inputs.image-name }}:${{ needs.check-changes.outputs.version }}
+            ${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}/${{ inputs.image-name }}:${{ github.run_id }}
           build-args: |
             BASE_IMAGE=${{ inputs.base-image }}
             UPSTREAM_VERSION=${{ needs.check-changes.outputs.version }}
@@ -122,7 +131,7 @@ jobs:
           mkdir -p image-digest/
           echo "## ${{ inputs.image-name }}" > image-digest/${{ inputs.image-name }}.txt
           echo "" >> image-digest/${{ inputs.image-name }}.txt
-          echo "\`quay.io/isovalent-dev/${{ inputs.image-name }}:${{ needs.check-changes.outputs.version }}@${{ steps.docker_build_release.outputs.digest }}\`" >> image-digest/${{ inputs.image-name }}.txt
+          echo "\`${{ vars.ARTIFACTORY_HOST }}}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}/${{ inputs.image-name }}:${{ needs.check-changes.outputs.version }}@${{ steps.docker_build_release.outputs.digest }}\`" >> image-digest/${{ inputs.image-name }}.txt
           echo "" >> image-digest/${{ inputs.image-name }}.txt
 
       - name: Upload artifact digests runtime

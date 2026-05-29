@@ -76,6 +76,54 @@ jobs:
           dest-password: "${{ secrets.QUAY_PASSWORD_RELEASE_PASSWORD }}"
           multi-arch: "all"
 
+  mirror-envoy-image-artifactory:
+    name: Mirror envoy image Artifactory
+    runs-on: ubuntu-24.04
+    outputs:
+      org: ${{ steps.version.outputs.org }}
+      version: ${{ steps.version.outputs.envoy_version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.event.push.after }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Set Environment Variables
+        uses: ./.github/actions/set-env-variables
+
+      - name: Get and check version
+        id: version
+        env:
+          # renovate: datasource=docker depName=mikefarah/yq
+          yq_version: 4.53.2
+        run: |
+          tag=${GITHUB_REF##*/}
+          echo release_tag=$tag >> $GITHUB_OUTPUT
+          repo_dir=$(git rev-parse --show-toplevel)
+          envoy_version=$(docker run --rm -v "${repo_dir}/install/kubernetes/cilium/values.yaml":/workdir/values.yaml --user "$(id -u):$(id -g)" mikefarah/yq:${yq_version} e ".envoy.image.tag" /workdir/values.yaml)
+          echo "envoy_version=${envoy_version}" >> $GITHUB_OUTPUT
+          if docker manifest inspect ${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_PROD }}/cilium-envoy-ubi:${tag} >/dev/null; then
+            echo "Envoy image already exists! Copy skipped."
+            echo "copy=false" >> $GITHUB_OUTPUT
+          else
+            echo "copy=true" >> $GITHUB_OUTPUT
+          fi
+          echo "org=${{ vars.ARTIFACTORY_ORGANIZATION_PROD }}" >> $GITHUB_OUTPUT
+
+      - name: copy image
+        uses: truemark/skopeo-copy-action@42ddf321b803e556b65006c5cdaa517bea42f548 # v1
+        if: ${{ steps.version.outputs.copy == 'true' }}
+        with:
+          src-image: docker://${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}/cilium-envoy-ubi:${{ steps.version.outputs.envoy_version }}
+          dest-image: docker://${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_PROD }}/cilium-envoy-ubi:${{ steps.version.outputs.release_tag }}
+          src-username: "${{ secrets.QUAY_USERNAME_CI }}"
+          src-password: "${{ secrets.QUAY_PASSWORD_CI }}"
+          dest-username: "${{ secrets.QUAY_USERNAME_RELEASE_USERNAME }}"
+          dest-password: "${{ secrets.QUAY_PASSWORD_RELEASE_PASSWORD }}"
+          multi-arch: "all"
+
   build-and-push-external-images:
     timeout-minutes: 45
     name: Build and push external images
@@ -130,7 +178,7 @@ jobs:
           echo "upstream_version=${upstream_version}" >> $GITHUB_OUTPUT
           echo "upstream_repo=$(cat install/kubernetes/Makefile.values | grep ${{ matrix.component }}_REPO | awk -F '=' '{print $2}')" >> $GITHUB_OUTPUT
           echo "upstream_digest=$(cat install/kubernetes/Makefile.values | grep ${{ matrix.component }}_DIGEST | awk -F '=' '{print $2}')" >> $GITHUB_OUTPUT
-          if docker manifest inspect quay.io/${{ env.QUAY_ORGANIZATION }}/${{ matrix.image-name }}:${version} >/dev/null; then
+          if docker manifest inspect ${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_PROD }}/${{ matrix.image-name }}:${version} >/dev/null; then
             echo "Image already exists! Build skipped."
             echo "rebuild=false" >> $GITHUB_OUTPUT
           else
@@ -148,6 +196,13 @@ jobs:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME_RELEASE_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD_RELEASE_PASSWORD }}
+
+      - name: Login to Artifactory
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ${{ vars.ARTIFACTORY_HOST }}
+          username: ${{ vars.ARTIFACTORY_USERNAME }}
+          password: ${{ secrets.ARTIFACTORY_PASSWORD }}
 
       - name: Login to registry.redhat.io for pulling UBI images
         if: ${{ steps.version.outputs.rebuild == 'true' }}
@@ -167,6 +222,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           tags: |
             quay.io/${{ env.QUAY_ORGANIZATION }}/${{ matrix.image-name }}:${{ steps.version.outputs.version }}
+            ${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_PROD }}/${{ matrix.image-name }}:${{ steps.version.outputs.version }}
           build-args: |
             BASE_IMAGE=${{ matrix.base-image }}
             UPSTREAM_VERSION=${{ steps.version.outputs.upstream_version }}
@@ -177,7 +233,7 @@ jobs:
         id: docker_digest
         shell: bash
         run: |
-          digest=$(images/scripts/get-image-digest.sh quay.io/${{ env.QUAY_ORGANIZATION }}/${{ matrix.image-name }}:${{ steps.version.outputs.version }})
+          digest=$(images/scripts/get-image-digest.sh ${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_PROD }}/${{ matrix.image-name }}:${{ steps.version.outputs.version }})
           echo digest=${digest} >> $GITHUB_OUTPUT
 
       - name: Install Cosign
@@ -188,6 +244,7 @@ jobs:
         if: ${{ steps.version.outputs.rebuild == 'true' }}
         run: |
           cosign sign -y quay.io/${{ env.QUAY_ORGANIZATION }}/${{ matrix.image-name }}:${{ steps.version.outputs.version }}@${{ steps.docker_digest.outputs.digest }}
+          cosign sign -y ${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_PROD }}/${{ matrix.image-name }}:${{ steps.version.outputs.version }}@${{ steps.docker_digest.outputs.digest }}
 
       - name: Generate SBOM
         if: ${{ steps.version.outputs.rebuild == 'true' }}
@@ -195,13 +252,14 @@ jobs:
         with:
           artifact-name: sbom_${{ matrix.image-name }}_${{ steps.version.outputs.version }}.spdx.json
           output-file: ./sbom_${{ matrix.image-name }}_${{ steps.version.outputs.version }}.spdx.json
-          image: quay.io/${{ env.QUAY_ORGANIZATION }}/${{ matrix.image-name }}:${{ steps.version.outputs.version }}
+          image: ${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_PROD }}/${{ matrix.image-name }}:${{ steps.version.outputs.version }}
           upload-release-assets: false
 
       - name: Attach SBOM attestation to container image
         if: ${{ steps.version.outputs.rebuild == 'true' }}
         run: |
           cosign attest -y --predicate sbom_${{ matrix.image-name }}_${{ steps.version.outputs.version }}.spdx.json --type spdxjson quay.io/${{ env.QUAY_ORGANIZATION }}/${{ matrix.image-name }}:${{ steps.version.outputs.version }}
+          cosign attest -y --predicate sbom_${{ matrix.image-name }}_${{ steps.version.outputs.version }}.spdx.json --type spdxjson ${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_PROD }}/${{ matrix.image-name }}:${{ steps.version.outputs.version }}
 
       - name: Image Release Digest
         shell: bash
@@ -209,7 +267,7 @@ jobs:
           mkdir -p image-digest/
           echo "### ${{ matrix.image-name }}" > image-digest/${{ matrix.image-name }}.txt
           echo "" >> image-digest/${{ matrix.image-name }}.txt
-          echo "\`quay.io/${{ env.QUAY_ORGANIZATION }}/${{ matrix.image-name }}:${{ steps.version.outputs.version }}@${{ steps.docker_digest.outputs.digest }}\`" >> image-digest/${{ matrix.image-name }}.txt
+          echo "\`${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_PROD }}/${{ matrix.image-name }}:${{ steps.version.outputs.version }}@${{ steps.docker_digest.outputs.digest }}\`" >> image-digest/${{ matrix.image-name }}.txt
           echo "" >> image-digest/${{ matrix.image-name }}.txt
 
       # Upload artifact digests
@@ -225,15 +283,15 @@ jobs:
     environment: release
     runs-on: ubuntu-24.04
     # The cilium-envoy image is used for building the image of the Cilium agent and should have been published beforehands
-    needs: [mirror-envoy-image, load-versions]
+    needs: [mirror-envoy-image, mirror-envoy-image-artifactory, load-versions]
     strategy:
       matrix:
         include:
           - name: cilium
             dockerfile: ./enterprise/images/cilium/Dockerfile
             # renovate: datasource=docker
-            base_image: quay.io/isovalent-dev/cilium-runtime-ubi:a39cad1802dec56721b7d71c0b7e11e09242486a
-            envoy_image: quay.io/${{ needs.mirror-envoy-image.outputs.org }}/cilium-envoy-ubi:${{ needs.mirror-envoy-image.outputs.version }}
+            base_image: ${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}/cilium-runtime-ubi:196ba44803e236d2bb7ba1f888049ecf15d9c2ac
+            envoy_image: ${{ vars.ARTIFACTORY_HOST }}/${{ needs.mirror-envoy-image-artifactory.outputs.org }}/cilium-envoy-ubi:${{ needs.mirror-envoy-image-artifactory.outputs.version }}
             postfix: ubi
             image_name: cilium
 
@@ -257,8 +315,9 @@ jobs:
 
           - name: gateway-api-controlplane
             dockerfile: ./enterprise/images/gateway-api-controlplane/Dockerfile
+            # TODO: not available in Artifactory yet
             # renovate: datasource=docker
-            base_image: quay.io/isovalent-dev/cilium-runtime-wfi:a23cb179a0f1ca69f3e0a03d46f4748fbf02d204@sha256:ad3ab1a22177673568e44cbbcb4a09ea521fff7c9dd39ee1b6a4386846fe5acd
+            base_image: ${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}/cilium-runtime-cg:a495bcec15bc67c2cd0f18d7e5c90c127563e73c@sha256:a0d7f26ae39fbbf2e35d333fbd0dffd2439c79662b782b3129a673f38c8ff185
             postfix: ""
             image_name: gateway-api-controlplane
             digest_var_name: GATEWAY_API_CONTROLPLANE_DIGEST
@@ -293,6 +352,13 @@ jobs:
           username: ${{ secrets.QUAY_USERNAME_RELEASE_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD_RELEASE_PASSWORD }}
 
+      - name: Login to Artifactory
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ${{ vars.ARTIFACTORY_HOST }}
+          username: ${{ vars.ARTIFACTORY_USERNAME }}
+          password: ${{ secrets.ARTIFACTORY_PASSWORD }}
+
       - name: Login to registry.redhat.io for pull of UBI images
         uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
@@ -312,6 +378,7 @@ jobs:
           fi
           echo "image_name=${image_name}" >> "$GITHUB_OUTPUT"
           echo "image_tag=quay.io/${{ env.QUAY_ORGANIZATION }}/${image_name}:${tag}" >> "$GITHUB_OUTPUT"
+          echo "artifactory_image_tag=${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_PROD }}/${image_name}:${tag}" >> "$GITHUB_OUTPUT"
           echo "build_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
 
       - name: Checkout Source Code
@@ -328,7 +395,7 @@ jobs:
           IMAGE_NAME=${{ steps.tag.outputs.image_name }} \
           BASE_IMAGE=${{ matrix.base_image }} \
           SUFFIX="" \
-          REGISTRIES=quay.io/${{ env.QUAY_ORGANIZATION }} \
+          REGISTRIES="quay.io/${{ env.QUAY_ORGANIZATION }} ${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_PROD }}"\
           PUSH=true \
           RUNTIME_IMAGE=${{ matrix.base_image }} \
           UBI_IMAGE=${{ matrix.base_image }} \
@@ -342,7 +409,7 @@ jobs:
         id: docker_digest
         shell: bash
         run: |
-          digest=$(images/scripts/get-image-digest.sh "${{ steps.tag.outputs.image_tag }}")
+          digest=$(images/scripts/get-image-digest.sh "${{ steps.tag.outputs.artifactory_image_tag }}")
           echo digest=${digest} >> $GITHUB_OUTPUT
 
       - name: Install Cosign
@@ -351,18 +418,20 @@ jobs:
       - name: Sign Container Images
         run: |
           cosign sign -y ${{ steps.tag.outputs.image_tag }}@${{ steps.docker_digest.outputs.digest }}
+          cosign sign -y ${{ steps.tag.outputs.artifactory_image_tag }}@${{ steps.docker_digest.outputs.digest }}
 
       - name: Generate SBOM
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
         with:
           artifact-name: sbom_${{ matrix.name }}_${{ matrix.postfix }}_${{ steps.tag.outputs.tag }}.spdx.json
           output-file: ./sbom_${{ matrix.name }}_${{ matrix.postfix }}_${{ steps.tag.outputs.tag }}.spdx.json
-          image: ${{ steps.tag.outputs.image_tag }}
+          image: ${{ steps.tag.outputs.artifactory_image_tag }}
           upload-release-assets: false
 
       - name: Attach SBOM attestation to container image
         run: |
           cosign attest -y --predicate sbom_${{ matrix.name }}_${{ matrix.postfix }}_${{ steps.tag.outputs.tag }}.spdx.json --type spdxjson ${{ steps.tag.outputs.image_tag }}
+          cosign attest -y --predicate sbom_${{ matrix.name }}_${{ matrix.postfix }}_${{ steps.tag.outputs.tag }}.spdx.json --type spdxjson ${{ steps.tag.outputs.artifactory_image_tag }}
 
       - name: Image Release Digest
         shell: bash
@@ -378,7 +447,7 @@ jobs:
 
           echo "### ${{ matrix.name }}" > image-digest/${{ matrix.name }}.txt
           echo "" >> image-digest/${{ matrix.name }}.txt
-          echo "\`${{ steps.tag.outputs.image_tag }}@${{ steps.docker_digest.outputs.digest }}\`" >> image-digest/${{ matrix.name }}.txt
+          echo "\`${{ steps.tag.outputs.artifactory_image_tag }}@${{ steps.docker_digest.outputs.digest }}\`" >> image-digest/${{ matrix.name }}.txt
           echo "" >> image-digest/${{ matrix.name }}.txt
 
       # Upload artifact digests
@@ -421,7 +490,9 @@ jobs:
           tag=${GITHUB_REF##*/}
           echo tag=$tag >> $GITHUB_OUTPUT
           echo image_tag_base=quay.io/${{ env.QUAY_ORGANIZATION }}/clife >> $GITHUB_OUTPUT
+          echo artifactory_image_tag_base=${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_PROD }}/clife >> $GITHUB_OUTPUT
           echo image_tag=quay.io/${{ env.QUAY_ORGANIZATION }}/clife:$tag >> $GITHUB_OUTPUT
+          echo artifactory_image_tag=${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_PROD }}/clife:$tag >> $GITHUB_OUTPUT
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
@@ -432,6 +503,13 @@ jobs:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME_RELEASE_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD_RELEASE_PASSWORD }}
+
+      - name: Login to Artifactory
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ${{ vars.ARTIFACTORY_HOST }}
+          username: ${{ vars.ARTIFACTORY_USERNAME }}
+          password: ${{ secrets.ARTIFACTORY_PASSWORD }}
 
       - name: Login to registry.redhat.io for pull of UBI images
         uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
@@ -457,6 +535,18 @@ jobs:
         run: |
           make docker-buildx VERSION=${{ steps.tag.outputs.tag }}
 
+      - name: CLife Build and Push Artifactory
+        id: docker_build_clife_artifactory
+        shell: bash
+        env:
+          IMG: "${{ steps.tag.outputs.artifactory_image_tag }}"
+          CL_TAG: "${{ steps.tag.outputs.tag }}"
+          CL_REGISTRY: "${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_PROD }}"
+          CL_IS_CI: false
+        working-directory: ./enterprise/olm
+        run: |
+          make docker-buildx VERSION=${{ steps.tag.outputs.tag }}
+
       - name: OLM Bundle Build and Push
         working-directory: ./enterprise/olm
         env:
@@ -466,6 +556,21 @@ jobs:
           VERSION: "${{ steps.tag.outputs.tag }}"
           IMG: "${{ steps.tag.outputs.image_tag }}"
           IMAGE_TAG_BASE: "${{ steps.tag.outputs.image_tag_base }}"
+        run: |
+          VERSION="${VERSION#v}"
+          make bundle
+          make bundle-build
+          make bundle-push
+
+      - name: OLM Bundle Build and Push Artifactory
+        working-directory: ./enterprise/olm
+        env:
+          CL_TAG: "${{ steps.tag.outputs.tag }}"
+          CL_REGISTRY: "${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_PROD }}"
+          CL_IS_CI: false
+          VERSION: "${{ steps.tag.outputs.tag }}"
+          IMG: "${{ steps.tag.outputs.artifactory_image_tag }}"
+          IMAGE_TAG_BASE: "${{ steps.tag.outputs.artifactory_image_tag_base }}"
         run: |
           VERSION="${VERSION#v}"
           make bundle
@@ -493,15 +598,36 @@ jobs:
           make catalog-dev-build CHANNEL=${channel} DEFAULT_CHANNEL="1.17"
           make catalog-dev-push
 
+      - name: Add bundle image to catalog and publish Artifactory
+        working-directory: ./enterprise/olm
+        env:
+          # renovate: datasource=docker depName=mikefarah/yq
+          yq_version: 4.53.2
+          # renovate: datasource=github-releases depName=operator-framework/operator-registry
+          opm_version: 1.67.0
+          VERSION: "${{ steps.tag.outputs.tag }}"
+          CATALOG_TAG: "1.0.0"
+          IMAGE_TAG_BASE: "${{ steps.tag.outputs.artifactory_image_tag_base }}"
+        run: |
+          VERSION="${VERSION#v}"
+          channel="${VERSION}"
+          # separate channels per minor version
+          channel=$(cut -d '.' -f 1,2 <<< "${channel}")
+          if [[ ${VERSION} =~ "beta" ]]; then
+            channel="${channel}-beta"
+          fi
+          make catalog-dev-build CHANNEL=${channel} DEFAULT_CHANNEL="1.19"
+          make catalog-dev-push
+
       - name: Clife digests
         id: clife_docker_digests
         shell: bash
         run: |
-          digest=$(images/scripts/get-image-digest.sh "${{ steps.tag.outputs.image_tag }}")
+          digest=$(images/scripts/get-image-digest.sh "${{ steps.tag.outputs.artifactory_image_tag }}")
           echo clife=${digest} >> $GITHUB_OUTPUT
-          digest=$(images/scripts/get-image-digest.sh "${{ steps.tag.outputs.image_tag_base }}-bundle:${{ steps.tag.outputs.tag }}")
+          digest=$(images/scripts/get-image-digest.sh "${{ steps.tag.outputs.artifactory_image_tag_base }}-bundle:${{ steps.tag.outputs.tag }}")
           echo bundle=${digest} >> $GITHUB_OUTPUT
-          digest=$(images/scripts/get-image-digest.sh "${{ steps.tag.outputs.image_tag_base }}-catalog:1.0.0")
+          digest=$(images/scripts/get-image-digest.sh "${{ steps.tag.outputs.artifactory_image_tag_base }}-catalog:1.0.0")
           echo catalog=${digest} >> $GITHUB_OUTPUT
 
       - name: Install Cosign
@@ -510,44 +636,50 @@ jobs:
       - name: Sign Container Images
         run: |
           cosign sign -y ${{ steps.tag.outputs.image_tag }}@${{ steps.clife_docker_digests.outputs.clife }}
+          cosign sign -y ${{ steps.tag.outputs.artifactory_image_tag }}@${{ steps.clife_docker_digests.outputs.clife }}
           cosign sign -y ${{ steps.tag.outputs.image_tag_base }}-bundle:${{ steps.tag.outputs.tag }}@${{ steps.clife_docker_digests.outputs.bundle }}
+          cosign sign -y ${{ steps.tag.outputs.artifactory_image_tag_base }}-bundle:${{ steps.tag.outputs.tag }}@${{ steps.clife_docker_digests.outputs.bundle }}
           cosign sign -y ${{ steps.tag.outputs.image_tag_base }}-catalog:1.0.0@${{ steps.clife_docker_digests.outputs.catalog }}
+          cosign sign -y ${{ steps.tag.outputs.artifactory_image_tag_base }}-catalog:1.0.0@${{ steps.clife_docker_digests.outputs.catalog }}
 
       - name: Generate SBOM for CLife
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
         with:
           artifact-name: sbom_clife_${{ steps.tag.outputs.tag }}.spdx.json
           output-file: ./sbom_clife_${{ steps.tag.outputs.tag }}.spdx.json
-          image: ${{ steps.tag.outputs.image_tag }}
+          image: ${{ steps.tag.outputs.artifactory_image_tag }}
           upload-release-assets: false
 
       - name: Attach SBOM attestation to CLife container image
         run: |
           cosign attest -y --predicate sbom_clife_${{ steps.tag.outputs.tag }}.spdx.json --type spdxjson ${{ steps.tag.outputs.image_tag }}
+          cosign attest -y --predicate sbom_clife_${{ steps.tag.outputs.tag }}.spdx.json --type spdxjson ${{ steps.tag.outputs.artifactory_image_tag }}
 
       - name: Generate SBOM for the bundle
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
         with:
           artifact-name: sbom_clife_bundle_${{ steps.tag.outputs.tag }}.spdx.json
           output-file: ./sbom_clife_bundle_${{ steps.tag.outputs.tag }}.spdx.json
-          image: "${{ steps.tag.outputs.image_tag_base }}-bundle:${{ steps.tag.outputs.tag }}"
+          image: "${{ steps.tag.outputs.artifactory_image_tag_base }}-bundle:${{ steps.tag.outputs.tag }}"
           upload-release-assets: false
 
       - name: Attach SBOM attestation to the bundle container image
         run: |
           cosign attest -y --predicate sbom_clife_bundle_${{ steps.tag.outputs.tag }}.spdx.json --type spdxjson ${{ steps.tag.outputs.image_tag_base }}-bundle:${{ steps.tag.outputs.tag }}
+          cosign attest -y --predicate sbom_clife_bundle_${{ steps.tag.outputs.tag }}.spdx.json --type spdxjson ${{ steps.tag.outputs.artifactory_image_tag_base }}-bundle:${{ steps.tag.outputs.tag }}
 
       - name: Generate SBOM for the catalog
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
         with:
           artifact-name: sbom_clife_catalog_${{ steps.tag.outputs.tag }}.spdx.json
           output-file: ./sbom_clife_catalog_${{ steps.tag.outputs.tag }}.spdx.json
-          image: "${{ steps.tag.outputs.image_tag_base }}-catalog:1.0.0"
+          image: "${{ steps.tag.outputs.artifactory_image_tag_base }}-catalog:1.0.0"
           upload-release-assets: false
 
       - name: Attach SBOM attestation to the catalog container image
         run: |
           cosign attest -y --predicate sbom_clife_catalog_${{ steps.tag.outputs.tag }}.spdx.json --type spdxjson ${{ steps.tag.outputs.image_tag_base }}-catalog:1.0.0
+          cosign attest -y --predicate sbom_clife_catalog_${{ steps.tag.outputs.tag }}.spdx.json --type spdxjson ${{ steps.tag.outputs.artifactory_image_tag_base }}-catalog:1.0.0
 
       - name: Image Release Digests
         shell: bash
@@ -555,17 +687,17 @@ jobs:
           mkdir -p image-digest/
           echo "### clife" > image-digest/clife.txt
           echo "" >> image-digest/clife.txt
-          echo "\`${{ steps.tag.outputs.image_tag }}@${{ steps.clife_docker_digests.outputs.clife }}\`" >> image-digest/clife.txt
+          echo "\`${{ steps.tag.outputs.artifactory_image_tag }}@${{ steps.clife_docker_digests.outputs.clife }}\`" >> image-digest/clife.txt
           echo "" >> image-digest/clife.txt
 
           echo "### clife bundle" > image-digest/clife-bundle.txt
           echo "" >> image-digest/clife-bundle.txt
-          echo "\`${{ steps.tag.outputs.image_tag_base }}-bundle:${{ steps.tag.outputs.tag }}@${{ steps.clife_docker_digests.outputs.bundle }}\`" >> image-digest/clife-bundle.txt
+          echo "\`${{ steps.tag.outputs.artifactory_image_tag_base }}-bundle:${{ steps.tag.outputs.tag }}@${{ steps.clife_docker_digests.outputs.bundle }}\`" >> image-digest/clife-bundle.txt
           echo "" >> image-digest/clife-bundle.txt
 
           echo "### clife catalog" > image-digest/clife-catalog.txt
           echo "" >> image-digest/clife-catalog.txt
-          echo "\`${{ steps.tag.outputs.image_tag_base }}-catalog:1.0.0@${{ steps.clife_docker_digests.outputs.catalog }}\`" >> image-digest/clife-catalog.txt
+          echo "\`${{ steps.tag.outputs.artifactory_image_tag_base }}-catalog:1.0.0@${{ steps.clife_docker_digests.outputs.catalog }}\`" >> image-digest/clife-catalog.txt
           echo "" >> image-digest/clife-catalog.txt
 
       # Upload artifact digests

@@ -43,6 +43,13 @@ jobs:
           username: ${{ secrets.QUAY_USERNAME_CI }}
           password: ${{ secrets.QUAY_PASSWORD_CI }}
 
+      - name: Login to Artifactory
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ${{ env.ARTIFACTORY_DEV }}
+          username: ${{ vars.ARTIFACTORY_USERNAME }}
+          password: ${{ secrets.ARTIFACTORY_PASSWORD }}
+
       - name: Login to registry.redhat.io for pulling images
         uses: docker/login-action@36864503dc2a3702db7dc554479e3e1a29bb8337
         with:
@@ -87,12 +94,12 @@ jobs:
           make set-images
           make docker-build docker-push
 
-      - name: Build and Push the bundle image
+      - name: Build and Push the bundle image to Artifactory
         working-directory: ./enterprise/olm
         env:
           VERSION: "0.0.1-${{ github.sha }}"
-          IMG: "quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/clife-ci:${{ github.sha }}"
-          IMAGE_TAG_BASE: "quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/clife-ci"
+          IMG: "${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}/clife-ci:${{ github.sha }}"
+          IMAGE_TAG_BASE: "${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}/clife-ci"
         run: |
           # Sync manifests first
           rm -rf manifests
@@ -100,6 +107,33 @@ jobs:
           make bundle
           make bundle-build
           make bundle-push
+
+      - name: Build and Push the bundle image
+        working-directory: ./enterprise/olm
+        env:
+          VERSION: "0.0.1-${{ github.sha }}"
+          IMG: "quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/clife-ci:${{ github.sha }}"
+          IMAGE_TAG_BASE: "quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/clife-ci"
+        run: |
+          make bundle
+          make bundle-build
+          make bundle-push
+
+      - name: Add the bundle image to the catalog and publish the new catalog version to Artifactory
+        working-directory: ./enterprise/olm
+        env:
+          # renovate: datasource=docker depName=mikefarah/yq
+          yq_version: 4.53.2
+          # renovate: datasource=github-releases depName=operator-framework/operator-registry
+          opm_version: 1.67.0
+          # opm tooling cannot cope with anything that is not semver... and not with semver either... forced to use - when + would be correct
+          VERSION: "0.0.1-${{ github.sha }}"
+          IMAGE_TAG_BASE: "${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}/clife-ci"
+        run: |
+          channel="$(basename ${{ github.ref }})"
+          channel="${channel#v}"
+          make catalog-dev-build CHANNEL=${channel}
+          make catalog-dev-push
 
       - name: Add the bundle image to the catalog and publish the new catalog version
         working-directory: ./enterprise/olm

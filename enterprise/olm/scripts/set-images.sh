@@ -4,7 +4,7 @@
 
 # This script looks at the current state and the environment variables set
 # to populate helm values with the matching image versions.
-# CL_REGISTRY: select a specific registry, defaults to quay.io/isovalent-dev
+# CL_REGISTRY: select a specific registry, defaults to artifactory.devhub-cloud.cisco.com/isovalent-eng-docker
 # CL_SUFFIX: whether a suffix needs to get appended, defaults to -ubi
 # CL_IS_CI: whether an additional -ci suffix needs to get appended, defaults to true
 # CL_TAG: the tag to use for in-tree images, defaults to the commit id of the head
@@ -19,7 +19,7 @@ yq_version=4.53.2
 
 root_dir=$(git rev-parse --show-toplevel)
 values_file="${root_dir}/enterprise/olm/manifests/values.yaml"
-registry="${CL_REGISTRY:-quay.io/isovalent-dev}"
+registry="${CL_REGISTRY:-artifactory.devhub-cloud.cisco.com/isovalent-eng-docker}"
 is_ci="${CL_IS_CI:-true}"
 echo "is_ci: ${is_ci}"
 base_suffix="${CL_SUFFIX:--ubi}"

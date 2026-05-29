@@ -5,7 +5,7 @@
 # This script runs Red Hat preflight checks against the release images and publish the results.
 # CL_TAG: the tag use ford the release version
 # CL_PYXIS_TOKEN: the authentication token for Red Hat pyxis API
-# CL_ORG: the container repository organization, e.g. quay.io/isovalent
+# CL_ORG: the container repository organization, e.g. containers.isovalent.com
 # CL_SUFFIX: the suffix added to the images, defaults to empty
 
 set -o errexit
@@ -22,7 +22,7 @@ fi
 tag="${CL_TAG}"
 echo "tag: ${tag}"
 submit_res="${CL_SUBMIT:-false}"
-org="${CL_ORG:-quay.io/isovalent}"
+org="${CL_ORG:-containers.isovalent.com}"
 suffix="${CL_SUFFIX:-}"
 
 # renovate: datasource=docker depName=mikefarah/yq
@@ -70,8 +70,6 @@ function preflight-eval {
 }
 
 res="preflight-res.json"
-image="quay.io/isovalent/certgen-ubi:${tag}"
-component_id="67e510bca8b964f645ea917c"
 declare -A images
 images+=( [0]="${org}/certgen-ubi" )
 images+=( [1]="${org}/cilium-envoy-ubi" )

@@ -42,6 +42,9 @@ jobs:
       - name: Cleanup Disk space in runner
         uses: ./.github/actions/disk-cleanup
 
+      - name: Set Environment Variables
+        uses: ./.github/actions/set-env-variables
+
       - name: Set up job variables
         id: vars
         run: |
@@ -49,17 +52,17 @@ jobs:
             git checkout ${{ inputs.version }}
             echo ref="${{ inputs.version }}" >> $GITHUB_OUTPUT
             if [ "${{ inputs.stage }}" == "release" ]; then
-              echo org="quay.io/${{ vars.QUAY_ORGANIZATION }}" >> $GITHUB_OUTPUT
+              echo org="${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_PROD }}" >> $GITHUB_OUTPUT
               echo is_ci="false" >> $GITHUB_OUTPUT
             else
-              echo org="quay.io/${{ vars.QUAY_ORGANIZATION_DEV }}" >> $GITHUB_OUTPUT
+              echo org="${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}" >> $GITHUB_OUTPUT
               echo check_clife="true"  >> $GITHUB_OUTPUT
               echo suffix="-ci" >> $GITHUB_OUTPUT
               echo is_ci="true" >> $GITHUB_OUTPUT
             fi
           else
             echo ref="$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
-            echo org="quay.io/${{ vars.QUAY_ORGANIZATION_DEV }}" >> $GITHUB_OUTPUT
+            echo org="${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}" >> $GITHUB_OUTPUT
             echo check_clife="true"  >> $GITHUB_OUTPUT
             echo suffix="-ci" >> $GITHUB_OUTPUT
             echo is_ci="true" >> $GITHUB_OUTPUT
@@ -81,13 +84,12 @@ jobs:
             echo rebuild_clife='false' >> $GITHUB_OUTPUT
           fi
 
-      - name: Login to quay.io
-        if: ${{ steps.vars.outputs.check_clife  == 'true' && steps.image.outputs.rebuild_clife  == 'true' }}
+      - name: Login to Artifactory
         uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
-          registry: quay.io
-          username: ${{ secrets.QUAY_USERNAME_CI }}
-          password: ${{ secrets.QUAY_PASSWORD_CI }}
+          registry: ${{ steps.vars.outputs.org }}
+          username: ${{ secrets.ARTIFACTORY_USERNAME }}
+          password: ${{ secrets.ARTIFACTORY_PASSWORD }}
 
       - name: Login to registry.redhat.io for pulling images
         if: ${{ steps.vars.outputs.check_clife  == 'true' && steps.image.outputs.rebuild_clife  == 'true' }}

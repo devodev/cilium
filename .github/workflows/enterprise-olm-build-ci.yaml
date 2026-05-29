@@ -18,7 +18,7 @@ on:
       extra-args:
         description: "[JSON object] Arbitrary arguments passed from the trigger comment via regex capture group. Parse with 'fromJson(inputs.extra-args).argName' in workflow."
         required: false
-        default: '{}'
+        default: "{}"
   push:
     branches:
       - main-ce
@@ -110,6 +110,13 @@ jobs:
           username: ${{ secrets.QUAY_USERNAME_CI }}
           password: ${{ secrets.QUAY_PASSWORD_CI }}
 
+      - name: Login to Artifactory
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        with:
+          registry: ${{ vars.ARTIFACTORY_HOST }}
+          username: ${{ vars.ARTIFACTORY_USERNAME }}
+          password: ${{ secrets.ARTIFACTORY_PASSWORD }}
+
       - name: Login to registry.redhat.io for pulling images
         uses: docker/login-action@36864503dc2a3702db7dc554479e3e1a29bb8337
         with:
@@ -135,9 +142,17 @@ jobs:
         shell: bash
         run: |
           for image in cilium-ubi-ci operator-generic-ubi-ci hubble-relay-ubi-ci clustermesh-apiserver-ubi-ci; do
-            until docker manifest inspect quay.io/isovalent-dev/$image:${{ steps.tag.outputs.tag }} &> /dev/null; do sleep 45s; done
+            until docker manifest inspect ${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}/$image:${{ steps.tag.outputs.tag }} &> /dev/null; do sleep 45s; done
           done
           echo "images available"
+
+      - name: Build and Push OLM container image to Artifactory
+        env:
+          IMG: "${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}/clife-ci:${{ steps.tag.outputs.tag }}"
+          CL_TAG: "${{ steps.tag.outputs.tag }}"
+        working-directory: ./enterprise/olm
+        run: |
+          make docker-buildx VERSION=${{ steps.tag.outputs.tag }}
 
       - name: Build and Push OLM container image
         env:
@@ -151,26 +166,33 @@ jobs:
         id: docker_digest
         shell: bash
         run: |
+          digest=$(images/scripts/get-image-digest.sh "${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}/clife-ci:${{ steps.tag.outputs.tag }}")
+          echo artifactory_digest=${digest} >> $GITHUB_OUTPUT
           digest=$(images/scripts/get-image-digest.sh "quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/clife-ci:${{ steps.tag.outputs.tag }}")
           echo digest=${digest} >> $GITHUB_OUTPUT
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
 
-      - name: Sign Container Images
+      - name: Sign Container Image
         run: |
           cosign sign -y quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/clife-ci@${{ steps.docker_digest.outputs.digest }}
+
+      - name: Sign Container Image Artifactory
+        run: |
+          cosign sign -y ${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}/clife-ci@${{ steps.docker_digest.outputs.artifactory_digest }}
 
       - name: Generate SBOM
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
         with:
           artifact-name: sbom_ci_clife_${{ steps.tag.outputs.tag }}.spdx.json
           output-file: ./sbom_ci_clife_${{ steps.tag.outputs.tag }}.spdx.json
-          image: ${{ steps.tag.outputs.primary_tag }}
+          image: ${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}/clife-ci:${{ steps.tag.outputs.tag }}
 
-      - name: Attach SBOM attestation to container image
+      - name: Attach SBOM attestation to container images
         run: |
           cosign attest -y --predicate sbom_ci_clife_${{ steps.tag.outputs.tag }}.spdx.json --type spdxjson "quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/clife-ci:${{ steps.tag.outputs.tag }}"
+          cosign attest -y --predicate sbom_ci_clife_${{ steps.tag.outputs.tag }}.spdx.json --type spdxjson "${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}/clife-ci:${{ steps.tag.outputs.tag }}"
 
   merge-upload-and-status:
     name: Merge Upload and Status

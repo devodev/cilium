@@ -21,7 +21,7 @@ tag="$(git rev-parse --short HEAD)"
 bundle_version="${BUNDLE_VERSION:-${tag}}"
 default_channel="${DEFAULT_CHANNEL:-main-ce}"
 channel="${CHANNEL:-main-ce}"
-repo_base_name="${IMAGE_TAG_BASE:-quay.io/isovalent-dev/clife-ci}"
+repo_base_name="${IMAGE_TAG_BASE:-artifactory.devhub-cloud.cisco.com/isovalent-eng-docker/clife-ci}"
 catalog_tag="${CATALOG_TAG:-latest}"
 
 mkdir -p catalog-dev

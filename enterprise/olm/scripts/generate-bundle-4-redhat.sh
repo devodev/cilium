@@ -23,7 +23,7 @@ root_dir=$(git rev-parse --show-toplevel)
 # Generate manifests
 export CL_IS_CI=false
 export CL_TAG=$tag
-export CL_REGISTRY=quay.io/isovalent
+export CL_REGISTRY=containers.isovalent.com
 export IMG=${CL_REGISTRY}/clife:${tag}
 export USE_IMAGE_DIGESTS=true
 export VERSION=${tag#v}
