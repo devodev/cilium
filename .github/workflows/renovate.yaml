@@ -47,7 +47,7 @@ jobs:
           RH_REGISTRY_PASSWORD: ${{ secrets.REDHAT_PASSWORD_CI }}
         with:
           # renovate: datasource=github-releases depName=renovatebot/renovate
-          renovate-version: 43.111.3
+          renovate-version: 43.176.5
           docker-user: root
           docker-cmd-file: .github/actions/renovate/enterprise-entrypoint.sh
           configurationFile: .github/workflows/enterprise-renovate-config.js

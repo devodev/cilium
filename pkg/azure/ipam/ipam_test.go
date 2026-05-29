@@ -147,7 +147,7 @@ func TestIpamPreAllocate8(t *testing.T) {
 	toUse := 7
 
 	api := apimock.NewAPI([]*ipamTypes.Subnet{testSubnet}, []*ipamTypes.VirtualNetwork{testVnet})
-	instances := NewInstancesManager(hivetest.Logger(t), api)
+	instances := NewInstancesManager(hivetest.Logger(t), api, false)
 	require.NotNil(t, instances)
 
 	m := ipamTypes.NewInstanceMap()
@@ -155,11 +155,11 @@ func TestIpamPreAllocate8(t *testing.T) {
 	resource := &types.AzureInterface{
 		Name:          "eth0",
 		SecurityGroup: "sg1",
+		Subnet:        types.AzureSubnet{ID: "subnet-1"},
 		Addresses: []types.AzureAddress{
 			{
-				IP:     "1.1.1.1",
-				Subnet: "subnet-1",
-				State:  types.StateSucceeded,
+				IP:    "1.1.1.1",
+				State: types.StateSucceeded,
 			},
 		},
 		State: types.StateSucceeded,
@@ -209,7 +209,7 @@ func TestIpamMinAllocate10(t *testing.T) {
 	toUse := 7
 
 	api := apimock.NewAPI([]*ipamTypes.Subnet{testSubnet}, []*ipamTypes.VirtualNetwork{testVnet})
-	instances := NewInstancesManager(hivetest.Logger(t), api)
+	instances := NewInstancesManager(hivetest.Logger(t), api, false)
 	require.NotNil(t, instances)
 
 	m := ipamTypes.NewInstanceMap()
@@ -217,11 +217,11 @@ func TestIpamMinAllocate10(t *testing.T) {
 	resource := &types.AzureInterface{
 		Name:          "eth0",
 		SecurityGroup: "sg1",
+		Subnet:        types.AzureSubnet{ID: "subnet-1"},
 		Addresses: []types.AzureAddress{
 			{
-				IP:     "1.1.1.1",
-				Subnet: "subnet-1",
-				State:  types.StateSucceeded,
+				IP:    "1.1.1.1",
+				State: types.StateSucceeded,
 			},
 		},
 		State: types.StateSucceeded,
@@ -293,7 +293,7 @@ func TestIpamManyNodes(t *testing.T) {
 				minAllocate = 1
 			)
 			api := apimock.NewAPI(testSubnets, []*ipamTypes.VirtualNetwork{testVnet})
-			instances := NewInstancesManager(hivetest.Logger(t), api)
+			instances := NewInstancesManager(hivetest.Logger(t), api, false)
 			require.NotNil(t, instances)
 
 			k8sapi := newK8sMock()
@@ -309,11 +309,11 @@ func TestIpamManyNodes(t *testing.T) {
 				resource := &types.AzureInterface{
 					Name:          "eth0",
 					SecurityGroup: "sg1",
+					Subnet:        types.AzureSubnet{ID: "subnet-1"},
 					Addresses: []types.AzureAddress{
 						{
-							IP:     fmt.Sprintf("10.0.0.%d", i+10),
-							Subnet: "subnet-1",
-							State:  types.StateSucceeded,
+							IP:    fmt.Sprintf("10.0.0.%d", i+10),
+							State: types.StateSucceeded,
 						},
 					},
 					State: types.StateSucceeded,
@@ -368,7 +368,7 @@ func benchmarkAllocWorker(b *testing.B, workers int64, delay time.Duration, rate
 	api.SetDelay(apimock.AllOperations, delay)
 	api.SetLimiter(rateLimit, burst)
 
-	instances := NewInstancesManager(hivetest.Logger(b), api)
+	instances := NewInstancesManager(hivetest.Logger(b), api, false)
 	require.NotNil(b, instances)
 
 	k8sapi := newK8sMock()

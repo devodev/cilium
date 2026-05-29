@@ -137,4 +137,6 @@ const (
 	VIP             = "vip"
 	Pool            = "pool"
 	SourceService   = "sourceService"
+
+	Host = "host"
 )

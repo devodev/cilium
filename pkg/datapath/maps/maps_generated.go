@@ -61,6 +61,7 @@ const (
 	CiliumEgressGWHACTV4                = "cilium_egress_gw_ha_ct_v4"
 	CiliumEgressGWHAPolicyV4V2          = "cilium_egress_gw_ha_policy_v4_v2"
 	CiliumEgressGWPolicyV4              = "cilium_egress_gw_policy_v4"
+	CiliumEgressGWPolicyV4V2            = "cilium_egress_gw_policy_v4_v2"
 	CiliumEgressGWPolicyV6              = "cilium_egress_gw_policy_v6"
 	CiliumEgressGWStandaloneV4          = "cilium_egress_gw_standalone_v4"
 	CiliumEgresscallPolicy              = "cilium_egresscall_policy"
@@ -470,6 +471,20 @@ func newCiliumEgressGWPolicyV4Spec(btf *btf.Spec) *ebpf.MapSpec {
 		Key:        anyTypeByName(btf, "egress_gw_policy_key"),
 		ValueSize:  8,
 		Value:      anyTypeByName(btf, "egress_gw_policy_entry"),
+		MaxEntries: 16384,
+		Flags:      unix.BPF_F_NO_PREALLOC | unix.BPF_F_RDONLY_PROG,
+		Pinning:    ebpf.PinByName,
+	}
+}
+
+func newCiliumEgressGWPolicyV4V2Spec(btf *btf.Spec) *ebpf.MapSpec {
+	return &ebpf.MapSpec{
+		Name:       CiliumEgressGWPolicyV4V2,
+		Type:       ebpf.LPMTrie,
+		KeySize:    12,
+		Key:        anyTypeByName(btf, "egress_gw_policy_key"),
+		ValueSize:  28,
+		Value:      anyTypeByName(btf, "egress_gw_policy_entry_v2"),
 		MaxEntries: 16384,
 		Flags:      unix.BPF_F_NO_PREALLOC | unix.BPF_F_RDONLY_PROG,
 		Pinning:    ebpf.PinByName,
@@ -1804,6 +1819,7 @@ var _outer []newMapFn = []newMapFn{
 	newCiliumEgressGWHACTV4Spec,
 	newCiliumEgressGWHAPolicyV4V2Spec,
 	newCiliumEgressGWPolicyV4Spec,
+	newCiliumEgressGWPolicyV4V2Spec,
 	newCiliumEgressGWPolicyV6Spec,
 	newCiliumEgressGWStandaloneV4Spec,
 	newCiliumEgresscallPolicySpec,

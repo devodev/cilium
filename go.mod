@@ -12,11 +12,11 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.41.7
 	github.com/aws/aws-sdk-go-v2/config v1.32.17
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.18.23
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.301.0
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.303.0
 	github.com/aws/smithy-go v1.25.1
 	github.com/blang/semver/v4 v4.0.0
 	github.com/cespare/xxhash/v2 v2.3.0
-	github.com/cilium/charts v0.0.0-20260415190754-3c09d2cf46ef
+	github.com/cilium/charts v0.0.0-20260513182422-db93f7989431
 	github.com/cilium/coverbee v0.3.3-0.20240723084546-664438750fce
 	github.com/cilium/dns v1.1.51-0.20240603182237-af788769786a
 	github.com/cilium/ebpf v0.21.0
@@ -34,7 +34,7 @@ require (
 	github.com/coreos/go-iptables v0.8.0
 	github.com/coreos/go-systemd/v22 v22.7.0
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
-	github.com/docker/docker v28.5.1+incompatible
+	github.com/docker/docker v28.5.2+incompatible
 	github.com/docker/libnetwork v0.8.0-dev.2.0.20210525090646-64b7a4574d14
 	github.com/envoyproxy/go-control-plane v0.14.0
 	github.com/envoyproxy/go-control-plane/envoy v1.37.0
@@ -45,7 +45,7 @@ require (
 	github.com/go-logr/logr v1.4.3
 	github.com/go-openapi/errors v0.22.7
 	github.com/go-openapi/loads v0.23.3
-	github.com/go-openapi/runtime v0.29.5
+	github.com/go-openapi/runtime v0.31.0
 	github.com/go-openapi/spec v0.22.4
 	github.com/go-openapi/strfmt v0.26.2
 	github.com/go-openapi/swag v0.26.0
@@ -53,12 +53,12 @@ require (
 	github.com/golang/protobuf v1.5.4
 	github.com/google/cel-go v0.28.1
 	github.com/google/go-cmp v0.7.0
-	github.com/google/go-github/v84 v84.0.0
+	github.com/google/go-github/v86 v86.0.0
 	github.com/google/go-licenses/v2 v2.0.1
 	github.com/google/gops v0.3.28
 	github.com/google/renameio/v2 v2.0.2
 	github.com/google/uuid v1.6.0
-	github.com/gopacket/gopacket v1.5.0
+	github.com/gopacket/gopacket v1.6.0
 	github.com/gorilla/mux v1.8.1
 	github.com/grpc-ecosystem/go-grpc-middleware/v2 v2.3.3
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
@@ -126,26 +126,26 @@ require (
 	golang.org/x/tools v0.45.0
 	golang.zx2c4.com/wireguard/wgctrl v0.0.0-20241231184526-a9ab2273dd10
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260511170946-3700d4141b60
-	google.golang.org/grpc v1.81.0
+	google.golang.org/grpc v1.81.1
 	google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af
 	helm.sh/helm/v4 v4.2.0
-	k8s.io/api v0.36.0
-	k8s.io/apiextensions-apiserver v0.36.0
-	k8s.io/apimachinery v0.36.0
-	k8s.io/cli-runtime v0.36.0
-	k8s.io/client-go v0.36.0
-	k8s.io/component-base v0.36.0
-	k8s.io/endpointslice v0.36.0
+	k8s.io/api v0.36.1
+	k8s.io/apiextensions-apiserver v0.36.1
+	k8s.io/apimachinery v0.36.1
+	k8s.io/cli-runtime v0.36.1
+	k8s.io/client-go v0.36.1
+	k8s.io/component-base v0.36.1
+	k8s.io/endpointslice v0.36.1
 	k8s.io/klog/v2 v2.140.0
-	k8s.io/kubectl v0.36.0
-	k8s.io/metrics v0.36.0
+	k8s.io/kubectl v0.36.1
+	k8s.io/metrics v0.36.1
 	k8s.io/utils v0.0.0-20260507154919-ff6756f316d2
 	sigs.k8s.io/controller-runtime v0.24.1
 	sigs.k8s.io/gateway-api v1.5.1
 	sigs.k8s.io/gateway-api/conformance v1.5.1
-	sigs.k8s.io/mcs-api v0.4.2-0.20260429160526-4546fabf7251
-	sigs.k8s.io/mcs-api/conformance v0.0.0-20260415161103-2525ee33f2a4
-	sigs.k8s.io/mcs-api/controllers v0.0.0-20260415161103-2525ee33f2a4
+	sigs.k8s.io/mcs-api v0.5.0
+	sigs.k8s.io/mcs-api/conformance v0.5.0
+	sigs.k8s.io/mcs-api/controllers v0.5.0
 	sigs.k8s.io/network-policy-api v0.2.0
 	sigs.k8s.io/yaml v1.6.0
 )
@@ -239,8 +239,9 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-logr/zapr v1.3.0 // indirect
 	github.com/go-openapi/analysis v0.25.0 // indirect
-	github.com/go-openapi/jsonpointer v0.22.5 // indirect
+	github.com/go-openapi/jsonpointer v0.23.1 // indirect
 	github.com/go-openapi/jsonreference v0.21.5 // indirect
+	github.com/go-openapi/runtime/server-middleware v0.30.0 // indirect
 	github.com/go-openapi/swag/cmdutils v0.26.0 // indirect
 	github.com/go-openapi/swag/conv v0.26.0 // indirect
 	github.com/go-openapi/swag/fileutils v0.26.0 // indirect
@@ -267,7 +268,7 @@ require (
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
 	github.com/google/btree v1.1.3 // indirect
 	github.com/google/certificate-transparency-go v1.1.7 // indirect
-	github.com/google/gnostic-models v0.7.0 // indirect
+	github.com/google/gnostic-models v0.7.1 // indirect
 	github.com/google/go-querystring v1.2.0 // indirect
 	github.com/google/licenseclassifier/v2 v2.0.0 // indirect
 	github.com/google/pprof v0.0.0-20260115054156-294ebfa9ad83 // indirect
@@ -376,11 +377,11 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gotest.tools/v3 v3.5.2 // indirect
-	k8s.io/apiserver v0.36.0 // indirect
-	k8s.io/code-generator v0.36.0 // indirect
+	k8s.io/apiserver v0.36.1 // indirect
+	k8s.io/code-generator v0.36.1 // indirect
 	k8s.io/gengo/v2 v2.0.0-20250922181213-ec3ebc5fd46b // indirect
-	k8s.io/kube-openapi v0.0.0-20260317180543-43fb72c5454a // indirect
-	k8s.io/streaming v0.36.0 // indirect
+	k8s.io/kube-openapi v0.0.0-20260427204847-8949caaa1199 // indirect
+	k8s.io/streaming v0.36.1 // indirect
 	kubevirt.io/containerized-data-importer-api v1.63.1 // indirect
 	kubevirt.io/controller-lifecycle-operator-sdk/api v0.0.0-20220329064328-f3cc58c6ed90 // indirect
 	oras.land/oras-go/v2 v2.6.0 // indirect
@@ -390,7 +391,7 @@ require (
 	sigs.k8s.io/kustomize/api v0.21.1 // indirect
 	sigs.k8s.io/kustomize/kyaml v0.21.1 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
-	sigs.k8s.io/structured-merge-diff/v6 v6.3.2 // indirect
+	sigs.k8s.io/structured-merge-diff/v6 v6.4.0 // indirect
 )
 
 // Enterprise dependencies.
@@ -404,7 +405,7 @@ require (
 // )
 // Using private fork of controller-tools. See commit msg for more context
 // as to why we are using a private fork.
-replace sigs.k8s.io/controller-tools => github.com/cilium/controller-tools v0.16.5-1
+replace sigs.k8s.io/controller-tools => github.com/cilium/controller-tools v0.21.0-1
 
 // Using private fork for potential custom fixes and better control over versioning.
 replace github.com/YutaroHayakawa/go-ra => github.com/isovalent/go-ra v0.0.0-20241125075947-1274124821d6

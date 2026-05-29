@@ -198,6 +198,7 @@ func Test_Conformance(t *testing.T) {
 		{name: "grpcroute-listener-hostname-matching", gateway: []gwDetails{{FullName: types.NamespacedName{Name: "grpcroute-listener-hostname-matching", Namespace: "gateway-conformance-infra"}}}},
 		{name: "httproute-backend-protocol-h2c", gateway: []gwDetails{gatewaySameNamespace}},
 		{name: "httproute-backend-protocol-websocket", gateway: []gwDetails{gatewaySameNamespace}},
+		{name: "httproute-cors", gateway: []gwDetails{gatewaySameNamespace}},
 		{name: "httproute-cross-namespace", gateway: []gwDetails{gatewayBackendNamespace}},
 		{
 			name:    "httproute-allowed-kind-by-section-name",
@@ -305,10 +306,9 @@ func Test_Conformance(t *testing.T) {
 				WithStatusSubresource(&gatewayv1.GatewayClass{}).
 				WithStatusSubresource(&gatewayv1.BackendTLSPolicy{})
 
-			switch tt.disableServiceImport {
-			case true:
-				clientBuilder.WithScheme(helpers.TestScheme(helpers.NoMCSOptionalKinds))
-			case false:
+			if tt.disableServiceImport {
+				clientBuilder.WithScheme(helpers.TestScheme(nil))
+			} else {
 				clientBuilder.WithScheme(helpers.TestScheme(helpers.AllOptionalKinds))
 			}
 
@@ -736,7 +736,8 @@ func fakeIndexHTTPRouteByBackendService(rawObj client.Object) []string {
 				continue
 			}
 			namespace := helpers.NamespaceDerefOr(backend.Namespace, route.Namespace)
-			backendServices = append(backendServices,
+			backendServices = append(
+				backendServices,
 				types.NamespacedName{
 					Namespace: namespace,
 					Name:      string(backend.Name),

@@ -51,6 +51,11 @@ func TestHTTPGatewayAPI(t *testing.T) {
 		"Conformance/HTTPRouteBackendTLSPolicySystemCA":           {},
 		"Conformance/HTTPRouteBackendTLSPolicyConflictResolution": {},
 		"Conformance/HTTPRouteBackendTLSPolicyInvalidCA":          {},
+		"http external auth grpc":                                 {},
+		"http external auth http":                                 {},
+		"http external auth http tls":                             {},
+		"http external auth grpc tls":                             {},
+		"http external auth shared and no auth":                   {},
 	}
 
 	for name := range tests {
@@ -74,6 +79,7 @@ func TestTLSGatewayAPI(t *testing.T) {
 		"Conformance/TLSRouteSimpleSameNamespace":  {},
 		"Conformance/TLSRouteHostnameIntersection": {},
 		"mixed protocol listeners TLSRoute":        {},
+		"tls weighted backends":                    {},
 	}
 
 	for name := range tests {

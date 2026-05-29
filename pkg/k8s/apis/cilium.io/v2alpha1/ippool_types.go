@@ -80,7 +80,6 @@ type IPv4PoolSpec struct {
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=32
-	// +kubebuilder:validation:ExclusiveMaximum=false
 	MaskSize uint8 `json:"maskSize"`
 }
 
@@ -96,7 +95,6 @@ type IPv6PoolSpec struct {
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Minimum=1
 	// +kubebuilder:validation:Maximum=128
-	// +kubebuilder:validation:ExclusiveMaximum=false
 	MaskSize uint8 `json:"maskSize"`
 }
 

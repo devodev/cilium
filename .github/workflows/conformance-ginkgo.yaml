@@ -143,7 +143,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Set initial commit status
-        uses: cilium/cilium/.github/actions/set-commit-status@6bbf438de412ec7abcb58b25bc02227e6f09ac0c # main
+        uses: cilium/cilium/.github/actions/set-commit-status@main # main
         with:
           sha: ${{ inputs.SHA || github.sha }}
 
@@ -311,7 +311,7 @@ jobs:
 
     steps:
       - name: Set commit status to pending
-        uses: cilium/cilium/.github/actions/set-commit-status@6bbf438de412ec7abcb58b25bc02227e6f09ac0c # main
+        uses: cilium/cilium/.github/actions/set-commit-status@main # main
         with:
           sha: ${{ inputs.SHA || github.sha }}
 
@@ -341,7 +341,7 @@ jobs:
           persist-credentials: false
 
       - name: Install cilium-cli
-        uses: cilium/cilium-cli@3ce83aa3b4ea3ce6d97023c4d83c22b73a4ed3b4 # v0.19.2
+        uses: cilium/cilium-cli@28724c91759fcfe797a1619994da9eb53399da9d # v0.19.3
         with:
           skip-build: ${{ env.CILIUM_CLI_SKIP_BUILD }}
           image-repo: ${{ env.CILIUM_CLI_IMAGE_REPO }}
@@ -374,7 +374,7 @@ jobs:
 
       - name: Provision LVH VMs
         id: provision-vh-vms
-        uses: cilium/little-vm-helper@e249f34602b03d331320955be94cbaa2cc4fb6a8 # v0.0.29
+        uses: cilium/little-vm-helper@5ae749011735fd77f30f38add52f1a53a5568671 # v0.0.30
         with:
           test-name: datapath-conformance
           install-dependencies: true
@@ -384,7 +384,7 @@ jobs:
           cpu: 4
           mem: 12G
           # renovate: datasource=github-tags depName=cilium/little-vm-helper
-          lvh-version: "v0.0.29"
+          lvh-version: "v0.0.30"
           cmd: |
             git config --global --add safe.directory /host
             mv /host/helm /usr/bin
@@ -392,7 +392,7 @@ jobs:
 
       - name: Provision kind
         timeout-minutes: 5
-        uses: cilium/little-vm-helper@e249f34602b03d331320955be94cbaa2cc4fb6a8 # v0.0.29
+        uses: cilium/little-vm-helper@5ae749011735fd77f30f38add52f1a53a5568671 # v0.0.30
         with:
           provision: 'false'
           cmd: |
@@ -458,7 +458,7 @@ jobs:
       - name: Run tests
         id: run-tests
         timeout-minutes: 40
-        uses: cilium/little-vm-helper@e249f34602b03d331320955be94cbaa2cc4fb6a8 # v0.0.29
+        uses: cilium/little-vm-helper@5ae749011735fd77f30f38add52f1a53a5568671 # v0.0.30
         with:
           provision: 'false'
           cmd: |
@@ -517,7 +517,7 @@ jobs:
 
       - name: Fetch artifacts
         if: ${{ !success() && steps.provision-vh-vms.outcome == 'success' }}
-        uses: cilium/little-vm-helper@e249f34602b03d331320955be94cbaa2cc4fb6a8 # v0.0.29
+        uses: cilium/little-vm-helper@5ae749011735fd77f30f38add52f1a53a5568671 # v0.0.30
         with:
           provision: 'false'
           cmd: |

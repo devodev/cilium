@@ -686,9 +686,9 @@ powershell
 pprof
 pre
 preconfigured
+preferIpv
 prefilter
 preflight
-preferIpv
 preload
 preloaded
 preloading
@@ -770,6 +770,7 @@ seccomp
 secretName
 secretsBackend
 secretsNamespace
+selectorless
 selftest
 selftests
 serverinfo

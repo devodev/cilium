@@ -35,7 +35,7 @@ func newPrivateNetworkEndpointSliceOptions(cfg pncfg.Common) clustermesh.Options
 }
 
 func newPrivateNetworkEndpointSliceConverter(logger *slog.Logger, cinfo cmtypes.ClusterInfo) clustermesh.Converter[*iso_api_v1a1.PrivateNetworkEndpointSlice] {
-	return clustermesh.NewCachedCoverter(privateNetworkEndpointSliceMapper(logger, cinfo))
+	return clustermesh.NewCachedConverter(privateNetworkEndpointSliceMapper(logger, cinfo))
 }
 
 func privateNetworkEndpointSliceMapper(logger *slog.Logger, cinfo cmtypes.ClusterInfo) func(slice *iso_api_v1a1.PrivateNetworkEndpointSlice) iter.Seq[store.Key] {

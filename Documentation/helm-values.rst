@@ -911,7 +911,7 @@
    * - :spelling:ignore:`clustermesh.apiserver.tls.auto`
      - Configure automatic TLS certificates generation. A Kubernetes CronJob is used the generate any certificates not provided by the user at installation time.
      - object
-     - ``{"certManagerIssuerRef":{},"certValidityDuration":1095,"enabled":true,"method":"helm"}``
+     - ``{"certManagerIssuerRef":{},"certValidityDuration":1095,"enabled":true,"method":"helm","privateKey":{},"subject":{}}``
    * - :spelling:ignore:`clustermesh.apiserver.tls.auto.certManagerIssuerRef`
      - certmanager issuer used when clustermesh.apiserver.tls.auto.method=certmanager.
      - object
@@ -924,6 +924,14 @@
      - When set to true, automatically generate a CA and certificates to enable mTLS between clustermesh-apiserver and external workload instances.  When set to false you need to pre-create the following secrets: - clustermesh-apiserver-server-cert - clustermesh-apiserver-admin-cert - clustermesh-apiserver-remote-cert - clustermesh-apiserver-local-cert The above secret should at least contains the keys ``tls.crt`` and ``tls.key`` and optionally ``ca.crt`` if a CA bundle is not configured.
      - bool
      - ``true``
+   * - :spelling:ignore:`clustermesh.apiserver.tls.auto.privateKey`
+     - Private key options. These include the key algorithm and size, the used encoding and the rotation policy used when clustermesh.apiserver.tls.auto.method=certmanager. https://cert-manager.io/docs/reference/api-docs/#cert-manager.io/v1.CertificatePrivateKey
+     - object
+     - ``{}``
+   * - :spelling:ignore:`clustermesh.apiserver.tls.auto.subject`
+     - X509Subject Full X509 name specification used when clustermesh.apiserver.tls.auto.method=certmanager. https://cert-manager.io/docs/reference/api-docs/#cert-manager.io/v1.X509Subject
+     - object
+     - ``{}``
    * - :spelling:ignore:`clustermesh.apiserver.tls.enableSecrets`
      - Allow users to provide their own certificates Users may need to provide their certificates using a mechanism that requires they provide their own secrets. This setting does not apply to any of the auto-generated mechanisms below, it only restricts the creation of secrets via the ``tls-provided`` templates. This option is deprecated as secrets are expected to be created externally when 'auto' is not enabled.
      - deprecated
@@ -1419,7 +1427,7 @@
    * - :spelling:ignore:`encryption.ztunnel`
      - ztunnel encryption configuration. ztunnel is Istio's purpose-built, per-node proxy for handling L4 traffic in ambient mesh mode. These settings only apply when encryption.type is set to "ztunnel".
      - object
-     - ``{"affinity":{},"annotations":{},"caAddress":"https://localhost:15012","extraEnv":[],"extraVolumeMounts":[],"extraVolumes":[],"healthPort":15021,"image":{"digest":"sha256:884de5adde400e39f58e36c7a729f7690466ca4a8eb4c2a8daa9c1c025115b24","override":null,"pullPolicy":"Always","repository":"quay.io/cilium/ztunnel","tag":"v1.0.0","useDigest":true},"minReadySeconds":0,"nodeSelector":{"kubernetes.io/os":"linux"},"podAnnotations":{},"podLabels":{},"priorityClassName":null,"readinessProbe":{"failureThreshold":3,"initialDelaySeconds":0,"periodSeconds":10},"resources":{"requests":{"cpu":"200m","memory":"512Mi"}},"secrets":{"bootstrapRootCert":null},"terminationGracePeriodSeconds":30,"tolerations":[{"effect":"NoSchedule","operator":"Exists"},{"key":"CriticalAddonsOnly","operator":"Exists"},{"effect":"NoExecute","operator":"Exists"}],"updateStrategy":{"rollingUpdate":{"maxSurge":1,"maxUnavailable":0},"type":"RollingUpdate"}}``
+     - ``{"affinity":{},"annotations":{},"ca":{"type":"internal"},"caAddress":"https://localhost:15012","extraEnv":[],"extraVolumeMounts":[],"extraVolumes":[],"healthPort":15021,"image":{"digest":"sha256:884de5adde400e39f58e36c7a729f7690466ca4a8eb4c2a8daa9c1c025115b24","override":null,"pullPolicy":"Always","repository":"quay.io/cilium/ztunnel","tag":"v1.0.0","useDigest":true},"minReadySeconds":0,"nodeSelector":{"kubernetes.io/os":"linux"},"podAnnotations":{},"podLabels":{},"priorityClassName":null,"readinessProbe":{"failureThreshold":3,"initialDelaySeconds":0,"periodSeconds":10},"resources":{"requests":{"cpu":"200m","memory":"512Mi"}},"secrets":{"bootstrapRootCert":null},"terminationGracePeriodSeconds":30,"tolerations":[{"effect":"NoSchedule","operator":"Exists"},{"key":"CriticalAddonsOnly","operator":"Exists"},{"effect":"NoExecute","operator":"Exists"}],"updateStrategy":{"rollingUpdate":{"maxSurge":1,"maxUnavailable":0},"type":"RollingUpdate"}}``
    * - :spelling:ignore:`encryption.ztunnel.affinity`
      - Affinity for ztunnel pods.
      - object
@@ -1428,6 +1436,14 @@
      - Annotations to be added to all ztunnel resources.
      - object
      - ``{}``
+   * - :spelling:ignore:`encryption.ztunnel.ca`
+     - CA backend used by ztunnel to issue workload identities.
+     - object
+     - ``{"type":"internal"}``
+   * - :spelling:ignore:`encryption.ztunnel.ca.type`
+     - Type of CA. "spire" uses an external SPIRE server (the operator then manages SPIRE entries for enrolled namespaces). "internal" uses Cilium's built-in CA and skips the SPIRE enrollment reconciler.
+     - string
+     - ``"internal"``
    * - :spelling:ignore:`encryption.ztunnel.caAddress`
      - CA server address for certificate requests.
      - string
@@ -3495,11 +3511,11 @@
    * - :spelling:ignore:`hubble.tls`
      - TLS configuration for Hubble
      - object
-     - ``{"auto":{"certManagerIssuerRef":{},"certValidityDuration":365,"enabled":true,"method":"helm","schedule":"0 0 1 */4 *"},"enabled":true,"server":{"cert":"","existingSecret":"","extraDnsNames":[],"extraIpAddresses":[],"key":""}}``
+     - ``{"auto":{"certManagerIssuerRef":{},"certValidityDuration":365,"enabled":true,"method":"helm","privateKey":{},"schedule":"0 0 1 */4 *","subject":{}},"enabled":true,"server":{"cert":"","existingSecret":"","extraDnsNames":[],"extraIpAddresses":[],"key":""}}``
    * - :spelling:ignore:`hubble.tls.auto`
      - Configure automatic TLS certificates generation.
      - object
-     - ``{"certManagerIssuerRef":{},"certValidityDuration":365,"enabled":true,"method":"helm","schedule":"0 0 1 */4 *"}``
+     - ``{"certManagerIssuerRef":{},"certValidityDuration":365,"enabled":true,"method":"helm","privateKey":{},"schedule":"0 0 1 */4 *","subject":{}}``
    * - :spelling:ignore:`hubble.tls.auto.certManagerIssuerRef`
      - certmanager issuer used when hubble.tls.auto.method=certmanager.
      - object
@@ -3516,10 +3532,18 @@
      - Set the method to auto-generate certificates. Supported values: - helm:         This method uses Helm to generate all certificates. - cronJob:      This method uses a Kubernetes CronJob the generate any                 certificates not provided by the user at installation                 time. - certmanager:  This method use cert-manager to generate & rotate certificates.
      - string
      - ``"helm"``
+   * - :spelling:ignore:`hubble.tls.auto.privateKey`
+     - Private key options. These include the key algorithm and size, the used encoding and the rotation policy used when hubble.tls.auto.method=certmanager. https://cert-manager.io/docs/reference/api-docs/#cert-manager.io/v1.CertificatePrivateKey
+     - object
+     - ``{}``
    * - :spelling:ignore:`hubble.tls.auto.schedule`
      - Schedule for certificates regeneration (regardless of their expiration date). Only used if method is "cronJob". If nil, then no recurring job will be created. Instead, only the one-shot job is deployed to generate the certificates at installation time.  Defaults to midnight of the first day of every fourth month. For syntax, see https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/#schedule-syntax
      - string
      - ``"0 0 1 */4 *"``
+   * - :spelling:ignore:`hubble.tls.auto.subject`
+     - X509Subject Full X509 name specification used when hubble.tls.auto.method=certmanager. https://cert-manager.io/docs/reference/api-docs/#cert-manager.io/v1.X509Subject
+     - object
+     - ``{}``
    * - :spelling:ignore:`hubble.tls.enabled`
      - Enable mutual TLS for listenAddress. Setting this value to false is highly discouraged as the Hubble API provides access to potentially sensitive network flow metadata and is exposed on the host network.
      - bool
@@ -4083,15 +4107,15 @@
    * - :spelling:ignore:`l2podAnnouncements`
      - Configure L2 pod announcements
      - object
-     - ``{"enabled":false,"interface":"eth0"}``
+     - ``{"enabled":false,"interfacePattern":""}``
    * - :spelling:ignore:`l2podAnnouncements.enabled`
      - Enable L2 pod announcements
      - bool
      - ``false``
-   * - :spelling:ignore:`l2podAnnouncements.interface`
-     - Interface used for sending Gratuitous ARP pod announcements
+   * - :spelling:ignore:`l2podAnnouncements.interfacePattern`
+     - A regular expression matching interfaces used for sending Gratuitous ARP pod announcements
      - string
-     - ``"eth0"``
+     - ``""``
    * - :spelling:ignore:`l7Proxy`
      - Enable Layer 7 network policy.
      - bool

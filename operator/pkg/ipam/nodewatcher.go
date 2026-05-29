@@ -28,11 +28,16 @@ func newNodeWatcherJobFactory(
 	pods resource.Resource[*slim_corev1.Pod],
 	ciliumNodes resource.Resource[*cilium_api_v2.CiliumNode],
 	daemonCfg *option.DaemonConfig,
-) nodeWatcherJobFactory {
-	return func(nm allocator.NodeEventHandler) job.Job {
+) allocator.NodeWatcherJobFactory {
+	return func(nmFactory allocator.NodeEventHandlerFactory) job.Job {
 		return job.OneShot(
 			"cilium-nodes-watcher",
 			func(ctx context.Context, _ cell.Health) error {
+				nm, err := nmFactory(ctx)
+				if err != nil {
+					return fmt.Errorf("unable to create node event handler: %w", err)
+				}
+
 				// The NodeEventHandler uses operatorWatchers.PodStore for IPAM surge allocation.
 				podStore, err := pods.Store(ctx)
 				if err != nil {
@@ -42,6 +47,8 @@ func newNodeWatcherJobFactory(
 
 				withResync := daemonCfg.IPAM == ipamOption.IPAMClusterPool || daemonCfg.IPAM == ipamOption.IPAMMultiPool
 				watchCiliumNodes(ctx, ciliumNodes, nm, withResync)
+
+				nm.Stop()
 
 				return nil
 			},
