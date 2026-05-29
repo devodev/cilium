@@ -150,6 +150,8 @@ triggers:
   /build-images: #this trigger is not meant to be used in comments, as oss build workflows are not triggered by Ariane. Having this trigger allows us to have others depend on oss images workflow though.
     workflows:
     - enterprise-build-images-ci.yaml
+  /build-chainguard-images:
+    workflows:
     - enterprise-build-images-chainguard-ci.yaml
 
 # This trigger needs to be kept in sync with enterprise-ariane-scheduled.yaml workflow
