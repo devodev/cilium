@@ -205,11 +205,11 @@ jobs:
           normal_tag="${registry}/${{ matrix.image_name }}-ci:${tag}"
           race_tag="${normal_tag}-race"
           unstripped_tag="${normal_tag}-unstripped"
-          extra_tags="--tag ${normal_tag}"
+          push_tags="${normal_tag}"
 
           if [ -n "${floating_tag}" ]; then
             floating_normal_tag="${registry}/${{ matrix.image_name }}-ci:${floating_tag}"
-            extra_tags="${extra_tags} --tag ${floating_normal_tag}"
+            push_tags="${normal_tag},${floating_normal_tag}"
           fi
 
           if [[ "${{ github.event_name }}" == 'merge_group' || "${{ github.event_name }}" == 'push' ]]; then
@@ -218,10 +218,12 @@ jobs:
             unstripped_tag=""
           fi
 
+          # digest lookups
           echo primary_tag=${normal_tag} >> $GITHUB_OUTPUT
+          # list of tags passed to docker/build-push-action
+          echo push_tags=${push_tags} >> $GITHUB_OUTPUT
           echo race_tag=${race_tag} >> $GITHUB_OUTPUT
           echo unstripped_tag=${unstripped_tag} >> $GITHUB_OUTPUT
-          echo extra_tags=${extra_tags} >> $GITHUB_OUTPUT
 
       # Load Golang cache build from GitHub
       - name: Restore Golang cache build from GitHub
@@ -267,7 +269,7 @@ jobs:
           file: ${{ matrix.dockerfile }}
           push: true
           platforms: ${{ matrix.platforms }}
-          tags: ${{ steps.tag.outputs.primary_tag }}
+          tags: ${{ steps.tag.outputs.push_tags }}
           build-args: ${{ matrix.build_args }}
 
       - name: CI race detection Build ${{ matrix.name }}
