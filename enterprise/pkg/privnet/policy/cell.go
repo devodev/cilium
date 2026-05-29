@@ -17,6 +17,7 @@ import (
 	"github.com/cilium/hive/job"
 
 	"github.com/cilium/cilium/enterprise/pkg/privnet/config"
+	"github.com/cilium/cilium/enterprise/pkg/privnet/policy/labelfilters"
 	k8sSynced "github.com/cilium/cilium/pkg/k8s/synced"
 )
 
@@ -31,6 +32,8 @@ var Cell = cell.Group(
 	cell.DecorateAll(overridePolicyImporter),
 	cell.DecorateAll(overridePolicyIPCacher),
 	cell.Invoke(waitForCacheSync),
+
+	labelfilters.Cell,
 )
 
 // waitForCacheSync waits for the K8s sync status event. This assumes that policies and cidr groups
