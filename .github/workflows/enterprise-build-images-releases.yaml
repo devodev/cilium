@@ -139,11 +139,11 @@ jobs:
 
       - name: Set up Docker Buildx
         if: ${{ steps.version.outputs.rebuild == 'true' }}
-        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
 
       - name: Login to quay.io
         if: ${{ steps.version.outputs.rebuild == 'true' }}
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME_RELEASE_USERNAME }}
@@ -151,7 +151,7 @@ jobs:
 
       - name: Login to registry.redhat.io for pulling UBI images
         if: ${{ steps.version.outputs.rebuild == 'true' }}
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: registry.redhat.io
           username: ${{ secrets.REDHAT_USERNAME_CI }}
@@ -159,7 +159,7 @@ jobs:
 
       - name: Build and push ${{ matrix.component }} image
         if: ${{ steps.version.outputs.rebuild == 'true' }}
-        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
         with:
           context: ${{ matrix.docker-context }}
           file: ${{ matrix.dockerfile }}
@@ -284,17 +284,17 @@ jobs:
         uses: ./.github/actions/set-env-variables
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
 
       - name: Login to quay.io
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME_RELEASE_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD_RELEASE_PASSWORD }}
 
       - name: Login to registry.redhat.io for pull of UBI images
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: registry.redhat.io
           username: ${{ secrets.REDHAT_USERNAME_CI }}
@@ -424,17 +424,17 @@ jobs:
           echo image_tag=quay.io/${{ env.QUAY_ORGANIZATION }}/clife:$tag >> $GITHUB_OUTPUT
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
 
       - name: Login to quay.io
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME_RELEASE_USERNAME }}
           password: ${{ secrets.QUAY_PASSWORD_RELEASE_PASSWORD }}
 
       - name: Login to registry.redhat.io for pull of UBI images
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: registry.redhat.io
           username: ${{ secrets.REDHAT_USERNAME_CI }}
@@ -478,7 +478,7 @@ jobs:
           # renovate: datasource=docker depName=mikefarah/yq
           yq_version: 4.53.2
           # renovate: datasource=github-releases depName=operator-framework/operator-registry
-          opm_version: 1.68.0
+          opm_version: 1.69.0
           VERSION: "${{ steps.tag.outputs.tag }}"
           CATALOG_TAG: "1.0.0"
           IMAGE_TAG_BASE: "${{ steps.tag.outputs.image_tag_base }}"
