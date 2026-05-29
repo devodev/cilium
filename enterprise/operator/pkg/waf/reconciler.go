@@ -119,8 +119,8 @@ func (r *reconciler) reconcilePolicyStatus(ctx context.Context, policy *isovalen
 
 func (r *reconciler) reconcilePolicyInlineRules(ctx context.Context, policyRef string, policy *isovalentv1alpha1.IsovalentWAFPolicy) error {
 	var desiredHashKey, desiredInline string
-	if policy != nil && policy.Spec.Rules != nil && policy.Spec.Rules.Custom != nil && policy.Spec.Rules.Custom.Inline != "" {
-		rules, err := wafpolicy.BuildInlineRules(policy.Spec.Rules.Custom.Inline)
+	if policy != nil && policy.Spec.Rules != nil && policy.Spec.Rules.Inline != "" {
+		rules, err := wafpolicy.BuildInlineRules(policy.Spec.Rules.Inline)
 		if err != nil {
 			return fmt.Errorf("failed to build WAF inline bundle data: %w", err)
 		}

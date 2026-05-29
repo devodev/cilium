@@ -153,6 +153,42 @@ func TestWAFBlocksCustomProfileAttacks(t T) {
 	}
 }
 
+func TestWAFCustomProfileOverrideDisablesRule(t T) {
+	testName := "waf-custom-profile-override-disables-rule"
+	hostName := "insecure.acme.io"
+	path := "/api/foo-insecure"
+
+	env := newWAFTestEnv(t,
+		testName,
+		hostName,
+		path,
+		wafPolicy(
+			testName,
+			wafLabelValue,
+			withWAFEnabled(true),
+			withWAFMode(isovalentv1alpha1.IsovalentWAFPolicyModeEnforce),
+			withWAFCustomProfile(isovalentv1alpha1.IsovalentWAFCustomProfile{
+				BlockingParanoiaLevel:         2,
+				DetectionParanoiaLevel:        2,
+				InboundAnomalyScoreThreshold:  7,
+				OutboundAnomalyScoreThreshold: 6,
+			}),
+			withWAFRuleOverrides(isovalentv1alpha1.IsovalentWAFRuleOverride{
+				RuleID: 949110,
+				Action: isovalentv1alpha1.IsovalentWAFRuleOverrideActionDisable,
+			}),
+		))
+	if env == nil {
+		return
+	}
+
+	t.Log("Testing benign request...")
+	env.expectStatus(hostName, path, "200")
+
+	t.Log("Testing WAF attack allowed by rule override...")
+	env.eventuallyResponseWithHeaders(hostName, path+attacks[0].query, nil, "200", "", nil)
+}
+
 func TestWAFBlocksInlineRuleAttack(t T) {
 	testName := "waf-blocks-inline-rule-attack"
 	hostName := "insecure.acme.io"
@@ -382,10 +418,9 @@ func withWAFManagedProfile(profile isovalentv1alpha1.IsovalentWAFPolicyProfileTy
 		if p.Spec.Rules == nil {
 			p.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{}
 		}
-		if p.Spec.Rules.Managed == nil {
-			p.Spec.Rules.Managed = &isovalentv1alpha1.IsovalentWAFManagedRules{}
+		p.Spec.Rules.Profile = &isovalentv1alpha1.IsovalentWAFRuleProfile{
+			Managed: &isovalentv1alpha1.IsovalentWAFManagedProfile{Name: profile},
 		}
-		p.Spec.Rules.Managed.Profile = profile
 	}
 }
 
@@ -394,10 +429,9 @@ func withWAFCustomProfile(profile isovalentv1alpha1.IsovalentWAFCustomProfile) w
 		if p.Spec.Rules == nil {
 			p.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{}
 		}
-		if p.Spec.Rules.Custom == nil {
-			p.Spec.Rules.Custom = &isovalentv1alpha1.IsovalentWAFCustomRules{}
+		p.Spec.Rules.Profile = &isovalentv1alpha1.IsovalentWAFRuleProfile{
+			Custom: &profile,
 		}
-		p.Spec.Rules.Custom.Profile = &profile
 	}
 }
 
@@ -406,10 +440,16 @@ func withWAFInlineRules(inline string) wafPolicyOption {
 		if p.Spec.Rules == nil {
 			p.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{}
 		}
-		if p.Spec.Rules.Custom == nil {
-			p.Spec.Rules.Custom = &isovalentv1alpha1.IsovalentWAFCustomRules{}
+		p.Spec.Rules.Inline = inline
+	}
+}
+
+func withWAFRuleOverrides(overrides ...isovalentv1alpha1.IsovalentWAFRuleOverride) wafPolicyOption {
+	return func(p *isovalentv1alpha1.IsovalentWAFPolicy) {
+		if p.Spec.Rules == nil {
+			p.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{}
 		}
-		p.Spec.Rules.Custom.Inline = inline
+		p.Spec.Rules.Overrides = overrides
 	}
 }
 

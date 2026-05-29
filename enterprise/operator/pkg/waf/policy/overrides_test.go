@@ -35,8 +35,8 @@ func TestValidateRuleOverrides(t *testing.T) {
 		{
 			name: "accepts managed overrides",
 			rules: &isovalentv1alpha1.IsovalentWAFPolicyRules{
-				Managed: &isovalentv1alpha1.IsovalentWAFManagedRules{
-					Profile: isovalentv1alpha1.IsovalentWAFPolicyProfileBalanced,
+				Profile: &isovalentv1alpha1.IsovalentWAFRuleProfile{
+					Managed: &isovalentv1alpha1.IsovalentWAFManagedProfile{Name: isovalentv1alpha1.IsovalentWAFPolicyProfileBalanced},
 				},
 				Overrides: []isovalentv1alpha1.IsovalentWAFRuleOverride{
 					{RuleID: 949110, Action: isovalentv1alpha1.IsovalentWAFRuleOverrideActionDisable},
@@ -47,15 +47,15 @@ func TestValidateRuleOverrides(t *testing.T) {
 		{
 			name: "accepts custom profile with inline overrides",
 			rules: &isovalentv1alpha1.IsovalentWAFPolicyRules{
-				Custom: &isovalentv1alpha1.IsovalentWAFCustomRules{
-					Profile: &isovalentv1alpha1.IsovalentWAFCustomProfile{
+				Profile: &isovalentv1alpha1.IsovalentWAFRuleProfile{
+					Custom: &isovalentv1alpha1.IsovalentWAFCustomProfile{
 						BlockingParanoiaLevel:         2,
 						DetectionParanoiaLevel:        3,
 						InboundAnomalyScoreThreshold:  7,
 						OutboundAnomalyScoreThreshold: 6,
 					},
-					Inline: `SecAction "id:1000,phase:1,pass,nolog"`,
 				},
+				Inline: `SecAction "id:1000,phase:1,pass,nolog"`,
 				Overrides: []isovalentv1alpha1.IsovalentWAFRuleOverride{
 					{RuleID: 942100, Action: isovalentv1alpha1.IsovalentWAFRuleOverrideActionExcludeTarget, Target: "REQUEST_HEADERS:User-Agent"},
 				},
@@ -64,14 +64,12 @@ func TestValidateRuleOverrides(t *testing.T) {
 		{
 			name: "rejects standalone inline overrides",
 			rules: &isovalentv1alpha1.IsovalentWAFPolicyRules{
-				Custom: &isovalentv1alpha1.IsovalentWAFCustomRules{
-					Inline: `SecAction "id:1000,phase:1,pass,nolog"`,
-				},
+				Inline: `SecAction "id:1000,phase:1,pass,nolog"`,
 				Overrides: []isovalentv1alpha1.IsovalentWAFRuleOverride{
 					{RuleID: 949110, Action: isovalentv1alpha1.IsovalentWAFRuleOverrideActionDisable},
 				},
 			},
-			expectError: "spec.rules.overrides are not supported with standalone custom inline rules",
+			expectError: "spec.rules.overrides are not supported with standalone inline rules",
 		},
 		{
 			name: "rejects non-positive rule id",

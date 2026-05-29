@@ -58,147 +58,10 @@ func TestResolverResolveConfig(t *testing.T) {
 		{RuleID: 949110, Action: isovalentv1alpha1.IsovalentWAFRuleOverrideActionDisable},
 		{RuleID: 942100, Action: isovalentv1alpha1.IsovalentWAFRuleOverrideActionExcludeTarget, Target: ruleOverrideTarget},
 	}
-	overridePolicy := acceptedPolicy(
-		"team-a",
-		"api-waf",
-		&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}},
-	)
-	overridePolicy.Spec.Enabled = true
-	overridePolicy.Spec.Mode = &mode
-	overridePolicy.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{
-		Custom: &isovalentv1alpha1.IsovalentWAFCustomRules{
-			Inline: inline,
-		},
-	}
-	managedPolicy := acceptedPolicy(
-		"team-a",
-		"api-waf-managed",
-		&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}},
-	)
 	profile := isovalentv1alpha1.IsovalentWAFPolicyProfileHighSecurity
-	managedPolicy.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{
-		Managed: &isovalentv1alpha1.IsovalentWAFManagedRules{
-			Profile: profile,
-		},
-	}
 	bodyLimitBytes := int64(2048)
 	blockStatusCode := int32(418)
 	blockBody := "blocked by policy"
-	managedPolicyWithOverrides := acceptedPolicy(
-		"team-a",
-		"api-waf-managed-overrides",
-		&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}},
-	)
-	managedPolicyWithOverrides.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{
-		Managed: &isovalentv1alpha1.IsovalentWAFManagedRules{
-			Profile: profile,
-		},
-		Overrides: ruleOverrides,
-	}
-	managedPolicyWithOverrides.Spec.Handling = &isovalentv1alpha1.IsovalentWAFPolicyHandling{
-		Request: &isovalentv1alpha1.IsovalentWAFRequestHandling{
-			BodyLimitBytes: &bodyLimitBytes,
-		},
-		Response: &isovalentv1alpha1.IsovalentWAFResponseHandling{
-			BlockResponse: &isovalentv1alpha1.IsovalentWAFBlockResponse{
-				StatusCode: &blockStatusCode,
-				Body:       &blockBody,
-			},
-		},
-	}
-	customProfilePolicy := acceptedPolicy(
-		"team-a",
-		"api-waf-custom-profile",
-		&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}},
-	)
-	customProfilePolicy.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{
-		Custom: &isovalentv1alpha1.IsovalentWAFCustomRules{
-			Profile: &customProfile,
-		},
-	}
-	customProfileWithOverridesPolicy := acceptedPolicy(
-		"team-a",
-		"api-waf-custom-profile-overrides",
-		&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}},
-	)
-	customProfileWithOverridesPolicy.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{
-		Custom: &isovalentv1alpha1.IsovalentWAFCustomRules{
-			Profile: &customProfile,
-		},
-		Overrides: ruleOverrides,
-	}
-	defaultManagedOverridesPolicy := acceptedPolicy(
-		"team-a",
-		"api-waf-default-managed-overrides",
-		&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}},
-	)
-	defaultManagedOverridesPolicy.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{
-		Overrides: ruleOverrides,
-	}
-	customProfileWithInlinePolicy := acceptedPolicy(
-		"team-a",
-		"api-waf-custom-profile-inline",
-		&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}},
-	)
-	customProfileWithInlinePolicy.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{
-		Custom: &isovalentv1alpha1.IsovalentWAFCustomRules{
-			Profile: &customProfile,
-			Inline:  inline,
-		},
-		Overrides: ruleOverrides,
-	}
-	matchAllPolicy := acceptedPolicy(
-		"team-a",
-		"match-all",
-		nil,
-	)
-	matchAllPolicy.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{
-		Managed: &isovalentv1alpha1.IsovalentWAFManagedRules{
-			Profile: profile,
-		},
-	}
-	orSemanticsPolicy := acceptedPolicy(
-		"team-a",
-		"or-semantics",
-		&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "other"}},
-	)
-	orSemanticsPolicy.Spec.Targets = append(orSemanticsPolicy.Spec.Targets,
-		isovalentv1alpha1.IsovalentWAFPolicyTarget{
-			APIGroup: isovalentv1alpha1.CustomResourceDefinitionGroup,
-			Kind:     isovalentv1alpha1.LBServiceKindDefinition,
-			LabelSelector: &slim_metav1.LabelSelector{
-				MatchLabels: map[string]string{"app": "api"},
-			},
-		},
-	)
-	orSemanticsPolicy.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{
-		Managed: &isovalentv1alpha1.IsovalentWAFManagedRules{
-			Profile: profile,
-		},
-	}
-
-	conflictFirst := acceptedPolicy(
-		"team-a",
-		"first",
-		&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}},
-	)
-	conflictSecond := acceptedPolicy(
-		"team-a",
-		"second",
-		&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}},
-	)
-
-	pendingPolicy := acceptedPolicy(
-		"team-a",
-		"pending",
-		&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}},
-	)
-	pendingPolicy.Generation = 2
-	nonMatchingPolicy := acceptedPolicy(
-		"team-a",
-		"other-waf",
-		&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "other"}},
-	)
 
 	testCases := []struct {
 		desc     string
@@ -206,8 +69,15 @@ func TestResolverResolveConfig(t *testing.T) {
 		expected *EffectiveConfig
 	}{
 		{
-			desc:     "no accepted match returns nil",
-			objects:  []ctrlClient.Object{&nonMatchingPolicy},
+			desc: "no accepted match returns nil",
+			objects: []ctrlClient.Object{func() ctrlClient.Object {
+				policy := acceptedPolicy(
+					"team-a",
+					"other-waf",
+					&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "other"}},
+				)
+				return &policy
+			}()},
 			expected: nil,
 		},
 		{
@@ -215,8 +85,20 @@ func TestResolverResolveConfig(t *testing.T) {
 			expected: nil,
 		},
 		{
-			desc:    "applies matching accepted policy overrides",
-			objects: []ctrlClient.Object{&overridePolicy},
+			desc: "applies matching accepted policy overrides",
+			objects: []ctrlClient.Object{func() ctrlClient.Object {
+				policy := acceptedPolicy(
+					"team-a",
+					"api-waf",
+					&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}},
+				)
+				policy.Spec.Enabled = true
+				policy.Spec.Mode = &mode
+				policy.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{
+					Inline: inline,
+				}
+				return &policy
+			}()},
 			expected: &EffectiveConfig{
 				Enabled:     true,
 				Mode:        mode,
@@ -228,8 +110,40 @@ func TestResolverResolveConfig(t *testing.T) {
 			},
 		},
 		{
-			desc:    "applies managed profile when selected",
-			objects: []ctrlClient.Object{&managedPolicy},
+			desc: "applies default managed profile when rules are omitted",
+			objects: []ctrlClient.Object{func() ctrlClient.Object {
+				policy := acceptedPolicy(
+					"team-a",
+					"api-waf-default-managed",
+					&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}},
+				)
+				return &policy
+			}()},
+			expected: &EffectiveConfig{
+				Enabled:     true,
+				Mode:        defaults.Mode,
+				FailureMode: defaults.FailureMode,
+				Rules: EffectiveRules{
+					Source:        EffectiveRuleSourceManaged,
+					PolicyProfile: defaults.PolicyProfile,
+				},
+			},
+		},
+		{
+			desc: "applies managed profile when selected",
+			objects: []ctrlClient.Object{func() ctrlClient.Object {
+				policy := acceptedPolicy(
+					"team-a",
+					"api-waf-managed",
+					&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}},
+				)
+				policy.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{
+					Profile: &isovalentv1alpha1.IsovalentWAFRuleProfile{
+						Managed: &isovalentv1alpha1.IsovalentWAFManagedProfile{Name: profile},
+					},
+				}
+				return &policy
+			}()},
 			expected: &EffectiveConfig{
 				Enabled:     true,
 				Mode:        defaults.Mode,
@@ -241,8 +155,59 @@ func TestResolverResolveConfig(t *testing.T) {
 			},
 		},
 		{
-			desc:    "applies managed profile overrides when selected",
-			objects: []ctrlClient.Object{&managedPolicyWithOverrides},
+			desc: "applies managed profile with inline additions",
+			objects: []ctrlClient.Object{func() ctrlClient.Object {
+				policy := acceptedPolicy(
+					"team-a",
+					"api-waf-managed-inline",
+					&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}},
+				)
+				policy.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{
+					Profile: &isovalentv1alpha1.IsovalentWAFRuleProfile{
+						Managed: &isovalentv1alpha1.IsovalentWAFManagedProfile{Name: profile},
+					},
+					Inline: inline,
+				}
+				return &policy
+			}()},
+			expected: &EffectiveConfig{
+				Enabled:     true,
+				Mode:        defaults.Mode,
+				FailureMode: defaults.FailureMode,
+				Rules: EffectiveRules{
+					Source:        EffectiveRuleSourceManaged,
+					PolicyProfile: profile,
+					Inline:        mustInlineRulesForTest(t, inline),
+				},
+			},
+		},
+		{
+			desc: "applies managed profile overrides when selected",
+			objects: []ctrlClient.Object{func() ctrlClient.Object {
+				policy := acceptedPolicy(
+					"team-a",
+					"api-waf-managed-overrides",
+					&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}},
+				)
+				policy.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{
+					Profile: &isovalentv1alpha1.IsovalentWAFRuleProfile{
+						Managed: &isovalentv1alpha1.IsovalentWAFManagedProfile{Name: profile},
+					},
+					Overrides: ruleOverrides,
+				}
+				policy.Spec.Handling = &isovalentv1alpha1.IsovalentWAFPolicyHandling{
+					Request: &isovalentv1alpha1.IsovalentWAFRequestHandling{
+						BodyLimitBytes: &bodyLimitBytes,
+					},
+					Response: &isovalentv1alpha1.IsovalentWAFResponseHandling{
+						BlockResponse: &isovalentv1alpha1.IsovalentWAFBlockResponse{
+							StatusCode: &blockStatusCode,
+							Body:       &blockBody,
+						},
+					},
+				}
+				return &policy
+			}()},
 			expected: &EffectiveConfig{
 				Enabled:     true,
 				Mode:        defaults.Mode,
@@ -260,8 +225,20 @@ func TestResolverResolveConfig(t *testing.T) {
 			},
 		},
 		{
-			desc:    "applies custom profile when selected",
-			objects: []ctrlClient.Object{&customProfilePolicy},
+			desc: "applies custom profile when selected",
+			objects: []ctrlClient.Object{func() ctrlClient.Object {
+				policy := acceptedPolicy(
+					"team-a",
+					"api-waf-custom-profile",
+					&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}},
+				)
+				policy.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{
+					Profile: &isovalentv1alpha1.IsovalentWAFRuleProfile{
+						Custom: &customProfile,
+					},
+				}
+				return &policy
+			}()},
 			expected: &EffectiveConfig{
 				Enabled:     true,
 				Mode:        defaults.Mode,
@@ -273,8 +250,21 @@ func TestResolverResolveConfig(t *testing.T) {
 			},
 		},
 		{
-			desc:    "applies custom profile overrides when selected",
-			objects: []ctrlClient.Object{&customProfileWithOverridesPolicy},
+			desc: "applies custom profile overrides when selected",
+			objects: []ctrlClient.Object{func() ctrlClient.Object {
+				policy := acceptedPolicy(
+					"team-a",
+					"api-waf-custom-profile-overrides",
+					&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}},
+				)
+				policy.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{
+					Profile: &isovalentv1alpha1.IsovalentWAFRuleProfile{
+						Custom: &customProfile,
+					},
+					Overrides: ruleOverrides,
+				}
+				return &policy
+			}()},
 			expected: &EffectiveConfig{
 				Enabled:     true,
 				Mode:        defaults.Mode,
@@ -287,8 +277,18 @@ func TestResolverResolveConfig(t *testing.T) {
 			},
 		},
 		{
-			desc:    "applies default managed profile overrides when selected",
-			objects: []ctrlClient.Object{&defaultManagedOverridesPolicy},
+			desc: "applies default managed profile overrides when selected",
+			objects: []ctrlClient.Object{func() ctrlClient.Object {
+				policy := acceptedPolicy(
+					"team-a",
+					"api-waf-default-managed-overrides",
+					&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}},
+				)
+				policy.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{
+					Overrides: ruleOverrides,
+				}
+				return &policy
+			}()},
 			expected: &EffectiveConfig{
 				Enabled:     true,
 				Mode:        defaults.Mode,
@@ -301,8 +301,22 @@ func TestResolverResolveConfig(t *testing.T) {
 			},
 		},
 		{
-			desc:    "applies custom profile with inline additions when selected",
-			objects: []ctrlClient.Object{&customProfileWithInlinePolicy},
+			desc: "applies custom profile with inline additions when selected",
+			objects: []ctrlClient.Object{func() ctrlClient.Object {
+				policy := acceptedPolicy(
+					"team-a",
+					"api-waf-custom-profile-inline",
+					&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}},
+				)
+				policy.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{
+					Profile: &isovalentv1alpha1.IsovalentWAFRuleProfile{
+						Custom: &customProfile,
+					},
+					Inline:    inline,
+					Overrides: ruleOverrides,
+				}
+				return &policy
+			}()},
 			expected: &EffectiveConfig{
 				Enabled:     true,
 				Mode:        defaults.Mode,
@@ -316,8 +330,16 @@ func TestResolverResolveConfig(t *testing.T) {
 			},
 		},
 		{
-			desc:    "matches all LBServices in namespace when selector is omitted",
-			objects: []ctrlClient.Object{&matchAllPolicy},
+			desc: "matches all LBServices in namespace when selector is omitted",
+			objects: []ctrlClient.Object{func() ctrlClient.Object {
+				policy := acceptedPolicy("team-a", "match-all", nil)
+				policy.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{
+					Profile: &isovalentv1alpha1.IsovalentWAFRuleProfile{
+						Managed: &isovalentv1alpha1.IsovalentWAFManagedProfile{Name: profile},
+					},
+				}
+				return &policy
+			}()},
 			expected: &EffectiveConfig{
 				Enabled:     true,
 				Mode:        defaults.Mode,
@@ -329,8 +351,29 @@ func TestResolverResolveConfig(t *testing.T) {
 			},
 		},
 		{
-			desc:    "multiple targets are ORed",
-			objects: []ctrlClient.Object{&orSemanticsPolicy},
+			desc: "multiple targets are ORed",
+			objects: []ctrlClient.Object{func() ctrlClient.Object {
+				policy := acceptedPolicy(
+					"team-a",
+					"or-semantics",
+					&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "other"}},
+				)
+				policy.Spec.Targets = append(policy.Spec.Targets,
+					isovalentv1alpha1.IsovalentWAFPolicyTarget{
+						APIGroup: isovalentv1alpha1.CustomResourceDefinitionGroup,
+						Kind:     isovalentv1alpha1.LBServiceKindDefinition,
+						LabelSelector: &slim_metav1.LabelSelector{
+							MatchLabels: map[string]string{"app": "api"},
+						},
+					},
+				)
+				policy.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{
+					Profile: &isovalentv1alpha1.IsovalentWAFRuleProfile{
+						Managed: &isovalentv1alpha1.IsovalentWAFManagedProfile{Name: profile},
+					},
+				}
+				return &policy
+			}()},
 			expected: &EffectiveConfig{
 				Enabled:     true,
 				Mode:        defaults.Mode,
@@ -342,13 +385,38 @@ func TestResolverResolveConfig(t *testing.T) {
 			},
 		},
 		{
-			desc:     "multiple accepted matches return nil",
-			objects:  []ctrlClient.Object{&conflictFirst, &conflictSecond},
+			desc: "multiple accepted matches return nil",
+			objects: []ctrlClient.Object{
+				func() ctrlClient.Object {
+					policy := acceptedPolicy(
+						"team-a",
+						"first",
+						&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}},
+					)
+					return &policy
+				}(),
+				func() ctrlClient.Object {
+					policy := acceptedPolicy(
+						"team-a",
+						"second",
+						&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}},
+					)
+					return &policy
+				}(),
+			},
 			expected: nil,
 		},
 		{
-			desc:     "pending matching policy returns nil",
-			objects:  []ctrlClient.Object{&pendingPolicy},
+			desc: "pending matching policy returns nil",
+			objects: []ctrlClient.Object{func() ctrlClient.Object {
+				policy := acceptedPolicy(
+					"team-a",
+					"pending",
+					&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}},
+				)
+				policy.Generation = 2
+				return &policy
+			}()},
 			expected: nil,
 		},
 	}
@@ -424,7 +492,7 @@ func TestValidate(t *testing.T) {
 				)
 				inline := `SecRule REQUEST_URI "@rx (" "id:1000,phase:1,deny"`
 				policy.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{
-					Custom: &isovalentv1alpha1.IsovalentWAFCustomRules{Inline: inline},
+					Inline: inline,
 				}
 				return policy
 			}(),
@@ -439,7 +507,7 @@ func TestValidate(t *testing.T) {
 					&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}},
 				)
 				policy.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{
-					Custom: &isovalentv1alpha1.IsovalentWAFCustomRules{Inline: "\n\t \r\n"},
+					Inline: "\n\t \r\n",
 				}
 				return policy
 			}(),
@@ -459,18 +527,25 @@ func TestValidate(t *testing.T) {
 			expectError: false,
 		},
 		{
-			desc: "rejects policies that specify both managed and custom rules",
+			desc: "rejects policies that specify both managed and custom profiles",
 			policy: func() isovalentv1alpha1.IsovalentWAFPolicy {
 				policy := acceptedPolicy(
 					"team-a",
-					"invalid-mixed-rules",
+					"invalid-mixed-profile",
 					&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}},
 				)
-				inline := `SecAction "id:1000,phase:1,pass,nolog"`
-				profile := isovalentv1alpha1.IsovalentWAFPolicyProfileBalanced
+				managedProfile := isovalentv1alpha1.IsovalentWAFPolicyProfileBalanced
+				customProfile := isovalentv1alpha1.IsovalentWAFCustomProfile{
+					BlockingParanoiaLevel:         2,
+					DetectionParanoiaLevel:        3,
+					InboundAnomalyScoreThreshold:  7,
+					OutboundAnomalyScoreThreshold: 6,
+				}
 				policy.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{
-					Managed: &isovalentv1alpha1.IsovalentWAFManagedRules{Profile: profile},
-					Custom:  &isovalentv1alpha1.IsovalentWAFCustomRules{Inline: inline},
+					Profile: &isovalentv1alpha1.IsovalentWAFRuleProfile{
+						Managed: &isovalentv1alpha1.IsovalentWAFManagedProfile{Name: managedProfile},
+						Custom:  &customProfile,
+					},
 				}
 				return policy
 			}(),
@@ -492,10 +567,10 @@ func TestValidate(t *testing.T) {
 					OutboundAnomalyScoreThreshold: 6,
 				}
 				policy.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{
-					Custom: &isovalentv1alpha1.IsovalentWAFCustomRules{
-						Profile: &profile,
-						Inline:  inline,
+					Profile: &isovalentv1alpha1.IsovalentWAFRuleProfile{
+						Custom: &profile,
 					},
+					Inline: inline,
 				}
 				return policy
 			}(),
@@ -525,7 +600,7 @@ func TestValidate(t *testing.T) {
 					&slim_metav1.LabelSelector{MatchLabels: map[string]string{"app": "api"}},
 				)
 				policy.Spec.Rules = &isovalentv1alpha1.IsovalentWAFPolicyRules{
-					Custom:    &isovalentv1alpha1.IsovalentWAFCustomRules{Inline: `SecAction "id:1000,phase:1,pass,nolog"`},
+					Inline:    `SecAction "id:1000,phase:1,pass,nolog"`,
 					Overrides: ruleOverrides,
 				}
 				return policy

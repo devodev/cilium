@@ -87,9 +87,7 @@ func TestReconcilerSetsAcceptedCondition(t *testing.T) {
 					}),
 					Enabled: true,
 					Rules: &isovalentv1alpha1.IsovalentWAFPolicyRules{
-						Custom: &isovalentv1alpha1.IsovalentWAFCustomRules{
-							Inline: `SecRule REQUEST_URI "@rx (" "id:1000,phase:1,deny"`,
-						},
+						Inline: `SecRule REQUEST_URI "@rx (" "id:1000,phase:1,deny"`,
 					},
 				},
 			},
@@ -108,9 +106,7 @@ func TestReconcilerSetsAcceptedCondition(t *testing.T) {
 					}),
 					Enabled: true,
 					Rules: &isovalentv1alpha1.IsovalentWAFPolicyRules{
-						Custom: &isovalentv1alpha1.IsovalentWAFCustomRules{
-							Inline: "\n\t \r\n",
-						},
+						Inline: "\n\t \r\n",
 					},
 				},
 			},
@@ -129,11 +125,14 @@ func TestReconcilerSetsAcceptedCondition(t *testing.T) {
 					}),
 					Enabled: true,
 					Rules: &isovalentv1alpha1.IsovalentWAFPolicyRules{
-						Managed: &isovalentv1alpha1.IsovalentWAFManagedRules{
-							Profile: isovalentv1alpha1.IsovalentWAFPolicyProfileBalanced,
-						},
-						Custom: &isovalentv1alpha1.IsovalentWAFCustomRules{
-							Inline: `SecAction "id:1000,phase:1,pass,nolog"`,
+						Profile: &isovalentv1alpha1.IsovalentWAFRuleProfile{
+							Managed: &isovalentv1alpha1.IsovalentWAFManagedProfile{Name: isovalentv1alpha1.IsovalentWAFPolicyProfileBalanced},
+							Custom: &isovalentv1alpha1.IsovalentWAFCustomProfile{
+								BlockingParanoiaLevel:         2,
+								DetectionParanoiaLevel:        3,
+								InboundAnomalyScoreThreshold:  7,
+								OutboundAnomalyScoreThreshold: 6,
+							},
 						},
 					},
 				},
@@ -194,9 +193,7 @@ func TestReconcilePolicyInlineRules(t *testing.T) {
 				},
 				Spec: isovalentv1alpha1.IsovalentWAFPolicySpec{
 					Rules: &isovalentv1alpha1.IsovalentWAFPolicyRules{
-						Custom: &isovalentv1alpha1.IsovalentWAFCustomRules{
-							Inline: expectedInline.Inline,
-						},
+						Inline: expectedInline.Inline,
 					},
 				},
 			},
@@ -224,15 +221,15 @@ func TestReconcilePolicyInlineRules(t *testing.T) {
 				},
 				Spec: isovalentv1alpha1.IsovalentWAFPolicySpec{
 					Rules: &isovalentv1alpha1.IsovalentWAFPolicyRules{
-						Custom: &isovalentv1alpha1.IsovalentWAFCustomRules{
-							Profile: &isovalentv1alpha1.IsovalentWAFCustomProfile{
+						Profile: &isovalentv1alpha1.IsovalentWAFRuleProfile{
+							Custom: &isovalentv1alpha1.IsovalentWAFCustomProfile{
 								BlockingParanoiaLevel:         2,
 								DetectionParanoiaLevel:        3,
 								InboundAnomalyScoreThreshold:  7,
 								OutboundAnomalyScoreThreshold: 6,
 							},
-							Inline: expectedInline.Inline,
 						},
+						Inline: expectedInline.Inline,
 					},
 				},
 			},
@@ -258,8 +255,8 @@ func TestReconcilePolicyInlineRules(t *testing.T) {
 				},
 				Spec: isovalentv1alpha1.IsovalentWAFPolicySpec{
 					Rules: &isovalentv1alpha1.IsovalentWAFPolicyRules{
-						Custom: &isovalentv1alpha1.IsovalentWAFCustomRules{
-							Profile: &isovalentv1alpha1.IsovalentWAFCustomProfile{
+						Profile: &isovalentv1alpha1.IsovalentWAFRuleProfile{
+							Custom: &isovalentv1alpha1.IsovalentWAFCustomProfile{
 								BlockingParanoiaLevel:         2,
 								DetectionParanoiaLevel:        3,
 								InboundAnomalyScoreThreshold:  7,
@@ -417,9 +414,7 @@ func newInlineBundlePolicy() *isovalentv1alpha1.IsovalentWAFPolicy {
 			}),
 			Enabled: true,
 			Rules: &isovalentv1alpha1.IsovalentWAFPolicyRules{
-				Custom: &isovalentv1alpha1.IsovalentWAFCustomRules{
-					Inline: `SecAction "id:1000,phase:1,pass,nolog"`,
-				},
+				Inline: `SecAction "id:1000,phase:1,pass,nolog"`,
 			},
 		},
 	}

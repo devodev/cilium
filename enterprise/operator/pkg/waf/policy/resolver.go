@@ -99,15 +99,28 @@ func Validate(policy *isovalentv1alpha1.IsovalentWAFPolicy) error {
 		return nil
 	}
 
-	if policy.Spec.Rules.Managed != nil && policy.Spec.Rules.Custom != nil {
-		return fmt.Errorf("exactly one of spec.rules.managed or spec.rules.custom must be specified")
+	if err := validateProfile(policy.Spec.Rules.Profile); err != nil {
+		return err
 	}
 
-	if err := ValidateCustomRules(policy.Spec.Rules.Custom); err != nil {
+	if err := ValidateCustomRules(policy.Spec.Rules); err != nil {
 		return err
 	}
 
 	return validateRuleOverrides(policy.Spec.Rules)
+}
+
+func validateProfile(profile *isovalentv1alpha1.IsovalentWAFRuleProfile) error {
+	if profile == nil {
+		return nil
+	}
+	if profile.Managed != nil && profile.Custom != nil {
+		return fmt.Errorf("exactly one of spec.rules.profile.managed or spec.rules.profile.custom must be specified")
+	}
+	if profile.Managed == nil && profile.Custom == nil {
+		return fmt.Errorf("one of spec.rules.profile.managed or spec.rules.profile.custom must be specified")
+	}
+	return nil
 }
 
 func Condition(policy *isovalentv1alpha1.IsovalentWAFPolicy, err error) metav1.Condition {
@@ -264,6 +277,9 @@ func (r *Resolver) policyToConfig(policy *isovalentv1alpha1.IsovalentWAFPolicy) 
 		Enabled:     policy.Spec.Enabled,
 		Mode:        valueOrDefault(policy.Spec.Mode, r.defaults.Mode),
 		FailureMode: valueOrDefault(policy.Spec.FailureMode, r.defaults.FailureMode),
+		Rules: EffectiveRules{
+			Source: policyRulesSource(policy),
+		},
 	}
 
 	if policy.Spec.Handling != nil {
@@ -276,34 +292,53 @@ func (r *Resolver) policyToConfig(policy *isovalentv1alpha1.IsovalentWAFPolicy) 
 		}
 	}
 
-	if policy.Spec.Rules != nil && len(policy.Spec.Rules.Overrides) > 0 {
-		config.Rules.Overrides = copyRuleOverrides(policy.Spec.Rules.Overrides)
-	}
-
-	if policy.Spec.Rules == nil || policy.Spec.Rules.Custom == nil {
-		config.Rules.Source = EffectiveRuleSourceManaged
-		config.Rules.PolicyProfile = r.defaults.PolicyProfile
-		if policy.Spec.Rules != nil && policy.Spec.Rules.Managed != nil {
-			config.Rules.PolicyProfile = policy.Spec.Rules.Managed.Profile
-		}
+	if policy.Spec.Rules == nil {
+		config.Rules.PolicyProfile = r.policyProfileName(policy)
 		return config, nil
 	}
 
-	if policy.Spec.Rules.Custom.Inline != "" {
-		inline, err := BuildInlineRules(policy.Spec.Rules.Custom.Inline)
+	if len(policy.Spec.Rules.Overrides) > 0 {
+		config.Rules.Overrides = copyRuleOverrides(policy.Spec.Rules.Overrides)
+	}
+
+	if policy.Spec.Rules.Inline != "" {
+		inline, err := BuildInlineRules(policy.Spec.Rules.Inline)
 		if err != nil {
 			return EffectiveConfig{}, err
 		}
 		config.Rules.Inline = inline
-		config.Rules.Source = EffectiveRuleSourceInline
 	}
 
-	if policy.Spec.Rules.Custom.Profile != nil {
-		config.Rules.CustomProfile = *policy.Spec.Rules.Custom.Profile
-		config.Rules.Source = EffectiveRuleSourceProfile
+	switch config.Rules.Source {
+	case EffectiveRuleSourceManaged:
+		config.Rules.PolicyProfile = r.policyProfileName(policy)
+	case EffectiveRuleSourceProfile:
+		config.Rules.CustomProfile = *policy.Spec.Rules.Profile.Custom
 	}
-
 	return config, nil
+}
+
+func (r *Resolver) policyProfileName(policy *isovalentv1alpha1.IsovalentWAFPolicy) isovalentv1alpha1.IsovalentWAFPolicyProfileType {
+	if policy.Spec.Rules != nil && policy.Spec.Rules.Profile != nil && policy.Spec.Rules.Profile.Managed != nil {
+		return policy.Spec.Rules.Profile.Managed.Name
+	}
+	return r.defaults.PolicyProfile
+}
+
+func policyRulesSource(policy *isovalentv1alpha1.IsovalentWAFPolicy) EffectiveRuleSource {
+	if policy.Spec.Rules == nil {
+		return EffectiveRuleSourceManaged
+	}
+
+	if policy.Spec.Rules.Profile != nil && policy.Spec.Rules.Profile.Custom != nil {
+		return EffectiveRuleSourceProfile
+	}
+
+	if policy.Spec.Rules.Profile == nil && policy.Spec.Rules.Inline != "" {
+		return EffectiveRuleSourceInline
+	}
+
+	return EffectiveRuleSourceManaged
 }
 
 func stateFor(policy *isovalentv1alpha1.IsovalentWAFPolicy) policyState {

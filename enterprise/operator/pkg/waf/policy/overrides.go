@@ -22,8 +22,8 @@ func validateRuleOverrides(rules *isovalentv1alpha1.IsovalentWAFPolicyRules) err
 		return nil
 	}
 
-	if rules.Custom != nil && rules.Custom.Profile == nil && rules.Custom.Inline != "" {
-		return fmt.Errorf("spec.rules.overrides are not supported with standalone custom inline rules")
+	if rules.Profile == nil && rules.Inline != "" {
+		return fmt.Errorf("spec.rules.overrides are not supported with standalone inline rules")
 	}
 
 	for i, override := range rules.Overrides {

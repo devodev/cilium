@@ -126,31 +126,71 @@ spec:
                 type: string
               rules:
                 description: |-
-                  Rules selects either a managed WAF profile or a fully custom ruleset.
+                  Rules configures the WAF rule composition.
                   If omitted, the operator default managed WAF profile is used.
                 properties:
-                  custom:
-                    description: Custom provides a fully custom WAF ruleset.
+                  inline:
+                    description: |-
+                      Inline provides custom WAF directives directly in the resource.
+                      Multi-line values should be provided as a YAML block scalar.
+
+                      If profile is also specified, the inline directives are appended on top of
+                      the CRS-based profile configuration. Otherwise, the inline directives are
+                      used as the full ruleset.
+
+                      If provided, the field must not declare SecRuleEngine or Include.
+                      SecRuleEngine conflicts with spec.mode, and Include would make the custom
+                      ruleset depend on external files instead of being self-contained.
+                    minLength: 1
+                    type: string
+                  overrides:
+                    description: |-
+                      Overrides provides structured CRS rule tuning for profile-based configurations.
+
+                      Overrides apply to managed profiles, custom profiles, and the operator
+                      default managed profile when no explicit ruleset is selected. Overrides do
+                      not apply to standalone inline rules.
+                    items:
+                      properties:
+                        action:
+                          description: Action controls how the referenced rule should
+                            be tuned.
+                          enum:
+                          - Disable
+                          - ExcludeTarget
+                          type: string
+                        ruleID:
+                          description: RuleID identifies the CRS rule to tune.
+                          format: int64
+                          minimum: 1
+                          type: integer
+                        target:
+                          description: |-
+                            Target identifies the specific Coraza target to exclude from the rule,
+                            using variable syntax in the form COLLECTION:name, for example
+                            ARGS:note or REQUEST_HEADERS:User-Agent.
+                          type: string
+                      required:
+                      - action
+                      - ruleID
+                      type: object
+                      x-kubernetes-validations:
+                      - message: target must be specified for ExcludeTarget and must
+                          be omitted for Disable
+                        rule: (self.action == 'Disable' && (!has(self.target) || self.target
+                          == "")) || (self.action == 'ExcludeTarget' && has(self.target)
+                          && self.target != "")
+                    type: array
+                    x-kubernetes-list-type: atomic
+                  profile:
+                    description: |-
+                      Profile selects the CRS-based profile used as the base ruleset.
+                      If omitted and inline is not specified, the operator default managed WAF
+                      profile is used.
                     properties:
-                      inline:
-                        description: |-
-                          Inline provides custom WAF directives directly in the resource.
-                          Multi-line values should be provided as a YAML block scalar.
-
-                          If profile is also specified, the inline directives are appended on top of
-                          the CRS-based profile configuration. Otherwise, the inline directives are
-                          used as the full ruleset.
-
-                          If provided, the field must not declare SecRuleEngine or Include.
-                          SecRuleEngine conflicts with spec.mode, and Include would make the custom
-                          ruleset depend on external files instead of being self-contained.
-                        type: string
-                      profile:
-                        description: |-
-                          Profile provides explicit CRS tuning for this policy.
-
-                          If inline is also specified, the inline directives are appended on top of
-                          the CRS-based profile configuration.
+                      custom:
+                        description: Custom provides explicit CRS tuning for this
+                          policy.
                         properties:
                           blockingParanoiaLevel:
                             description: BlockingParanoiaLevel controls which CRS
@@ -188,75 +228,32 @@ spec:
                         - message: detectionParanoiaLevel must be greater than or
                             equal to blockingParanoiaLevel
                           rule: self.detectionParanoiaLevel >= self.blockingParanoiaLevel
+                      managed:
+                        description: Managed selects a built-in WAF profile shipped
+                          by the platform.
+                        properties:
+                          name:
+                            description: Name selects the built-in WAF profile to
+                              use.
+                            enum:
+                            - max_security
+                            - high_security
+                            - balanced
+                            - low_friction
+                            - min_friction
+                            type: string
+                        required:
+                        - name
+                        type: object
                     type: object
                     x-kubernetes-validations:
-                    - message: at least one of inline or profile must be specified
-                      rule: has(self.inline) || has(self.profile)
-                  managed:
-                    description: Managed selects the built-in WAF rules shipped by
-                      the platform.
-                    properties:
-                      profile:
-                        description: Profile selects the built-in WAF profile to use
-                          with managed rules.
-                        enum:
-                        - max_security
-                        - high_security
-                        - balanced
-                        - low_friction
-                        - min_friction
-                        type: string
-                    required:
-                    - profile
-                    type: object
-                  overrides:
-                    description: |-
-                      Overrides provides structured CRS rule tuning for profile-based configurations.
-
-                      Overrides apply to managed rules, custom profiles, and the operator
-                      default managed profile when no explicit ruleset is selected. Overrides do
-                      not apply to standalone inline rules.
-                    items:
-                      properties:
-                        action:
-                          description: Action controls how the referenced rule should
-                            be tuned.
-                          enum:
-                          - Disable
-                          - ExcludeTarget
-                          type: string
-                        ruleID:
-                          description: RuleID identifies the CRS rule to tune.
-                          format: int64
-                          minimum: 1
-                          type: integer
-                        target:
-                          description: |-
-                            Target identifies the specific Coraza target to exclude from the rule,
-                            using variable syntax in the form COLLECTION:name, for example
-                            ARGS:note or REQUEST_HEADERS:User-Agent.
-                          type: string
-                      required:
-                      - action
-                      - ruleID
-                      type: object
-                      x-kubernetes-validations:
-                      - message: target must be specified for ExcludeTarget and must
-                          be omitted for Disable
-                        rule: (self.action == 'Disable' && (!has(self.target) || self.target
-                          == "")) || (self.action == 'ExcludeTarget' && has(self.target)
-                          && self.target != "")
-                    type: array
-                    x-kubernetes-list-type: atomic
+                    - message: exactly one of managed or custom must be specified
+                      rule: has(self.managed) != has(self.custom)
                 type: object
                 x-kubernetes-validations:
-                - message: managed and custom must not both be specified
-                  rule: '!(has(self.managed) && has(self.custom))'
-                - message: overrides require managed rules, a custom profile, or the
-                    default managed profile; standalone custom inline rules are not
-                    supported
-                  rule: '!has(self.overrides) || size(self.overrides) == 0 || !has(self.custom)
-                    || has(self.custom.profile)'
+                - message: overrides require a CRS profile when inline rules are configured
+                  rule: '!has(self.overrides) || size(self.overrides) == 0 || !has(self.inline)
+                    || self.inline == "" || has(self.profile)'
               targets:
                 description: Targets defines the resources that this WAF policy should
                   apply to.

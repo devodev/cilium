@@ -140,7 +140,7 @@ func TestBlockRoute(t *testing.T) {
 			expected: &envoy_config_route_v3.Route{
 				Match: &envoy_config_route_v3.RouteMatch{
 					PathSpecifier: &envoy_config_route_v3.RouteMatch_Path{
-						Path: "/__waf_block__",
+						Path: wafBlockPath,
 					},
 				},
 				Action: &envoy_config_route_v3.Route_DirectResponse{
@@ -166,7 +166,7 @@ func TestBlockRoute(t *testing.T) {
 			expected: &envoy_config_route_v3.Route{
 				Match: &envoy_config_route_v3.RouteMatch{
 					PathSpecifier: &envoy_config_route_v3.RouteMatch_Path{
-						Path: "/__waf_block__",
+						Path: wafBlockPath,
 					},
 				},
 				Action: &envoy_config_route_v3.Route_DirectResponse{
@@ -198,7 +198,7 @@ func TestBlockRoute(t *testing.T) {
 			expected: &envoy_config_route_v3.Route{
 				Match: &envoy_config_route_v3.RouteMatch{
 					PathSpecifier: &envoy_config_route_v3.RouteMatch_Path{
-						Path: "/__waf_block__",
+						Path: wafBlockPath,
 					},
 				},
 				Action: &envoy_config_route_v3.Route_DirectResponse{
@@ -228,7 +228,7 @@ func TestBlockRoute(t *testing.T) {
 			expected: &envoy_config_route_v3.Route{
 				Match: &envoy_config_route_v3.RouteMatch{
 					PathSpecifier: &envoy_config_route_v3.RouteMatch_Path{
-						Path: "/__waf_block__",
+						Path: wafBlockPath,
 					},
 				},
 				Action: &envoy_config_route_v3.Route_DirectResponse{

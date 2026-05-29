@@ -84,7 +84,7 @@ func TestHashKey(t *testing.T) {
 func TestValidateCustomRules(t *testing.T) {
 	testCases := []struct {
 		name        string
-		rules       *isovalentv1alpha1.IsovalentWAFCustomRules
+		rules       *isovalentv1alpha1.IsovalentWAFPolicyRules
 		expectError string
 	}{
 		{
@@ -93,62 +93,66 @@ func TestValidateCustomRules(t *testing.T) {
 		},
 		{
 			name: "accepts profile only custom rules",
-			rules: &isovalentv1alpha1.IsovalentWAFCustomRules{
-				Profile: &isovalentv1alpha1.IsovalentWAFCustomProfile{
-					BlockingParanoiaLevel:         2,
-					DetectionParanoiaLevel:        3,
-					InboundAnomalyScoreThreshold:  7,
-					OutboundAnomalyScoreThreshold: 6,
+			rules: &isovalentv1alpha1.IsovalentWAFPolicyRules{
+				Profile: &isovalentv1alpha1.IsovalentWAFRuleProfile{
+					Custom: &isovalentv1alpha1.IsovalentWAFCustomProfile{
+						BlockingParanoiaLevel:         2,
+						DetectionParanoiaLevel:        3,
+						InboundAnomalyScoreThreshold:  7,
+						OutboundAnomalyScoreThreshold: 6,
+					},
 				},
 			},
 		},
 		{
 			name: "accepts valid inline rules",
-			rules: &isovalentv1alpha1.IsovalentWAFCustomRules{
+			rules: &isovalentv1alpha1.IsovalentWAFPolicyRules{
 				Inline: `SecAction "id:1000,phase:1,pass,nolog"` + "\r\n",
 			},
 		},
 		{
 			name: "accepts profile with valid inline rules",
-			rules: &isovalentv1alpha1.IsovalentWAFCustomRules{
-				Profile: &isovalentv1alpha1.IsovalentWAFCustomProfile{
-					BlockingParanoiaLevel:         2,
-					DetectionParanoiaLevel:        3,
-					InboundAnomalyScoreThreshold:  7,
-					OutboundAnomalyScoreThreshold: 6,
+			rules: &isovalentv1alpha1.IsovalentWAFPolicyRules{
+				Profile: &isovalentv1alpha1.IsovalentWAFRuleProfile{
+					Custom: &isovalentv1alpha1.IsovalentWAFCustomProfile{
+						BlockingParanoiaLevel:         2,
+						DetectionParanoiaLevel:        3,
+						InboundAnomalyScoreThreshold:  7,
+						OutboundAnomalyScoreThreshold: 6,
+					},
 				},
 				Inline: `SecAction "id:1000,phase:1,pass,nolog"` + "\r\n",
 			},
 		},
 		{
 			name:        "rejects inline rules that declare SecRuleEngine",
-			rules:       &isovalentv1alpha1.IsovalentWAFCustomRules{Inline: "SecRuleEngine DetectionOnly\r\n"},
+			rules:       &isovalentv1alpha1.IsovalentWAFPolicyRules{Inline: "SecRuleEngine DetectionOnly\r\n"},
 			expectError: "inline rules must not declare SecRuleEngine",
 		},
 		{
 			name:        "rejects inline rules that declare Include",
-			rules:       &isovalentv1alpha1.IsovalentWAFCustomRules{Inline: "Include @crs-setup.conf.example\r\n"},
+			rules:       &isovalentv1alpha1.IsovalentWAFPolicyRules{Inline: "Include @crs-setup.conf.example\r\n"},
 			expectError: "inline rules must not declare Include",
 		},
 		{
 			name:        "rejects syntactically invalid inline rules",
-			rules:       &isovalentv1alpha1.IsovalentWAFCustomRules{Inline: `SecRule REQUEST_URI "@rx (" "id:1000,phase:1,deny"`},
+			rules:       &isovalentv1alpha1.IsovalentWAFPolicyRules{Inline: `SecRule REQUEST_URI "@rx (" "id:1000,phase:1,deny"`},
 			expectError: "effective WAF rule validation failed",
 		},
 		{
 			name:        "rejects whitespace only inline rules",
-			rules:       &isovalentv1alpha1.IsovalentWAFCustomRules{Inline: "\r\n\t  \r\n"},
-			expectError: "spec.rules.custom.inline must not be empty",
+			rules:       &isovalentv1alpha1.IsovalentWAFPolicyRules{Inline: "\r\n\t  \r\n"},
+			expectError: "spec.rules.inline must not be empty",
 		},
 		{
 			name:        "rejects comment only inline rules",
-			rules:       &isovalentv1alpha1.IsovalentWAFCustomRules{Inline: "# comment only"},
-			expectError: "spec.rules.custom.inline must not be empty",
+			rules:       &isovalentv1alpha1.IsovalentWAFPolicyRules{Inline: "# comment only"},
+			expectError: "spec.rules.inline must not be empty",
 		},
 		{
 			name:        "rejects blank and comment only inline rules",
-			rules:       &isovalentv1alpha1.IsovalentWAFCustomRules{Inline: "\n\t# comment only\r\n\n# another comment"},
-			expectError: "spec.rules.custom.inline must not be empty",
+			rules:       &isovalentv1alpha1.IsovalentWAFPolicyRules{Inline: "\n\t# comment only\r\n\n# another comment"},
+			expectError: "spec.rules.inline must not be empty",
 		},
 	}
 
@@ -188,22 +192,22 @@ func TestBuildInlineRules(t *testing.T) {
 		{
 			name:        "rejects empty inline rules",
 			config:      "",
-			expectError: "spec.rules.custom.inline must not be empty",
+			expectError: "spec.rules.inline must not be empty",
 		},
 		{
 			name:        "rejects whitespace only inline rules",
 			config:      "\r\n\t  \r\n",
-			expectError: "spec.rules.custom.inline must not be empty",
+			expectError: "spec.rules.inline must not be empty",
 		},
 		{
 			name:        "rejects comment only inline rules",
 			config:      "# comment only",
-			expectError: "spec.rules.custom.inline must not be empty",
+			expectError: "spec.rules.inline must not be empty",
 		},
 		{
 			name:        "rejects blank and comment only inline rules",
 			config:      "\n\t# comment only\r\n\n# another comment",
-			expectError: "spec.rules.custom.inline must not be empty",
+			expectError: "spec.rules.inline must not be empty",
 		},
 	}
 

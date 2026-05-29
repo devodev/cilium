@@ -29,7 +29,7 @@ type InlineRules struct {
 	HashKey string
 }
 
-func ValidateCustomRules(rules *isovalentv1alpha1.IsovalentWAFCustomRules) error {
+func ValidateCustomRules(rules *isovalentv1alpha1.IsovalentWAFPolicyRules) error {
 	if rules == nil || rules.Inline == "" {
 		return nil
 	}
@@ -63,14 +63,14 @@ func BuildInlineRules(inline string) (InlineRules, error) {
 func parseDirectives(inline string) (string, error) {
 	directives := normalize(inline)
 	if directives == "" {
-		return "", fmt.Errorf("spec.rules.custom.inline must not be empty")
+		return "", fmt.Errorf("spec.rules.inline must not be empty")
 	}
 	hasDirective, err := inspectDirective(directives)
 	if err != nil {
 		return "", err
 	}
 	if !hasDirective {
-		return "", fmt.Errorf("spec.rules.custom.inline must not be empty")
+		return "", fmt.Errorf("spec.rules.inline must not be empty")
 	}
 	return directives, nil
 }

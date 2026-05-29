@@ -62,7 +62,7 @@ type IsovalentWAFPolicySpec struct {
 	// +kubebuilder:validation:Optional
 	FailureMode *WAFFailureModeType `json:"failureMode,omitempty"`
 
-	// Rules selects either a managed WAF profile or a fully custom ruleset.
+	// Rules configures the WAF rule composition.
 	// If omitted, the operator default managed WAF profile is used.
 	//
 	// +kubebuilder:validation:Optional
@@ -94,22 +94,33 @@ type IsovalentWAFPolicyTarget struct {
 	LabelSelector *slim_metav1.LabelSelector `json:"labelSelector,omitempty"`
 }
 
-// +kubebuilder:validation:XValidation:message="managed and custom must not both be specified",rule="!(has(self.managed) && has(self.custom))"
-// +kubebuilder:validation:XValidation:message="overrides require managed rules, a custom profile, or the default managed profile; standalone custom inline rules are not supported",rule="!has(self.overrides) || size(self.overrides) == 0 || !has(self.custom) || has(self.custom.profile)"
+// +kubebuilder:validation:XValidation:message="overrides require a CRS profile when inline rules are configured",rule="!has(self.overrides) || size(self.overrides) == 0 || !has(self.inline) || self.inline == \"\" || has(self.profile)"
 type IsovalentWAFPolicyRules struct {
-	// Managed selects the built-in WAF rules shipped by the platform.
+	// Profile selects the CRS-based profile used as the base ruleset.
+	// If omitted and inline is not specified, the operator default managed WAF
+	// profile is used.
 	//
 	// +kubebuilder:validation:Optional
-	Managed *IsovalentWAFManagedRules `json:"managed,omitempty"`
+	Profile *IsovalentWAFRuleProfile `json:"profile,omitempty"`
 
-	// Custom provides a fully custom WAF ruleset.
+	// Inline provides custom WAF directives directly in the resource.
+	// Multi-line values should be provided as a YAML block scalar.
+	//
+	// If profile is also specified, the inline directives are appended on top of
+	// the CRS-based profile configuration. Otherwise, the inline directives are
+	// used as the full ruleset.
+	//
+	// If provided, the field must not declare SecRuleEngine or Include.
+	// SecRuleEngine conflicts with spec.mode, and Include would make the custom
+	// ruleset depend on external files instead of being self-contained.
 	//
 	// +kubebuilder:validation:Optional
-	Custom *IsovalentWAFCustomRules `json:"custom,omitempty"`
+	// +kubebuilder:validation:MinLength=1
+	Inline string `json:"inline,omitempty"`
 
 	// Overrides provides structured CRS rule tuning for profile-based configurations.
 	//
-	// Overrides apply to managed rules, custom profiles, and the operator
+	// Overrides apply to managed profiles, custom profiles, and the operator
 	// default managed profile when no explicit ruleset is selected. Overrides do
 	// not apply to standalone inline rules.
 	//
@@ -118,11 +129,24 @@ type IsovalentWAFPolicyRules struct {
 	Overrides []IsovalentWAFRuleOverride `json:"overrides,omitempty"`
 }
 
-type IsovalentWAFManagedRules struct {
-	// Profile selects the built-in WAF profile to use with managed rules.
+// +kubebuilder:validation:XValidation:message="exactly one of managed or custom must be specified",rule="has(self.managed) != has(self.custom)"
+type IsovalentWAFRuleProfile struct {
+	// Managed selects a built-in WAF profile shipped by the platform.
+	//
+	// +kubebuilder:validation:Optional
+	Managed *IsovalentWAFManagedProfile `json:"managed,omitempty"`
+
+	// Custom provides explicit CRS tuning for this policy.
+	//
+	// +kubebuilder:validation:Optional
+	Custom *IsovalentWAFCustomProfile `json:"custom,omitempty"`
+}
+
+type IsovalentWAFManagedProfile struct {
+	// Name selects the built-in WAF profile to use.
 	//
 	// +kubebuilder:validation:Required
-	Profile IsovalentWAFPolicyProfileType `json:"profile"`
+	Name IsovalentWAFPolicyProfileType `json:"name"`
 }
 
 // +kubebuilder:validation:XValidation:message="target must be specified for ExcludeTarget and must be omitted for Disable",rule="(self.action == 'Disable' && (!has(self.target) || self.target == \"\")) || (self.action == 'ExcludeTarget' && has(self.target) && self.target != \"\")"
@@ -194,31 +218,6 @@ type IsovalentWAFBlockResponse struct {
 	//
 	// +kubebuilder:validation:Optional
 	Body *string `json:"body,omitempty"`
-}
-
-// +kubebuilder:validation:XValidation:message="at least one of inline or profile must be specified",rule="has(self.inline) || has(self.profile)"
-type IsovalentWAFCustomRules struct {
-	// Inline provides custom WAF directives directly in the resource.
-	// Multi-line values should be provided as a YAML block scalar.
-	//
-	// If profile is also specified, the inline directives are appended on top of
-	// the CRS-based profile configuration. Otherwise, the inline directives are
-	// used as the full ruleset.
-	//
-	// If provided, the field must not declare SecRuleEngine or Include.
-	// SecRuleEngine conflicts with spec.mode, and Include would make the custom
-	// ruleset depend on external files instead of being self-contained.
-	//
-	// +kubebuilder:validation:Optional
-	Inline string `json:"inline,omitempty"`
-
-	// Profile provides explicit CRS tuning for this policy.
-	//
-	// If inline is also specified, the inline directives are appended on top of
-	// the CRS-based profile configuration.
-	//
-	// +kubebuilder:validation:Optional
-	Profile *IsovalentWAFCustomProfile `json:"profile,omitempty"`
 }
 
 // +kubebuilder:validation:XValidation:message="detectionParanoiaLevel must be greater than or equal to blockingParanoiaLevel",rule="self.detectionParanoiaLevel >= self.blockingParanoiaLevel"
@@ -450,14 +449,9 @@ func (in *IsovalentWAFPolicyTarget) DeepCopy() *IsovalentWAFPolicyTarget {
 
 func (in *IsovalentWAFPolicyRules) DeepCopyInto(out *IsovalentWAFPolicyRules) {
 	*out = *in
-	if in.Managed != nil {
-		in, out := &in.Managed, &out.Managed
-		*out = new(IsovalentWAFManagedRules)
-		(*in).DeepCopyInto(*out)
-	}
-	if in.Custom != nil {
-		in, out := &in.Custom, &out.Custom
-		*out = new(IsovalentWAFCustomRules)
+	if in.Profile != nil {
+		in, out := &in.Profile, &out.Profile
+		*out = new(IsovalentWAFRuleProfile)
 		(*in).DeepCopyInto(*out)
 	}
 	if in.Overrides != nil {
@@ -476,33 +470,38 @@ func (in *IsovalentWAFPolicyRules) DeepCopy() *IsovalentWAFPolicyRules {
 	return out
 }
 
-func (in *IsovalentWAFManagedRules) DeepCopyInto(out *IsovalentWAFManagedRules) {
+func (in *IsovalentWAFRuleProfile) DeepCopyInto(out *IsovalentWAFRuleProfile) {
 	*out = *in
-}
-
-func (in *IsovalentWAFManagedRules) DeepCopy() *IsovalentWAFManagedRules {
-	if in == nil {
-		return nil
+	if in.Managed != nil {
+		in, out := &in.Managed, &out.Managed
+		*out = new(IsovalentWAFManagedProfile)
+		**out = **in
 	}
-	out := new(IsovalentWAFManagedRules)
-	in.DeepCopyInto(out)
-	return out
-}
-
-func (in *IsovalentWAFCustomRules) DeepCopyInto(out *IsovalentWAFCustomRules) {
-	*out = *in
-	if in.Profile != nil {
-		in, out := &in.Profile, &out.Profile
+	if in.Custom != nil {
+		in, out := &in.Custom, &out.Custom
 		*out = new(IsovalentWAFCustomProfile)
 		**out = **in
 	}
 }
 
-func (in *IsovalentWAFCustomRules) DeepCopy() *IsovalentWAFCustomRules {
+func (in *IsovalentWAFRuleProfile) DeepCopy() *IsovalentWAFRuleProfile {
 	if in == nil {
 		return nil
 	}
-	out := new(IsovalentWAFCustomRules)
+	out := new(IsovalentWAFRuleProfile)
+	in.DeepCopyInto(out)
+	return out
+}
+
+func (in *IsovalentWAFManagedProfile) DeepCopyInto(out *IsovalentWAFManagedProfile) {
+	*out = *in
+}
+
+func (in *IsovalentWAFManagedProfile) DeepCopy() *IsovalentWAFManagedProfile {
+	if in == nil {
+		return nil
+	}
+	out := new(IsovalentWAFManagedProfile)
 	in.DeepCopyInto(out)
 	return out
 }

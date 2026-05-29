@@ -122,6 +122,9 @@ func directivesForManagedProfile(rules policy.EffectiveRules) (string, error) {
 	if overrides != "" {
 		directives = append(directives, overrides)
 	}
+	if rules.Inline.Inline != "" {
+		directives = append(directives, rules.Inline.Inline)
+	}
 	return strings.Join(directives, "\n"), nil
 }
 
