@@ -313,7 +313,7 @@ func (na *nodeAttachments) reconcileNodeSelector() {
 							return err
 						}
 
-						for _, conflict := range na.getAttachmentConflicts(txn, attach, nil) {
+						for _, conflict := range na.getAttachmentConflicts(txn, toUpdate, nil) {
 							conflict.OpsStatus = reconciler.StatusPending()
 							_, _, err := na.tbl.Insert(txn, conflict)
 							if err != nil {

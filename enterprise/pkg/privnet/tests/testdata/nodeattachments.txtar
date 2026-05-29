@@ -85,6 +85,27 @@ k8s/update pnna-same-interface.v2.yaml
 db/cmp privnet-node-attachments node-attachments.v8.table
 db/cmp test-privnet-desired-devices desired-devices.v8.table
 
+k8s/delete pnna-same-interface.v2.yaml
+
+# Two node attachments sharing the same interface, both selected via node selector.
+# Should show a conflict.
+k8s/add pnna-conflict-a.yaml pnna-conflict-b.yaml
+db/cmp privnet-node-attachments node-attachments.v9.table
+
+# Change the node label so neither is selected. The conflict should clear.
+db/get local-node --index local true -f yaml -o local-node.yaml
+replace 'node: node1' 'node: mismatch' local-node.yaml
+db/insert local-node local-node.yaml
+db/cmp privnet-node-attachments node-attachments.v10.table
+
+# Restore the label so both are selected again and the conflict re-appears.
+db/get local-node --index local true -f yaml -o local-node.yaml
+replace 'node: mismatch' 'node: node1' local-node.yaml
+db/insert local-node local-node.yaml
+db/cmp privnet-node-attachments node-attachments.v9.table
+
+k8s/delete pnna-conflict-a.yaml pnna-conflict-b.yaml
+
 hive/stop
 
 -- device.eth1.yaml --
@@ -240,3 +261,53 @@ privnet-node-attachments eth1.10     Type=vlan, ParentDevice=eth1, VLAN=10
 privnet-node-attachments eth1.20     Type=vlan, ParentDevice=eth1, VLAN=20
 privnet-node-attachments eth2.100    Type=vlan, ParentDevice=eth2, VLAN=100
 privnet-node-attachments eth2.201    Type=vlan, ParentDevice=eth2, VLAN=201
+
+-- pnna-conflict-a.yaml --
+apiVersion: isovalent.com/v1alpha1
+kind: PrivateNetworkNodeAttachment
+metadata:
+  name: pnna-conflict-a
+spec:
+  privateNetworkRef:
+    name: network-6
+  nodeSelector:
+    matchLabels:
+      node: node1
+  attachments:
+    - interface: eth1
+      vlanID: 30
+      subnetRefs:
+        - name: subnet-1
+
+-- pnna-conflict-b.yaml --
+apiVersion: isovalent.com/v1alpha1
+kind: PrivateNetworkNodeAttachment
+metadata:
+  name: pnna-conflict-b
+spec:
+  privateNetworkRef:
+    name: network-7
+  nodeSelector:
+    matchLabels:
+      node: node1
+  attachments:
+    - interface: eth1
+      vlanID: 30
+      subnetRefs:
+        - name: subnet-1
+
+-- node-attachments.v9.table --
+Interface    Type              Config                  NodeSelected     Network     Subnets  Conflict
+eth1.30 (!)  cilium-managed    parent: eth1, VLAN: 30  true             network-6   subnet-1 device-overlap
+eth1.30 (!)  cilium-managed    parent: eth1, VLAN: 30  true             network-7   subnet-1 device-overlap
+eth1 (10)    user-managed      N/A                     true             network-1   subnet-1 none
+eth1.10 (!)  cilium-managed    parent: eth1, VLAN: 10  true             network-2   subnet-2 none
+eth1.20 (!)  cilium-managed    parent: eth1, VLAN: 20  true             network-3   subnet-2 none
+
+-- node-attachments.v10.table --
+Interface    Type              Config                  NodeSelected      Network     Subnets  Conflict
+eth1.30 (!)  cilium-managed    parent: eth1, VLAN: 30  false             network-6   subnet-1 none
+eth1.30 (!)  cilium-managed    parent: eth1, VLAN: 30  false             network-7   subnet-1 none
+eth1 (10)    user-managed      N/A                     true              network-1   subnet-1 none
+eth1.10 (!)  cilium-managed    parent: eth1, VLAN: 10  false             network-2   subnet-2 none
+eth1.20 (!)  cilium-managed    parent: eth1, VLAN: 20  false             network-3   subnet-2 none
