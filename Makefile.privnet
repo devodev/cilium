@@ -418,17 +418,17 @@ endef
 
 .PHONY: kind-privnet-deploy-external-endpoints
 kind-privnet-deploy-external-endpoints: kind-privnet-test-namespace  ## Create the PrivateNetworkExternalEndpoint resources representing fake VMs
-	$(call privnet_inb_extep,"privnet-vm-net-a1","network-a","kind-privnet-inb0")
-	$(call privnet_inb_extep,"privnet-vm-net-a2","network-a","kind-privnet-inb0")
-	$(call privnet_inb_extep,"privnet-vm-net-b1","network-b","kind-privnet-inb0")
-	$(call privnet_inb_extep,"privnet-vm-net-b2","network-b","kind-privnet-inb0")
+	$(call privnet_inb_extep,"privnet-vm-network-a1","network-a","kind-privnet-inb0")
+	$(call privnet_inb_extep,"privnet-vm-network-a2","network-a","kind-privnet-inb0")
+	$(call privnet_inb_extep,"privnet-vm-network-b1","network-b","kind-privnet-inb0")
+	$(call privnet_inb_extep,"privnet-vm-network-b2","network-b","kind-privnet-inb0")
 
-	$(call privnet_inb_extep,"privnet-vm-net-a1","network-a","kind-privnet-inb1")
-	$(call privnet_inb_extep,"privnet-vm-net-a2","network-a","kind-privnet-inb1")
-	$(call privnet_inb_extep,"privnet-vm-net-b1","network-b","kind-privnet-inb1")
-	$(call privnet_inb_extep,"privnet-vm-net-b2","network-b","kind-privnet-inb1")
-	$(call privnet_inb_extep,"privnet-vm-net-c1","network-c","kind-privnet-inb1")
-	$(call privnet_inb_extep,"privnet-vm-net-d1","network-d","kind-privnet-inb1")
+	$(call privnet_inb_extep,"privnet-vm-network-a1","network-a","kind-privnet-inb1")
+	$(call privnet_inb_extep,"privnet-vm-network-a2","network-a","kind-privnet-inb1")
+	$(call privnet_inb_extep,"privnet-vm-network-b1","network-b","kind-privnet-inb1")
+	$(call privnet_inb_extep,"privnet-vm-network-b2","network-b","kind-privnet-inb1")
+	$(call privnet_inb_extep,"privnet-vm-network-c1","network-c","kind-privnet-inb1")
+	$(call privnet_inb_extep,"privnet-vm-network-d1","network-d","kind-privnet-inb1")
 
 define kind_privnet_test_run_load_image
 	$(call privnet_pull_image,$(1))

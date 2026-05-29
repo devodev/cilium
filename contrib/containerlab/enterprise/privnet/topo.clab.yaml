@@ -39,17 +39,17 @@ topology:
   nodes:
     # Private Networks Bridge
     # VLANs:
-    # - net-a:  10  --- 192.168.250.0/24, fd10:0:250::0/64
-    # - net-b:  11  --- 192.168.251.0/24, fd10:0:251::0/64
-    # - net-b2: 11  --- 192.168.253.0/24, fd10:0:253::0/64
-    # - net-c:  12  --- 192.168.252.0/24, fd10:0:252::0/64
-    # - net-d:  13  --- 192.168.252.0/24, fd10:0:252::0/64
+    # - network-a:  10  --- 192.168.250.0/24, fd10:0:250::0/64
+    # - network-b:  11  --- 192.168.251.0/24, fd10:0:251::0/64
+    # - network-b2: 11  --- 192.168.253.0/24, fd10:0:253::0/64
+    # - network-c:  12  --- 192.168.252.0/24, fd10:0:252::0/64
+    # - network-d:  13  --- 192.168.252.0/24, fd10:0:252::0/64
     ${PRIVNET_BRIDGE:-privnet-sgmnts}:
       kind: bridge
 
-    # Private Network local bridge connected to cluster
+    # Private Network local access connected to cluster
     # VLANs:
-    # - eth1.10 --- 192.168.10.0/24, fd10:0:10::/64
+    # - network-e: 10 --- 192.168.10.0/24, fd10:0:10::/64
     ${LOCAL_BRIDGE:-local-sgmnts}:
       kind: bridge
 
@@ -209,7 +209,7 @@ topology:
 
 
     # Fake VMs --- net-a segment
-    vm-net-a1:
+    vm-network-a1:
       kind: linux
       group: vms
       env:
@@ -241,7 +241,7 @@ topology:
             target: host
             phase: on-enter
 
-    vm-net-a2:
+    vm-network-a2:
       kind: linux
       group: vms
       env:
@@ -269,7 +269,7 @@ topology:
             target: host
             phase: on-enter
 
-    dhcp-net-a:
+    dhcp-network-a:
       kind: linux
       group: vms
       image: ${PRIVNET_DNSMASQ_IMAGE}
@@ -296,7 +296,7 @@ topology:
             phase: on-enter
 
     # Fake VMs --- net-b segment
-    vm-net-b1:
+    vm-network-b1:
       kind: linux
       group: vms
       env:
@@ -321,7 +321,7 @@ topology:
           - command: ${BRIDGE:-/sbin/bridge} vlan add dev bpn-net-b1 vid 11 pvid untagged
             target: host
             phase: on-enter
-    vm-net-b2:
+    vm-network-b2:
       kind: linux
       group: vms
       env:
@@ -347,7 +347,7 @@ topology:
             target: host
             phase: on-enter
 
-    dhcp-net-b:
+    dhcp-network-b:
       kind: linux
       group: vms
       image: ${PRIVNET_DNSMASQ_IMAGE}
@@ -374,7 +374,7 @@ topology:
             phase: on-enter
 
     # Fake VMs --- net-c segment
-    vm-net-c1:
+    vm-network-c1:
       kind: linux
       group: vms
       env:
@@ -407,7 +407,7 @@ topology:
             phase: on-enter
 
     # Fake VMs --- net-d segment
-    vm-net-d1:
+    vm-network-d1:
       kind: linux
       group: vms
       env:
@@ -440,7 +440,7 @@ topology:
             phase: on-enter
 
     # Fake VMs --- net-e segment
-    dhcp-net-e:
+    dhcp-network-e:
       kind: linux
       group: vms
       env:
@@ -468,7 +468,7 @@ topology:
             target: host
             phase: on-enter
 
-    vm-net-e1:
+    vm-network-e1:
       kind: linux
       group: vms
       env:
@@ -494,7 +494,7 @@ topology:
               target: host
               phase: on-enter
 
-    vm-net-e2:
+    vm-network-e2:
       kind: linux
       group: vms
       env:
@@ -531,7 +531,7 @@ topology:
         CILIUM_PRIVNET_PORT: 8000
 
     # Routers
-    router-net-abc:
+    router-network-abc:
       kind: linux
       group: routers
       exec:
@@ -565,7 +565,7 @@ topology:
             target: host
             phase: on-enter
 
-    router-net-d:
+    router-network-d:
       kind: linux
       group: routers
       exec:
@@ -587,7 +587,7 @@ topology:
             target: host
             phase: on-enter
 
-    router-net-e:
+    router-network-e:
       kind: linux
       group: routers
       exec:
@@ -613,46 +613,46 @@ topology:
   links:
   - endpoints: ["${PRIVNET_BRIDGE:-privnet-sgmnts}:bpn-net-a0", "privnet-inb0-control-plane:ethA"]
     mtu: 1500
-  - endpoints: ["${PRIVNET_BRIDGE:-privnet-sgmnts}:bpn-net-a1", "vm-net-a1:eth0"]
+  - endpoints: ["${PRIVNET_BRIDGE:-privnet-sgmnts}:bpn-net-a1", "vm-network-a1:eth0"]
     mtu: 1500
-  - endpoints: ["${PRIVNET_BRIDGE:-privnet-sgmnts}:bpn-net-a2", "vm-net-a2:eth0"]
+  - endpoints: ["${PRIVNET_BRIDGE:-privnet-sgmnts}:bpn-net-a2", "vm-network-a2:eth0"]
     mtu: 1500
-  - endpoints: ["${PRIVNET_BRIDGE:-privnet-sgmnts}:bpn-net-a3", "dhcp-net-a:eth0"]
+  - endpoints: ["${PRIVNET_BRIDGE:-privnet-sgmnts}:bpn-net-a3", "dhcp-network-a:eth0"]
     mtu: 1500
-  - endpoints: ["${PRIVNET_BRIDGE:-privnet-sgmnts}:bpn-net-a9", "router-net-abc:ethA"]
+  - endpoints: ["${PRIVNET_BRIDGE:-privnet-sgmnts}:bpn-net-a9", "router-network-abc:ethA"]
     mtu: 1500
 
   - endpoints: ["${PRIVNET_BRIDGE:-privnet-sgmnts}:bpn-net-b0", "privnet-inb0-control-plane:ethB"]
     mtu: 1500
-  - endpoints: ["${PRIVNET_BRIDGE:-privnet-sgmnts}:bpn-net-b1", "vm-net-b1:eth0"]
+  - endpoints: ["${PRIVNET_BRIDGE:-privnet-sgmnts}:bpn-net-b1", "vm-network-b1:eth0"]
     mtu: 1500
-  - endpoints: ["${PRIVNET_BRIDGE:-privnet-sgmnts}:bpn-net-b2", "vm-net-b2:eth0"]
+  - endpoints: ["${PRIVNET_BRIDGE:-privnet-sgmnts}:bpn-net-b2", "vm-network-b2:eth0"]
     mtu: 1500
-  - endpoints: ["${PRIVNET_BRIDGE:-privnet-sgmnts}:bpn-net-b3", "dhcp-net-b:eth0"]
+  - endpoints: ["${PRIVNET_BRIDGE:-privnet-sgmnts}:bpn-net-b3", "dhcp-network-b:eth0"]
     mtu: 1500
-  - endpoints: ["${PRIVNET_BRIDGE:-privnet-sgmnts}:bpn-net-b9", "router-net-abc:ethB"]
-    mtu: 1500
-
-  - endpoints: ["${PRIVNET_BRIDGE:-privnet-sgmnts}:bpn-net-c1", "vm-net-c1:eth0"]
-    mtu: 1500
-  - endpoints: ["${PRIVNET_BRIDGE:-privnet-sgmnts}:bpn-net-c9", "router-net-abc:ethC"]
+  - endpoints: ["${PRIVNET_BRIDGE:-privnet-sgmnts}:bpn-net-b9", "router-network-abc:ethB"]
     mtu: 1500
 
-  - endpoints: ["${PRIVNET_BRIDGE:-privnet-sgmnts}:bpn-net-d1", "vm-net-d1:eth0"]
+  - endpoints: ["${PRIVNET_BRIDGE:-privnet-sgmnts}:bpn-net-c1", "vm-network-c1:eth0"]
     mtu: 1500
-  - endpoints: ["${PRIVNET_BRIDGE:-privnet-sgmnts}:bpn-net-d9", "router-net-d:ethD"]
+  - endpoints: ["${PRIVNET_BRIDGE:-privnet-sgmnts}:bpn-net-c9", "router-network-abc:ethC"]
+    mtu: 1500
+
+  - endpoints: ["${PRIVNET_BRIDGE:-privnet-sgmnts}:bpn-net-d1", "vm-network-d1:eth0"]
+    mtu: 1500
+  - endpoints: ["${PRIVNET_BRIDGE:-privnet-sgmnts}:bpn-net-d9", "router-network-d:ethD"]
     mtu: 1500
 
   # Trunk interface
   - endpoints: ["${PRIVNET_BRIDGE:-privnet-sgmnts}:bpn-net-abcd0", "privnet-inb1-control-plane:eth1"]
     mtu: 1500
 
-  # Local breakout
-  - endpoints: ["${LOCAL_BRIDGE:-local-sgmnts}:lpn-net-e10", "dhcp-net-e:eth0" ]
+  # Local access
+  - endpoints: ["${LOCAL_BRIDGE:-local-sgmnts}:lpn-net-e10", "dhcp-network-e:eth0" ]
     mtu: 1500
-  - endpoints: ["${LOCAL_BRIDGE:-local-sgmnts}:lpn-net-e11", "vm-net-e1:eth0" ]
+  - endpoints: ["${LOCAL_BRIDGE:-local-sgmnts}:lpn-net-e11", "vm-network-e1:eth0" ]
     mtu: 1500
-  - endpoints: ["${LOCAL_BRIDGE:-local-sgmnts}:lpn-net-e12", "vm-net-e2:eth0" ]
+  - endpoints: ["${LOCAL_BRIDGE:-local-sgmnts}:lpn-net-e12", "vm-network-e2:eth0" ]
     mtu: 1500
   - endpoints: ["${LOCAL_BRIDGE:-local-sgmnts}:lpn-net-e0", "privnet-cluster-control-plane:eth1"]
     mtu: 1500
@@ -660,7 +660,7 @@ topology:
     mtu: 1500
   - endpoints: ["${LOCAL_BRIDGE:-local-sgmnts}:lpn-net-e2", "privnet-cluster-worker2:eth1"]
     mtu: 1500
-  - endpoints: ["${LOCAL_BRIDGE:-local-sgmnts}:lpn-net-e9", "router-net-e:ethE"]
+  - endpoints: ["${LOCAL_BRIDGE:-local-sgmnts}:lpn-net-e9", "router-network-e:ethE"]
     mtu: 1500
 
   # CP/DP separation

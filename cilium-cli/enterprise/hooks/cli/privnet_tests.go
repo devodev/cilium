@@ -118,11 +118,11 @@ func newCmdPrivNetTest() *cobra.Command {
 			externalIPTarget := params.ExternalIPTarget
 
 			// Network E: local-access network (VLAN-attached, no INB).
-			vmClientDHCPE := t.VM(privnet.NetworkE, "client-dhcp-network-e")
+			vmClientDHCPE := t.VM(privnet.NetworkE, privnet.DHCPVM(privnet.NetworkE))
 			vmEchoE := t.VM(privnet.NetworkE, privnet.EchoVM(privnet.NetworkE))
 			vmEchoOtherE := t.VM(privnet.NetworkE, privnet.EchoOtherVM(privnet.NetworkE))
-			vmUnknownE1 := t.UnknownVM(privnet.NetworkE, "privnet-vm-net-e1")
-			vmUnknownE2 := t.UnknownVM(privnet.NetworkE, "privnet-vm-net-e2")
+			vmUnknownE1 := t.UnknownVM(privnet.NetworkE, privnet.FakeVM(privnet.NetworkE).WithID(1))
+			vmUnknownE2 := t.UnknownVM(privnet.NetworkE, privnet.FakeVM(privnet.NetworkE).WithID(2))
 
 			// DHCP validation for network-a and network-b via inb0.
 			for idx, net := range []privnet.NetworkName{privnet.NetworkB, privnet.NetworkA} {
@@ -170,8 +170,8 @@ func newCmdPrivNetTest() *cobra.Command {
 
 			// Test multi subnet privnet communication
 			vmClientB2 := t.VM(privnet.NetworkB, privnet.ClientVM(privnet.NetworkB)+"-2")
-			vmEchoExtB1 := t.ExternalVM(privnet.NetworkB, "privnet-vm-net-b1")
-			vmEchoExtB2 := t.ExternalVM(privnet.NetworkB, "privnet-vm-net-b2")
+			vmEchoExtB1 := t.ExternalVM(privnet.NetworkB, privnet.FakeVM(privnet.NetworkB).WithID(1))
+			vmEchoExtB2 := t.ExternalVM(privnet.NetworkB, privnet.FakeVM(privnet.NetworkB).WithID(2))
 
 			// Network B subnet-2 has default route via the INB, which can exit to the world.
 			t.Run(ctx, privnet.NewClientToWorld(t, vmClientB2, externalTarget), privnet.ExpectationOK)
@@ -196,7 +196,7 @@ func newCmdPrivNetTest() *cobra.Command {
 
 			// A list of extEPs that are not reachable from the client VM
 			ignoreExternal := []string{
-				"privnet-vm-net-b2",
+				privnet.FakeVM(privnet.NetworkB).WithID(2).String(),
 			}
 
 			// Test access to external endpoints and unknown VMs
@@ -226,16 +226,16 @@ func newCmdPrivNetTest() *cobra.Command {
 			t.Run(ctx, privnet.NewClientToWorld(t, vmClientDHCPE, externalTarget), privnet.ExpectationOK)
 
 			// Policy tests using specific external and unknown VMs
-			vmExtA1 := t.ExternalVM(privnet.NetworkA, "privnet-vm-net-a1")
-			vmExtA2 := t.ExternalVM(privnet.NetworkA, "privnet-vm-net-a2")
-			vmExtB1 := t.ExternalVM(privnet.NetworkB, "privnet-vm-net-b1")
-			vmExtC1 := t.ExternalVM(privnet.NetworkC, "privnet-vm-net-c1")
+			vmExtA1 := t.ExternalVM(privnet.NetworkA, privnet.FakeVM(privnet.NetworkA).WithID(1))
+			vmExtA2 := t.ExternalVM(privnet.NetworkA, privnet.FakeVM(privnet.NetworkA).WithID(2))
+			vmExtB1 := t.ExternalVM(privnet.NetworkB, privnet.FakeVM(privnet.NetworkB).WithID(1))
+			vmExtC1 := t.ExternalVM(privnet.NetworkC, privnet.FakeVM(privnet.NetworkC).WithID(1))
 
-			vmUnknownA1 := t.UnknownVM(privnet.NetworkA, "privnet-vm-net-a1") // using alt interface
-			vmUnknownA2 := t.UnknownVM(privnet.NetworkA, "privnet-vm-net-c1") // using router
-			vmUnknownC1 := t.UnknownVM(privnet.NetworkC, "privnet-vm-net-a1") // using router
-			vmUnknownC2 := t.UnknownVM(privnet.NetworkC, "privnet-vm-net-c1") // using alt interface
-			vmUnknownD1 := t.UnknownVM(privnet.NetworkD, "privnet-vm-net-d1") // using alt interface
+			vmUnknownA1 := t.UnknownVM(privnet.NetworkA, privnet.FakeVM(privnet.NetworkA).WithID(1)) // using alt interface
+			vmUnknownA2 := t.UnknownVM(privnet.NetworkA, privnet.FakeVM(privnet.NetworkC).WithID(1)) // using router
+			vmUnknownC1 := t.UnknownVM(privnet.NetworkC, privnet.FakeVM(privnet.NetworkA).WithID(1)) // using router
+			vmUnknownC2 := t.UnknownVM(privnet.NetworkC, privnet.FakeVM(privnet.NetworkC).WithID(1)) // using alt interface
+			vmUnknownD1 := t.UnknownVM(privnet.NetworkD, privnet.FakeVM(privnet.NetworkD).WithID(1)) // using alt interface
 
 			//
 			// Network A

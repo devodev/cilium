@@ -61,6 +61,10 @@ func (n VMName) ForInterface(ifname string) VMName {
 	return VMName(fmt.Sprintf("%s-%s", n, ifname))
 }
 
+func (n VMName) WithID(id int) VMName {
+	return VMName(fmt.Sprintf("%s%d", n, id))
+}
+
 func ClientVM(network NetworkName) VMName {
 	return VMName(fmt.Sprintf("client-%s", network))
 }
@@ -71,6 +75,17 @@ func EchoVM(network NetworkName) VMName {
 
 func EchoOtherVM(network NetworkName) VMName {
 	return VMName(fmt.Sprintf("echo-other-node-%s", network))
+}
+
+// FakeVM returns the VMName prefix of a "fake VM" container declared
+// in privnet/topo.clab.yaml. Combine with WithID to get the full container name, e.g.
+// FakeVM(NetworkA).WithID(1) -> "privnet-vm-network-a1".
+func FakeVM(network NetworkName) VMName {
+	return VMName(fmt.Sprintf("privnet-vm-%s", network))
+}
+
+func DHCPVM(network NetworkName) VMName {
+	return VMName(fmt.Sprintf("client-dhcp-%s", network))
 }
 
 type NetworkName string
@@ -290,14 +305,14 @@ var networkTopology = struct {
 			},
 			Unknown: []VM{
 				{
-					Name:    "privnet-vm-net-c1",
+					Name:    "privnet-vm-network-c1",
 					NetName: NetworkC,
 					NetIPv4: netip.MustParseAddr("192.168.252.200"),
 					NetIPv6: netip.MustParseAddr("fd10:0:252::200"),
 					Kind:    VMKindUnknown,
 				},
 				{
-					Name:      "privnet-vm-net-a1",
+					Name:      "privnet-vm-network-a1",
 					NetName:   NetworkA,
 					Interface: "alt-if",
 					NetIPv4:   netip.MustParseAddr("192.168.255.200"),
@@ -367,14 +382,14 @@ var networkTopology = struct {
 
 			Unknown: []VM{
 				{
-					Name:    "privnet-vm-net-a1",
+					Name:    "privnet-vm-network-a1",
 					NetName: NetworkA,
 					NetIPv4: netip.MustParseAddr("192.168.250.200"),
 					NetIPv6: netip.MustParseAddr("fd10:0:250::200"),
 					Kind:    VMKindUnknown,
 				},
 				{
-					Name:      "privnet-vm-net-c1",
+					Name:      "privnet-vm-network-c1",
 					NetName:   NetworkC,
 					Interface: "alt-if",
 					NetIPv4:   netip.MustParseAddr("192.168.252.210"),
@@ -409,7 +424,7 @@ var networkTopology = struct {
 			},
 			Unknown: []VM{
 				{
-					Name:      "privnet-vm-net-d1",
+					Name:      "privnet-vm-network-d1",
 					NetName:   NetworkD,
 					Interface: "alt-if",
 					NetIPv4:   netip.MustParseAddr("192.168.252.210"),
@@ -438,14 +453,14 @@ var networkTopology = struct {
 			},
 			Unknown: []VM{
 				{
-					Name:    "privnet-vm-net-e1",
+					Name:    "privnet-vm-network-e1",
 					NetName: NetworkE,
 					NetIPv4: netip.MustParseAddr("192.168.10.200"),
 					NetIPv6: netip.MustParseAddr("fd10:0:10::200"),
 					Kind:    VMKindUnknown,
 				},
 				{
-					Name:    "privnet-vm-net-e2",
+					Name:    "privnet-vm-network-e2",
 					NetName: NetworkE,
 					NetIPv4: netip.MustParseAddr("192.168.10.201"),
 					NetIPv6: netip.MustParseAddr("fd10:0:10::201"),
