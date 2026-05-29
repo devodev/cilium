@@ -617,6 +617,7 @@
 /pkg/endpoint/enterprise_endpoint.go @isovalent/private-networking
 /pkg/fqdn/**/*enterprise* @isovalent/dns-proxy
 /pkg/identity/enterprise_numericidentity.go @isovalent/private-networking
+/pkg/labelsfilter/enterprise_filter.go @isovalent/private-networking
 /pkg/maps/policymap/*enterprise* @isovalent/policy-identity-networking
 /pkg/maps/srv6map/*enterprise* @isovalent/traffic-engineering
 /pkg/metrics/enterprise_* @isovalent/cni
