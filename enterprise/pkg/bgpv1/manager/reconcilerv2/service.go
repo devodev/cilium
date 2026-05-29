@@ -386,12 +386,18 @@ func (r *ServiceReconciler) getAllServiceAFPaths(p EnterpriseReconcileParams, de
 					for _, prefix := range prefixes.UnsortedList() {
 						// we only add path corresponding to the family of the prefix.
 						if agentFamily.Afi == bgptypes.AfiIPv4 && prefix.Addr().Is4() {
-							path := bgptypes.NewPathForPrefix(prefix)
+							path, err := bgptypes.NewPathForPrefix(prefix)
+							if err != nil {
+								return nil, fmt.Errorf("failed to create path for prefix %s: %w", prefix, err)
+							}
 							path.Family = agentFamily
 							ossreconcilerv2.AddPathToAFPathsMap(desiredFamilyAdverts, agentFamily, path, path.NLRI.String())
 						}
 						if agentFamily.Afi == bgptypes.AfiIPv6 && prefix.Addr().Is6() {
-							path := bgptypes.NewPathForPrefix(prefix)
+							path, err := bgptypes.NewPathForPrefix(prefix)
+							if err != nil {
+								return nil, fmt.Errorf("failed to create path for prefix %s: %w", prefix, err)
+							}
 							path.Family = agentFamily
 							ossreconcilerv2.AddPathToAFPathsMap(desiredFamilyAdverts, agentFamily, path, path.NLRI.String())
 						}

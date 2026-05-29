@@ -770,7 +770,7 @@ func TestExportSRv6LocatorPoolReconciler(t *testing.T) {
 				for fam, afPaths := range preAFPaths {
 					pathSet := make(reconciler.PathMap)
 					for prePath := range afPaths {
-						path := types.NewPathForPrefix(netip.MustParsePrefix(prePath))
+						path := types.MustNewPathForPrefix(netip.MustParsePrefix(prePath))
 						path.Family = fam
 						pathSet[prePath] = path
 					}

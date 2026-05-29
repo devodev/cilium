@@ -230,12 +230,20 @@ func (r *EgressGatewayIPsReconciler) getDesiredEGWAFPaths(desiredFamilyAdverts P
 						}
 						switch {
 						case agentFamily.Afi == types.AfiIPv4 && egwIP.Is4():
-							path := types.NewPathForPrefix(netip.PrefixFrom(egwIP, egwIP.BitLen()))
+							prefix := netip.PrefixFrom(egwIP, egwIP.BitLen())
+							path, err := types.NewPathForPrefix(prefix)
+							if err != nil {
+								return nil, fmt.Errorf("failed to create path for prefix %s: %w", prefix, err)
+							}
 							path.Family = agentFamily
 							reconciler.AddPathToAFPathsMap(desiredEGWAFPaths, agentFamily, path, path.NLRI.String())
 
 						case agentFamily.Afi == types.AfiIPv6 && egwIP.Is6():
-							path := types.NewPathForPrefix(netip.PrefixFrom(egwIP, egwIP.BitLen()))
+							prefix := netip.PrefixFrom(egwIP, egwIP.BitLen())
+							path, err := types.NewPathForPrefix(prefix)
+							if err != nil {
+								return nil, fmt.Errorf("failed to create path for prefix %s: %w", prefix, err)
+							}
 							path.Family = agentFamily
 							reconciler.AddPathToAFPathsMap(desiredEGWAFPaths, agentFamily, path, path.NLRI.String())
 

@@ -311,7 +311,11 @@ func (r *LocatorPoolReconciler) getDesiredPaths(desiredFamilyAdverts PeerAdverti
 					r.sidAllocatorsLock.RUnlock()
 
 					desiredLPAFPaths := make(reconciler.AFPathsMap)
-					path := types.NewPathForPrefix(allocator.Locator().Prefix)
+					prefix := allocator.Locator().Prefix
+					path, err := types.NewPathForPrefix(prefix)
+					if err != nil {
+						return nil, fmt.Errorf("failed to create path for prefix %s: %w", prefix, err)
+					}
 					path.Family = agentFamily
 					reconciler.AddPathToAFPathsMap(desiredLPAFPaths, agentFamily, path, path.NLRI.String())
 
