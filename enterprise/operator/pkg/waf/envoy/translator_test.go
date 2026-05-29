@@ -140,7 +140,7 @@ func TestBlockRoute(t *testing.T) {
 			expected: &envoy_config_route_v3.Route{
 				Match: &envoy_config_route_v3.RouteMatch{
 					PathSpecifier: &envoy_config_route_v3.RouteMatch_Path{
-						Path: "/__coraza_block__",
+						Path: "/__waf_block__",
 					},
 				},
 				Action: &envoy_config_route_v3.Route_DirectResponse{
@@ -198,7 +198,7 @@ func TestBlockRoute(t *testing.T) {
 			expected: &envoy_config_route_v3.Route{
 				Match: &envoy_config_route_v3.RouteMatch{
 					PathSpecifier: &envoy_config_route_v3.RouteMatch_Path{
-						Path: "/__coraza_block__",
+						Path: "/__waf_block__",
 					},
 				},
 				Action: &envoy_config_route_v3.Route_DirectResponse{

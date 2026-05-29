@@ -71,7 +71,7 @@ func TestDesiredManagedWAFHTTPRouteConfig(t *testing.T) {
 			assertRoutes: func(t *testing.T, routes []*envoy_config_route_v3.Route) {
 				t.Helper()
 				blockRoute := routes[0]
-				require.Equal(t, "/__coraza_block__", blockRoute.GetMatch().GetPath())
+				require.Equal(t, "/__waf_block__", blockRoute.GetMatch().GetPath())
 				require.Equal(t, uint32(403), blockRoute.GetDirectResponse().GetStatus())
 				require.Equal(t, "blocked by waf", blockRoute.GetDirectResponse().GetBody().GetInlineString())
 
