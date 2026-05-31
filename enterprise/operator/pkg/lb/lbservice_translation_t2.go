@@ -86,36 +86,136 @@ type lbServiceT2Translator struct {
 	wafTranslator *wafenvoy.Translator
 }
 
+type t2CECSpec struct {
+	name      string
+	zone      string
+	resources []ciliumv2.XDSResource
+}
+
 func (r *lbServiceT2Translator) DesiredCiliumEnvoyConfigs(model *lbService) ([]*ciliumv2.CiliumEnvoyConfig, error) {
 	if (!model.vip.IPv4Assigned() && !model.vip.IPv6Assigned()) || !model.vip.bindStatus.serviceExists || !model.vip.bindStatus.bindSuccessful || model.isTCPProxyT1OnlyMode() || model.isUDPProxyT1OnlyMode() {
 		return nil, nil
 	}
 
-	if model.zoneAwareMode == lbServiceZoneAwareModeRequireSameZone {
-		return r.desiredZonedCiliumEnvoyConfigs(model)
-	}
-
-	cec, err := r.desiredCiliumEnvoyConfig(model, "")
+	specs, err := r.desiredT2CECSpecs(model)
 	if err != nil {
 		return nil, err
 	}
-	return []*ciliumv2.CiliumEnvoyConfig{cec}, nil
+
+	return r.desiredCiliumEnvoyConfigsFromSpecs(model, specs)
 }
 
-func (r *lbServiceT2Translator) desiredZonedCiliumEnvoyConfigs(model *lbService) ([]*ciliumv2.CiliumEnvoyConfig, error) {
+func (r *lbServiceT2Translator) desiredT2CECSpecs(model *lbService) ([]t2CECSpec, error) {
+	coreResources, err := r.desiredCoreEnvoyResources(model)
+	if err != nil {
+		return nil, err
+	}
+
+	jwksClusterResources, err := r.toEnvoyClusterResources(r.desiredJWKSEnvoyClusters(model))
+	if err != nil {
+		return nil, err
+	}
+
+	accessLoggerResources, err := r.desiredAccessLoggerClusterResources(model)
+	if err != nil {
+		return nil, err
+	}
+
+	if model.zoneAwareMode == lbServiceZoneAwareModeRequireSameZone {
+		return r.desiredRequireSameZoneT2CECSpecs(model, coreResources, jwksClusterResources, accessLoggerResources)
+	}
+
+	return r.desiredDefaultT2CECSpecs(model, coreResources, jwksClusterResources, accessLoggerResources)
+}
+
+func (r *lbServiceT2Translator) desiredDefaultT2CECSpecs(model *lbService, coreResources, jwksClusterResources, accessLoggerResources []ciliumv2.XDSResource) ([]t2CECSpec, error) {
+	backendClusterResources, err := r.toEnvoyClusterResources(r.desiredEnvoyBackendClusters(model, ""))
+	if err != nil {
+		return nil, err
+	}
+
+	loadAssignmentResources, err := r.desiredEnvoyClusterLoadAssignmentResources(model, "")
+	if err != nil {
+		return nil, err
+	}
+
+	resources := append(coreResources, backendClusterResources...)
+	resources = append(resources, jwksClusterResources...)
+	resources = append(resources, loadAssignmentResources...)
+	resources = append(resources, accessLoggerResources...)
+
+	return []t2CECSpec{{
+		name:      model.getOwningResourceName(),
+		resources: resources,
+	}}, nil
+}
+
+func (r *lbServiceT2Translator) desiredRequireSameZoneT2CECSpecs(model *lbService, coreResources, jwksClusterResources, accessLoggerResources []ciliumv2.XDSResource) ([]t2CECSpec, error) {
+	zonedSpecs, err := r.desiredZonedBackendT2CECSpecs(model)
+	if err != nil {
+		return nil, err
+	}
+
+	resources := append(coreResources, jwksClusterResources...)
+	resources = append(resources, accessLoggerResources...)
+
+	specs := []t2CECSpec{{
+		name:      model.getOwningResourceName(),
+		resources: resources,
+	}}
+	return append(specs, zonedSpecs...), nil
+}
+
+func (r *lbServiceT2Translator) desiredZonedBackendT2CECSpecs(model *lbService) ([]t2CECSpec, error) {
 	zones := slices.Sorted(maps.Keys(model.t2NodeZones()))
-	cecs := make([]*ciliumv2.CiliumEnvoyConfig, 0, len(zones))
+	specs := make([]t2CECSpec, 0, len(zones))
 	for _, zone := range zones {
-		cec, err := r.desiredCiliumEnvoyConfig(model, zone)
+		spec, err := r.desiredZonedBackendT2CECSpec(model, zone)
 		if err != nil {
 			return nil, err
 		}
-		cecs = append(cecs, cec)
+		specs = append(specs, spec)
 	}
+	return specs, nil
+}
+
+func (r *lbServiceT2Translator) desiredZonedBackendT2CECSpec(model *lbService, zone string) (t2CECSpec, error) {
+	envoyResources := []ciliumv2.XDSResource{}
+
+	backendClusterResources, err := r.toEnvoyClusterResources(r.desiredEnvoyBackendClusters(model, zone))
+	if err != nil {
+		return t2CECSpec{}, err
+	}
+	envoyResources = append(envoyResources, backendClusterResources...)
+
+	loadAssignmentResources, err := r.desiredEnvoyClusterLoadAssignmentResources(model, zone)
+	if err != nil {
+		return t2CECSpec{}, err
+	}
+	envoyResources = append(envoyResources, loadAssignmentResources...)
+
+	return t2CECSpec{
+		name:      model.getOwningResourceNameWithMidfix(zone + "-"),
+		zone:      zone,
+		resources: envoyResources,
+	}, nil
+}
+
+func (r *lbServiceT2Translator) desiredCiliumEnvoyConfigsFromSpecs(model *lbService, specs []t2CECSpec) ([]*ciliumv2.CiliumEnvoyConfig, error) {
+	cecs := make([]*ciliumv2.CiliumEnvoyConfig, 0, len(specs))
+	for _, spec := range specs {
+		t2NodeLabelselector, err := desiredCECNodeSelector(model, spec.zone)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse T2 node label selector: %w", err)
+		}
+
+		cecs = append(cecs, r.desiredCiliumEnvoyConfigFromResources(model, spec.name, t2NodeLabelselector, spec.resources))
+	}
+
 	return cecs, nil
 }
 
-func (r *lbServiceT2Translator) desiredCiliumEnvoyConfig(model *lbService, zone string) (*ciliumv2.CiliumEnvoyConfig, error) {
+func (r *lbServiceT2Translator) desiredCoreEnvoyResources(model *lbService) ([]ciliumv2.XDSResource, error) {
 	envoyResources := []ciliumv2.XDSResource{}
 
 	// Service (with route(s)) -> Envoy Listener(s) & Route(s)
@@ -148,9 +248,25 @@ func (r *lbServiceT2Translator) desiredCiliumEnvoyConfig(model *lbService, zone 
 		envoyResources = append(envoyResources, routeConfigXdsResource)
 	}
 
-	// Backend(s)-> Envoy Cluster(s) & Envoy Endpoints (ClusterLoadAssignments)
+	return envoyResources, nil
+}
 
-	clusters := r.desiredEnvoyClusters(model, zone)
+func (r *lbServiceT2Translator) desiredAccessLoggerClusterResources(model *lbService) ([]ciliumv2.XDSResource, error) {
+	// Include gRPC access logger cluster only if enabled globally AND not disabled per-service.
+	if !r.config.AccessLog.EnableGRPC || !model.grpcAccessLogsEnabledForService() {
+		return nil, nil
+	}
+
+	accessLoggerCluster, err := r.desiredAccessLoggerCluster(model)
+	if err != nil {
+		return nil, err
+	}
+
+	return r.toEnvoyClusterResources([]*envoy_config_cluster_v3.Cluster{accessLoggerCluster})
+}
+
+func (r *lbServiceT2Translator) toEnvoyClusterResources(clusters []*envoy_config_cluster_v3.Cluster) ([]ciliumv2.XDSResource, error) {
+	resources := []ciliumv2.XDSResource{}
 
 	for _, c := range clusters {
 		clusterXdsResource, err := r.toXdsResource(c, envoy.ClusterTypeURL)
@@ -158,48 +274,33 @@ func (r *lbServiceT2Translator) desiredCiliumEnvoyConfig(model *lbService, zone 
 			return nil, err
 		}
 
-		envoyResources = append(envoyResources, clusterXdsResource)
+		resources = append(resources, clusterXdsResource)
 	}
 
-	loadAssignments := r.desiredEnvoyClusterLoadAssignments(model, zone)
+	return resources, nil
+}
 
+func (r *lbServiceT2Translator) desiredEnvoyClusterLoadAssignmentResources(model *lbService, zone string) ([]ciliumv2.XDSResource, error) {
+	resources := []ciliumv2.XDSResource{}
+
+	loadAssignments := r.desiredEnvoyClusterLoadAssignments(model, zone)
 	for _, la := range loadAssignments {
 		endpointXdsResource, err := r.toXdsResource(la, envoy.EndpointTypeURL)
 		if err != nil {
 			return nil, err
 		}
 
-		envoyResources = append(envoyResources, endpointXdsResource)
+		resources = append(resources, endpointXdsResource)
 	}
 
-	// Include gRPC access logger cluster only if enabled globally AND not disabled per-service.
-	if r.config.AccessLog.EnableGRPC && model.grpcAccessLogsEnabledForService() {
-		accessLoggerCluster, err := r.desiredAccessLoggerCluster(model)
-		if err != nil {
-			return nil, err
-		}
-		accessLoggerClusterResource, err := r.toXdsResource(accessLoggerCluster, envoy.ClusterTypeURL)
-		if err != nil {
-			return nil, err
-		}
-		envoyResources = append(envoyResources, accessLoggerClusterResource)
-	}
+	return resources, nil
+}
 
-	t2NodeLabelselector, err := desiredCECNodeSelector(model, zone)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse T2 node label selector: %w", err)
-	}
-
-	cecName := model.getOwningResourceName()
-	if zone != "" {
-		// Include the zone in the resource name so each zoned T2 CEC stays distinct.
-		cecName = model.getOwningResourceNameWithMidfix(zone + "-")
-	}
-
+func (r *lbServiceT2Translator) desiredCiliumEnvoyConfigFromResources(model *lbService, name string, selector *slim_metav1.LabelSelector, resources []ciliumv2.XDSResource) *ciliumv2.CiliumEnvoyConfig {
 	return &ciliumv2.CiliumEnvoyConfig{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: model.namespace,
-			Name:      cecName,
+			Name:      name,
 
 			// Explicitly instruct the CEC parsing to handle the CEC as N/S L7 loadbalancing.
 			// This is mainly to change the source IP of the Envoy upstream connection to the
@@ -212,10 +313,10 @@ func (r *lbServiceT2Translator) desiredCiliumEnvoyConfig(model *lbService, zone 
 			},
 		},
 		Spec: ciliumv2.CiliumEnvoyConfigSpec{
-			NodeSelector: t2NodeLabelselector,
-			Resources:    envoyResources,
+			NodeSelector: selector,
+			Resources:    resources,
 		},
-	}, nil
+	}
 }
 
 func (r *lbServiceT2Translator) accessLoggerClusterName(model *lbService) string {
@@ -1712,16 +1813,14 @@ func (r *lbServiceT2Translator) desiredHealthCheckFilter(model *lbService) *envo
 	return healthCheckFilter
 }
 
-func (r *lbServiceT2Translator) desiredEnvoyClusters(model *lbService, zone string) []*envoy_config_cluster_v3.Cluster {
+func (r *lbServiceT2Translator) desiredEnvoyBackendClusters(model *lbService, zone string) []*envoy_config_cluster_v3.Cluster {
 	clusters := []*envoy_config_cluster_v3.Cluster{}
 
 	refBackendNamesSorted := slices.Sorted(maps.Keys(model.referencedBackends))
 
 	for _, bn := range refBackendNamesSorted {
-		clusters = append(clusters, r.desiredEnvoyCluster(model, r.getClusterName(bn), model.referencedBackends[bn], zone))
+		clusters = append(clusters, r.desiredEnvoyCluster(model, r.clusterName(model, zone, bn), model.referencedBackends[bn], zone))
 	}
-
-	clusters = append(clusters, r.desiredJWKSEnvoyClusters(model)...)
 
 	return clusters
 }
@@ -2243,7 +2342,7 @@ func (r *lbServiceT2Translator) desiredEnvoyClusterLoadAssignments(model *lbServ
 	for _, bn := range refBackendNamesSorted {
 		// For STRICT_DNS cluster, we must specify endpoint inline in the cluster
 		if b := model.referencedBackends[bn]; b.typ != lbBackendTypeHostname {
-			loadAssignments = append(loadAssignments, r.desiredEnvoyClusterLoadAssignment(r.getClusterName(bn), b, model.zoneAwareMode, zone))
+			loadAssignments = append(loadAssignments, r.desiredEnvoyClusterLoadAssignment(r.clusterName(model, zone, bn), b, model.zoneAwareMode, zone))
 		}
 	}
 
@@ -3119,6 +3218,18 @@ func (r *lbServiceT2Translator) lookupLocalityConfigSpecifier(model *lbService) 
 			MinClusterSize: wrapperspb.UInt64(model.zoneAwareMinBackendCount),
 		},
 	}
+}
+
+func (r *lbServiceT2Translator) clusterName(model *lbService, zone, beName string) string {
+	name := r.getClusterName(beName)
+	if zone == "" {
+		return name
+	}
+
+	// The shared CEC owns listener/route references. Prequalify zoned
+	// backend resources with the shared CEC name so those references resolve
+	// across CECs without being requalified to the zoned CEC name.
+	return fmt.Sprintf("%s/%s/%s", model.namespace, model.getOwningResourceName(), name)
 }
 
 func desiredCECNodeSelector(model *lbService, zone string) (*slim_metav1.LabelSelector, error) {
