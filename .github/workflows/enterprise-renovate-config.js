@@ -6,6 +6,8 @@ module.exports = {
   secrets: {
     RH_REGISTRY_USERNAME: "{{ process.env.RH_REGISTRY_USERNAME }}",
     RH_REGISTRY_PASSWORD: "{{ process.env.RH_REGISTRY_PASSWORD }}",
+    ARTIFACTORY_USERNAME: "{{ process.env.ARTIFACTORY_USERNAME }}",
+    ARTIFACTORY_PASSWORD: "{{ process.env.ARTIFACTORY_PASSWORD }}",
   },
   hostRules: [
     {
@@ -13,6 +15,12 @@ module.exports = {
       hostType: "docker",
       username: "{{ process.env.RH_REGISTRY_USERNAME }}",
       password: "{{ process.env.RH_REGISTRY_PASSWORD }}",
+    },
+    {
+      matchHost: "https://artifactory.devhub-cloud.cisco.com",
+      hostType: "docker",
+      username: "{{ process.env.ARTIFACTORY_USERNAME }}",
+      password: "{{ process.env.ARTIFACTORY_PASSWORD }}",
     },
   ],
   allowedCommands: [

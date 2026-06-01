@@ -45,6 +45,8 @@ jobs:
           LOG_LEVEL: ${{ github.event.inputs.renovate_log_level_debug == 'false' && 'INFO' || 'DEBUG' }}
           RH_REGISTRY_USERNAME: ${{ secrets.REDHAT_USERNAME_CI }}
           RH_REGISTRY_PASSWORD: ${{ secrets.REDHAT_PASSWORD_CI }}
+          ARTIFACTORY_USERNAME: ${{ vars.ARTIFACTORY_USERNAME }}
+          ARTIFACTORY_PASSWORD: ${{ secrets.ARTIFACTORY_PASSWORD }}
         with:
           # renovate: datasource=github-releases depName=renovatebot/renovate
           renovate-version: 43.176.5
@@ -52,7 +54,7 @@ jobs:
           docker-cmd-file: .github/actions/renovate/enterprise-entrypoint.sh
           configurationFile: .github/workflows/enterprise-renovate-config.js
           token: '${{ steps.get_token.outputs.app_token }}'
-          env-regex: '^(?:RENOVATE_\w+|RH_REGISTRY_USERNAME|RH_REGISTRY_PASSWORD|LOG_LEVEL)$'
+          env-regex: '^(?:RENOVATE_\w+|RH_REGISTRY_USERNAME|RH_REGISTRY_PASSWORD|ARTIFACTORY_USERNAME|ARTIFACTORY_PASSWORD|LOG_LEVEL)$'
           mount-docker-socket: true
           docker-volumes: |
             /tmp/wolfi-packages:/tmp/renovate/wolfi-packages ;
