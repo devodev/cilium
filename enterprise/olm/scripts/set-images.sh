@@ -72,6 +72,7 @@ if [ "${is_ci}" != "true" ]; then
   yq_replace ".nodeinit.image.tag = \"${tag}\""
   yq_replace ".certgen.image.tag = \"${tag}\""
   yq_replace ".envoy.image.tag = \"${tag}\""
+  yq_replace ".preflight.envoy.image.tag = \"${tag}\""
   yq_replace ".envoy.kubectl.image.tag = \"${tag}\""
 fi
 # Set the image repositories
@@ -84,6 +85,7 @@ yq_replace ".certgen.image.repository = \"${registry}/certgen${suffix}\""
 # Envoy UBI image is not build in isovalent/cilium but in isovalent/proxy workflow.
 # It is an enterprise only external image.
 yq_replace ".envoy.image.repository = \"${registry}/cilium-envoy${base_suffix}\""
+yq_replace ".preflight.envoy.image.repository = \"${registry}/cilium-envoy${base_suffix}\""
 yq_replace ".envoy.kubectl.image.repository = \"${registry}/kubectl${suffix}\""
 yq_replace ".operator.image.repository = \"${registry}/operator\""
 yq_replace ".operator.image.suffix = \"${suffix}\""
@@ -163,6 +165,18 @@ digest=${get_digest_result}
 echo "digest: ${digest}"
 yq_replace ".envoy.image.digest = \"${digest}\""
 yq_replace ".envoy.image.useDigest = true"
+echo "Process preflight envoy"
+yq_get ".preflight.envoy.image.repository"
+img=${yq_get_result}
+yq_get ".preflight.envoy.image.tag"
+envoy_tag=${yq_get_result}
+echo "get digest: ${img} ${envoy_tag}"
+get_digest "${img}" "${envoy_tag}"
+digest=${get_digest_result}
+echo "digest: ${digest}"
+yq_replace ".preflight.envoy.image.digest = \"${digest}\""
+yq_replace ".preflight.envoy.image.useDigest = true"
+
 # kubectl
 echo "Process kubectl"
 yq_get ".envoy.kubectl.image.repository"
