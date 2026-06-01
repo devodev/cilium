@@ -21,10 +21,21 @@ import (
 // EnterpriseFakeRouterProvider provides enterprise fake router instances.
 type EnterpriseFakeRouterProvider struct{}
 
-var _ types.EnterpriseRouterProvider = (*EnterpriseFakeRouterProvider)(nil)
+var (
+	_ types.EnterpriseRouterProvider = (*EnterpriseFakeRouterProvider)(nil)
+	_ ossTypes.RouterProvider        = (*EnterpriseFakeRouterProvider)(nil)
+)
 
 func NewEnterpriseFakeRouterProvider() types.EnterpriseRouterProvider {
 	return &EnterpriseFakeRouterProvider{}
+}
+
+func NewEnterpriseFakeRouterProviderAsOSS() ossTypes.RouterProvider {
+	return &EnterpriseFakeRouterProvider{}
+}
+
+func (p *EnterpriseFakeRouterProvider) NewRouter(context.Context, *slog.Logger, ossTypes.ServerParameters) (ossTypes.Router, error) {
+	return NewEnterpriseFakeRouter(), nil
 }
 
 func (p *EnterpriseFakeRouterProvider) NewEnterpriseRouter(context.Context, *slog.Logger, ossTypes.ServerParameters) (types.EnterpriseRouter, error) {

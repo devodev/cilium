@@ -16,6 +16,7 @@ import (
 	"net/netip"
 	"testing"
 
+	"github.com/cilium/hive/cell"
 	"github.com/cilium/hive/hivetest"
 	"github.com/cilium/statedb"
 	"github.com/stretchr/testify/require"
@@ -23,6 +24,7 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
+	"github.com/cilium/cilium/enterprise/pkg/bgpv1/fake"
 	enterpriseTypes "github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
 	"github.com/cilium/cilium/pkg/bgp/gobgp"
 	"github.com/cilium/cilium/pkg/bgp/manager/instance"
@@ -30,6 +32,7 @@ import (
 	"github.com/cilium/cilium/pkg/bgp/manager/store"
 	"github.com/cilium/cilium/pkg/bgp/types"
 	"github.com/cilium/cilium/pkg/datapath/tables"
+	"github.com/cilium/cilium/pkg/hive"
 	v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	v1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
 	"github.com/cilium/cilium/pkg/k8s/resource"
@@ -1546,4 +1549,153 @@ func TestUserDefinedImportPolicy(t *testing.T) {
 			require.Equal(t, tt.expectedPolicies, result)
 		})
 	}
+}
+func TestImportPolicyNotMutatedByDefaulting(t *testing.T) {
+	logger := hivetest.Logger(t)
+
+	instance0 := &v1.IsovalentBGPNodeInstance{
+		Name:     "instance0",
+		LocalASN: ptr.To(int64(65000)),
+		Peers: []v1.IsovalentBGPNodePeer{
+			{
+				PeerAddress: ptr.To("10.0.0.1"),
+				PeerASN:     ptr.To(int64(65001)),
+				PeerConfigRef: &v1.PeerConfigReference{
+					Name: "peer-config0",
+				},
+			},
+		},
+	}
+	peerConfig0 := &v1.IsovalentBGPPeerConfig{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "peer-config0",
+		},
+		Spec: v1.IsovalentBGPPeerConfigSpec{
+			Families: []v1.IsovalentBGPFamilyWithAdverts{
+				{
+					CiliumBGPFamily: v2.CiliumBGPFamily{
+						Afi:  "ipv4",
+						Safi: "unicast",
+					},
+					ImportPolicyRef: &v1.IsovalentBGPPolicyRef{
+						Name: "policy0",
+					},
+				},
+			},
+		},
+	}
+	policy0 := &v1.IsovalentBGPPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "policy0",
+		},
+		Spec: v1.IsovalentBGPPolicySpec{
+			Import: v1.BGPImportPolicy{
+				Statements: []v1.BGPPolicyStatement{
+					{
+						Conditions: v1.BGPPolicyConditions{
+							PrefixesV4: &v1.PrefixesV4Condition{
+								MatchType: v1.BGPPolicyMatchTypeOr,
+								Matches: []v1.PrefixV4Match{
+									{
+										Prefix: "0.0.0.0/0",
+										// omitting PrefixLenMin and PrefixLenMax intentionally, will be defaulted
+									},
+								},
+							},
+						},
+						Actions: v1.BGPPolicyActions{
+							RouteAction: v1.BGPRouteActionAccept,
+						},
+					},
+				},
+			},
+		},
+	}
+	originalPolicy := policy0.DeepCopy()
+
+	var (
+		neighborReconciler reconciler.ConfigReconciler
+		policyStore        store.BGPCPResourceStore[*v1.IsovalentBGPPolicy]
+	)
+	h := hive.New(
+		cell.Provide(
+			NewNeighborReconciler,
+			tables.NewDeviceTable,
+			statedb.RWTable[*tables.Device].ToTable,
+			func() store.BGPCPResourceStore[*v1.IsovalentBGPPeerConfig] {
+				return store.InitMockStore([]*v1.IsovalentBGPPeerConfig{peerConfig0})
+			},
+			func() store.BGPCPResourceStore[*v1.IsovalentBGPPolicy] {
+				return store.InitMockStore([]*v1.IsovalentBGPPolicy{policy0})
+			},
+			func() store.BGPCPResourceStore[*slim_corev1.Secret] {
+				return store.InitMockStore([]*slim_corev1.Secret{})
+			},
+			func() *option.DaemonConfig {
+				return &option.DaemonConfig{
+					EnableBGPControlPlane: true,
+				}
+			},
+			func() paramUpgrader {
+				return newUpgraderMock(instance0)
+			},
+		),
+		cell.Config(config.DefaultConfig),
+		cell.Config(defaultConfig),
+
+		cell.Invoke(func(
+			reconcilersIn struct {
+				cell.In
+				Reconcilers []reconciler.ConfigReconciler `group:"bgp-config-reconciler"`
+			},
+			_policyStore store.BGPCPResourceStore[*v1.IsovalentBGPPolicy],
+		) {
+			require.Len(t, reconcilersIn.Reconcilers, 1)
+			neighborReconciler = reconcilersIn.Reconcilers[0]
+			policyStore = _policyStore
+		}),
+	)
+	hive.AddConfigOverride(h, func(c *config.Config) {
+		c.Enabled = true
+	})
+	hive.AddConfigOverride(h, func(c *Config) {
+		c.RouteImportEnabled = true
+	})
+
+	err := h.Populate(logger)
+	require.NoError(t, err)
+
+	t.Run("Before reconciliation", func(t *testing.T) {
+		storedPolicy, exists, err := policyStore.GetByKey(resource.Key{Name: policy0.Name})
+		require.NoError(t, err)
+		require.True(t, exists)
+		require.True(t, originalPolicy.DeepEqual(storedPolicy))
+	})
+
+	instance, err := instance.NewBGPInstance(
+		t.Context(),
+		fake.NewEnterpriseFakeRouterProviderAsOSS(),
+		logger,
+		instance0.Name,
+		types.ServerParameters{},
+	)
+	require.NoError(t, err)
+
+	err = neighborReconciler.Init(instance)
+	require.NoError(t, err)
+
+	err = neighborReconciler.Reconcile(context.Background(), reconciler.ReconcileParams{
+		BGPInstance: instance,
+		DesiredConfig: &v2.CiliumBGPNodeInstance{
+			Name: instance0.Name,
+		},
+	})
+	require.NoError(t, err)
+
+	t.Run("After reconciliation", func(t *testing.T) {
+		storedPolicy, exists, err := policyStore.GetByKey(resource.Key{Name: policy0.Name})
+		require.NoError(t, err)
+		require.True(t, exists)
+		require.True(t, originalPolicy.DeepEqual(storedPolicy))
+	})
 }

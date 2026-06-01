@@ -613,7 +613,8 @@ func (r *NeighborReconciler) getDesiredUserDefinedImportPolicy(instance *v1.Isov
 				continue
 			}
 
-			if err := enterpriseTypes.ValidateAndDefaultImportPolicy(&policy.Spec.Import, family.CiliumBGPFamily); err != nil {
+			importPolicy := policy.Spec.Import.DeepCopy()
+			if err := enterpriseTypes.ValidateAndDefaultImportPolicy(importPolicy, family.CiliumBGPFamily); err != nil {
 				// Invalid import policy, skip
 				r.Logger.Error("Skipping import policy for peer due to validation error", logfields.Error, err)
 				continue
@@ -622,7 +623,7 @@ func (r *NeighborReconciler) getDesiredUserDefinedImportPolicy(instance *v1.Isov
 			policyName := "import-user-defined-" + peer.Name + "-" + family.Afi + "-" + family.Safi
 
 			routePolicy := enterpriseTypes.ToRoutePolicy(
-				&policy.Spec.Import,
+				importPolicy,
 				policyName,
 				peerAddr,
 				types.ToAgentFamily(family.CiliumBGPFamily),
