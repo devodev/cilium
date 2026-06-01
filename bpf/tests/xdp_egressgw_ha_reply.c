@@ -15,9 +15,6 @@
 
 #define ENCAP_IFINDEX		42
 
-/* Skip ingress policy checks, not needed to validate hairpin flow */
-#define USE_BPF_PROG_FOR_INGRESS_POLICY
-
 #define IPV4_DIRECT_ROUTING	v4_node_one /* gateway node */
 #define MASQ_PORT		__bpf_htons(NODEPORT_PORT_MIN_NAT + 1)
 #define DIRECT_ROUTING_IFINDEX	25
@@ -33,6 +30,8 @@ mock_fib_lookup(__maybe_unused void *ctx, struct bpf_fib_lookup *params,
 		__maybe_unused int plen, __maybe_unused __u32 flags);
 
 #include "lib/bpf_xdp.h"
+
+ASSIGN_CONFIG(bool, enable_endpoint_routes, true)
 
 #include "lib/egressgw.h"
 #include "lib/egressgw_ha.h"
