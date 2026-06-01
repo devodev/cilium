@@ -5099,6 +5099,36 @@
               "items": {},
               "type": "array"
             },
+            "grafana": {
+              "properties": {
+                "dashboards": {
+                  "properties": {
+                    "annotations": {
+                      "type": "object"
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    },
+                    "labels": {
+                      "properties": {
+                        "grafana_dashboard": {
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "namespace": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    }
+                  },
+                  "type": "object"
+                }
+              },
+              "type": "object"
+            },
             "headlessService": {
               "properties": {
                 "annotations": {
