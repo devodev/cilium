@@ -74,6 +74,8 @@ if [ "${is_ci}" != "true" ]; then
   yq_replace ".envoy.image.tag = \"${tag}\""
   yq_replace ".preflight.envoy.image.tag = \"${tag}\""
   yq_replace ".envoy.kubectl.image.tag = \"${tag}\""
+  # TODO: not changing the tag for Timescape Lite at release time until we have
+  # a repo specific to INK deployment of Timescape, i.e. cilium-timescape-lite
 fi
 # Set the image repositories
 yq_replace ".image.repository = \"${registry}/cilium${suffix}\""
@@ -86,9 +88,19 @@ yq_replace ".certgen.image.repository = \"${registry}/certgen${suffix}\""
 # It is an enterprise only external image.
 yq_replace ".envoy.image.repository = \"${registry}/cilium-envoy${base_suffix}\""
 yq_replace ".preflight.envoy.image.repository = \"${registry}/cilium-envoy${base_suffix}\""
+# Timescape Lite UBI is also built externally, i.e. in isovalent/hubble-timescape
+# but unlike envoy a production image is referenced in CI.
+if [ "${is_ci}" == "true" ]; then
+  yq_get ".hubble.timescape.image.repository"
+  ts_registry=$(echo "${yq_get_result}" | cut -d'/' -f1-2)
+  yq_replace ".hubble.timescape.image.repository = \"${ts_registry}/hubble-timescape-lite${base_suffix}\""
+else
+  yq_replace ".hubble.timescape.image.repository = \"${registry}/hubble-timescape-lite${base_suffix}\""
+fi
 yq_replace ".envoy.kubectl.image.repository = \"${registry}/kubectl${suffix}\""
 yq_replace ".operator.image.repository = \"${registry}/operator\""
 yq_replace ".operator.image.suffix = \"${suffix}\""
+
 # cilium agent
 echo "Process cilium agent"
 yq_get ".image.repository"
@@ -176,7 +188,17 @@ digest=${get_digest_result}
 echo "digest: ${digest}"
 yq_replace ".preflight.envoy.image.digest = \"${digest}\""
 yq_replace ".preflight.envoy.image.useDigest = true"
-
+echo "Process timescape-lite"
+yq_get ".hubble.timescape.image.repository"
+img=${yq_get_result}
+yq_get ".hubble.timescape.image.tag"
+timescape_tag=${yq_get_result}
+echo "get digest: ${img} ${timescape_tag}"
+get_digest "${img}" "${timescape_tag}"
+digest=${get_digest_result}
+echo "digest: ${digest}"
+yq_replace ".hubble.timescape.image.digest = \"${digest}\""
+yq_replace ".hubble.timescape.image.useDigest = true"
 # kubectl
 echo "Process kubectl"
 yq_get ".envoy.kubectl.image.repository"
