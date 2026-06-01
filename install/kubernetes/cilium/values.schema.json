@@ -2516,6 +2516,9 @@
               },
               "type": "object"
             },
+            "sourceInterface": {
+              "type": "string"
+            },
             "vxlanDevice": {
               "type": "string"
             },

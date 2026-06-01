@@ -5416,10 +5416,12 @@ enterprise:
   evpn:
     # -- Enables support for EVPN
     enabled: false
-    # -- EVPN Vxlan device name
+    # -- EVPN VXLAN device name
     vxlanDevice: "cilium_evpn"
-    # -- EVPN Vxlan port number
+    # -- EVPN VXLAN port number
     vxlanPort: 4789
+    # -- Interface to use as EVPN VXLAN packet source
+    sourceInterface: ""
     securityGroupTags:
       # -- Enables Security Group Tags in EVPN advertisements.
       enabled: false

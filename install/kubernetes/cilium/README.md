@@ -482,8 +482,9 @@ contributors across the globe, there is almost always someone available to help.
 | enterprise.evpn.fibMapMax | int | `65536` | Maximum number of entries in the cilium_evpn_fib map |
 | enterprise.evpn.securityGroupTags.defaultGroupID | int | `0` | Default Security Group ID, used when no other configured Security Group matches the advertisement. |
 | enterprise.evpn.securityGroupTags.enabled | bool | `false` | Enables Security Group Tags in EVPN advertisements. |
-| enterprise.evpn.vxlanDevice | string | `"cilium_evpn"` | EVPN Vxlan device name |
-| enterprise.evpn.vxlanPort | int | `4789` | EVPN Vxlan port number |
+| enterprise.evpn.sourceInterface | string | `""` | Interface to use as EVPN VXLAN packet source |
+| enterprise.evpn.vxlanDevice | string | `"cilium_evpn"` | EVPN VXLAN device name |
+| enterprise.evpn.vxlanPort | int | `4789` | EVPN VXLAN port number |
 | enterprise.featureGate.approved | list | `[]` | List of features that are approved. |
 | enterprise.featureGate.strict | bool | `true` | Enable strict feature gate validation. Will cause agent and/or operator to not start if non-approved features are enabled. In non-strict mode failure will be logged as a warning. |
 | enterprise.gatewayAPI.deployment.controlplane.image.digest | string | `""` |  |
