@@ -197,8 +197,8 @@ func (r *Routes) extractRoutes(txn statedb.ReadTxn, subnet tables.Subnet) map[ta
 			r.log.Warn("Unknown peer for subnet",
 				logfields.Network, subnet.Network,
 				logfields.PrivateNetworkSubnet, subnet.Name,
-				logfields.PeerNetwork, other.Network,
-				logfields.PeerSubnet, other.Name,
+				logfields.PeerNetwork, peer.Network,
+				logfields.PeerSubnet, peer.Subnet,
 			)
 			continue
 		}
