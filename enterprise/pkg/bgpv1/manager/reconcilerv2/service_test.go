@@ -30,9 +30,10 @@ import (
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
 	"github.com/cilium/cilium/enterprise/pkg/annotation"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/fake"
+	"github.com/cilium/cilium/enterprise/pkg/bgpv1/manager/instance"
 	entTypes "github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
 	"github.com/cilium/cilium/pkg/bgp/agent/signaler"
-	"github.com/cilium/cilium/pkg/bgp/manager/instance"
+	ossInstance "github.com/cilium/cilium/pkg/bgp/manager/instance"
 	"github.com/cilium/cilium/pkg/bgp/manager/reconciler"
 	"github.com/cilium/cilium/pkg/bgp/manager/store"
 	"github.com/cilium/cilium/pkg/bgp/types"
@@ -44,6 +45,7 @@ import (
 	slim_metav1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/loadbalancer"
+	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/source"
 	"github.com/cilium/cilium/pkg/svcrouteconfig"
 )
@@ -3521,7 +3523,7 @@ func runServiceTests(t *testing.T, steps []svcTestStep) {
 	})
 
 	// init BGP instance
-	testBGPInstance := &instance.BGPInstance{
+	testBGPInstance := &ossInstance.BGPInstance{
 		Name:   "fake-instance",
 		Router: fake.NewEnterpriseFakeRouter(),
 	}
@@ -3529,9 +3531,9 @@ func runServiceTests(t *testing.T, steps []svcTestStep) {
 		Name:   testBGPInstance.Name,
 		Router: upgradeRouter(testBGPInstance.Router),
 	}
-	f.svcReconciler.Init(testBGPInstance)
+	f.svcReconciler.Init(ceeBGPInstance)
 	t.Cleanup(func() {
-		f.svcReconciler.Cleanup(testBGPInstance)
+		f.svcReconciler.Cleanup(ceeBGPInstance)
 	})
 
 	for _, tt := range steps {
@@ -3577,12 +3579,12 @@ func runServiceTests(t *testing.T, steps []svcTestStep) {
 				desiredConfig.Peers = tt.peers
 			}
 			desiredConfig.Maintenance = tt.maintenanceOverride
-			f.svcReconciler.upgrader = newUpgraderMock(desiredConfig)
 
 			// reconcile twice to validate idempotency
 			for range 2 {
-				err = f.svcReconciler.Reconcile(context.Background(), reconciler.ReconcileParams{
-					BGPInstance: testBGPInstance,
+				err = f.svcReconciler.Reconcile(context.Background(), EnterpriseReconcileParams{
+					BGPInstance:   ceeBGPInstance,
+					DesiredConfig: desiredConfig,
 					CiliumNode: &v2.CiliumNode{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "node1",
@@ -3631,6 +3633,11 @@ func newServiceTestFixture(t *testing.T) *svcTestFixture {
 				func() paramUpgrader {
 					return newUpgraderMock(testBGPInstanceConfig)
 				},
+				func() *option.DaemonConfig {
+					return &option.DaemonConfig{
+						EnableBGPControlPlane: true,
+					}
+				},
 				func() Config {
 					return Config{
 						SvcHealthCheckingEnabled:           true,
@@ -3651,7 +3658,7 @@ func newServiceTestFixture(t *testing.T) *svcTestFixture {
 			}),
 			cell.Invoke(func(p ServiceReconcilerIn) {
 				out := NewServiceReconciler(p)
-				f.svcReconciler = out.Reconciler.(*ServiceReconciler)
+				f.svcReconciler = out.EnterpriseReconciler.(*ServiceReconciler)
 			}),
 		),
 	)
@@ -3717,7 +3724,7 @@ func serviceMetadataEqual(req *require.Assertions, expectedMetadata, runningMeta
 		"ServiceRoutePolicies mismatch, expected: %v, got: %v", expectedMetadata.ServiceRoutePolicies, runningMetadata.ServiceRoutePolicies)
 }
 
-func advertisedPrefixesMatch(req *require.Assertions, bgpInstance *instance.BGPInstance, expectedPaths reconciler.ResourceAFPathsMap) {
+func advertisedPrefixesMatch(req *require.Assertions, bgpInstance *ossInstance.BGPInstance, expectedPaths reconciler.ResourceAFPathsMap) {
 	expected := make(map[string]*types.Path)
 	for _, svcPaths := range expectedPaths {
 		for _, afPaths := range svcPaths {
@@ -3776,7 +3783,7 @@ func TestServiceReconcilerMetadataPartialFailure(t *testing.T) {
 			f.hive.Stop(log, context.Background())
 		})
 
-		testBGPInstance := &instance.BGPInstance{
+		testBGPInstance := &instance.EnterpriseBGPInstance{
 			Name:   "fake-instance",
 			Router: router,
 		}
@@ -3803,9 +3810,10 @@ func TestServiceReconcilerMetadataPartialFailure(t *testing.T) {
 		tx.Commit()
 
 		// Run reconcile
-		err = f.svcReconciler.Reconcile(t.Context(), reconciler.ReconcileParams{
-			BGPInstance: testBGPInstance,
-			CiliumNode:  testCiliumNodeConfig,
+		err = f.svcReconciler.Reconcile(t.Context(), EnterpriseReconcileParams{
+			BGPInstance:   testBGPInstance,
+			DesiredConfig: testBGPInstanceConfig,
+			CiliumNode:    testCiliumNodeConfig,
 		})
 		req.Error(err)
 

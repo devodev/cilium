@@ -12,7 +12,6 @@ package reconcilerv2
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -27,11 +26,11 @@ import (
 
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
 	enterpriseannotation "github.com/cilium/cilium/enterprise/pkg/annotation"
+	enterpriseInstance "github.com/cilium/cilium/enterprise/pkg/bgpv1/manager/instance"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
 	"github.com/cilium/cilium/enterprise/pkg/service/healthchecker"
 	"github.com/cilium/cilium/pkg/annotation"
 	"github.com/cilium/cilium/pkg/bgp/agent/signaler"
-	"github.com/cilium/cilium/pkg/bgp/manager/instance"
 	ossreconcilerv2 "github.com/cilium/cilium/pkg/bgp/manager/reconciler"
 	bgptypes "github.com/cilium/cilium/pkg/bgp/types"
 	v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
@@ -40,7 +39,10 @@ import (
 	"github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/labels"
 	slimmetav1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
 	"github.com/cilium/cilium/pkg/loadbalancer"
+	"github.com/cilium/cilium/pkg/option"
+	"github.com/cilium/cilium/pkg/rate"
 	"github.com/cilium/cilium/pkg/svcrouteconfig"
+	"github.com/cilium/cilium/pkg/time"
 )
 
 const (
@@ -64,7 +66,6 @@ type ServiceReconciler struct {
 	cfg        Config
 	routesCfg  svcrouteconfig.RoutesConfig
 	signaler   *signaler.BGPCPSignaler
-	upgrader   paramUpgrader
 	peerAdvert *IsovalentAdvertisement
 	metadata   map[string]ServiceReconcilerMetadata
 
@@ -77,24 +78,26 @@ type ServiceReconciler struct {
 type ServiceReconcilerOut struct {
 	cell.Out
 
-	Reconciler ossreconcilerv2.ConfigReconciler `group:"bgp-config-reconciler"`
+	EnterpriseReconciler EnterpriseConfigReconciler       `group:"enterprise-bgp-config-reconciler"`
+	Reconciler           ossreconcilerv2.ConfigReconciler `group:"bgp-config-reconciler"`
 }
 
 type ServiceReconcilerIn struct {
 	cell.In
 	Lifecycle cell.Lifecycle
 
-	JobGroup   job.Group
-	DB         *statedb.DB
-	Frontends  statedb.Table[*loadbalancer.Frontend]
-	Cfg        Config
-	RoutesCfg  svcrouteconfig.RoutesConfig
-	BGPConfig  config.Config
-	Logger     *slog.Logger
-	Signaler   *signaler.BGPCPSignaler
-	Upgrader   paramUpgrader
-	PeerAdvert *IsovalentAdvertisement
-	NSProvider NodeStatusProvider
+	JobGroup     job.Group
+	DB           *statedb.DB
+	Frontends    statedb.Table[*loadbalancer.Frontend]
+	Cfg          Config
+	RoutesCfg    svcrouteconfig.RoutesConfig
+	BGPConfig    config.Config
+	DaemonConfig *option.DaemonConfig
+	Logger       *slog.Logger
+	Signaler     *signaler.BGPCPSignaler
+	Upgrader     paramUpgrader
+	PeerAdvert   *IsovalentAdvertisement
+	NSProvider   NodeStatusProvider
 }
 
 // ServiceReconcilerMetadata holds any announced service CIDRs per address family.
@@ -116,23 +119,65 @@ func NewServiceReconciler(in ServiceReconcilerIn) ServiceReconcilerOut {
 	if !in.BGPConfig.Enabled {
 		return ServiceReconcilerOut{}
 	}
-	return ServiceReconcilerOut{
-		Reconciler: &ServiceReconciler{
-			logger:             in.Logger.With(bgptypes.ReconcilerLogField, "Service"),
-			cfg:                in.Cfg,
-			routesCfg:          in.RoutesCfg,
-			db:                 in.DB,
-			frontends:          in.Frontends,
-			jobs:               in.JobGroup,
-			signaler:           in.Signaler,
-			upgrader:           in.Upgrader,
-			nodeStatusProvider: in.NSProvider,
-			peerAdvert:         in.PeerAdvert,
-			metadata:           make(map[string]ServiceReconcilerMetadata),
-		},
+	r := &ServiceReconciler{
+		logger:             in.Logger.With(bgptypes.ReconcilerLogField, "Service"),
+		cfg:                in.Cfg,
+		routesCfg:          in.RoutesCfg,
+		db:                 in.DB,
+		frontends:          in.Frontends,
+		jobs:               in.JobGroup,
+		signaler:           in.Signaler,
+		nodeStatusProvider: in.NSProvider,
+		peerAdvert:         in.PeerAdvert,
+		metadata:           make(map[string]ServiceReconcilerMetadata),
 	}
-	// NOTE: there is no need to trigger reconciliation upon Frontends table changes,
-	// this is already done by the OSS ServiceReconciler.
+	if !in.DaemonConfig.BGPControlPlaneEnabled() {
+		// Only register Service Frontend trigger when OSS is disabled.
+		// When both OSS and enterprise BGP CPlane are enabled, the OSS
+		// ServiceReconciler registers the same trigger.
+		in.JobGroup.Add(
+			job.OneShot("enterprise-frontend-events", r.processFrontendEvents),
+		)
+	}
+	return ServiceReconcilerOut{
+		EnterpriseReconciler: r,
+		Reconciler:           newOSSConfigReconcilerAdapter(r, in.Upgrader),
+	}
+}
+
+// processFrontendEvents triggers BGP reconciliation upon frontend events
+// (including changes in their backends).
+func (r *ServiceReconciler) processFrontendEvents(ctx context.Context, _ cell.Health) error {
+	// rate-limit reconciliation triggers to 100 milliseconds
+	limiter := rate.NewLimiter(100*time.Millisecond, 1)
+	defer limiter.Stop()
+
+	// wait for frontends table initialization
+	_, watch := r.frontends.Initialized(r.db.ReadTxn())
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-watch:
+	}
+
+	// emit initial signal
+	r.signaler.Event(struct{}{})
+
+	// watch for changes in the frontends table
+	_, watch = r.frontends.AllWatch(r.db.ReadTxn())
+	for {
+		select {
+		case <-watch:
+			// re-start the watch and emit reconciliation event
+			_, watch = r.frontends.AllWatch(r.db.ReadTxn())
+			r.signaler.Event(struct{}{})
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+		if err := limiter.Wait(ctx); err != nil {
+			return err
+		}
+	}
 }
 
 func (r *ServiceReconciler) Name() string {
@@ -144,7 +189,7 @@ func (r *ServiceReconciler) Priority() int {
 }
 
 // Init is called when a new BGP instance is being initialized.
-func (r *ServiceReconciler) Init(i *instance.BGPInstance) error {
+func (r *ServiceReconciler) Init(i *enterpriseInstance.EnterpriseBGPInstance) error {
 	if i == nil {
 		return fmt.Errorf("BUG: service reconciler initialization with nil BGPInstance")
 	}
@@ -158,7 +203,7 @@ func (r *ServiceReconciler) Init(i *instance.BGPInstance) error {
 }
 
 // Cleanup is called when a new BGP instance is being removed.
-func (r *ServiceReconciler) Cleanup(i *instance.BGPInstance) {
+func (r *ServiceReconciler) Cleanup(i *enterpriseInstance.EnterpriseBGPInstance) {
 	if i != nil {
 		delete(r.metadata, i.Name)
 	}
@@ -173,16 +218,7 @@ func (r *ServiceReconciler) setMetadata(i *EnterpriseBGPInstance, metadata Servi
 }
 
 // Reconcile mirrors the OSS reconciler's Reconcile() code path but calls enterprise-specific reconcileServices().
-func (r *ServiceReconciler) Reconcile(ctx context.Context, ossParams ossreconcilerv2.ReconcileParams) error {
-	p, err := r.upgrader.upgrade(ossParams)
-	if err != nil {
-		if errors.Is(err, ErrEntNodeConfigNotFound) {
-			r.logger.Debug("Enterprise node config not found yet, skipping reconciliation")
-			return nil
-		}
-		return err
-	}
-
+func (r *ServiceReconciler) Reconcile(ctx context.Context, p EnterpriseReconcileParams) error {
 	r.logger.Debug("Performing CEE Service reconciliation")
 
 	desiredPeerAdverts, err := r.peerAdvert.GetConfiguredPeerAdvertisements(p.DesiredConfig, v1.BGPServiceAdvert)
