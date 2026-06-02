@@ -293,6 +293,12 @@ func TestPrivilegedScript(t *testing.T) {
 			if strings.HasPrefix(t.Name(), "TestPrivilegedScript/ent-") {
 				cfg.Enabled = true
 			}
+			// Skip OSS test when -disable-oss-bgp-control-plane is
+			// set, since the OSS BGP Control Plane is required for
+			// the test.
+			if !strings.HasPrefix(t.Name(), "TestPrivilegedScript/ent-") && *disableOSSBGPControlPlane {
+				t.SkipNow()
+			}
 		})
 		hive.AddConfigOverride(h, func(cfg *svcrouteconfig.RoutesConfig) {
 			cfg.EnableNoServiceEndpointsRoutable = *enableNoEndpointsRoutable
