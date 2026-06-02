@@ -1,53 +1,6 @@
 // SPDX-License-Identifier: (GPL-2.0-only OR BSD-2-Clause)
 /* Copyright Authors of Cilium */
 
-#include <bpf/ctx/skb.h>
-#include <bpf/config/node.h>
-
-#include "common.h"
-#include "pktgen.h"
-#include <lib/common.h>
-
-static int last_redirect_ifindex;
-static struct bpf_tunnel_key last_tunnel_key;
-
-#undef ctx_redirect
-#define ctx_redirect mock_ctx_redirect
-static __always_inline int
-mock_ctx_redirect(const struct __sk_buff __maybe_unused *ctx, int ifindex,
-		  __u32 __maybe_unused flags)
-{
-	last_redirect_ifindex = ifindex;
-	return CTX_ACT_REDIRECT;
-}
-
-#undef ctx_set_tunnel_key
-#define ctx_set_tunnel_key mock_ctx_set_tunnel_key
-static __always_inline int
-mock_ctx_set_tunnel_key(const struct __sk_buff __maybe_unused *ctx,
-			struct bpf_tunnel_key *tunnel_key, __u32 size,
-			__u32 __maybe_unused flags)
-{
-	if (size != TUNNEL_KEY_WITHOUT_SRC_IP)
-		return -EINVAL;
-
-	memcpy(&last_tunnel_key, tunnel_key, TUNNEL_KEY_WITHOUT_SRC_IP);
-
-	return 0;
-}
-
-static __always_inline void
-cleanup_test_state(struct ethhdr *eth)
-{
-	last_redirect_ifindex = 0;
-	memset(&last_tunnel_key, 0, sizeof(last_tunnel_key));
-	memset(eth->h_dest, 0, ETH_ALEN);
-	memset(eth->h_source, 0, ETH_ALEN);
-}
-
-#include <lib/enterprise_evpn.h>
-#include "enterprise_evpn_common.h"
-
 /* Datapath dummy config for tests */
 #define ENABLE_IPV4
 #define ENABLE_IPV6
@@ -55,14 +8,15 @@ cleanup_test_state(struct ethhdr *eth)
 /* Enable debug output */
 #define DEBUG
 
-#include <bpf/config/node.h>
-
-#include "tests/lib/enterprise_evpn.h"
+#include "enterprise_tc_evpn_egress_common.h"
 
 /* Enable configurations */
 ASSIGN_CONFIG(bool, evpn_enable, true)
 ASSIGN_CONFIG(__u32, evpn_device_ifindex, 123)
 ASSIGN_CONFIG(union macaddr, evpn_device_mac, {.addr = mac_two_addr })
+ASSIGN_CONFIG(bool, evpn_source_interface_configured, true)
+ASSIGN_CONFIG(union v4addr, evpn_source_ipv4, { .be32 = v4_node_two })
+ASSIGN_CONFIG(union v6addr, evpn_source_ipv6, { .addr = v6_node_two_addr })
 
 CHECK("tc", "evpn_encap_and_redirect4")
 int evpn_encap_and_redirect4_check(struct __ctx_buff *ctx)
@@ -107,6 +61,12 @@ int evpn_encap_and_redirect4_check(struct __ctx_buff *ctx)
 
 		if (last_tunnel_key.remote_ipv4 != bpf_ntohl(v4_node_one))
 			test_error("Unexpected remote_ipv4");
+
+		if (last_tunnel_key_size != TUNNEL_KEY_WITH_SRC_IP)
+			test_error("Expected tunnel key with source IP");
+
+		if (last_tunnel_key.local_ipv4 != bpf_ntohl(v4_node_two))
+			test_error("Unexpected local_ipv4");
 
 		cleanup_test_state(eth);
 	});
@@ -153,6 +113,8 @@ int evpn_encap_and_redirect4_ipv6_nexthop_check(struct __ctx_buff *ctx)
 	evpn_setup_fib();
 
 	TEST("evpn_encap_and_redirect4 IPv6 nexthop", {
+		union v6addr expected_source_ipv6 = { .addr = v6_node_two_addr };
+
 		ret = evpn_encap_and_redirect4(ctx, 1, 1, EVPN_V4_ADDR2, &trace);
 		if (ret != TC_ACT_REDIRECT)
 			test_error("Expect TC_ACT_REDIRECT, but got %d", ret);
@@ -173,6 +135,13 @@ int evpn_encap_and_redirect4_ipv6_nexthop_check(struct __ctx_buff *ctx)
 		if (memcmp(last_tunnel_key.remote_ipv6, (const void *)&v6_node_one,
 			   sizeof(v6_node_one)) != 0)
 			test_error("Unexpected remote_ipv6");
+
+		if (last_tunnel_key_size != TUNNEL_KEY_WITH_SRC_IP)
+			test_error("Expected tunnel key with source IP");
+
+		if (memcmp(last_tunnel_key.local_ipv6, &expected_source_ipv6,
+			   sizeof(expected_source_ipv6)) != 0)
+			test_error("Unexpected local_ipv6");
 
 		cleanup_test_state(eth);
 	});
@@ -209,6 +178,7 @@ int evpn_encap_and_redirect6_check(struct __ctx_buff *ctx)
 
 	TEST("evpn_encap_and_redirect6 match", {
 		union v6addr expected_remote_ipv6 = { .addr = v6_node_one_addr };
+		union v6addr expected_source_ipv6 = { .addr = v6_node_two_addr };
 
 		ret = evpn_encap_and_redirect6(ctx, 1, 1, EVPN_V6_ADDR0, &trace);
 		if (ret != TC_ACT_REDIRECT)
@@ -230,6 +200,13 @@ int evpn_encap_and_redirect6_check(struct __ctx_buff *ctx)
 		if (memcmp(last_tunnel_key.remote_ipv6, &expected_remote_ipv6,
 			   sizeof(expected_remote_ipv6)) != 0)
 			test_error("Unexpected remote_ipv6");
+
+		if (last_tunnel_key_size != TUNNEL_KEY_WITH_SRC_IP)
+			test_error("Expected tunnel key with source IP");
+
+		if (memcmp(last_tunnel_key.local_ipv6, &expected_source_ipv6,
+			   sizeof(expected_source_ipv6)) != 0)
+			test_error("Unexpected local_ipv6");
 
 		cleanup_test_state(eth);
 	});
@@ -295,6 +272,12 @@ int evpn_encap_and_redirect6_ipv4_nexthop_check(struct __ctx_buff *ctx)
 
 		if (last_tunnel_key.remote_ipv4 != bpf_ntohl(v4_node_one))
 			test_error("Unexpected remote_ipv4");
+
+		if (last_tunnel_key_size != TUNNEL_KEY_WITH_SRC_IP)
+			test_error("Expected tunnel key with source IP");
+
+		if (last_tunnel_key.local_ipv4 != bpf_ntohl(v4_node_two))
+			test_error("Unexpected local_ipv4");
 
 		cleanup_test_state(eth);
 	});
