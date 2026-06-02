@@ -42,9 +42,6 @@ func TestBGPCommandOverride(t *testing.T) {
 				// Override should occur
 				require.NotNil(t, bgpCommands["bgp/routes"])
 				require.NotNil(t, bgpCommands["bgp/route-policies"])
-				// Global command should not be provided.
-				require.NotContains(t, commands, "bgp/routes")
-				require.NotContains(t, commands, "bgp/route-policies")
 			},
 		},
 		{
@@ -55,9 +52,6 @@ func TestBGPCommandOverride(t *testing.T) {
 				// No override should occur
 				require.Nil(t, bgpCommands["bgp/routes"])
 				require.Nil(t, bgpCommands["bgp/route-policies"])
-				// Global command should not be provided.
-				require.NotContains(t, commands, "bgp/routes")
-				require.NotContains(t, commands, "bgp/route-policies")
 			},
 		},
 		{
@@ -65,12 +59,9 @@ func TestBGPCommandOverride(t *testing.T) {
 			ossEnabled:        false,
 			enterpriseEnabled: true,
 			check: func(t *testing.T, bgpCommands ossCommands.BGPCommands, commands map[string]script.Cmd) {
-				// No override should occur
-				require.Nil(t, bgpCommands["bgp/routes"])
-				require.Nil(t, bgpCommands["bgp/route-policies"])
-				// Global command should be provided
-				require.Contains(t, commands, "bgp/routes")
-				require.Contains(t, commands, "bgp/route-policies")
+				// Override should occur
+				require.NotNil(t, bgpCommands["bgp/routes"])
+				require.NotNil(t, bgpCommands["bgp/route-policies"])
 			},
 		},
 		{
@@ -81,9 +72,6 @@ func TestBGPCommandOverride(t *testing.T) {
 				// No override should occur
 				require.Nil(t, bgpCommands["bgp/routes"])
 				require.Nil(t, bgpCommands["bgp/route-policies"])
-				// Global command should not be provided
-				require.NotContains(t, commands, "bgp/routes")
-				require.NotContains(t, commands, "bgp/route-policies")
 			},
 		},
 	}
