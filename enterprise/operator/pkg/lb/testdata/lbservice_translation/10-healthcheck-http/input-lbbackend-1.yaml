@@ -15,7 +15,6 @@ spec:
     timeoutSeconds: 2
     healthyThreshold: 2
     unhealthyThreshold: 2
-    minHealthyPercentage: 30
     http:
       host: my-hostname
       path: /health-endpoint

@@ -15,7 +15,6 @@ spec:
     timeoutSeconds: 2
     healthyThreshold: 2
     unhealthyThreshold: 2
-    minHealthyPercentage: 20
     tcp:
       send:
         text: 7b22666f6f223a2022626172227d

@@ -15,7 +15,6 @@ spec:
     timeoutSeconds: 5
     healthyThreshold: 1
     unhealthyThreshold: 1
-    minHealthyPercentage: 20
     tlsConfig: {}
     http:
       host: lb
