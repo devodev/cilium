@@ -405,7 +405,7 @@ func (c *CIDRIdentities) upsertCIDRIdentity(wtx statedb.WriteTxn, metadata table
 		if err != nil {
 			c.log.Error("Failed to release identity",
 				logfields.Prefix, old.Prefix,
-				logfields.Identity, old.Prefix,
+				logfields.Identity, old.Identity,
 				logfields.Error, err,
 			)
 			return
