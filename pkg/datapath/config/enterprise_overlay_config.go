@@ -22,6 +22,12 @@ type BPFOverlayEnterprise struct {
 	EVPNDeviceMAC types.MACAddr `config:"evpn_device_mac"`
 	// True if evpn feature is enabled.
 	EVPNEnable bool `config:"evpn_enable"`
+	// The IPv4 source address used for evpn vxlan packets.
+	EVPNSourceIPv4 types.V4Addr `config:"evpn_source_ipv4"`
+	// The IPv6 source address used for evpn vxlan packets.
+	EVPNSourceIPv6 types.V6Addr `config:"evpn_source_ipv6"`
+	// True if an evpn source interface is configured.
+	EVPNSourceInterfaceConfigured bool `config:"evpn_source_interface_configured"`
 	// Apply Network Policy for ICMP packets.
 	EnableICMPRule bool `config:"enable_icmp_rule"`
 	// Maintain packet and byte counters for every policy entry.
@@ -45,6 +51,8 @@ type BPFOverlayEnterprise struct {
 func NewBPFOverlayEnterprise() *BPFOverlayEnterprise {
 	return &BPFOverlayEnterprise{false, 0x0, 0x0,
 		cast[types.MACAddr]([]byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}),
+		false, cast[types.V4Addr]([]byte{0x0, 0x0, 0x0, 0x0}),
+		cast[types.V6Addr]([]byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}),
 		false, false, false, false, false, false, cast[types.V4Addr]([]byte{0x0, 0x0, 0x0, 0x0}),
 		cast[types.V6Addr]([]byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}),
 		false, 0x0}

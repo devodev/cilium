@@ -21,6 +21,12 @@ DECLARE_ENTERPRISE_CONFIG(__u32, evpn_device_ifindex,
 			  "The interface index of the evpn vxlan device")
 DECLARE_ENTERPRISE_CONFIG(union macaddr, evpn_device_mac,
 			  "The mac address of the evpn vxlan device")
+DECLARE_ENTERPRISE_CONFIG(bool, evpn_source_interface_configured,
+			  "True if an evpn source interface is configured")
+DECLARE_ENTERPRISE_CONFIG(union v4addr, evpn_source_ipv4,
+			  "The IPv4 source address used for evpn vxlan packets")
+DECLARE_ENTERPRISE_CONFIG(union v6addr, evpn_source_ipv6,
+			  "The IPv6 source address used for evpn vxlan packets")
 
 #define V4_EVPN_FIB_KEY_LEN (sizeof(__u32) * 8)
 #define V6_EVPN_FIB_KEY_LEN (sizeof(union v6addr) * 8)
@@ -94,24 +100,49 @@ evpn_fib_lookup6(__u16 net_id, const union v6addr *addr)
 static __always_inline __maybe_unused int
 evpn_set_tunnel_key(struct __ctx_buff *ctx, const struct evpn_fib_val *fib_val)
 {
-	int ret;
+	__u32 key_size = TUNNEL_KEY_WITHOUT_SRC_IP;
 	struct bpf_tunnel_key tunnel_key = {};
+	int ret;
 
 	tunnel_key.tunnel_id = fib_val->vni;
 	tunnel_key.tunnel_ttl = IPDEFTTL;
 
 	if (fib_val->family == AF_INET) {
+		__be32 source_ipv4 = CONFIG(evpn_source_ipv4).be32;
+
+		if (CONFIG(evpn_source_interface_configured)) {
+			if (source_ipv4 != 0) {
+				tunnel_key.local_ipv4 = bpf_ntohl(source_ipv4);
+				key_size = TUNNEL_KEY_WITH_SRC_IP;
+			} else {
+				return DROP_INVALID_SIP;
+			}
+		}
 		tunnel_key.remote_ipv4 = bpf_ntohl(fib_val->ip4.be32);
-		ret = ctx_set_tunnel_key(ctx, &tunnel_key, TUNNEL_KEY_WITHOUT_SRC_IP,
+		ret = ctx_set_tunnel_key(ctx, &tunnel_key, key_size,
 					 BPF_F_ZERO_CSUM_TX);
 		if (ret < 0)
 			return DROP_WRITE_ERROR;
 	} else if (fib_val->family == AF_INET6) {
+		union v6addr source_ipv6 = CONFIG(evpn_source_ipv6);
+
+		if (CONFIG(evpn_source_interface_configured)) {
+			if (source_ipv6.p1 || source_ipv6.p2 ||
+			    source_ipv6.p3 || source_ipv6.p4) {
+				tunnel_key.local_ipv6[0] = source_ipv6.p1;
+				tunnel_key.local_ipv6[1] = source_ipv6.p2;
+				tunnel_key.local_ipv6[2] = source_ipv6.p3;
+				tunnel_key.local_ipv6[3] = source_ipv6.p4;
+				key_size = TUNNEL_KEY_WITH_SRC_IP;
+			} else {
+				return DROP_INVALID_SIP;
+			}
+		}
 		tunnel_key.remote_ipv6[0] = fib_val->ip6.p1;
 		tunnel_key.remote_ipv6[1] = fib_val->ip6.p2;
 		tunnel_key.remote_ipv6[2] = fib_val->ip6.p3;
 		tunnel_key.remote_ipv6[3] = fib_val->ip6.p4;
-		ret = ctx_set_tunnel_key(ctx, &tunnel_key, TUNNEL_KEY_WITHOUT_SRC_IP,
+		ret = ctx_set_tunnel_key(ctx, &tunnel_key, key_size,
 					 BPF_F_ZERO_CSUM_TX | BPF_F_TUNINFO_IPV6);
 		if (ret < 0)
 			return DROP_WRITE_ERROR;
