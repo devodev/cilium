@@ -393,8 +393,8 @@ func (i *INBs) upsertINBsForNetwork(wtx statedb.WriteTxn, privnet tables.Private
 					if err := i.checker.Deregister(old.Node, old.Network); err != nil {
 						i.log.Error("Failed deregistering INB from health checking",
 							logfields.Error, err,
-							logfields.Node, inb.Node,
-							logfields.Network, inb.Network,
+							logfields.Node, old.Node,
+							logfields.Network, old.Network,
 						)
 					}
 				}
@@ -500,8 +500,8 @@ func (i *INBs) upsertINBsForNode(wtx statedb.WriteTxn, node *types.Node) {
 				if err := i.checker.Deregister(old.Node, old.Network); err != nil {
 					i.log.Error("Failed deregistering INB from health checking",
 						logfields.Error, err,
-						logfields.Node, inb.Node,
-						logfields.Network, inb.Network,
+						logfields.Node, old.Node,
+						logfields.Network, old.Network,
 					)
 				}
 			}
