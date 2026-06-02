@@ -108,6 +108,20 @@ func (l *EnterpriseLoader) registerEndpointConfig(pd *privnetDHCPDevice) {
 				cfg.EVPNDeviceIfIndex = uint32(dev.Index)
 				cfg.EVPNDeviceMAC.Addr = mac.MAC(dev.HardwareAddr).As6()
 			}
+			if l.evpnConfig.SourceInterface != "" {
+				cfg.EVPNSourceInterfaceConfigured = true
+				dev, _, found = l.deviceTable.Get(l.db.ReadTxn(), tables.DeviceNameIndex.Query(l.evpnConfig.SourceInterface))
+				if found {
+					if sourceIPs, err := evpnConfig.SourceIPsFromDevice(dev); err == nil {
+						if sourceIPs.IPv4.IsValid() {
+							cfg.EVPNSourceIPv4.Addr = sourceIPs.IPv4.As4()
+						}
+						if sourceIPs.IPv6.IsValid() {
+							cfg.EVPNSourceIPv6.Addr = sourceIPs.IPv6.As16()
+						}
+					}
+				}
+			}
 		}
 
 		if l.inspectionFilter.EnabledForEndpoint(ep) {
