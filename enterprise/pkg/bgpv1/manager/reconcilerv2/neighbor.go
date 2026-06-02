@@ -12,7 +12,6 @@ package reconcilerv2
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net/netip"
@@ -23,8 +22,8 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
+	"github.com/cilium/cilium/enterprise/pkg/bgpv1/manager/instance"
 	enterpriseTypes "github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
-	"github.com/cilium/cilium/pkg/bgp/manager/instance"
 	ossReconciler "github.com/cilium/cilium/pkg/bgp/manager/reconciler"
 	"github.com/cilium/cilium/pkg/bgp/manager/store"
 	"github.com/cilium/cilium/pkg/bgp/types"
@@ -47,14 +46,16 @@ type NeighborReconciler struct {
 	DaemonConfig     *option.DaemonConfig
 	DB               *statedb.DB
 	DeviceTable      statedb.Table[*tables.Device]
-	upgrader         paramUpgrader
 	metadata         map[string]*NeighborReconcilerMetadata
 }
+
+var _ EnterpriseConfigReconciler = (*NeighborReconciler)(nil)
 
 type NeighborReconcilerOut struct {
 	cell.Out
 
-	Reconciler ossReconciler.ConfigReconciler `group:"bgp-config-reconciler"`
+	Reconciler    EnterpriseConfigReconciler     `group:"enterprise-bgp-config-reconciler"`
+	OSSReconciler ossReconciler.ConfigReconciler `group:"bgp-config-reconciler"`
 }
 
 type NeighborReconcilerIn struct {
@@ -76,22 +77,23 @@ func NewNeighborReconciler(params NeighborReconcilerIn) NeighborReconcilerOut {
 		return NeighborReconcilerOut{}
 	}
 
+	r := &NeighborReconciler{
+		Logger:           params.Logger.With(types.ReconcilerLogField, "Neighbor"),
+		SecretStore:      params.SecretStore,
+		PeerConfig:       params.PeerConfig,
+		Policy:           params.Policy,
+		EnterpriseConfig: params.EnterpriseConfig,
+		DaemonConfig:     params.DaemonConfig,
+		DB:               params.DB,
+		DeviceTable:      params.DeviceTable,
+		metadata:         make(map[string]*NeighborReconcilerMetadata),
+	}
 	return NeighborReconcilerOut{
-		Reconciler: &NeighborReconciler{
-			Logger:           params.Logger.With(types.ReconcilerLogField, "Neighbor"),
-			SecretStore:      params.SecretStore,
-			PeerConfig:       params.PeerConfig,
-			Policy:           params.Policy,
-			EnterpriseConfig: params.EnterpriseConfig,
-			DaemonConfig:     params.DaemonConfig,
-			DB:               params.DB,
-			DeviceTable:      params.DeviceTable,
-			upgrader:         params.Upgrader,
-			metadata:         make(map[string]*NeighborReconcilerMetadata),
-		},
+		Reconciler:    r,
+		OSSReconciler: newOSSConfigReconcilerAdapter(r, params.Upgrader),
 	}
 	// NOTE: there is no need to trigger reconciliation upon Device table changes,
-	// this is already done by the OSS DefaultGatewayReconciler.
+	// this is already done by the DefaultGatewayReconciler.
 }
 
 // PeerData keeps a peer and its configuration. It also keeps the TCP password from secret store.
@@ -144,7 +146,7 @@ func (r *NeighborReconciler) Priority() int {
 	return NeighborReconcilerPriority
 }
 
-func (r *NeighborReconciler) Init(i *instance.BGPInstance) error {
+func (r *NeighborReconciler) Init(i *instance.EnterpriseBGPInstance) error {
 	if i == nil {
 		return fmt.Errorf("BUG: %s reconciler initialization with nil BGPInstance", r.Name())
 	}
@@ -155,29 +157,13 @@ func (r *NeighborReconciler) Init(i *instance.BGPInstance) error {
 	return nil
 }
 
-func (r *NeighborReconciler) Cleanup(i *instance.BGPInstance) {
+func (r *NeighborReconciler) Cleanup(i *instance.EnterpriseBGPInstance) {
 	if i != nil {
 		delete(r.metadata, i.Name)
 	}
 }
 
-func (r *NeighborReconciler) Reconcile(ctx context.Context, _p ossReconciler.ReconcileParams) error {
-	if _p.DesiredConfig == nil {
-		return fmt.Errorf("attempted neighbor reconciliation with nil IsovalentBGPNodeInstance")
-	}
-	if _p.BGPInstance == nil {
-		return fmt.Errorf("attempted neighbor reconciliation with nil BGPInstance")
-	}
-
-	p, err := r.upgrader.upgrade(_p)
-	if err != nil {
-		if errors.Is(err, ErrEntNodeConfigNotFound) {
-			r.Logger.Debug("Enterprise node config not found yet, skipping reconciliation")
-			return nil
-		}
-		return err
-	}
-
+func (r *NeighborReconciler) Reconcile(ctx context.Context, p EnterpriseReconcileParams) error {
 	var (
 		l = r.Logger.With(types.InstanceLogField, p.DesiredConfig.Name)
 

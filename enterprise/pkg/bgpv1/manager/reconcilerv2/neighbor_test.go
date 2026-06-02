@@ -25,10 +25,9 @@ import (
 
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/fake"
+	"github.com/cilium/cilium/enterprise/pkg/bgpv1/manager/instance"
 	enterpriseTypes "github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
 	"github.com/cilium/cilium/pkg/bgp/gobgp"
-	"github.com/cilium/cilium/pkg/bgp/manager/instance"
-	"github.com/cilium/cilium/pkg/bgp/manager/reconciler"
 	"github.com/cilium/cilium/pkg/bgp/manager/store"
 	"github.com/cilium/cilium/pkg/bgp/types"
 	"github.com/cilium/cilium/pkg/datapath/tables"
@@ -250,7 +249,13 @@ func TestNeighborReconciler(t *testing.T) {
 				},
 			}
 
-			testInstance, err := instance.NewBGPInstance(context.Background(), gobgp.NewEnterpriseRouterProviderAsOSS(), logger, "test-instance", srvParams)
+			testInstance, err := instance.NewEnterpriseBGPInstance(
+				context.Background(),
+				gobgp.NewEnterpriseRouterProvider(),
+				logger,
+				"test-instance",
+				srvParams,
+			)
 			req.NoError(err)
 
 			t.Cleanup(func() {
@@ -263,14 +268,13 @@ func TestNeighborReconciler(t *testing.T) {
 			neighborReconciler := NewNeighborReconciler(params).Reconciler
 			neighborReconciler.Init(testInstance)
 			defer neighborReconciler.Cleanup(testInstance)
-			reconcileParams := reconciler.ReconcileParams{
-				BGPInstance: testInstance,
-				DesiredConfig: &v2.CiliumBGPNodeInstance{
-					// Enterprise-specific logic. As the
-					// NodeInstance is upgraded internally,
-					// we only need to provide the name of
-					// the NodeInstance.
-					Name: nodeConfig.Name,
+			reconcileParams := EnterpriseReconcileParams{
+				BGPInstance:   testInstance,
+				DesiredConfig: nodeConfig,
+				CiliumNode: &v2.CiliumNode{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "node1",
+					},
 				},
 			}
 			err = neighborReconciler.Reconcile(context.Background(), reconcileParams)
@@ -281,20 +285,10 @@ func TestNeighborReconciler(t *testing.T) {
 
 			// update neighbors
 
-			params, _ = setupNeighbors(logger, tt.newNeighbors)
+			params, nodeConfig = setupNeighbors(logger, tt.newNeighbors)
 			neighborReconciler.(*NeighborReconciler).PeerConfig = params.PeerConfig
 			neighborReconciler.(*NeighborReconciler).SecretStore = params.SecretStore
-			neighborReconciler.(*NeighborReconciler).upgrader = params.Upgrader
-			reconcileParams = reconciler.ReconcileParams{
-				BGPInstance: testInstance,
-				DesiredConfig: &v2.CiliumBGPNodeInstance{
-					// Enterprise-specific logic. As the
-					// NodeInstance is upgraded internally,
-					// we only need to provide the name of
-					// the NodeInstance.
-					Name: nodeConfig.Name,
-				},
-			}
+			reconcileParams.DesiredConfig = nodeConfig
 			err = neighborReconciler.Reconcile(context.Background(), reconcileParams)
 			req.NoError(err)
 
@@ -458,7 +452,13 @@ func TestNeighborReconciler_SourceInterfaceAddress(t *testing.T) {
 			ListenPort: -1,
 		},
 	}
-	testInstance, err := instance.NewBGPInstance(context.Background(), gobgp.NewEnterpriseRouterProviderAsOSS(), hivetest.Logger(t), "test-instance", srvParams)
+	testInstance, err := instance.NewEnterpriseBGPInstance(
+		context.Background(),
+		gobgp.NewEnterpriseRouterProvider(),
+		hivetest.Logger(t),
+		"test-instance",
+		srvParams,
+	)
 	req.NoError(err)
 	t.Cleanup(func() {
 		testInstance.Router.Stop(context.Background(), types.StopRequest{FullDestroy: true})
@@ -482,7 +482,6 @@ func TestNeighborReconciler_SourceInterfaceAddress(t *testing.T) {
 			nodeConfig := &v1.IsovalentBGPNodeInstance{
 				Name: "bgp-node",
 			}
-			neighborReconciler.upgrader = newUpgraderMock(nodeConfig)
 			for _, p := range tt.configuredNeighbors {
 				obj := &v1.IsovalentBGPPeerConfig{
 					ObjectMeta: metav1.ObjectMeta{
@@ -495,15 +494,9 @@ func TestNeighborReconciler_SourceInterfaceAddress(t *testing.T) {
 			}
 
 			// run reconciliation
-			reconcileParams := reconciler.ReconcileParams{
-				BGPInstance: testInstance,
-				DesiredConfig: &v2.CiliumBGPNodeInstance{
-					// Enterprise-specific logic. As the
-					// NodeInstance is upgraded internally,
-					// we only need to provide the name of
-					// the NodeInstance.
-					Name: nodeConfig.Name,
-				},
+			reconcileParams := EnterpriseReconcileParams{
+				BGPInstance:   testInstance,
+				DesiredConfig: nodeConfig,
 				CiliumNode: &v2.CiliumNode{
 					ObjectMeta: metav1.ObjectMeta{
 						Name: "bgp-node",
@@ -627,7 +620,7 @@ func validatePeers(req *require.Assertions, expected, running []PeerData, checks
 	}
 }
 
-func getRunningPeers(req *require.Assertions, instance *instance.BGPInstance) []PeerData {
+func getRunningPeers(req *require.Assertions, instance *instance.EnterpriseBGPInstance) []PeerData {
 	getPeerResp, err := instance.Router.GetPeerStateLegacy(context.Background())
 	req.NoError(err)
 
@@ -1614,7 +1607,7 @@ func TestImportPolicyNotMutatedByDefaulting(t *testing.T) {
 	originalPolicy := policy0.DeepCopy()
 
 	var (
-		neighborReconciler reconciler.ConfigReconciler
+		neighborReconciler EnterpriseConfigReconciler
 		policyStore        store.BGPCPResourceStore[*v1.IsovalentBGPPolicy]
 	)
 	h := hive.New(
@@ -1646,7 +1639,7 @@ func TestImportPolicyNotMutatedByDefaulting(t *testing.T) {
 		cell.Invoke(func(
 			reconcilersIn struct {
 				cell.In
-				Reconcilers []reconciler.ConfigReconciler `group:"bgp-config-reconciler"`
+				Reconcilers []EnterpriseConfigReconciler `group:"enterprise-bgp-config-reconciler"`
 			},
 			_policyStore store.BGPCPResourceStore[*v1.IsovalentBGPPolicy],
 		) {
@@ -1672,9 +1665,9 @@ func TestImportPolicyNotMutatedByDefaulting(t *testing.T) {
 		require.True(t, originalPolicy.DeepEqual(storedPolicy))
 	})
 
-	instance, err := instance.NewBGPInstance(
+	instance, err := instance.NewEnterpriseBGPInstance(
 		t.Context(),
-		fake.NewEnterpriseFakeRouterProviderAsOSS(),
+		fake.NewEnterpriseFakeRouterProvider(),
 		logger,
 		instance0.Name,
 		types.ServerParameters{},
@@ -1684,9 +1677,9 @@ func TestImportPolicyNotMutatedByDefaulting(t *testing.T) {
 	err = neighborReconciler.Init(instance)
 	require.NoError(t, err)
 
-	err = neighborReconciler.Reconcile(context.Background(), reconciler.ReconcileParams{
+	err = neighborReconciler.Reconcile(context.Background(), EnterpriseReconcileParams{
 		BGPInstance: instance,
-		DesiredConfig: &v2.CiliumBGPNodeInstance{
+		DesiredConfig: &v1.IsovalentBGPNodeInstance{
 			Name: instance0.Name,
 		},
 	})
