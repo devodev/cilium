@@ -457,6 +457,7 @@ func (c *CTMaps) Prune(ctx context.Context, txn statedb.ReadTxn, objs iter.Seq2[
 		m, ok := c.ctMaps[obj.NetworkID]
 		if !ok {
 			err = errors.Join(err, fmt.Errorf("prune: no private network CT map for network %q", obj.Network))
+			continue
 		}
 
 		if c.tcp4.Enabled() {
