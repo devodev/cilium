@@ -24,7 +24,6 @@ import (
 
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/fake"
 	entTypes "github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
-	"github.com/cilium/cilium/pkg/bgp/manager/instance"
 	"github.com/cilium/cilium/pkg/bgp/manager/reconciler"
 	"github.com/cilium/cilium/pkg/bgp/manager/store"
 	"github.com/cilium/cilium/pkg/bgp/types"
@@ -557,7 +556,6 @@ func TestEgressGatewayAdvertisements(t *testing.T) {
 			egwReconciler := EgressGatewayIPsReconciler{
 				logger:         logger,
 				egwIPsProvider: newEGWManagerMock(tt.testEGWPolicies),
-				upgrader:       newUpgraderMock(tt.testBGPInstanceConfig),
 				peerAdvert: &IsovalentAdvertisement{
 					logger:      logger,
 					peerConfigs: mockPeerConfigStore,
@@ -573,13 +571,8 @@ func TestEgressGatewayAdvertisements(t *testing.T) {
 			}
 
 			router := fake.NewEnterpriseFakeRouter()
-			testOSSBGPInstance := &instance.BGPInstance{
-				Name:   "fake-instance",
-				Config: nil,
-				Router: router,
-			}
 			testBGPInstance := &EnterpriseBGPInstance{
-				Name:   testOSSBGPInstance.Name,
+				Name:   "fake-instance",
 				Router: router,
 			}
 
@@ -605,8 +598,10 @@ func TestEgressGatewayAdvertisements(t *testing.T) {
 
 			// run podIPPoolReconciler twice to ensure idempotency
 			for range 2 {
-				err := egwReconciler.Reconcile(context.Background(), reconciler.ReconcileParams{
-					BGPInstance: testOSSBGPInstance,
+				err := egwReconciler.Reconcile(context.Background(), EnterpriseReconcileParams{
+					BGPInstance:   testBGPInstance,
+					DesiredConfig: tt.testBGPInstanceConfig,
+					CiliumNode:    &v2.CiliumNode{},
 				})
 				req.NoError(err)
 			}

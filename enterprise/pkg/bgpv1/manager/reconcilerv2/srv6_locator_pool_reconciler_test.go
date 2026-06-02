@@ -22,10 +22,10 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/fake"
+	"github.com/cilium/cilium/enterprise/pkg/bgpv1/manager/instance"
 	entTypes "github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
 	"github.com/cilium/cilium/enterprise/pkg/srv6/sidmanager"
 	srv6Types "github.com/cilium/cilium/enterprise/pkg/srv6/types"
-	"github.com/cilium/cilium/pkg/bgp/manager/instance"
 	"github.com/cilium/cilium/pkg/bgp/manager/reconciler"
 	"github.com/cilium/cilium/pkg/bgp/manager/store"
 	"github.com/cilium/cilium/pkg/bgp/types"
@@ -739,7 +739,6 @@ func TestExportSRv6LocatorPoolReconciler(t *testing.T) {
 
 			lpReconciler := LocatorPoolReconciler{
 				logger:           logger,
-				upgrader:         newUpgraderMock(testInstanceConfig),
 				locatorPoolStore: mockLocatorPoolStore,
 				sidAllocators:    allocators,
 				peerAdvert: &IsovalentAdvertisement{
@@ -752,16 +751,13 @@ func TestExportSRv6LocatorPoolReconciler(t *testing.T) {
 
 			lpReconciler.initialized.Store(true)
 
-			testOSSBGPInstance := &instance.BGPInstance{
+			testBGPInstance := &instance.EnterpriseBGPInstance{
 				Name:   "fake-instance",
 				Router: fake.NewEnterpriseFakeRouter(),
+				Config: testInstanceConfig,
 			}
-			testBGPInstance := &EnterpriseBGPInstance{
-				Name:   testOSSBGPInstance.Name,
-				Router: upgradeRouter(testOSSBGPInstance.Router),
-			}
-			lpReconciler.Init(testOSSBGPInstance)
-			defer lpReconciler.Cleanup(testOSSBGPInstance)
+			lpReconciler.Init(testBGPInstance)
+			defer lpReconciler.Cleanup(testBGPInstance)
 
 			// set preconfigured data
 			presetAFPaths := make(reconciler.ResourceAFPathsMap)
@@ -785,8 +781,10 @@ func TestExportSRv6LocatorPoolReconciler(t *testing.T) {
 
 			// run the reconciler twice to ensure idempotency
 			for range 2 {
-				err := lpReconciler.Reconcile(context.Background(), reconciler.ReconcileParams{
-					BGPInstance: testOSSBGPInstance,
+				err := lpReconciler.Reconcile(context.Background(), EnterpriseReconcileParams{
+					BGPInstance:   testBGPInstance,
+					DesiredConfig: testInstanceConfig,
+					CiliumNode:    &v2.CiliumNode{},
 				})
 				req.NoError(err)
 			}

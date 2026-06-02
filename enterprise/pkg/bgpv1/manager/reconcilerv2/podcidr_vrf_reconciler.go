@@ -12,7 +12,6 @@ package reconcilerv2
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net/netip"
@@ -22,10 +21,10 @@ import (
 	k8sTypes "k8s.io/apimachinery/pkg/types"
 
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
+	"github.com/cilium/cilium/enterprise/pkg/bgpv1/manager/instance"
 	entTypes "github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
 	srv6 "github.com/cilium/cilium/enterprise/pkg/srv6/srv6manager"
-	"github.com/cilium/cilium/pkg/bgp/manager/instance"
-	"github.com/cilium/cilium/pkg/bgp/manager/reconciler"
+	ossReconciler "github.com/cilium/cilium/pkg/bgp/manager/reconciler"
 	"github.com/cilium/cilium/pkg/bgp/types"
 	v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	v1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
@@ -50,20 +49,20 @@ type PodCIDRVRFReconcilerIn struct {
 type PodCIDRVRFReconcilerOut struct {
 	cell.Out
 
-	Reconciler reconciler.ConfigReconciler `group:"bgp-config-reconciler"`
+	EnterpriseReconciler EnterpriseConfigReconciler     `group:"enterprise-bgp-config-reconciler"`
+	Reconciler           ossReconciler.ConfigReconciler `group:"bgp-config-reconciler"`
 }
 
 type PodCIDRVRFReconciler struct {
 	Logger      *slog.Logger
 	Adverts     *IsovalentAdvertisement
-	Upgrader    paramUpgrader
 	SRv6Paths   *srv6Paths
 	SRv6Manager SRv6Manager
 	metadata    map[string]PodCIDRVRFReconcilerMetadata
 }
 
 type PodCIDRVRFReconcilerMetadata struct {
-	VRFAFPaths reconciler.ResourceAFPathsMap
+	VRFAFPaths ossReconciler.ResourceAFPathsMap
 }
 
 func NewPodCIDRVRFReconciler(in PodCIDRVRFReconcilerIn) PodCIDRVRFReconcilerOut {
@@ -81,13 +80,15 @@ func NewPodCIDRVRFReconciler(in PodCIDRVRFReconcilerIn) PodCIDRVRFReconcilerOut 
 	pr := &PodCIDRVRFReconciler{
 		Logger:      in.Logger.With(types.ReconcilerLogField, "PodCIDRVRF"),
 		Adverts:     in.Adverts,
-		Upgrader:    in.Upgrader,
 		SRv6Paths:   in.SRv6Paths,
 		SRv6Manager: in.SRv6Manager,
 		metadata:    make(map[string]PodCIDRVRFReconcilerMetadata),
 	}
 
-	return PodCIDRVRFReconcilerOut{Reconciler: pr}
+	return PodCIDRVRFReconcilerOut{
+		EnterpriseReconciler: pr,
+		Reconciler:           newOSSConfigReconcilerAdapter(pr, in.Upgrader),
+	}
 }
 
 func (r *PodCIDRVRFReconciler) Name() string {
@@ -98,49 +99,36 @@ func (r *PodCIDRVRFReconciler) Priority() int {
 	return PodCIDRVRFReconcilerPriority
 }
 
-func (r *PodCIDRVRFReconciler) Init(i *instance.BGPInstance) error {
+func (r *PodCIDRVRFReconciler) Init(i *instance.EnterpriseBGPInstance) error {
 	if i == nil {
 		return fmt.Errorf("BUG: %s reconciler initialization with nil BGPInstance", r.Name())
 	}
 	r.metadata[i.Name] = PodCIDRVRFReconcilerMetadata{
-		VRFAFPaths: make(reconciler.ResourceAFPathsMap),
+		VRFAFPaths: make(ossReconciler.ResourceAFPathsMap),
 	}
 	return nil
 }
 
-func (r *PodCIDRVRFReconciler) Cleanup(i *instance.BGPInstance) {
+func (r *PodCIDRVRFReconciler) Cleanup(i *instance.EnterpriseBGPInstance) {
 	if i != nil {
 		delete(r.metadata, i.Name)
 	}
 }
 
-func (r *PodCIDRVRFReconciler) Reconcile(ctx context.Context, p reconciler.ReconcileParams) error {
-	iParams, err := r.Upgrader.upgrade(p)
-	if err != nil {
-		if errors.Is(err, ErrEntNodeConfigNotFound) {
-			r.Logger.Debug("Enterprise node config not found yet, skipping reconciliation")
-			return nil
-		}
-		if errors.Is(err, ErrNotInitialized) {
-			r.Logger.Debug("Initialization is not done, skipping reconciliation")
-			return nil
-		}
-		return err
-	}
-
+func (r *PodCIDRVRFReconciler) Reconcile(ctx context.Context, p EnterpriseReconcileParams) error {
 	// get pod CIDRs
-	podCIDRPrefixes, err := r.getPodCIDRs(iParams.CiliumNode)
+	podCIDRPrefixes, err := r.getPodCIDRs(p.CiliumNode)
 	if err != nil {
 		return err
 	}
 
 	// get PodCIDR VPN advertisements
-	desiredVRFAdverts, err := r.Adverts.GetConfiguredVRFAdvertisements(iParams.DesiredConfig, v1.BGPPodCIDRAdvert)
+	desiredVRFAdverts, err := r.Adverts.GetConfiguredVRFAdvertisements(p.DesiredConfig, v1.BGPPodCIDRAdvert)
 	if err != nil {
 		return err
 	}
 
-	return r.reconcilePaths(ctx, iParams, podCIDRPrefixes, desiredVRFAdverts)
+	return r.reconcilePaths(ctx, p, podCIDRPrefixes, desiredVRFAdverts)
 }
 
 func (r *PodCIDRVRFReconciler) getPodCIDRs(cn *v2.CiliumNode) ([]netip.Prefix, error) {
@@ -168,7 +156,7 @@ func (r *PodCIDRVRFReconciler) reconcilePaths(ctx context.Context, p EnterpriseR
 
 	metadata := r.getMetadata(p.BGPInstance)
 
-	metadata.VRFAFPaths, err = reconciler.ReconcileResourceAFPaths(reconciler.ReconcileResourceAFPathsParams{
+	metadata.VRFAFPaths, err = ossReconciler.ReconcileResourceAFPaths(ossReconciler.ReconcileResourceAFPathsParams{
 		Logger:                 r.Logger.With(types.InstanceLogField, p.DesiredConfig.Name),
 		Ctx:                    ctx,
 		Router:                 p.BGPInstance.Router,
@@ -181,8 +169,8 @@ func (r *PodCIDRVRFReconciler) reconcilePaths(ctx context.Context, p EnterpriseR
 	return err
 }
 
-func (r *PodCIDRVRFReconciler) getDesiredVRFAFPaths(p EnterpriseReconcileParams, podCIDRPrefixes []netip.Prefix, desiredVRFAdverts VRFAdvertisements) (reconciler.ResourceAFPathsMap, error) {
-	desiredVRFsAFPaths := make(reconciler.ResourceAFPathsMap)
+func (r *PodCIDRVRFReconciler) getDesiredVRFAFPaths(p EnterpriseReconcileParams, podCIDRPrefixes []netip.Prefix, desiredVRFAdverts VRFAdvertisements) (ossReconciler.ResourceAFPathsMap, error) {
+	desiredVRFsAFPaths := make(ossReconciler.ResourceAFPathsMap)
 
 	metadata := r.getMetadata(p.BGPInstance)
 
@@ -229,7 +217,7 @@ func (r *PodCIDRVRFReconciler) getDesiredVRFAFPaths(p EnterpriseReconcileParams,
 			continue
 		}
 
-		desiredVRFAFPaths := make(reconciler.AFPathsMap)
+		desiredVRFAFPaths := make(ossReconciler.AFPathsMap)
 		for fam, adverts := range afAdverts {
 			family := types.ToAgentFamily(fam)
 
@@ -250,7 +238,7 @@ func (r *PodCIDRVRFReconciler) getDesiredVRFAFPaths(p EnterpriseReconcileParams,
 						continue
 					}
 					path.Family = family
-					reconciler.AddPathToAFPathsMap(desiredVRFAFPaths, family, path, pathKey)
+					ossReconciler.AddPathToAFPathsMap(desiredVRFAFPaths, family, path, pathKey)
 				}
 
 				if prefix.Addr().Is6() && family.Afi == types.AfiIPv6 {
@@ -263,7 +251,7 @@ func (r *PodCIDRVRFReconciler) getDesiredVRFAFPaths(p EnterpriseReconcileParams,
 						continue
 					}
 					path.Family = family
-					reconciler.AddPathToAFPathsMap(desiredVRFAFPaths, family, path, pathKey)
+					ossReconciler.AddPathToAFPathsMap(desiredVRFAFPaths, family, path, pathKey)
 				}
 			}
 		}

@@ -29,8 +29,6 @@ import (
 	evpnTables "github.com/cilium/cilium/enterprise/pkg/evpn/securitygroups/tables"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/tables"
 	"github.com/cilium/cilium/enterprise/pkg/vni"
-	"github.com/cilium/cilium/pkg/bgp/manager/instance"
-	"github.com/cilium/cilium/pkg/bgp/manager/reconciler"
 	"github.com/cilium/cilium/pkg/bgp/manager/store"
 	"github.com/cilium/cilium/pkg/bgp/types"
 	v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
@@ -868,20 +866,15 @@ func TestPrivateNetworkReconciler(t *testing.T) {
 		metadata:         make(map[string]privateNetworkReconcilerMetadata),
 	}
 
-	testOSSBGPInstance := &instance.BGPInstance{
+	testBGPInstance := &EnterpriseBGPInstance{
 		Name:   "fake-instance",
 		Router: fake.NewEnterpriseFakeRouter(),
 	}
-	testOSSBGPInstance.Global = types.BGPGlobal{
+	testBGPInstance.Global = types.BGPGlobal{
 		ASN:      uint32(testASN),
 		RouterID: testRouterID,
 	}
-	testBGPInstance := &EnterpriseBGPInstance{
-		Name:   testOSSBGPInstance.Name,
-		Router: upgradeRouter(testOSSBGPInstance.Router),
-		Global: testOSSBGPInstance.Global,
-	}
-	svcVRFReconciler.Init(testOSSBGPInstance)
+	svcVRFReconciler.Init(testBGPInstance)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -925,14 +918,12 @@ func TestPrivateNetworkReconciler(t *testing.T) {
 			svcVRFReconciler.evpnPaths.vxlanDeviceMAC = tt.vxlanDeviceMac
 			svcVRFReconciler.evpnConfig = tt.evpnConfig
 
-			// update BGP node instance config
-			svcVRFReconciler.upgrader = newUpgraderMock(tt.bgpNodeInstance)
-
 			// reconcile twice to test idempotency
 			for range 2 {
-				err := svcVRFReconciler.Reconcile(context.Background(), reconciler.ReconcileParams{
-					BGPInstance: testOSSBGPInstance,
-					CiliumNode:  testCiliumNodeConfig,
+				err := svcVRFReconciler.Reconcile(context.Background(), EnterpriseReconcileParams{
+					BGPInstance:   testBGPInstance,
+					DesiredConfig: tt.bgpNodeInstance,
+					CiliumNode:    testCiliumNodeConfig,
 				})
 				req.NoError(err)
 			}

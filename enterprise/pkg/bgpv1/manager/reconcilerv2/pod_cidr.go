@@ -12,7 +12,6 @@ package reconcilerv2
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net/netip"
@@ -20,8 +19,8 @@ import (
 	"github.com/cilium/hive/cell"
 
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
-	"github.com/cilium/cilium/pkg/bgp/manager/instance"
-	"github.com/cilium/cilium/pkg/bgp/manager/reconciler"
+	"github.com/cilium/cilium/enterprise/pkg/bgpv1/manager/instance"
+	ossReconciler "github.com/cilium/cilium/pkg/bgp/manager/reconciler"
 	"github.com/cilium/cilium/pkg/bgp/types"
 	v1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
 	"github.com/cilium/cilium/pkg/option"
@@ -30,7 +29,8 @@ import (
 type PodCIDRReconcilerOut struct {
 	cell.Out
 
-	Reconciler reconciler.ConfigReconciler `group:"bgp-config-reconciler"`
+	EnterpriseReconciler EnterpriseConfigReconciler     `group:"enterprise-bgp-config-reconciler"`
+	Reconciler           ossReconciler.ConfigReconciler `group:"bgp-config-reconciler"`
 }
 
 type PodCIDRReconcilerIn struct {
@@ -45,14 +45,13 @@ type PodCIDRReconcilerIn struct {
 
 type PodCIDRReconciler struct {
 	logger     *slog.Logger
-	upgrader   paramUpgrader
 	peerAdvert *IsovalentAdvertisement
 	metadata   map[string]PodCIDRReconcilerMetadata
 }
 
 // PodCIDRReconcilerMetadata is a map of advertisements per family, key is family type
 type PodCIDRReconcilerMetadata struct {
-	AFPaths       reconciler.AFPathsMap
+	AFPaths       ossReconciler.AFPathsMap
 	RoutePolicies RoutePolicyMap
 }
 
@@ -66,13 +65,14 @@ func NewPodCIDRReconciler(params PodCIDRReconcilerIn) PodCIDRReconcilerOut {
 		params.Logger.Info("Unsupported IPAM mode, disabling PodCIDR advertisements.")
 		return PodCIDRReconcilerOut{}
 	}
+	r := &PodCIDRReconciler{
+		logger:     params.Logger.With(types.ReconcilerLogField, "PodCIDR"),
+		peerAdvert: params.PeerAdvert,
+		metadata:   make(map[string]PodCIDRReconcilerMetadata),
+	}
 	return PodCIDRReconcilerOut{
-		Reconciler: &PodCIDRReconciler{
-			logger:     params.Logger.With(types.ReconcilerLogField, "PodCIDR"),
-			peerAdvert: params.PeerAdvert,
-			upgrader:   params.Upgrader,
-			metadata:   make(map[string]PodCIDRReconcilerMetadata),
-		},
+		EnterpriseReconciler: r,
+		Reconciler:           newOSSConfigReconcilerAdapter(r, params.Upgrader),
 	}
 }
 
@@ -84,41 +84,24 @@ func (r *PodCIDRReconciler) Priority() int {
 	return PodCIDRReconcilerPriority
 }
 
-func (r *PodCIDRReconciler) Init(i *instance.BGPInstance) error {
+func (r *PodCIDRReconciler) Init(i *instance.EnterpriseBGPInstance) error {
 	if i == nil {
 		return fmt.Errorf("BUG: %s reconciler initialization with nil BGPInstance", r.Name())
 	}
 	r.metadata[i.Name] = PodCIDRReconcilerMetadata{
-		AFPaths:       make(reconciler.AFPathsMap),
+		AFPaths:       make(ossReconciler.AFPathsMap),
 		RoutePolicies: make(RoutePolicyMap),
 	}
 	return nil
 }
 
-func (r *PodCIDRReconciler) Cleanup(i *instance.BGPInstance) {
+func (r *PodCIDRReconciler) Cleanup(i *instance.EnterpriseBGPInstance) {
 	if i != nil {
 		delete(r.metadata, i.Name)
 	}
 }
 
-func (r *PodCIDRReconciler) Reconcile(ctx context.Context, _p reconciler.ReconcileParams) error {
-	if _p.DesiredConfig == nil {
-		return fmt.Errorf("BUG: PodCIDR reconciler called with nil CiliumBGPNodeConfig")
-	}
-
-	if _p.CiliumNode == nil {
-		return fmt.Errorf("BUG: PodCIDR reconciler called with nil CiliumNode")
-	}
-
-	p, err := r.upgrader.upgrade(_p)
-	if err != nil {
-		if errors.Is(err, ErrEntNodeConfigNotFound) {
-			r.logger.Debug("Enterprise node config not found yet, skipping reconciliation")
-			return nil
-		}
-		return err
-	}
-
+func (r *PodCIDRReconciler) Reconcile(ctx context.Context, p EnterpriseReconcileParams) error {
 	// get pod CIDR prefixes
 	var podCIDRPrefixes []netip.Prefix
 	for _, cidr := range p.CiliumNode.Spec.IPAM.PodCIDRs {
@@ -153,7 +136,7 @@ func (r *PodCIDRReconciler) reconcilePaths(ctx context.Context, p EnterpriseReco
 	}
 
 	// reconcile family advertisements
-	updatedAFPaths, err := reconciler.ReconcileAFPaths(&reconciler.ReconcileAFPathsParams{
+	updatedAFPaths, err := ossReconciler.ReconcileAFPaths(&ossReconciler.ReconcileAFPathsParams{
 		Logger:       r.logger.With(types.InstanceLogField, p.DesiredConfig.Name),
 		Ctx:          ctx,
 		Router:       p.BGPInstance.Router,
@@ -192,15 +175,15 @@ func (r *PodCIDRReconciler) reconcileRoutePolicies(ctx context.Context, p Enterp
 // getDesiredPathsPerFamily returns a map of desired paths per address family.
 // Note: This returns prefixes per address family. Global routing table will contain prefix per family not per neighbor.
 // Per neighbor advertisement will be controlled by BGP Policy.
-func (r *PodCIDRReconciler) getDesiredPathsPerFamily(desiredPeerAdverts PeerAdvertisements, desiredPrefixes []netip.Prefix) (reconciler.AFPathsMap, error) {
+func (r *PodCIDRReconciler) getDesiredPathsPerFamily(desiredPeerAdverts PeerAdvertisements, desiredPrefixes []netip.Prefix) (ossReconciler.AFPathsMap, error) {
 	// Calculate desired paths per address family, collapsing per-peer advertisements into per-family advertisements.
-	desiredFamilyAdverts := make(reconciler.AFPathsMap)
+	desiredFamilyAdverts := make(ossReconciler.AFPathsMap)
 	for _, peerFamilyAdverts := range desiredPeerAdverts {
 		for family, familyAdverts := range peerFamilyAdverts {
 			agentFamily := types.ToAgentFamily(family)
 			pathsPerFamily, exists := desiredFamilyAdverts[agentFamily]
 			if !exists {
-				pathsPerFamily = make(reconciler.PathMap)
+				pathsPerFamily = make(ossReconciler.PathMap)
 				desiredFamilyAdverts[agentFamily] = pathsPerFamily
 			}
 

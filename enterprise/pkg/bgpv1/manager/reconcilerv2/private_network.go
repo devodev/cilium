@@ -12,7 +12,6 @@ package reconcilerv2
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -24,14 +23,14 @@ import (
 	"github.com/cilium/statedb"
 
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
+	"github.com/cilium/cilium/enterprise/pkg/bgpv1/manager/instance"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/utils"
 	evpnConfig "github.com/cilium/cilium/enterprise/pkg/evpn/config"
 	evpnTables "github.com/cilium/cilium/enterprise/pkg/evpn/securitygroups/tables"
 	privnetConfig "github.com/cilium/cilium/enterprise/pkg/privnet/config"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/tables"
 	"github.com/cilium/cilium/pkg/bgp/agent/signaler"
-	"github.com/cilium/cilium/pkg/bgp/manager/instance"
-	"github.com/cilium/cilium/pkg/bgp/manager/reconciler"
+	ossReconciler "github.com/cilium/cilium/pkg/bgp/manager/reconciler"
 	"github.com/cilium/cilium/pkg/bgp/types"
 	v1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
 	"github.com/cilium/cilium/pkg/k8s/resource"
@@ -66,7 +65,8 @@ type PrivateNetworkReconcilerIn struct {
 type PrivateNetworkReconcilerOut struct {
 	cell.Out
 
-	Reconciler reconciler.ConfigReconciler `group:"bgp-config-reconciler"`
+	EnterpriseReconciler EnterpriseConfigReconciler     `group:"enterprise-bgp-config-reconciler"`
+	Reconciler           ossReconciler.ConfigReconciler `group:"bgp-config-reconciler"`
 }
 
 type PrivateNetworkReconciler struct {
@@ -75,7 +75,6 @@ type PrivateNetworkReconciler struct {
 	evpnConfig evpnConfig.Config
 
 	signaler  *signaler.BGPCPSignaler
-	upgrader  paramUpgrader
 	adverts   *IsovalentAdvertisement
 	evpnPaths *evpnPaths
 
@@ -131,7 +130,6 @@ func NewPrivateNetworkReconciler(in PrivateNetworkReconcilerIn) PrivateNetworkRe
 		cfg:              in.Cfg,
 		evpnConfig:       in.EVPNConfig,
 		signaler:         in.Signaler,
-		upgrader:         in.Upgrader,
 		adverts:          in.Adverts,
 		evpnPaths:        in.EVPNPaths,
 		db:               in.DB,
@@ -162,7 +160,8 @@ func NewPrivateNetworkReconciler(in PrivateNetworkReconcilerIn) PrivateNetworkRe
 	}
 
 	return PrivateNetworkReconcilerOut{
-		Reconciler: r,
+		EnterpriseReconciler: r,
+		Reconciler:           newOSSConfigReconcilerAdapter(r, in.Upgrader),
 	}
 }
 
@@ -175,7 +174,7 @@ func (r *PrivateNetworkReconciler) Priority() int {
 }
 
 // Init is called when a new BGP instance is being initialized.
-func (r *PrivateNetworkReconciler) Init(i *instance.BGPInstance) error {
+func (r *PrivateNetworkReconciler) Init(i *instance.EnterpriseBGPInstance) error {
 	if i == nil {
 		return fmt.Errorf("BUG: privnet reconciler initialization with nil BGPInstance")
 	}
@@ -190,7 +189,7 @@ func (r *PrivateNetworkReconciler) Init(i *instance.BGPInstance) error {
 }
 
 // Cleanup is called when a new BGP instance is being removed.
-func (r *PrivateNetworkReconciler) Cleanup(i *instance.BGPInstance) {
+func (r *PrivateNetworkReconciler) Cleanup(i *instance.EnterpriseBGPInstance) {
 	if i != nil {
 		metadata := r.metadata[i.Name]
 		if metadata.workloadChanges != nil {
@@ -211,15 +210,7 @@ func (r *PrivateNetworkReconciler) setMetadata(i *EnterpriseBGPInstance, metadat
 	r.metadata[i.Name] = metadata
 }
 
-func (r *PrivateNetworkReconciler) Reconcile(ctx context.Context, ossParams reconciler.ReconcileParams) error {
-	p, err := r.upgrader.upgrade(ossParams)
-	if err != nil {
-		if errors.Is(err, ErrEntNodeConfigNotFound) {
-			r.logger.Debug("Enterprise node config not found yet, skipping reconciliation")
-			return nil
-		}
-		return err
-	}
+func (r *PrivateNetworkReconciler) Reconcile(ctx context.Context, p EnterpriseReconcileParams) error {
 	tx := r.db.ReadTxn()
 	initialized, _ := r.privateNetworks.Initialized(tx)
 	if !initialized {
@@ -406,7 +397,7 @@ func (r *PrivateNetworkReconciler) reconcilePrivateNetworks(
 			withdrawPaths := r.withdrawPrivNetAFPaths(toWithdraw[privNetName])
 
 			// copy all existing paths to desiredPaths
-			desiredPaths := make(reconciler.ResourceAFPathsMap)
+			desiredPaths := make(ossReconciler.ResourceAFPathsMap)
 			maps.Copy(desiredPaths, metadata.vrfPaths[privNetName])
 
 			// override modified / deleted paths
@@ -539,8 +530,8 @@ func (r *PrivateNetworkReconciler) diffReconciliationWorkloadList(metadata *priv
 	return
 }
 
-func (r *PrivateNetworkReconciler) getPrivNetAFPaths(desiredAdverts FamilyAdvertisements, evpnVRFInfo *EvpnVRFInfo, subnetInfo *PrivnetSubnetInfo, workloads []*tables.LocalWorkload, tx statedb.ReadTxn) (reconciler.ResourceAFPathsMap, error) {
-	desiredWorkloadAFPaths := make(reconciler.ResourceAFPathsMap)
+func (r *PrivateNetworkReconciler) getPrivNetAFPaths(desiredAdverts FamilyAdvertisements, evpnVRFInfo *EvpnVRFInfo, subnetInfo *PrivnetSubnetInfo, workloads []*tables.LocalWorkload, tx statedb.ReadTxn) (ossReconciler.ResourceAFPathsMap, error) {
+	desiredWorkloadAFPaths := make(ossReconciler.ResourceAFPathsMap)
 	if evpnVRFInfo == nil || subnetInfo == nil {
 		return desiredWorkloadAFPaths, nil
 	}
@@ -559,8 +550,8 @@ func (r *PrivateNetworkReconciler) getPrivNetAFPaths(desiredAdverts FamilyAdvert
 	return desiredWorkloadAFPaths, nil
 }
 
-func (r *PrivateNetworkReconciler) withdrawPrivNetAFPaths(workloads []*tables.LocalWorkload) reconciler.ResourceAFPathsMap {
-	desiredWorkloadAFPaths := make(reconciler.ResourceAFPathsMap)
+func (r *PrivateNetworkReconciler) withdrawPrivNetAFPaths(workloads []*tables.LocalWorkload) ossReconciler.ResourceAFPathsMap {
+	desiredWorkloadAFPaths := make(ossReconciler.ResourceAFPathsMap)
 	for _, w := range workloads {
 		key := resource.Key{Namespace: w.Namespace, Name: w.Endpoint.Name}
 		desiredWorkloadAFPaths[key] = nil // setting the path to nil will withdraw the path
@@ -568,8 +559,8 @@ func (r *PrivateNetworkReconciler) withdrawPrivNetAFPaths(workloads []*tables.Lo
 	return desiredWorkloadAFPaths
 }
 
-func (r *PrivateNetworkReconciler) getWorkloadAFPaths(desiredAdverts FamilyAdvertisements, evpVRFInfo *EvpnVRFInfo, subnetInfo *PrivnetSubnetInfo, pathAttrs FamilyAdvertPathAttributes, w *tables.LocalWorkload, tx statedb.ReadTxn) (reconciler.AFPathsMap, error) {
-	desiredAFPaths := make(reconciler.AFPathsMap)
+func (r *PrivateNetworkReconciler) getWorkloadAFPaths(desiredAdverts FamilyAdvertisements, evpVRFInfo *EvpnVRFInfo, subnetInfo *PrivnetSubnetInfo, pathAttrs FamilyAdvertPathAttributes, w *tables.LocalWorkload, tx statedb.ReadTxn) (ossReconciler.AFPathsMap, error) {
+	desiredAFPaths := make(ossReconciler.AFPathsMap)
 	for family := range desiredAdverts {
 		agentFamily := types.ToAgentFamily(family)
 		workloadAddr := ""
@@ -603,7 +594,7 @@ func (r *PrivateNetworkReconciler) getWorkloadAFPaths(desiredAdverts FamilyAdver
 		if err != nil {
 			return nil, err
 		}
-		reconciler.AddPathToAFPathsMap(desiredAFPaths, agentFamily, path, pathKey)
+		ossReconciler.AddPathToAFPathsMap(desiredAFPaths, agentFamily, path, pathKey)
 	}
 	return desiredAFPaths, nil
 }

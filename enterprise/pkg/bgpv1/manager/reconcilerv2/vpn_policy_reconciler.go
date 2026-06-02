@@ -12,7 +12,6 @@ package reconcilerv2
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net/netip"
@@ -22,10 +21,10 @@ import (
 	"github.com/cilium/hive/job"
 
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
+	"github.com/cilium/cilium/enterprise/pkg/bgpv1/manager/instance"
 	entTypes "github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
 	evpnConfig "github.com/cilium/cilium/enterprise/pkg/evpn/config"
-	"github.com/cilium/cilium/pkg/bgp/manager/instance"
-	"github.com/cilium/cilium/pkg/bgp/manager/reconciler"
+	ossReconciler "github.com/cilium/cilium/pkg/bgp/manager/reconciler"
 	"github.com/cilium/cilium/pkg/bgp/types"
 	v1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
 	"github.com/cilium/cilium/pkg/k8s/resource"
@@ -35,7 +34,8 @@ import (
 type VPNRoutePolicyReconcilerOut struct {
 	cell.Out
 
-	Reconciler reconciler.ConfigReconciler `group:"bgp-config-reconciler"`
+	EnterpriseReconciler EnterpriseConfigReconciler     `group:"enterprise-bgp-config-reconciler"`
+	Reconciler           ossReconciler.ConfigReconciler `group:"bgp-config-reconciler"`
 }
 
 type VPNRoutePolicyReconcilerIn struct {
@@ -57,7 +57,6 @@ type VPNRoutePolicyReconcilerIn struct {
 type VPNRoutePolicyReconciler struct {
 	initialized     atomic.Bool
 	logger          *slog.Logger
-	upgrader        paramUpgrader
 	peerConfigStore resource.Store[*v1.IsovalentBGPPeerConfig]
 	metadata        map[string]VPNRoutePolicyMetadata
 }
@@ -74,7 +73,6 @@ func NewVPNRoutePolicyReconciler(in VPNRoutePolicyReconcilerIn) VPNRoutePolicyRe
 	rp := &VPNRoutePolicyReconciler{
 		metadata: make(map[string]VPNRoutePolicyMetadata),
 		logger:   in.Logger.With(types.ReconcilerLogField, "VPNRoutePolicy"),
-		upgrader: in.Upgrader,
 	}
 
 	in.Group.Add(job.OneShot("init-vpn-route-policy", func(ctx context.Context, health cell.Health) error {
@@ -89,7 +87,8 @@ func NewVPNRoutePolicyReconciler(in VPNRoutePolicyReconcilerIn) VPNRoutePolicyRe
 	}))
 
 	return VPNRoutePolicyReconcilerOut{
-		Reconciler: rp,
+		EnterpriseReconciler: rp,
+		Reconciler:           newOSSConfigReconcilerAdapter(rp, in.Upgrader),
 	}
 }
 
@@ -103,7 +102,7 @@ func (r *VPNRoutePolicyReconciler) Priority() int {
 	return VPNRoutePolicyReconcilerPriority
 }
 
-func (r *VPNRoutePolicyReconciler) Init(i *instance.BGPInstance) error {
+func (r *VPNRoutePolicyReconciler) Init(i *instance.EnterpriseBGPInstance) error {
 	if i == nil {
 		return fmt.Errorf("BUG: %s reconciler initialization with nil BGPInstance", r.Name())
 	}
@@ -113,45 +112,32 @@ func (r *VPNRoutePolicyReconciler) Init(i *instance.BGPInstance) error {
 	return nil
 }
 
-func (r *VPNRoutePolicyReconciler) Cleanup(i *instance.BGPInstance) {
+func (r *VPNRoutePolicyReconciler) Cleanup(i *instance.EnterpriseBGPInstance) {
 	if i != nil {
 		delete(r.metadata, i.Name)
 	}
 }
 
-func (r *VPNRoutePolicyReconciler) Reconcile(ctx context.Context, p reconciler.ReconcileParams) error {
+func (r *VPNRoutePolicyReconciler) Reconcile(ctx context.Context, p EnterpriseReconcileParams) error {
 	if !r.initialized.Load() {
 		r.logger.Debug("Not initialized yet, skipping VPN route policy reconciliation")
 		return nil
 	}
 
-	if p.DesiredConfig == nil {
-		return fmt.Errorf("BUG: passed nil desired config to VPN route policy reconciler")
-	}
-
-	iParams, err := r.upgrader.upgrade(p)
-	if err != nil {
-		if errors.Is(err, ErrEntNodeConfigNotFound) {
-			r.logger.Debug("Enterprise node config not found yet, skipping reconciliation")
-			return nil
-		}
-		return err
-	}
-
-	desiredPolicies, err := r.getDesiredRoutePolicies(iParams.DesiredConfig)
+	desiredPolicies, err := r.getDesiredRoutePolicies(p.DesiredConfig)
 	if err != nil {
 		return err
 	}
 
 	updatedPolicies, err := ReconcileRoutePolicies(&ReconcileRoutePoliciesParams{
-		Logger:          r.logger.With(types.InstanceLogField, p.DesiredConfig.Name),
+		Logger:          r.logger.With(types.InstanceLogField, p.BGPInstance.Name),
 		Ctx:             ctx,
-		Router:          iParams.BGPInstance.Router,
+		Router:          p.BGPInstance.Router,
 		DesiredPolicies: desiredPolicies,
-		CurrentPolicies: r.GetMetadata(iParams.BGPInstance).VPNPolicies,
+		CurrentPolicies: r.GetMetadata(p.BGPInstance).VPNPolicies,
 	})
 
-	r.SetMetadata(iParams.BGPInstance, VPNRoutePolicyMetadata{
+	r.SetMetadata(p.BGPInstance, VPNRoutePolicyMetadata{
 		VPNPolicies: updatedPolicies,
 	})
 

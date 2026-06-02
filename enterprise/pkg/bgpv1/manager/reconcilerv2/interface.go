@@ -12,7 +12,6 @@ package reconcilerv2
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -23,8 +22,8 @@ import (
 	"github.com/vishvananda/netlink"
 
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
-	"github.com/cilium/cilium/pkg/bgp/manager/instance"
-	"github.com/cilium/cilium/pkg/bgp/manager/reconciler"
+	"github.com/cilium/cilium/enterprise/pkg/bgpv1/manager/instance"
+	ossReconciler "github.com/cilium/cilium/pkg/bgp/manager/reconciler"
 	"github.com/cilium/cilium/pkg/bgp/types"
 	"github.com/cilium/cilium/pkg/datapath/tables"
 	v1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
@@ -39,7 +38,8 @@ var (
 type InterfaceReconcilerOut struct {
 	cell.Out
 
-	Reconciler reconciler.ConfigReconciler `group:"bgp-config-reconciler"`
+	EnterpriseReconciler EnterpriseConfigReconciler     `group:"enterprise-bgp-config-reconciler"`
+	Reconciler           ossReconciler.ConfigReconciler `group:"bgp-config-reconciler"`
 }
 
 type InterfaceReconcilerIn struct {
@@ -60,11 +60,10 @@ type InterfaceReconciler struct {
 	db          *statedb.DB
 	deviceTable statedb.Table[*tables.Device]
 	metadata    map[string]InterfaceReconcilerMetadata
-	upgrader    paramUpgrader
 }
 
 type InterfaceReconcilerMetadata struct {
-	AFPaths       reconciler.AFPathsMap
+	AFPaths       ossReconciler.AFPathsMap
 	RoutePolicies RoutePolicyMap
 }
 
@@ -72,15 +71,17 @@ func NewInterfaceReconciler(params InterfaceReconcilerIn) InterfaceReconcilerOut
 	if !params.Config.Enabled {
 		return InterfaceReconcilerOut{}
 	}
+
+	r := &InterfaceReconciler{
+		logger:      params.Logger.With(types.ReconcilerLogField, InterfaceReconcilerName),
+		peerAdvert:  params.PeerAdvert,
+		db:          params.DB,
+		deviceTable: params.DeviceTable,
+		metadata:    make(map[string]InterfaceReconcilerMetadata),
+	}
 	return InterfaceReconcilerOut{
-		Reconciler: &InterfaceReconciler{
-			logger:      params.Logger.With(types.ReconcilerLogField, InterfaceReconcilerName),
-			peerAdvert:  params.PeerAdvert,
-			db:          params.DB,
-			deviceTable: params.DeviceTable,
-			metadata:    make(map[string]InterfaceReconcilerMetadata),
-			upgrader:    params.Upgrader,
-		},
+		EnterpriseReconciler: r,
+		Reconciler:           newOSSConfigReconcilerAdapter(r, params.Upgrader),
 	}
 	// NOTE: there is no need to trigger reconciliation upon Device table changes,
 	// this is already done by the DefaultGatewayReconciler.
@@ -94,37 +95,24 @@ func (r *InterfaceReconciler) Priority() int {
 	return InterfaceReconcilerPriority
 }
 
-func (r *InterfaceReconciler) Init(i *instance.BGPInstance) error {
+func (r *InterfaceReconciler) Init(i *instance.EnterpriseBGPInstance) error {
 	if i == nil {
 		return fmt.Errorf("BUG: %s reconciler initialization with nil BGPInstance", r.Name())
 	}
 	r.metadata[i.Name] = InterfaceReconcilerMetadata{
-		AFPaths:       make(reconciler.AFPathsMap),
+		AFPaths:       make(ossReconciler.AFPathsMap),
 		RoutePolicies: make(RoutePolicyMap),
 	}
 	return nil
 }
 
-func (r *InterfaceReconciler) Cleanup(i *instance.BGPInstance) {
+func (r *InterfaceReconciler) Cleanup(i *instance.EnterpriseBGPInstance) {
 	if i != nil {
 		delete(r.metadata, i.Name)
 	}
 }
 
-func (r *InterfaceReconciler) Reconcile(ctx context.Context, _p reconciler.ReconcileParams) error {
-	if err := _p.ValidateParams(); err != nil {
-		return err
-	}
-
-	p, err := r.upgrader.upgrade(_p)
-	if err != nil {
-		if errors.Is(err, ErrEntNodeConfigNotFound) {
-			r.logger.Debug("Enterprise node config not found yet, skipping reconciliation")
-			return nil
-		}
-		return err
-	}
-
+func (r *InterfaceReconciler) Reconcile(ctx context.Context, p EnterpriseReconcileParams) error {
 	desiredPeerAdverts, err := r.peerAdvert.GetConfiguredPeerAdvertisements(p.DesiredConfig, v1.BGPInterfaceAdvert)
 	if err != nil {
 		return err
@@ -139,14 +127,14 @@ func (r *InterfaceReconciler) Reconcile(ctx context.Context, _p reconciler.Recon
 	return r.reconcilePaths(ctx, p, desiredPeerAdverts, txn)
 }
 
-func (r *InterfaceReconciler) getDesiredPaths(desiredPeerAdverts PeerAdvertisements, txn statedb.ReadTxn) (reconciler.AFPathsMap, error) {
-	desiredAdverts := make(reconciler.AFPathsMap)
+func (r *InterfaceReconciler) getDesiredPaths(desiredPeerAdverts PeerAdvertisements, txn statedb.ReadTxn) (ossReconciler.AFPathsMap, error) {
+	desiredAdverts := make(ossReconciler.AFPathsMap)
 	for _, peerFamilyAdverts := range desiredPeerAdverts {
 		for family, familyAdverts := range peerFamilyAdverts {
 			agentFamily := types.ToAgentFamily(family)
 			pathsPerFamily, exists := desiredAdverts[agentFamily]
 			if !exists {
-				pathsPerFamily = make(reconciler.PathMap)
+				pathsPerFamily = make(ossReconciler.PathMap)
 				desiredAdverts[agentFamily] = pathsPerFamily
 			}
 			for _, advert := range familyAdverts {
@@ -247,7 +235,7 @@ func (r *InterfaceReconciler) reconcilePaths(ctx context.Context, p EnterpriseRe
 	}
 
 	// reconcile family advertisements
-	updatedAFPaths, err := reconciler.ReconcileAFPaths(&reconciler.ReconcileAFPathsParams{
+	updatedAFPaths, err := ossReconciler.ReconcileAFPaths(&ossReconciler.ReconcileAFPathsParams{
 		Logger:       r.logger.With(types.InstanceLogField, p.DesiredConfig.Name),
 		Ctx:          ctx,
 		Router:       p.BGPInstance.Router,

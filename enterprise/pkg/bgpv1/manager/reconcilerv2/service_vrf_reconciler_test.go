@@ -25,10 +25,10 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/fake"
+	"github.com/cilium/cilium/enterprise/pkg/bgpv1/manager/instance"
 	"github.com/cilium/cilium/enterprise/pkg/srv6/sidmanager"
 	srv6 "github.com/cilium/cilium/enterprise/pkg/srv6/srv6manager"
 	"github.com/cilium/cilium/enterprise/pkg/srv6/types"
-	"github.com/cilium/cilium/pkg/bgp/manager/instance"
 	"github.com/cilium/cilium/pkg/bgp/manager/reconciler"
 	"github.com/cilium/cilium/pkg/bgp/manager/store"
 	bgptypes "github.com/cilium/cilium/pkg/bgp/types"
@@ -633,7 +633,6 @@ func TestServiceVRFFullReconciler(t *testing.T) {
 				db:        db,
 				frontends: frontendsTable,
 				adverts:   isoAdverts,
-				upgrader:  newUpgraderMock(tt.bgpNodeInstance),
 				srv6Paths: &srv6Paths{
 					Logger:      logger,
 					SRv6Manager: srv6Manager,
@@ -643,22 +642,20 @@ func TestServiceVRFFullReconciler(t *testing.T) {
 			}
 
 			// setup preconfig
-			testOSSBGPInstance := &instance.BGPInstance{
+			testBGPInstance := &instance.EnterpriseBGPInstance{
 				Name:   "fake-instance",
 				Router: fake.NewEnterpriseFakeRouter(),
+				Config: tt.bgpNodeInstance,
 			}
-			testBGPInstance := &EnterpriseBGPInstance{
-				Name:   testOSSBGPInstance.Name,
-				Router: upgradeRouter(testOSSBGPInstance.Router),
-			}
-			svcVRFReconciler.Init(testOSSBGPInstance)
+			svcVRFReconciler.Init(testBGPInstance)
 			svcVRFReconciler.setMetadata(testBGPInstance, tt.prevMetadata)
 
 			// reconcile twice to test idempotency
 			for range 2 {
-				err := svcVRFReconciler.Reconcile(context.Background(), reconciler.ReconcileParams{
-					BGPInstance: testOSSBGPInstance,
-					CiliumNode:  testCiliumNodeConfig,
+				err := svcVRFReconciler.Reconcile(context.Background(), EnterpriseReconcileParams{
+					BGPInstance:   testBGPInstance,
+					DesiredConfig: tt.bgpNodeInstance,
+					CiliumNode:    testCiliumNodeConfig,
 				})
 				req.NoError(err)
 			}
@@ -1080,7 +1077,6 @@ func TestServiceVRFPartialReconcile(t *testing.T) {
 				db:        db,
 				frontends: frontendsTable,
 				adverts:   isoAdverts,
-				upgrader:  newUpgraderMock(testBGPNodeInstance),
 				srv6Paths: &srv6Paths{
 					Logger:      logger,
 					SRv6Manager: srv6Manager,
@@ -1090,21 +1086,19 @@ func TestServiceVRFPartialReconcile(t *testing.T) {
 			}
 
 			// setup preconfig
-			testOSSBGPInstance := &instance.BGPInstance{
+			testBGPInstance := &instance.EnterpriseBGPInstance{
 				Name:   "fake-instance",
 				Router: fake.NewEnterpriseFakeRouter(),
+				Config: testBGPNodeInstance,
 			}
-			testBGPInstance := &EnterpriseBGPInstance{
-				Name:   testOSSBGPInstance.Name,
-				Router: upgradeRouter(testOSSBGPInstance.Router),
-			}
-			svcVRFReconciler.Init(testOSSBGPInstance)
-			defer svcVRFReconciler.Cleanup(testOSSBGPInstance)
+			svcVRFReconciler.Init(testBGPInstance)
+			defer svcVRFReconciler.Cleanup(testBGPInstance)
 
 			// reconcile to test initial state
-			err = svcVRFReconciler.Reconcile(context.Background(), reconciler.ReconcileParams{
-				BGPInstance: testOSSBGPInstance,
-				CiliumNode:  testCiliumNodeConfig,
+			err = svcVRFReconciler.Reconcile(context.Background(), EnterpriseReconcileParams{
+				BGPInstance:   testBGPInstance,
+				DesiredConfig: testBGPNodeInstance,
+				CiliumNode:    testCiliumNodeConfig,
 			})
 			req.NoError(err)
 
@@ -1132,9 +1126,10 @@ func TestServiceVRFPartialReconcile(t *testing.T) {
 			}
 
 			// reconcile again to test parital reconciliation
-			err = svcVRFReconciler.Reconcile(context.Background(), reconciler.ReconcileParams{
-				BGPInstance: testOSSBGPInstance,
-				CiliumNode:  testCiliumNodeConfig,
+			err = svcVRFReconciler.Reconcile(context.Background(), EnterpriseReconcileParams{
+				BGPInstance:   testBGPInstance,
+				DesiredConfig: testBGPNodeInstance,
+				CiliumNode:    testCiliumNodeConfig,
 			})
 			req.NoError(err)
 

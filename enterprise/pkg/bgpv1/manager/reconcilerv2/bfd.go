@@ -26,9 +26,9 @@ import (
 
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
 	"github.com/cilium/cilium/enterprise/pkg/bfd/types"
+	"github.com/cilium/cilium/enterprise/pkg/bgpv1/manager/instance"
 	"github.com/cilium/cilium/pkg/bgp/agent/signaler"
-	"github.com/cilium/cilium/pkg/bgp/manager/instance"
-	"github.com/cilium/cilium/pkg/bgp/manager/reconciler"
+	ossReconciler "github.com/cilium/cilium/pkg/bgp/manager/reconciler"
 	bgptypes "github.com/cilium/cilium/pkg/bgp/types"
 	v1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
 	"github.com/cilium/cilium/pkg/k8s/resource"
@@ -54,7 +54,8 @@ type BFDStateReconcilerIn struct {
 type BFDStateReconcilerOut struct {
 	cell.Out
 
-	Reconciler reconciler.ConfigReconciler `group:"bgp-config-reconciler"`
+	EnterpriseReconciler EnterpriseConfigReconciler     `group:"enterprise-bgp-config-reconciler"`
+	Reconciler           ossReconciler.ConfigReconciler `group:"bgp-config-reconciler"`
 }
 
 // BFDStateReconciler reconciles BFD peers' state into BGP router state - if a BFD peer
@@ -64,7 +65,6 @@ type BFDStateReconciler struct {
 	initialized atomic.Bool
 
 	signaler *signaler.BGPCPSignaler
-	upgrader paramUpgrader
 
 	db                 *statedb.DB
 	bfdPeersTable      statedb.Table[*types.BFDPeerStatus]
@@ -85,7 +85,6 @@ func NewBFDStateReconciler(p BFDStateReconcilerIn) BFDStateReconcilerOut {
 		db:            p.DB,
 		bfdPeersTable: p.BFDPeersTable,
 		signaler:      p.Signaler,
-		upgrader:      p.Upgrader,
 		metadata:      make(map[string]BFDStateReconcilerMetadata),
 		log:           p.Logger.With(bgptypes.ReconcilerLogField, "BFDState"),
 	}
@@ -102,7 +101,10 @@ func NewBFDStateReconciler(p BFDStateReconcilerIn) BFDStateReconcilerOut {
 		}),
 	)
 
-	return BFDStateReconcilerOut{Reconciler: r}
+	return BFDStateReconcilerOut{
+		EnterpriseReconciler: r,
+		Reconciler:           newOSSConfigReconcilerAdapter(r, p.Upgrader),
+	}
 }
 
 func (r *BFDStateReconciler) Name() string {
@@ -113,7 +115,7 @@ func (r *BFDStateReconciler) Priority() int {
 	return BFDStateReconcilerPriority
 }
 
-func (r *BFDStateReconciler) Init(i *instance.BGPInstance) error {
+func (r *BFDStateReconciler) Init(i *instance.EnterpriseBGPInstance) error {
 	if i == nil {
 		return fmt.Errorf("BUG: %s reconciler initialization with nil BGPInstance", r.Name())
 	}
@@ -123,7 +125,7 @@ func (r *BFDStateReconciler) Init(i *instance.BGPInstance) error {
 	return nil
 }
 
-func (r *BFDStateReconciler) Cleanup(i *instance.BGPInstance) {
+func (r *BFDStateReconciler) Cleanup(i *instance.EnterpriseBGPInstance) {
 	if i != nil {
 		delete(r.metadata, i.Name)
 	}
@@ -131,15 +133,8 @@ func (r *BFDStateReconciler) Cleanup(i *instance.BGPInstance) {
 
 // Reconcile checks if a BFD peer that was configured for the router instance went down,
 // and if yes, it hard-resets the BGP peering for that peer address on the router instance.
-func (r *BFDStateReconciler) Reconcile(ctx context.Context, p reconciler.ReconcileParams) error {
-	params, err := r.upgrader.upgrade(p)
-	if err != nil {
-		if errors.Is(err, ErrEntNodeConfigNotFound) {
-			r.log.Debug("Enterprise node config not found yet, skipping reconciliation")
-			return nil
-		}
-		return err
-	}
+func (r *BFDStateReconciler) Reconcile(ctx context.Context, params EnterpriseReconcileParams) error {
+	var err error
 	logger := r.log.With(bgptypes.InstanceLogField, params.DesiredConfig.Name)
 	if !r.initialized.Load() {
 		logger.Debug("BFD state reconciler not yet initialized, reconciliation skipped")

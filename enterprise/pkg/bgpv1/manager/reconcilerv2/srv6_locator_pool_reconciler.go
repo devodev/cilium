@@ -23,10 +23,10 @@ import (
 	"github.com/cilium/stream"
 
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
+	"github.com/cilium/cilium/enterprise/pkg/bgpv1/manager/instance"
 	entTypes "github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
 	"github.com/cilium/cilium/enterprise/pkg/srv6/sidmanager"
 	"github.com/cilium/cilium/pkg/bgp/agent/signaler"
-	"github.com/cilium/cilium/pkg/bgp/manager/instance"
 	"github.com/cilium/cilium/pkg/bgp/manager/reconciler"
 	"github.com/cilium/cilium/pkg/bgp/types"
 	v1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
@@ -58,14 +58,14 @@ type srv6LocatorPoolReconcilerIn struct {
 type srv6LocatorPoolReconcilerOut struct {
 	cell.Out
 
-	Reconciler reconciler.ConfigReconciler `group:"bgp-config-reconciler"`
+	EnterpriseReconciler EnterpriseConfigReconciler  `group:"enterprise-bgp-config-reconciler"`
+	Reconciler           reconciler.ConfigReconciler `group:"bgp-config-reconciler"`
 }
 
 type LocatorPoolReconciler struct {
 	initialized atomic.Bool
 	logger      *slog.Logger
 
-	upgrader   paramUpgrader
 	peerAdvert *IsovalentAdvertisement
 
 	sidAllocators     map[string]sidmanager.SIDAllocator
@@ -87,7 +87,6 @@ func NewSRv6LocatorPoolReconciler(params srv6LocatorPoolReconcilerIn) srv6Locato
 	r := &LocatorPoolReconciler{
 		logger:        params.Logger.With(types.ReconcilerLogField, "LocatorPool"),
 		sidAllocators: make(map[string]sidmanager.SIDAllocator),
-		upgrader:      params.Upgrader,
 		peerAdvert:    params.PeerAdvert,
 		metadata:      make(map[string]LocatorPoolReconcilerMetadata),
 	}
@@ -141,7 +140,8 @@ func NewSRv6LocatorPoolReconciler(params srv6LocatorPoolReconcilerIn) srv6Locato
 	)
 
 	return srv6LocatorPoolReconcilerOut{
-		Reconciler: r,
+		EnterpriseReconciler: r,
+		Reconciler:           newOSSConfigReconcilerAdapter(r, params.Upgrader),
 	}
 }
 
@@ -153,7 +153,7 @@ func (r *LocatorPoolReconciler) Name() string {
 	return LocatorPoolReconcilerName
 }
 
-func (r *LocatorPoolReconciler) Init(i *instance.BGPInstance) error {
+func (r *LocatorPoolReconciler) Init(i *instance.EnterpriseBGPInstance) error {
 	if i == nil {
 		return fmt.Errorf("BUG: %s reconciler initialization with nil BGPInstance", r.Name())
 	}
@@ -164,41 +164,32 @@ func (r *LocatorPoolReconciler) Init(i *instance.BGPInstance) error {
 	return nil
 }
 
-func (r *LocatorPoolReconciler) Cleanup(i *instance.BGPInstance) {
+func (r *LocatorPoolReconciler) Cleanup(i *instance.EnterpriseBGPInstance) {
 	if i != nil {
 		delete(r.metadata, i.Name)
 	}
 }
 
-func (r *LocatorPoolReconciler) Reconcile(ctx context.Context, p reconciler.ReconcileParams) error {
+func (r *LocatorPoolReconciler) Reconcile(ctx context.Context, p EnterpriseReconcileParams) error {
 	if !r.initialized.Load() {
 		// Still waiting for some dependencies to be initialized. Skip this reconciliation.
 		r.logger.Debug("Initialization is not done. Skipping reconciliation.")
 		return nil
 	}
 
-	iParams, err := r.upgrader.upgrade(p)
-	if err != nil {
-		if errors.Is(err, ErrEntNodeConfigNotFound) {
-			r.logger.Debug("Enterprise node config not found yet, skipping reconciliation")
-			return nil
-		}
-		return err
-	}
-
 	// get per peer per family locator pool advertisements
-	desiredPeerAdverts, err := r.peerAdvert.GetConfiguredPeerAdvertisements(iParams.DesiredConfig, v1.BGPSRv6LocatorPoolAdvert)
+	desiredPeerAdverts, err := r.peerAdvert.GetConfiguredPeerAdvertisements(p.DesiredConfig, v1.BGPSRv6LocatorPoolAdvert)
 	if err != nil {
 		return err
 	}
 
 	// reconcile route policies
-	if err = r.reconcileRoutePolicies(ctx, iParams, desiredPeerAdverts); err != nil {
+	if err = r.reconcileRoutePolicies(ctx, p, desiredPeerAdverts); err != nil {
 		return err
 	}
 
 	// reconcile paths to advertise
-	return r.reconcilePaths(ctx, iParams, desiredPeerAdverts)
+	return r.reconcilePaths(ctx, p, desiredPeerAdverts)
 }
 
 func (r *LocatorPoolReconciler) reconcilePaths(ctx context.Context, params EnterpriseReconcileParams, desiredFamilyAdverts PeerAdvertisements) error {

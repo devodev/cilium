@@ -12,7 +12,6 @@ package reconcilerv2
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -25,11 +24,11 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
+	"github.com/cilium/cilium/enterprise/pkg/bgpv1/manager/instance"
 	entTypes "github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
 	"github.com/cilium/cilium/enterprise/pkg/srv6/sidmanager"
 	srv6 "github.com/cilium/cilium/enterprise/pkg/srv6/srv6manager"
-	"github.com/cilium/cilium/pkg/bgp/manager/instance"
-	"github.com/cilium/cilium/pkg/bgp/manager/reconciler"
+	ossReconciler "github.com/cilium/cilium/pkg/bgp/manager/reconciler"
 	"github.com/cilium/cilium/pkg/bgp/types"
 	v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	v1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
@@ -56,7 +55,8 @@ type ServiceVRFReconcilerIn struct {
 type ServiceVRFReconcilerOut struct {
 	cell.Out
 
-	Reconciler reconciler.ConfigReconciler `group:"bgp-config-reconciler"`
+	EnterpriseReconciler EnterpriseConfigReconciler     `group:"enterprise-bgp-config-reconciler"`
+	Reconciler           ossReconciler.ConfigReconciler `group:"bgp-config-reconciler"`
 }
 
 type ServiceVRFReconciler struct {
@@ -64,7 +64,6 @@ type ServiceVRFReconciler struct {
 	db          *statedb.DB
 	frontends   statedb.Table[*loadbalancer.Frontend]
 	adverts     *IsovalentAdvertisement
-	upgrader    paramUpgrader
 	srv6Paths   *srv6Paths
 	srv6Manager SRv6Manager
 	metadata    map[string]ServiceVRFReconcilerMetadata
@@ -75,17 +74,19 @@ func NewServiceVRFReconciler(in ServiceVRFReconcilerIn) ServiceVRFReconcilerOut 
 		return ServiceVRFReconcilerOut{}
 	}
 
+	r := &ServiceVRFReconciler{
+		logger:      in.Logger.With(types.ReconcilerLogField, "ServiceVRF"),
+		db:          in.DB,
+		frontends:   in.Frontends,
+		adverts:     in.Adverts,
+		srv6Paths:   in.SRv6Paths,
+		srv6Manager: in.SRv6Manager,
+		metadata:    make(map[string]ServiceVRFReconcilerMetadata),
+	}
+
 	return ServiceVRFReconcilerOut{
-		Reconciler: &ServiceVRFReconciler{
-			logger:      in.Logger.With(types.ReconcilerLogField, "ServiceVRF"),
-			db:          in.DB,
-			frontends:   in.Frontends,
-			adverts:     in.Adverts,
-			upgrader:    in.Upgrader,
-			srv6Paths:   in.SRv6Paths,
-			srv6Manager: in.SRv6Manager,
-			metadata:    make(map[string]ServiceVRFReconcilerMetadata),
-		},
+		EnterpriseReconciler: r,
+		Reconciler:           newOSSConfigReconcilerAdapter(r, in.Upgrader),
 	}
 }
 
@@ -124,7 +125,7 @@ func (r *ServiceVRFReconciler) Name() string {
 	return ServiceVRFReconcilerName
 }
 
-func (r *ServiceVRFReconciler) Init(i *instance.BGPInstance) error {
+func (r *ServiceVRFReconciler) Init(i *instance.EnterpriseBGPInstance) error {
 	if i == nil {
 		return fmt.Errorf("BUG: %s reconciler initialization with nil BGPInstance", r.Name())
 	}
@@ -137,7 +138,7 @@ func (r *ServiceVRFReconciler) Init(i *instance.BGPInstance) error {
 	return nil
 }
 
-func (r *ServiceVRFReconciler) Cleanup(i *instance.BGPInstance) {
+func (r *ServiceVRFReconciler) Cleanup(i *instance.EnterpriseBGPInstance) {
 	if i != nil {
 
 		delete(r.metadata, i.Name)
@@ -148,41 +149,28 @@ func (r *ServiceVRFReconciler) Priority() int {
 	return ServiceVRFReconcilerPriority
 }
 
-func (r *ServiceVRFReconciler) Reconcile(ctx context.Context, p reconciler.ReconcileParams) error {
-	iParams, err := r.upgrader.upgrade(p)
-	if err != nil {
-		if errors.Is(err, ErrEntNodeConfigNotFound) {
-			r.logger.Debug("Enterprise node config not found yet, skipping reconciliation")
-			return nil
-		}
-		if errors.Is(err, ErrNotInitialized) {
-			r.logger.Debug("Initialization is not done, skipping reconciliation")
-			return nil
-		}
-		return err
-	}
-
-	desiredVRFAdverts, err := r.adverts.GetConfiguredVRFAdvertisements(iParams.DesiredConfig, v1.BGPServiceAdvert)
+func (r *ServiceVRFReconciler) Reconcile(ctx context.Context, p EnterpriseReconcileParams) error {
+	desiredVRFAdverts, err := r.adverts.GetConfiguredVRFAdvertisements(p.DesiredConfig, v1.BGPServiceAdvert)
 	if err != nil {
 		return fmt.Errorf("failed to get configured VRF advertisements: %w", err)
 	}
 
-	desiredVRFSIDInfo, err := r.getConfiguredSIDInfo(iParams.DesiredConfig)
+	desiredVRFSIDInfo, err := r.getConfiguredSIDInfo(p.DesiredConfig)
 	if err != nil {
 		return fmt.Errorf("failed to get SID info: %w", err)
 	}
 
-	metadata := r.getMetadata(iParams.BGPInstance)
-	err = r.reconcileServices(ctx, iParams, &metadata, desiredVRFAdverts, desiredVRFSIDInfo)
+	metadata := r.getMetadata(p.BGPInstance)
+	err = r.reconcileServices(ctx, p, &metadata, desiredVRFAdverts, desiredVRFSIDInfo)
 	if err != nil {
 		return fmt.Errorf("failed to reconcile services: %w", err)
 	}
 
 	// update metadata with the latest configuration
 	metadata.vrfAdverts = desiredVRFAdverts
-	metadata.vrfConfigs = iParams.DesiredConfig.VRFs
+	metadata.vrfConfigs = p.DesiredConfig.VRFs
 	metadata.vrfSIDs = desiredVRFSIDInfo
-	r.setMetadata(iParams.BGPInstance, metadata)
+	r.setMetadata(p.BGPInstance, metadata)
 	return nil
 }
 
@@ -272,7 +260,7 @@ func (r *ServiceVRFReconciler) reconcileServices(
 			}
 
 			// update modified services
-			desiredSvcPaths := make(reconciler.ResourceAFPathsMap)
+			desiredSvcPaths := make(ossReconciler.ResourceAFPathsMap)
 			maps.Copy(desiredSvcPaths, currentSvcPaths)
 
 			// override only modified services
@@ -334,8 +322,8 @@ func (r *ServiceVRFReconciler) diffReconciliationServiceList(metadata *ServiceVR
 	return
 }
 
-func (r *ServiceVRFReconciler) getDesiredPaths(p EnterpriseReconcileParams, toReconcile []*loadbalancer.Service, bgpVRF v1.IsovalentBGPNodeVRF, desiredVRFAdverts VRFAdvertisements, rx statedb.ReadTxn) (reconciler.ResourceAFPathsMap, error) {
-	desiredServiceAFPaths := make(reconciler.ResourceAFPathsMap)
+func (r *ServiceVRFReconciler) getDesiredPaths(p EnterpriseReconcileParams, toReconcile []*loadbalancer.Service, bgpVRF v1.IsovalentBGPNodeVRF, desiredVRFAdverts VRFAdvertisements, rx statedb.ReadTxn) (ossReconciler.ResourceAFPathsMap, error) {
+	desiredServiceAFPaths := make(ossReconciler.ResourceAFPathsMap)
 	for _, svc := range toReconcile {
 		svcKey := resource.Key{Name: svc.Name.Name(), Namespace: svc.Name.Namespace()}
 
@@ -349,8 +337,8 @@ func (r *ServiceVRFReconciler) getDesiredPaths(p EnterpriseReconcileParams, toRe
 	return desiredServiceAFPaths, nil
 }
 
-func (r *ServiceVRFReconciler) getServiceAFPaths(p EnterpriseReconcileParams, svc *loadbalancer.Service, bgpVRF v1.IsovalentBGPNodeVRF, desiredVRFAdverts VRFAdvertisements, rx statedb.ReadTxn) (reconciler.AFPathsMap, error) {
-	desiredFamilyPaths := make(reconciler.AFPathsMap)
+func (r *ServiceVRFReconciler) getServiceAFPaths(p EnterpriseReconcileParams, svc *loadbalancer.Service, bgpVRF v1.IsovalentBGPNodeVRF, desiredVRFAdverts VRFAdvertisements, rx statedb.ReadTxn) (ossReconciler.AFPathsMap, error) {
+	desiredFamilyPaths := make(ossReconciler.AFPathsMap)
 	if bgpVRF.VRFRef == nil {
 		return desiredFamilyPaths, nil
 	}
@@ -380,7 +368,7 @@ func (r *ServiceVRFReconciler) getServiceAFPaths(p EnterpriseReconcileParams, sv
 
 				// we only support ipv4/mpls_vpn address family
 				if agentFamily.Afi == types.AfiIPv4 && prefix.Addr().Is4() {
-					reconciler.AddPathToAFPathsMap(desiredFamilyPaths, agentFamily, path, pathKey)
+					ossReconciler.AddPathToAFPathsMap(desiredFamilyPaths, agentFamily, path, pathKey)
 				}
 			}
 		}

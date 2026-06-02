@@ -24,8 +24,7 @@ import (
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/fake"
 	entTypes "github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
-	"github.com/cilium/cilium/pkg/bgp/manager/instance"
-	"github.com/cilium/cilium/pkg/bgp/manager/reconciler"
+	ossReconciler "github.com/cilium/cilium/pkg/bgp/manager/reconciler"
 	"github.com/cilium/cilium/pkg/bgp/manager/store"
 	"github.com/cilium/cilium/pkg/bgp/types"
 	ipamtypes "github.com/cilium/cilium/pkg/ipam/types"
@@ -618,9 +617,8 @@ func Test_PodCIDRAdvertisement(t *testing.T) {
 					vrfs:        store.InitMockStore([]*v1alpha1.IsovalentBGPVRFConfig{}),
 				},
 				DaemonConfig: &option.DaemonConfig{IPAM: "Kubernetes"},
-				Upgrader:     newUpgraderMock(tt.testBGPInstanceConfig),
 			})
-			podCIDRReconciler := out.Reconciler.(*PodCIDRReconciler)
+			podCIDRReconciler := out.EnterpriseReconciler.(*PodCIDRReconciler)
 
 			router := fake.NewEnterpriseFakeRouter()
 
@@ -631,7 +629,7 @@ func Test_PodCIDRAdvertisement(t *testing.T) {
 				Router: router,
 			}
 
-			presetAdverts := make(reconciler.AFPathsMap)
+			presetAdverts := make(ossReconciler.AFPathsMap)
 			for preAdvertFam, preAdverts := range tt.preconfiguredPaths {
 				pathSet := make(map[string]*types.Path)
 				for preAdvert := range preAdverts {
@@ -649,18 +647,10 @@ func Test_PodCIDRAdvertisement(t *testing.T) {
 			// reconcile pod cidr
 			// run reconciler twice to ensure idempotency
 			for range 2 {
-				err := podCIDRReconciler.Reconcile(context.Background(), reconciler.ReconcileParams{
-					BGPInstance: &instance.BGPInstance{
-						Name: testBGPInstance.Name,
-						Config: &v2.CiliumBGPNodeInstance{
-							Name: testBGPInstance.Name,
-						},
-						Router: router,
-					},
-					DesiredConfig: &v2.CiliumBGPNodeInstance{
-						Name: testBGPInstance.Name,
-					},
-					CiliumNode: tt.testCiliumNode,
+				err := podCIDRReconciler.Reconcile(context.Background(), EnterpriseReconcileParams{
+					BGPInstance:   testBGPInstance,
+					DesiredConfig: tt.testBGPInstanceConfig,
+					CiliumNode:    tt.testCiliumNode,
 				})
 				req.NoError(err)
 			}

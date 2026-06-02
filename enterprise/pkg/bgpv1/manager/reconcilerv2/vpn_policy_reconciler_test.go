@@ -23,8 +23,6 @@ import (
 
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/fake"
 	entTypes "github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
-	"github.com/cilium/cilium/pkg/bgp/manager/instance"
-	"github.com/cilium/cilium/pkg/bgp/manager/reconciler"
 	"github.com/cilium/cilium/pkg/bgp/types"
 	v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	v1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
@@ -294,46 +292,28 @@ func TestVPNRoutePolicy(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			req := require.New(t)
 
-			testOSSBGPInstance := &instance.BGPInstance{
+			testBGPInstance := &EnterpriseBGPInstance{
 				Name:   "fake-instance",
 				Router: fake.NewEnterpriseFakeRouter(),
-			}
-			testBGPInstance := &EnterpriseBGPInstance{
-				Name:   testOSSBGPInstance.Name,
-				Router: upgradeRouter(testOSSBGPInstance.Router),
 			}
 			iNodeInstance := &v1.IsovalentBGPNodeInstance{
 				Name:     "test-instance",
 				LocalASN: ptr.To[int64](65001),
 				Peers:    tt.peers,
 			}
-			ossNodeInstance := &v2.CiliumBGPNodeInstance{
-				Name:     iNodeInstance.Name,
-				LocalASN: iNodeInstance.LocalASN,
-			}
-			for _, peer := range iNodeInstance.Peers {
-				ossNodeInstance.Peers = append(ossNodeInstance.Peers, v2.CiliumBGPNodePeer{
-					Name:        peer.Name,
-					PeerAddress: peer.PeerAddress,
-					PeerConfigRef: &v2.PeerConfigReference{
-						Name: peer.PeerConfigRef.Name,
-					},
-				})
-			}
 
 			vpnReconciler := &VPNRoutePolicyReconciler{
 				logger:          hivetest.Logger(t, hivetest.LogLevel(slog.LevelDebug)),
 				peerConfigStore: newMockResourceStore[*v1.IsovalentBGPPeerConfig](),
 				metadata:        make(map[string]VPNRoutePolicyMetadata),
-				upgrader:        newUpgraderMock(iNodeInstance),
 			}
 
 			if len(tt.peerConfigs) > 0 {
 				vpnReconciler.peerConfigStore = InitMockStore[*v1.IsovalentBGPPeerConfig](tt.peerConfigs)
 			}
 
-			vpnReconciler.Init(testOSSBGPInstance)
-			defer vpnReconciler.Cleanup(testOSSBGPInstance)
+			vpnReconciler.Init(testBGPInstance)
+			defer vpnReconciler.Cleanup(testBGPInstance)
 			vpnReconciler.initialized.Store(true)
 
 			// set preconfigured route policies
@@ -343,9 +323,10 @@ func TestVPNRoutePolicy(t *testing.T) {
 
 			// reconcile peer configs
 			for range 2 {
-				err := vpnReconciler.Reconcile(context.Background(), reconciler.ReconcileParams{
-					BGPInstance:   testOSSBGPInstance,
-					DesiredConfig: ossNodeInstance,
+				err := vpnReconciler.Reconcile(context.Background(), EnterpriseReconcileParams{
+					BGPInstance:   testBGPInstance,
+					DesiredConfig: iNodeInstance,
+					CiliumNode:    &v2.CiliumNode{},
 				})
 				req.NoError(err)
 			}

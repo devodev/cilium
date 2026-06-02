@@ -20,10 +20,10 @@ import (
 	"github.com/cilium/hive/cell"
 
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
+	"github.com/cilium/cilium/enterprise/pkg/bgpv1/manager/instance"
 	entTypes "github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
 	"github.com/cilium/cilium/enterprise/pkg/egressgatewayha"
-	"github.com/cilium/cilium/pkg/bgp/manager/instance"
-	"github.com/cilium/cilium/pkg/bgp/manager/reconciler"
+	ossReconciler "github.com/cilium/cilium/pkg/bgp/manager/reconciler"
 	"github.com/cilium/cilium/pkg/bgp/types"
 	v1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
 	"github.com/cilium/cilium/pkg/k8s/resource"
@@ -45,7 +45,8 @@ type EGWIPsReconcilerIn struct {
 type EGWIPsReconcilerOut struct {
 	cell.Out
 
-	Reconciler reconciler.ConfigReconciler `group:"bgp-config-reconciler"`
+	EnterpriseReconciler EnterpriseConfigReconciler     `group:"enterprise-bgp-config-reconciler"`
+	Reconciler           ossReconciler.ConfigReconciler `group:"bgp-config-reconciler"`
 }
 
 func NewEgressGatewayIPsReconciler(params EGWIPsReconcilerIn) EGWIPsReconcilerOut {
@@ -53,27 +54,27 @@ func NewEgressGatewayIPsReconciler(params EGWIPsReconcilerIn) EGWIPsReconcilerOu
 		return EGWIPsReconcilerOut{}
 	}
 
+	r := &EgressGatewayIPsReconciler{
+		logger:         params.Logger.With(types.ReconcilerLogField, "EgressGatewayIP"),
+		egwIPsProvider: params.EGWIPsProvider,
+		peerAdvert:     params.PeerAdvert,
+		metadata:       make(map[string]EgressGatewayIPsMetadata),
+	}
 	return EGWIPsReconcilerOut{
-		Reconciler: &EgressGatewayIPsReconciler{
-			logger:         params.Logger.With(types.ReconcilerLogField, "EgressGatewayIP"),
-			egwIPsProvider: params.EGWIPsProvider,
-			upgrader:       params.Upgrader,
-			peerAdvert:     params.PeerAdvert,
-			metadata:       make(map[string]EgressGatewayIPsMetadata),
-		},
+		EnterpriseReconciler: r,
+		Reconciler:           newOSSConfigReconcilerAdapter(r, params.Upgrader),
 	}
 }
 
 type EgressGatewayIPsReconciler struct {
 	logger         *slog.Logger
 	egwIPsProvider egressgatewayha.EgressIPsProvider
-	upgrader       paramUpgrader
 	peerAdvert     *IsovalentAdvertisement
 	metadata       map[string]EgressGatewayIPsMetadata
 }
 
 type EgressGatewayIPsMetadata struct {
-	EGWAFPaths       reconciler.ResourceAFPathsMap
+	EGWAFPaths       ossReconciler.ResourceAFPathsMap
 	EGWRoutePolicies ResourceRoutePolicyMap
 }
 
@@ -85,45 +86,36 @@ func (r *EgressGatewayIPsReconciler) Name() string {
 	return EgressGatewayIPsReconcilerName
 }
 
-func (r *EgressGatewayIPsReconciler) Init(i *instance.BGPInstance) error {
+func (r *EgressGatewayIPsReconciler) Init(i *instance.EnterpriseBGPInstance) error {
 	if i == nil {
 		return fmt.Errorf("BUG: %s reconciler initialization with nil BGPInstance", r.Name())
 	}
 	r.metadata[i.Name] = EgressGatewayIPsMetadata{
-		EGWAFPaths:       make(reconciler.ResourceAFPathsMap),
+		EGWAFPaths:       make(ossReconciler.ResourceAFPathsMap),
 		EGWRoutePolicies: make(ResourceRoutePolicyMap),
 	}
 	return nil
 }
 
-func (r *EgressGatewayIPsReconciler) Cleanup(i *instance.BGPInstance) {
+func (r *EgressGatewayIPsReconciler) Cleanup(i *instance.EnterpriseBGPInstance) {
 	if i != nil {
 		delete(r.metadata, i.Name)
 	}
 }
 
-func (r *EgressGatewayIPsReconciler) Reconcile(ctx context.Context, p reconciler.ReconcileParams) error {
-	iParams, err := r.upgrader.upgrade(p)
-	if err != nil {
-		if errors.Is(err, ErrEntNodeConfigNotFound) {
-			r.logger.Debug("Enterprise node config not found yet, skipping reconciliation")
-			return nil
-		}
-		return err
-	}
-
+func (r *EgressGatewayIPsReconciler) Reconcile(ctx context.Context, params EnterpriseReconcileParams) error {
 	// get per peer per family egw advertisements
-	desiredPeerAdverts, err := r.peerAdvert.GetConfiguredPeerAdvertisements(iParams.DesiredConfig, v1.BGPEGWAdvert)
+	desiredPeerAdverts, err := r.peerAdvert.GetConfiguredPeerAdvertisements(params.DesiredConfig, v1.BGPEGWAdvert)
 	if err != nil {
 		return err
 	}
 
 	// reconcile route policies
-	if err = r.reconcileRoutePolicies(ctx, iParams, desiredPeerAdverts); err != nil {
+	if err = r.reconcileRoutePolicies(ctx, params, desiredPeerAdverts); err != nil {
 		return err
 	}
 
-	return r.reconcilePaths(ctx, iParams, desiredPeerAdverts)
+	return r.reconcilePaths(ctx, params, desiredPeerAdverts)
 }
 
 func (r *EgressGatewayIPsReconciler) reconcilePaths(ctx context.Context, params EnterpriseReconcileParams, desiredFamilyAdverts PeerAdvertisements) error {
@@ -141,7 +133,7 @@ func (r *EgressGatewayIPsReconciler) reconcilePaths(ctx context.Context, params 
 		}
 	}
 
-	metadata.EGWAFPaths, err = reconciler.ReconcileResourceAFPaths(reconciler.ReconcileResourceAFPathsParams{
+	metadata.EGWAFPaths, err = ossReconciler.ReconcileResourceAFPaths(ossReconciler.ReconcileResourceAFPathsParams{
 		Logger:                 r.logger.With(types.InstanceLogField, params.DesiredConfig.Name),
 		Ctx:                    ctx,
 		Router:                 params.BGPInstance.Router,
@@ -200,8 +192,8 @@ func (r *EgressGatewayIPsReconciler) reconcileRoutePolicies(ctx context.Context,
 // BGP advertisements of type BGPEGWAdvert. Advertisement contains a label selector for the egress gateway policy. We
 // call EGWManager with the selector field to get the egress gateway IPs present on the node. The desired paths are created
 // based on the returned IPs. Exact match /32 paths are created for each IP.
-func (r *EgressGatewayIPsReconciler) getDesiredEGWAFPaths(desiredFamilyAdverts PeerAdvertisements) (reconciler.ResourceAFPathsMap, error) {
-	desiredEGWResourceAFPaths := make(reconciler.ResourceAFPathsMap)
+func (r *EgressGatewayIPsReconciler) getDesiredEGWAFPaths(desiredFamilyAdverts PeerAdvertisements) (ossReconciler.ResourceAFPathsMap, error) {
+	desiredEGWResourceAFPaths := make(ossReconciler.ResourceAFPathsMap)
 
 	for _, egwFamilyAdverts := range desiredFamilyAdverts {
 		for family, familyAdverts := range egwFamilyAdverts {
@@ -221,7 +213,7 @@ func (r *EgressGatewayIPsReconciler) getDesiredEGWAFPaths(desiredFamilyAdverts P
 				}
 
 				for egwID, egwIPs := range egwPolicyResult {
-					desiredEGWAFPaths := make(reconciler.AFPathsMap)
+					desiredEGWAFPaths := make(ossReconciler.AFPathsMap)
 
 					for _, egwIP := range egwIPs {
 						if !egwIP.IsValid() {
@@ -236,7 +228,7 @@ func (r *EgressGatewayIPsReconciler) getDesiredEGWAFPaths(desiredFamilyAdverts P
 								return nil, fmt.Errorf("failed to create path for prefix %s: %w", prefix, err)
 							}
 							path.Family = agentFamily
-							reconciler.AddPathToAFPathsMap(desiredEGWAFPaths, agentFamily, path, path.NLRI.String())
+							ossReconciler.AddPathToAFPathsMap(desiredEGWAFPaths, agentFamily, path, path.NLRI.String())
 
 						case agentFamily.Afi == types.AfiIPv6 && egwIP.Is6():
 							prefix := netip.PrefixFrom(egwIP, egwIP.BitLen())
@@ -245,7 +237,7 @@ func (r *EgressGatewayIPsReconciler) getDesiredEGWAFPaths(desiredFamilyAdverts P
 								return nil, fmt.Errorf("failed to create path for prefix %s: %w", prefix, err)
 							}
 							path.Family = agentFamily
-							reconciler.AddPathToAFPathsMap(desiredEGWAFPaths, agentFamily, path, path.NLRI.String())
+							ossReconciler.AddPathToAFPathsMap(desiredEGWAFPaths, agentFamily, path, path.NLRI.String())
 
 						default:
 							continue

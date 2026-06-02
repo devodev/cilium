@@ -29,12 +29,10 @@ import (
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
 	"github.com/cilium/cilium/enterprise/pkg/bfd/types"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/fake"
+	"github.com/cilium/cilium/enterprise/pkg/bgpv1/manager/instance"
 	"github.com/cilium/cilium/pkg/bgp/agent/signaler"
-	"github.com/cilium/cilium/pkg/bgp/manager/instance"
-	"github.com/cilium/cilium/pkg/bgp/manager/reconciler"
 	"github.com/cilium/cilium/pkg/hive"
 	"github.com/cilium/cilium/pkg/k8s"
-	v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	v1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
 	clientv1 "github.com/cilium/cilium/pkg/k8s/client/clientset/versioned/typed/isovalent.com/v1"
 	k8sfake "github.com/cilium/cilium/pkg/k8s/client/testutils"
@@ -50,7 +48,7 @@ type bfdTestFixture struct {
 
 	router      *fake.EnterpriseFakeRouter
 	reconciler  *BFDStateReconciler
-	instance    *instance.BGPInstance
+	instance    *instance.EnterpriseBGPInstance
 	bgpSignaler *signaler.BGPCPSignaler
 
 	db            *statedb.DB
@@ -65,7 +63,7 @@ func newBFDTestFixture(t *testing.T, ctx context.Context, nodeInstance *v1.Isova
 	router := fake.NewEnterpriseFakeRouter()
 	f := &bfdTestFixture{
 		router: router,
-		instance: &instance.BGPInstance{
+		instance: &instance.EnterpriseBGPInstance{
 			Name:   "test-instance",
 			Router: router,
 		},
@@ -99,7 +97,7 @@ func newBFDTestFixture(t *testing.T, ctx context.Context, nodeInstance *v1.Isova
 
 			cell.Invoke(func(p BFDStateReconcilerIn) {
 				out := NewBFDStateReconciler(p)
-				f.reconciler = out.Reconciler.(*BFDStateReconciler)
+				f.reconciler = out.EnterpriseReconciler.(*BFDStateReconciler)
 				f.reconciler.Init(f.instance)
 			}),
 			cell.Invoke(func(sig *signaler.BGPCPSignaler) {
@@ -192,19 +190,6 @@ func TestBFDStateReconciler(t *testing.T) {
 			},
 		},
 	}
-	var ossNodeInstance = &v2.CiliumBGPNodeInstance{
-		Name:     nodeInstance.Name,
-		LocalASN: nodeInstance.LocalASN,
-	}
-	for _, peer := range nodeInstance.Peers {
-		ossNodeInstance.Peers = append(ossNodeInstance.Peers, v2.CiliumBGPNodePeer{
-			PeerAddress: peer.PeerAddress,
-			PeerConfigRef: &v2.PeerConfigReference{
-				Name: peer.PeerConfigRef.Name,
-			},
-		})
-	}
-
 	var table = []struct {
 		name          string
 		desiredConfig *v1.IsovalentBGPNodeInstance
@@ -561,9 +546,9 @@ func TestBFDStateReconciler(t *testing.T) {
 				}
 
 				// run reconciliation
-				reconcileParams := reconciler.ReconcileParams{
+				reconcileParams := EnterpriseReconcileParams{
 					BGPInstance:   f.instance,
-					DesiredConfig: ossNodeInstance,
+					DesiredConfig: tt.desiredConfig,
 				}
 				err = f.reconciler.Reconcile(testCtx, reconcileParams)
 				require.NoError(t, err)
