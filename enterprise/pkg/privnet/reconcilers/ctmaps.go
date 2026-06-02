@@ -390,6 +390,9 @@ func (c *CTMaps) Update(ctx context.Context, txn statedb.ReadTxn, revision state
 // Delete ensures the CT maps for a private network are removed from the outer maps, and deletes the inner CT maps
 // when no longer referenced.
 func (c *CTMaps) Delete(ctx context.Context, txn statedb.ReadTxn, revision statedb.Revision, obj tables.ConnTrackMap) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	m, ok := c.ctMaps[obj.NetworkID]
 	if !ok {
 		return nil
