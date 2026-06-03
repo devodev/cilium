@@ -23,9 +23,9 @@ import (
 // nodes in the cluster
 type ClusterStatus struct {
 	// Name is the cluster name
-	Name tables.ClusterName
+	Name tables.ClusterName `json:"name"`
 
-	Nodes []NodeStatus
+	Nodes []NodeStatus `json:"nodes"`
 }
 
 type nodeNetworkStatus struct {
