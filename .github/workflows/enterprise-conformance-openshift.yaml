@@ -581,6 +581,13 @@ jobs:
           export CNI_TEST_RESULTS_DIR=${PWD}/test-results
           ./scripts/cni-tests.sh
 
+      - name: Refresh AWS CLI credentials for KubeVirt conformance tests
+        if: ${{ !cancelled() && steps.wait-for-co.outcome == 'success' && steps.vars.outputs.kubevirt == 'true' }}
+        uses: aws-actions/configure-aws-credentials@99214aa6889fcddfa57764031d71add364327e59 # v6.1.3
+        with:
+          role-to-assume: ${{ secrets.AWS_PR_ASSUME_ROLE }}
+          aws-region: ${{ steps.vars.outputs.region }}
+
       - name: KubeVirt conformance tests
         # Please create a comment with /ci-openshift {\"kubevirt\":\"true\"} if you want to run them
         if: ${{ !cancelled() && steps.wait-for-co.outcome == 'success' && steps.vars.outputs.kubevirt == 'true' }}
