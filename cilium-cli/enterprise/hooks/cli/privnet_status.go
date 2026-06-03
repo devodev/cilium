@@ -36,6 +36,10 @@ func GetPrivnetStatus(ctx context.Context, k8sClient *k8s.Client, namespace stri
 		return pnstatus.ClusterStatus{}, fmt.Errorf("failed to get cilium agent pods: %w", err)
 	}
 
+	if len(pods.Items) == 0 {
+		return pnstatus.ClusterStatus{}, fmt.Errorf("no Cilium pod found in namespace %q, specify a different one through `--namespace`", namespace)
+	}
+
 	var (
 		wp   = workerpool.NewWithContext(ctx, int(workers))
 		stat pnstatus.ClusterStatus
@@ -98,6 +102,9 @@ func newCmdPrivNetStatus() *cobra.Command {
 			k8sClient, _ := api.GetK8sClientContextValue(c.Context())
 
 			stat, errs := GetPrivnetStatus(c.Context(), k8sClient, namespace, cmp.Or(workers, defaultWorkers))
+			if errs != nil && len(stat.Nodes) == 0 {
+				return errs
+			}
 
 			switch output {
 			case status.OutputJSON:
