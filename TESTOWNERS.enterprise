@@ -4,6 +4,7 @@
 /.github/actions/e2e/*lb* @isovalent/isovalent-loadbalancer
 /.github/actions/e2e/*netkit* @isovalent/cni
 /.github/actions/e2e/*wireguard* @isovalent/encryption
+/.github/actions/e2e/enterprise-vrf.yaml @isovalent/cilium-datapath
 /.github/actions/kvstore/ @isovalent/clustermesh
 /.github/workflows/*cilium-cli*.yaml @isovalent/ci-structure
 /.github/workflows/*clustermesh*.yaml @isovalent/clustermesh
@@ -477,6 +478,7 @@
 /cilium-cli/enterprise/hooks/connectivity/tests/mixedrouting.go @isovalent/clustermesh
 /cilium-cli/enterprise/hooks/connectivity/tests/multicast.go @isovalent/traffic-engineering
 /cilium-cli/enterprise/hooks/connectivity/tests/phantom.go @isovalent/clustermesh
+/cilium-cli/enterprise/hooks/connectivity/tests/vrf.go @isovalent/cilium-datapath
 /cilium-cli/enterprise/hooks/connectivity_egw_ha.go @isovalent/egress-gateway
 /cilium-cli/enterprise/hooks/connectivity_ingress.go @isovalent/service-mesh
 /cilium-cli/enterprise/hooks/k8s/vm_exec.go @isovalent/private-networking
@@ -493,10 +495,12 @@
 /contrib/testing/enterprise-kind-loadbalancer.yaml @isovalent/isovalent-loadbalancer
 /contrib/testing/kind-egressgwha-values.yaml @isovalent/egress-gateway
 /contrib/testing/privnet/ @isovalent/private-networking
+/contrib/testing/vrf/ @isovalent/cilium-datapath
 /contrib/scripts/enterprise-gomod-override.sh @isovalent/traffic-engineering
 /Makefile.fqdn-proxy @isovalent/dns-proxy
 /Makefile.gateway-api-controlplane @isovalent/service-mesh
 /Makefile.privnet @isovalent/private-networking
+/Makefile.vrf @isovalent/cilium-datapath
 /renovate.json5 @isovalent/infrastructure
 *podnetwork* @isovalent/multi-network
 /enterprise/Makefile @isovalent/cni @isovalent/hubble-api

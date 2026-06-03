@@ -1,0 +1,43 @@
+# Copyright (C) Isovalent, Inc. - All Rights Reserved.
+#
+# NOTICE: All information contained herein is, and remains the property of
+# Isovalent Inc and its suppliers, if any. The intellectual and technical
+# concepts contained herein are proprietary to Isovalent Inc and its suppliers
+# and may be covered by U.S. and Foreign Patents, patents in process, and are
+# protected by trade secret or copyright law.  Dissemination of this information
+# or reproduction of this material is strictly forbidden unless prior written
+# permission is obtained from Isovalent Inc.
+
+##@ VRF
+
+VRF_CLUSTER_NAME       ?= vrf-cluster
+VRF_KIND_CONFIG        ?= $(ROOT_DIR)/contrib/testing/vrf/kind-vrf.yaml
+VRF_KIND_IMAGE         ?=
+VRF_SECONDARY_NETWORK  ?= vrf-secondary
+VRF_SECONDARY_SUBNET   ?= 192.168.200.0/24
+VRF_SECONDARY_IFACE    ?= eth1
+
+VRF_NODES = $(VRF_CLUSTER_NAME)-control-plane $(VRF_CLUSTER_NAME)-worker $(VRF_CLUSTER_NAME)-worker2
+
+VRF_KIND_IMAGE_FLAG = $(if $(VRF_KIND_IMAGE),--image $(VRF_KIND_IMAGE),)
+
+.PHONY: kind-vrf-up
+kind-vrf-up:  ## Create the multihome kind cluster used by the VRF e2e suite
+	kind create cluster --config $(VRF_KIND_CONFIG) $(VRF_KIND_IMAGE_FLAG)
+
+	docker network inspect $(VRF_SECONDARY_NETWORK) >/dev/null 2>&1 || \
+		docker network create --driver bridge --subnet $(VRF_SECONDARY_SUBNET) $(VRF_SECONDARY_NETWORK)
+
+	for node in $(VRF_NODES); do \
+		docker network connect $(VRF_SECONDARY_NETWORK) $$node 2>/dev/null || true; \
+	done
+
+.PHONY: kind-vrf-down
+kind-vrf-down:  ## Destroy the VRF e2e kind cluster
+	-kind delete cluster --name $(VRF_CLUSTER_NAME)
+	-docker network rm $(VRF_SECONDARY_NETWORK)
+
+.PHONY: kind-vrf-ready
+kind-vrf-ready:  ## Check that the VRF e2e cluster exists
+	@$(ECHO_CHECK) vrf kind cluster is ready...
+	$(QUIET) kind get clusters --quiet | grep --word-regexp --silent $(VRF_CLUSTER_NAME)
