@@ -11,7 +11,7 @@
 package lb
 
 import (
-	wafpolicy "github.com/cilium/cilium/enterprise/operator/pkg/waf/policy"
+	lbextension "github.com/cilium/cilium/enterprise/operator/pkg/lb/extension"
 	"github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/labels"
 	"github.com/cilium/cilium/pkg/shortener"
 )
@@ -40,7 +40,7 @@ type lbService struct {
 	t1LabelSelector          labels.Selector
 	t2LabelSelector          labels.Selector
 	enableCNPIntegration     bool
-	effectiveWAFConfig       *wafpolicy.EffectiveConfig
+	httpExtensionStates      map[string]lbextension.State
 }
 
 type lbServiceZoneAwareModeType string

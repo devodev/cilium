@@ -31,7 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	wafpolicy "github.com/cilium/cilium/enterprise/operator/pkg/waf/policy"
+	lbextension "github.com/cilium/cilium/enterprise/operator/pkg/lb/extension"
 	controllerruntime "github.com/cilium/cilium/operator/pkg/controller-runtime"
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	isovalentv1alpha1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
@@ -59,14 +59,14 @@ const (
 )
 
 type lbServiceReconciler struct {
-	logger       *slog.Logger
-	client       client.Client
-	scheme       *runtime.Scheme
-	nodeSource   *ciliumNodeSource
-	ingestor     *ingestor
-	t1Translator *lbServiceT1Translator
-	t2Translator *lbServiceT2Translator
-	wafResolver  *wafpolicy.Resolver
+	logger         *slog.Logger
+	client         client.Client
+	scheme         *runtime.Scheme
+	nodeSource     *ciliumNodeSource
+	ingestor       *ingestor
+	t1Translator   *lbServiceT1Translator
+	t2Translator   *lbServiceT2Translator
+	httpExtensions []lbextension.HTTPExtension
 }
 
 type reconcilerConfig struct {
@@ -136,16 +136,16 @@ type reconcilerPolicyConfig struct {
 	EnableCiliumPolicyFilters bool
 }
 
-func newLbServiceReconciler(logger *slog.Logger, client client.Client, scheme *runtime.Scheme, nodeSource *ciliumNodeSource, ingestor *ingestor, t1Translator *lbServiceT1Translator, t2Translator *lbServiceT2Translator, wafResolver *wafpolicy.Resolver) *lbServiceReconciler {
+func newLbServiceReconciler(logger *slog.Logger, client client.Client, scheme *runtime.Scheme, nodeSource *ciliumNodeSource, ingestor *ingestor, t1Translator *lbServiceT1Translator, t2Translator *lbServiceT2Translator, httpExtensions []lbextension.HTTPExtension) *lbServiceReconciler {
 	return &lbServiceReconciler{
-		logger:       logger,
-		client:       client,
-		scheme:       scheme,
-		nodeSource:   nodeSource,
-		ingestor:     ingestor,
-		t1Translator: t1Translator,
-		t2Translator: t2Translator,
-		wafResolver:  wafResolver,
+		logger:         logger,
+		client:         client,
+		scheme:         scheme,
+		nodeSource:     nodeSource,
+		ingestor:       ingestor,
+		t1Translator:   t1Translator,
+		t2Translator:   t2Translator,
+		httpExtensions: httpExtensions,
 	}
 }
 
@@ -197,9 +197,14 @@ func (r *lbServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		// CiliumNode changes should trigger a reconciliation of all LBServices
 		WatchesRawSource(r.nodeSource.ToSource(r.enqueueAllLBServices(false)))
 
-	if r.wafResolver.Enabled() {
-		// Watch for changed IsovalentWAFPolicy resources and trigger all LBServices in the same namespace.
-		builder = builder.Watches(&isovalentv1alpha1.IsovalentWAFPolicy{}, r.enqueueAllLBServices(true))
+	for _, ext := range r.httpExtensions {
+		if !ext.Enabled() {
+			continue
+		}
+
+		for _, obj := range ext.WatchNamespaceScoped() {
+			builder = builder.Watches(obj, r.enqueueAllLBServices(true))
+		}
 	}
 
 	return builder.Complete(r)
@@ -330,10 +335,9 @@ func (r *lbServiceReconciler) reconcileResources(ctx context.Context, lbsvc *iso
 
 	r.updateEndpointSliceExistenceInStatus(lbsvc, missingEndpointSlices)
 
-	// Try resolving WAF configuration for the LBService
-	var wafConfig *wafpolicy.EffectiveConfig
+	var httpExtensionStates map[string]lbextension.State
 	if lbsvc.IsL7Proxy() {
-		wafConfig, err = r.wafResolver.ResolveConfig(ctx, wafpolicy.PolicyTarget{
+		httpExtensionStates, err = r.resolveHTTPExtensions(ctx, lbextension.Target{
 			GroupKind: isovalentv1alpha1.SchemeGroupVersion.WithKind(isovalentv1alpha1.LBServiceKindDefinition).GroupKind(),
 			NamespacedName: types.NamespacedName{
 				Name:      lbsvc.Name,
@@ -354,7 +358,7 @@ func (r *lbServiceReconciler) reconcileResources(ctx context.Context, lbsvc *iso
 	if err != nil {
 		return fmt.Errorf("failed to ingest resources: %w", err)
 	}
-	model.effectiveWAFConfig = wafConfig
+	model.httpExtensionStates = httpExtensionStates
 
 	r.updateNodesAssignedInStatus(model, lbsvc)
 	r.updateAssignedIpInStatus(model, lbsvc)
@@ -1630,4 +1634,22 @@ func (*lbServiceReconciler) updateEndpointSliceExistenceInStatus(lbsvc *isovalen
 	}
 
 	lbsvc.UpsertStatusCondition(isovalentv1alpha1.ConditionTypeEPSlicesExist, esExistCondition)
+}
+
+// resolveHTTPExtensions resolves extension-specific state before translating the LBService model.
+func (r *lbServiceReconciler) resolveHTTPExtensions(ctx context.Context, target lbextension.Target) (map[string]lbextension.State, error) {
+	states := map[string]lbextension.State{}
+	for _, ext := range r.httpExtensions {
+		if !ext.Enabled() {
+			continue
+		}
+
+		state, err := ext.Resolve(ctx, target)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve HTTP extension %q: %w", ext.Name(), err)
+		}
+		states[ext.Name()] = state
+	}
+
+	return states, nil
 }

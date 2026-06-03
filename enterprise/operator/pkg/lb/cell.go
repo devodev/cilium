@@ -24,10 +24,9 @@ import (
 	gatewayv1beta1 "sigs.k8s.io/gateway-api/apis/v1beta1"
 
 	"github.com/cilium/cilium/enterprise/operator/pkg/lb/accesslog"
+	lbextension "github.com/cilium/cilium/enterprise/operator/pkg/lb/extension"
 	"github.com/cilium/cilium/enterprise/operator/pkg/lb/extlb"
 	"github.com/cilium/cilium/enterprise/operator/pkg/lb/metrics"
-	wafenvoy "github.com/cilium/cilium/enterprise/operator/pkg/waf/envoy"
-	wafpolicy "github.com/cilium/cilium/enterprise/operator/pkg/waf/policy"
 	"github.com/cilium/cilium/operator/pkg/secretsync"
 	ossannotation "github.com/cilium/cilium/pkg/annotation"
 	isovalentv1alpha1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
@@ -156,16 +155,16 @@ type reconcilerParams struct {
 
 	NodeSource *ciliumNodeSource
 
-	WAFResolver *wafpolicy.Resolver
+	HTTPExtensions []lbextension.HTTPExtension `group:"lb-http-extensions"`
 }
 
 type translatorParams struct {
 	cell.In
 
-	Logger        *slog.Logger
-	Config        Config
-	AgentConfig   *option.DaemonConfig
-	WAFTranslator *wafenvoy.Translator
+	Logger         *slog.Logger
+	Config         Config
+	AgentConfig    *option.DaemonConfig
+	HTTPExtensions []lbextension.HTTPExtension `group:"lb-http-extensions"`
 }
 
 func newT1Translator(params translatorParams) *lbServiceT1Translator {
@@ -186,9 +185,9 @@ func newT2Translator(params translatorParams) *lbServiceT2Translator {
 	reconcilerConfig := mapReconcilerConfig(params.Config, params.AgentConfig)
 
 	return &lbServiceT2Translator{
-		logger:        params.Logger,
-		config:        reconcilerConfig,
-		wafTranslator: params.WAFTranslator,
+		logger:         params.Logger,
+		config:         reconcilerConfig,
+		httpExtensions: params.HTTPExtensions,
 	}
 }
 
@@ -222,7 +221,7 @@ func registerLBReconcilers(params reconcilerParams) error {
 		newIngestor(params.Logger, *t1ls, *t2ls),
 		params.T1Translator,
 		params.T2Translator,
-		params.WAFResolver,
+		params.HTTPExtensions,
 	)
 
 	lbVIPReconciler := newLBVIPReconciler(

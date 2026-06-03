@@ -36,6 +36,7 @@ var Cell = cell.Module(
 	cell.Provide(newResolver),
 	cell.Provide(envoy.NewProxyConfigBuilder),
 	cell.Provide(envoy.NewTranslator),
+	cell.Provide(newLBExtension),
 	cell.Invoke(registerReconcilers),
 )
 
