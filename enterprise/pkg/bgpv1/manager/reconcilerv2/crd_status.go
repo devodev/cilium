@@ -31,8 +31,8 @@ import (
 	"k8s.io/utils/ptr"
 
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
-	"github.com/cilium/cilium/pkg/bgp/manager/instance"
-	"github.com/cilium/cilium/pkg/bgp/manager/reconciler"
+	"github.com/cilium/cilium/enterprise/pkg/bgpv1/manager/instance"
+	ossReconciler "github.com/cilium/cilium/pkg/bgp/manager/reconciler"
 	"github.com/cilium/cilium/pkg/bgp/manager/store"
 	"github.com/cilium/cilium/pkg/bgp/manager/tables"
 	"github.com/cilium/cilium/pkg/bgp/types"
@@ -79,12 +79,14 @@ type StatusReconcilerIn struct {
 	DB                  *statedb.DB
 	ReconcileErrorTable statedb.RWTable[*tables.BGPReconcileError]
 	BGPNodeConfig       store.BGPCPResourceStore[*v1.IsovalentBGPNodeConfig]
+	Upgrader            paramUpgrader
 }
 
 type StatusReconcilerOut struct {
 	cell.Out
 
-	Reconciler reconciler.StateReconciler `group:"bgp-state-reconciler"`
+	EnterpriseReconciler EnterpriseStateReconciler     `group:"enterprise-bgp-state-reconciler"`
+	Reconciler           ossReconciler.StateReconciler `group:"bgp-state-reconciler"`
 }
 
 func NewStatusReconciler(in StatusReconcilerIn) StatusReconcilerOut {
@@ -179,7 +181,8 @@ func NewStatusReconciler(in StatusReconcilerIn) StatusReconcilerOut {
 	}))
 
 	return StatusReconcilerOut{
-		Reconciler: r,
+		EnterpriseReconciler: r,
+		Reconciler:           newOSSStateReconcilerAdapter(r, in.Upgrader),
 	}
 }
 
@@ -191,7 +194,7 @@ func (r *StatusReconciler) Priority() int {
 	return CRDStatusReconcilerPriority
 }
 
-func (r *StatusReconciler) Reconcile(ctx context.Context, params reconciler.StateReconcileParams) error {
+func (r *StatusReconciler) Reconcile(ctx context.Context, params EnterpriseStateReconcileParams) error {
 	r.Lock()
 	defer r.Unlock()
 
@@ -275,7 +278,7 @@ func (r *StatusReconciler) updateErrorConditions() error {
 	var message strings.Builder
 	for _, errObj := range instanceErrors {
 		// maximum length of message can be 32*1024
-		if message.Len()+len(errObj.String()) >= reconciler.MaxConditionsMessageLen {
+		if message.Len()+len(errObj.String()) >= ossReconciler.MaxConditionsMessageLen {
 			break
 		}
 		message.WriteString(fmt.Sprintf("%s: %s\n", errObj.Instance, errObj.Error))
@@ -299,7 +302,7 @@ func (r *StatusReconciler) updateErrorConditions() error {
 	return nil
 }
 
-func (r *StatusReconciler) getInstanceStatus(ctx context.Context, instance *instance.BGPInstance) (*v1.IsovalentBGPNodeInstanceStatus, error) {
+func (r *StatusReconciler) getInstanceStatus(ctx context.Context, instance *instance.EnterpriseBGPInstance) (*v1.IsovalentBGPNodeInstanceStatus, error) {
 	res := &v1.IsovalentBGPNodeInstanceStatus{
 		CiliumBGPNodeInstanceStatus: v2.CiliumBGPNodeInstanceStatus{
 			Name:     instance.Config.Name,
