@@ -119,3 +119,39 @@ func copyAutoDiscoveredPeerAddressesToOSS(ossConfig *v2.CiliumBGPNodeInstance, e
 		}
 	}
 }
+
+type ossStateReconcilerAdapter struct {
+	reconciler EnterpriseStateReconciler
+	upgrader   paramUpgrader
+}
+
+func newOSSStateReconcilerAdapter(reconciler EnterpriseStateReconciler, upgrader paramUpgrader) ossReconciler.StateReconciler {
+	if reconciler == nil || upgrader == nil {
+		return nil
+	}
+	return ossStateReconcilerAdapter{
+		reconciler: reconciler,
+		upgrader:   upgrader,
+	}
+}
+
+func (a ossStateReconcilerAdapter) Name() string {
+	return a.reconciler.Name()
+}
+
+func (a ossStateReconcilerAdapter) Priority() int {
+	return a.reconciler.Priority()
+}
+
+func (a ossStateReconcilerAdapter) Reconcile(ctx context.Context, params ossReconciler.StateReconcileParams) error {
+	enterpriseParams, err := a.upgrader.upgradeState(params)
+	if err != nil {
+		if errors.Is(err, ErrEntNodeConfigNotFound) ||
+			errors.Is(err, ErrNotInitialized) ||
+			errors.Is(err, ErrUpdateConfigNotSet) {
+			return nil
+		}
+		return err
+	}
+	return a.reconciler.Reconcile(ctx, enterpriseParams)
+}
