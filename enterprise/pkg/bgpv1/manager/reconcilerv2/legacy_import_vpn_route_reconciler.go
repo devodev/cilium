@@ -14,7 +14,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -30,7 +29,6 @@ import (
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
 	ceetypes "github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
 	srv6 "github.com/cilium/cilium/enterprise/pkg/srv6/srv6manager"
-	"github.com/cilium/cilium/pkg/bgp/manager/reconciler"
 	"github.com/cilium/cilium/pkg/bgp/types"
 	v1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
 	"github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
@@ -42,7 +40,6 @@ import (
 type legacyImportVPNRouteReconciler struct {
 	Logger      *slog.Logger
 	Clientset   client.Clientset
-	Upgrader    paramUpgrader
 	SRv6Manager SRv6Manager
 }
 
@@ -54,7 +51,6 @@ type legacyImportVPNRouteReconcilerIn struct {
 	Config           config.Config
 	EnterpriseConfig Config
 	DaemonConfig     *option.DaemonConfig
-	Upgrader         paramUpgrader
 	SRv6Manager      *srv6.Manager
 }
 
@@ -65,7 +61,6 @@ func newLegacyImportVPNRouteReconciler(in legacyImportVPNRouteReconcilerIn) *leg
 	return &legacyImportVPNRouteReconciler{
 		Logger:      in.Logger.With(types.ReconcilerLogField, "ImportVPNRoute"),
 		Clientset:   in.Clientset,
-		Upgrader:    in.Upgrader,
 		SRv6Manager: in.SRv6Manager,
 	}
 }
@@ -78,25 +73,8 @@ func (r *legacyImportVPNRouteReconciler) Priority() int {
 	return ImportedVPNRouteReconcilerPriority
 }
 
-func (r *legacyImportVPNRouteReconciler) Reconcile(ctx context.Context, p reconciler.StateReconcileParams) error {
-	iParams, err := r.Upgrader.upgradeState(p)
-	if err != nil {
-		if errors.Is(err, ErrEntNodeConfigNotFound) {
-			r.Logger.Debug("Enterprise node config not found yet, skipping reconciliation")
-			return nil
-		}
-		if errors.Is(err, ErrNotInitialized) {
-			r.Logger.Debug("Initialization is not done, skipping reconciliation")
-			return nil
-		}
-		if errors.Is(err, ErrUpdateConfigNotSet) {
-			r.Logger.Debug("Instance config not yet set, skipping reconciliation")
-			return nil
-		}
-		return err
-	}
-
-	if iParams.DeletedInstance != "" {
+func (r *legacyImportVPNRouteReconciler) Reconcile(ctx context.Context, p EnterpriseStateReconcileParams) error {
+	if p.DeletedInstance != "" {
 		// TODO: we currently do not handle instance deletion as egress policies are not keyed based on
 		// instance name. We should consider adding a key based on instance name to egress policies.
 		// Eventually we need to rework SRv6 responder, when we should consider fixing this case.
@@ -104,7 +82,7 @@ func (r *legacyImportVPNRouteReconciler) Reconcile(ctx context.Context, p reconc
 		return nil
 	}
 
-	config := iParams.UpdatedInstance.Config
+	config := p.UpdatedInstance.Config
 
 	if config.SRv6Responder == nil || !*config.SRv6Responder {
 		// If node is not SRv6 responder, we don't need to reconcile imported VPN routes
@@ -121,7 +99,7 @@ func (r *legacyImportVPNRouteReconciler) Reconcile(ctx context.Context, p reconc
 	curPolicies := r.SRv6Manager.GetEgressPolicies()
 	r.Logger.Debug("Discovered current egress policies", logfields.Count, len(curPolicies))
 
-	newPolicies, err := r.mapSRv6PathsToEgressPolicy(ctx, l, iParams.UpdatedInstance.Router, config.VRFs)
+	newPolicies, err := r.mapSRv6PathsToEgressPolicy(ctx, l, p.UpdatedInstance.Router, config.VRFs)
 	if err != nil {
 		return fmt.Errorf("failed to map VRFs into SRv6 egress policies: %w", err)
 	}

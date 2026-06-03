@@ -25,7 +25,7 @@ import (
 
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
-	"github.com/cilium/cilium/pkg/bgp/manager/reconciler"
+	ossReconciler "github.com/cilium/cilium/pkg/bgp/manager/reconciler"
 	ossTypes "github.com/cilium/cilium/pkg/bgp/types"
 	routeReconciler "github.com/cilium/cilium/pkg/datapath/linux/route/reconciler"
 	"github.com/cilium/cilium/pkg/datapath/tables"
@@ -43,7 +43,8 @@ const (
 type importRouteReconcilerOut struct {
 	cell.Out
 
-	Reconciler reconciler.StateReconciler `group:"bgp-state-reconciler"`
+	EnterpriseReconciler EnterpriseStateReconciler     `group:"enterprise-bgp-state-reconciler"`
+	Reconciler           ossReconciler.StateReconciler `group:"bgp-state-reconciler"`
 }
 
 type importRouteReconcilerIn struct {
@@ -62,7 +63,6 @@ type importRouteReconcilerIn struct {
 
 type importRouteReconciler struct {
 	logger            *slog.Logger
-	upgrader          paramUpgrader
 	drm               *routeReconciler.DesiredRouteManager
 	db                *statedb.DB
 	desiredRoutetable statedb.Table[*routeReconciler.DesiredRoute]
@@ -74,16 +74,19 @@ func newImportRouteReconciler(in importRouteReconcilerIn) importRouteReconcilerO
 	if !in.Config.Enabled || !in.EnterpriseConfig.RouteImportEnabled {
 		return importRouteReconcilerOut{}
 	}
+
+	r := &importRouteReconciler{
+		logger:            in.Logger,
+		drm:               in.DesiredRouteManager,
+		db:                in.DB,
+		desiredRoutetable: in.DesiredRouteTable,
+		deviceTable:       in.DeviceTable,
+		errorPathStore:    in.ErrorPathStore,
+	}
+
 	return importRouteReconcilerOut{
-		Reconciler: &importRouteReconciler{
-			logger:            in.Logger,
-			upgrader:          in.Upgrader,
-			drm:               in.DesiredRouteManager,
-			db:                in.DB,
-			desiredRoutetable: in.DesiredRouteTable,
-			deviceTable:       in.DeviceTable,
-			errorPathStore:    in.ErrorPathStore,
-		},
+		EnterpriseReconciler: r,
+		Reconciler:           newOSSStateReconcilerAdapter(r, in.Upgrader),
 	}
 }
 
@@ -95,24 +98,7 @@ func (r *importRouteReconciler) Priority() int {
 	return ImportRouteReconcilerPriority
 }
 
-func (r *importRouteReconciler) Reconcile(ctx context.Context, _p reconciler.StateReconcileParams) error {
-	p, err := r.upgrader.upgradeState(_p)
-	if err != nil {
-		if errors.Is(err, ErrEntNodeConfigNotFound) {
-			r.logger.Debug("Enterprise node config not found yet, skipping reconciliation")
-			return nil
-		}
-		if errors.Is(err, ErrNotInitialized) {
-			r.logger.Debug("Initialization is not done, skipping reconciliation")
-			return nil
-		}
-		if errors.Is(err, ErrUpdateConfigNotSet) {
-			r.logger.Debug("Instance config not yet set, skipping reconciliation")
-			return nil
-		}
-		return err
-	}
-
+func (r *importRouteReconciler) Reconcile(ctx context.Context, p EnterpriseStateReconcileParams) error {
 	// Clear all desired route entries inserted by the deleted instance.
 	// Also remove all routes when the instance becomes a part of the route
 	// reflector cluster. Route importing with RR is not supported yet.

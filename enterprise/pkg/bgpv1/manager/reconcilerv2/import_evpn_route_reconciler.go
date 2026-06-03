@@ -29,7 +29,7 @@ import (
 	"github.com/cilium/cilium/enterprise/pkg/privnet/tables"
 	"github.com/cilium/cilium/enterprise/pkg/rib"
 	"github.com/cilium/cilium/enterprise/pkg/vni"
-	"github.com/cilium/cilium/pkg/bgp/manager/reconciler"
+	ossReconciler "github.com/cilium/cilium/pkg/bgp/manager/reconciler"
 	ossTypes "github.com/cilium/cilium/pkg/bgp/types"
 	"github.com/cilium/cilium/pkg/container/bitlpm"
 	v1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
@@ -54,13 +54,13 @@ type importEVPNRouteReconcilerIn struct {
 type importEVPNRouteReconcilerOut struct {
 	cell.Out
 
-	Reconciler reconciler.StateReconciler `group:"bgp-state-reconciler"`
+	EnterpriseReconciler EnterpriseStateReconciler     `group:"enterprise-bgp-state-reconciler"`
+	Reconciler           ossReconciler.StateReconciler `group:"bgp-state-reconciler"`
 }
 
 type importEVPNRouteReconciler struct {
-	logger   *slog.Logger
-	rib      *rib.RIB
-	upgrader paramUpgrader
+	logger *slog.Logger
+	rib    *rib.RIB
 
 	db             *statedb.DB
 	privnetTable   statedb.Table[tables.PrivateNetwork]
@@ -72,15 +72,17 @@ func newImportEVPNRouteReconciler(in importEVPNRouteReconcilerIn) importEVPNRout
 		return importEVPNRouteReconcilerOut{}
 	}
 
+	r := &importEVPNRouteReconciler{
+		logger:         in.Logger.With(ossTypes.ReconcilerLogField, "ImportEVPNRoute"),
+		rib:            in.RIB,
+		db:             in.DB,
+		privnetTable:   in.PrivnetTable,
+		errorPathStore: in.ErrorPathStore,
+	}
+
 	return importEVPNRouteReconcilerOut{
-		Reconciler: &importEVPNRouteReconciler{
-			logger:         in.Logger.With(ossTypes.ReconcilerLogField, "ImportEVPNRoute"),
-			rib:            in.RIB,
-			upgrader:       in.Upgrader,
-			db:             in.DB,
-			privnetTable:   in.PrivnetTable,
-			errorPathStore: in.ErrorPathStore,
-		},
+		EnterpriseReconciler: r,
+		Reconciler:           newOSSStateReconcilerAdapter(r, in.Upgrader),
 	}
 }
 
@@ -92,27 +94,10 @@ func (r *importEVPNRouteReconciler) Priority() int {
 	return ImportEVPNRouteReconcilerPriority
 }
 
-func (r *importEVPNRouteReconciler) Reconcile(ctx context.Context, _p reconciler.StateReconcileParams) error {
+func (r *importEVPNRouteReconciler) Reconcile(ctx context.Context, p EnterpriseStateReconcileParams) error {
 	if initialized, _ := r.privnetTable.Initialized(r.db.ReadTxn()); !initialized {
 		r.logger.Debug("PrivateNetwork table is not initialized yet, skipping reconciliation")
 		return nil
-	}
-
-	p, err := r.upgrader.upgradeState(_p)
-	if err != nil {
-		if errors.Is(err, ErrEntNodeConfigNotFound) {
-			r.logger.Debug("Enterprise node config not found yet, skipping reconciliation")
-			return nil
-		}
-		if errors.Is(err, ErrNotInitialized) {
-			r.logger.Debug("Initialization is not done, skipping reconciliation")
-			return nil
-		}
-		if errors.Is(err, ErrUpdateConfigNotSet) {
-			r.logger.Debug("Instance config not yet set, skipping reconciliation")
-			return nil
-		}
-		return err
 	}
 
 	// Clear all RIB entries inserted by the deleted instance

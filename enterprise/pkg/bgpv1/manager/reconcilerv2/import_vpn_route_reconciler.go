@@ -25,7 +25,7 @@ import (
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
 	"github.com/cilium/cilium/enterprise/pkg/rib"
 	srv6Types "github.com/cilium/cilium/enterprise/pkg/srv6/types"
-	"github.com/cilium/cilium/pkg/bgp/manager/reconciler"
+	ossReconciler "github.com/cilium/cilium/pkg/bgp/manager/reconciler"
 	"github.com/cilium/cilium/pkg/bgp/types"
 	"github.com/cilium/cilium/pkg/container/bitlpm"
 	v1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
@@ -38,7 +38,8 @@ import (
 type importVPNRouteReconcilerOut struct {
 	cell.Out
 
-	Reconciler reconciler.StateReconciler `group:"bgp-state-reconciler"`
+	EnterpriseReconciler EnterpriseStateReconciler     `group:"enterprise-bgp-state-reconciler"`
+	Reconciler           ossReconciler.StateReconciler `group:"bgp-state-reconciler"`
 }
 
 func newImportVPNRouteStateReconciler(
@@ -48,6 +49,7 @@ func newImportVPNRouteStateReconciler(
 	daemonConfig *option.DaemonConfig,
 	reconciler *importVPNRouteReconciler,
 	legacyReconciler *legacyImportVPNRouteReconciler,
+	upgrader paramUpgrader,
 ) importVPNRouteReconcilerOut {
 	if !config.Enabled || !daemonConfig.EnableSRv6 {
 		return importVPNRouteReconcilerOut{}
@@ -55,18 +57,19 @@ func newImportVPNRouteStateReconciler(
 	if enterpriseConfig.EnableLegacySRv6Responder {
 		logger.Info("Using legacy SRv6 Import VPN Route Reconciler")
 		return importVPNRouteReconcilerOut{
-			Reconciler: legacyReconciler,
+			EnterpriseReconciler: legacyReconciler,
+			Reconciler:           newOSSStateReconcilerAdapter(legacyReconciler, upgrader),
 		}
 	}
 	return importVPNRouteReconcilerOut{
-		Reconciler: reconciler,
+		EnterpriseReconciler: reconciler,
+		Reconciler:           newOSSStateReconcilerAdapter(reconciler, upgrader),
 	}
 }
 
 type importVPNRouteReconciler struct {
 	logger      *slog.Logger
 	rib         *rib.RIB
-	upgrader    paramUpgrader
 	vrfStore    resource.Store[*v1alpha1.IsovalentVRF]
 	initialized atomic.Bool
 }
@@ -80,7 +83,6 @@ type importVPNRouteReconcilerIn struct {
 	JobGroup         job.Group
 	Logger           *slog.Logger
 	RIB              *rib.RIB
-	Upgrader         paramUpgrader
 	VRFResource      resource.Resource[*v1alpha1.IsovalentVRF]
 }
 
@@ -90,9 +92,8 @@ func newImportVPNRouteReconciler(in importVPNRouteReconcilerIn) *importVPNRouteR
 	}
 
 	r := &importVPNRouteReconciler{
-		logger:   in.Logger.With(types.ReconcilerLogField, "ImportVPNRoute"),
-		rib:      in.RIB,
-		upgrader: in.Upgrader,
+		logger: in.Logger.With(types.ReconcilerLogField, "ImportVPNRoute"),
+		rib:    in.RIB,
 	}
 
 	in.JobGroup.Add(job.OneShot("init", func(ctx context.Context, health cell.Health) error {
@@ -116,26 +117,9 @@ func (r *importVPNRouteReconciler) Priority() int {
 	return ImportedVPNRouteReconcilerPriority
 }
 
-func (r *importVPNRouteReconciler) Reconcile(ctx context.Context, _p reconciler.StateReconcileParams) error {
+func (r *importVPNRouteReconciler) Reconcile(ctx context.Context, p EnterpriseStateReconcileParams) error {
 	if !r.initialized.Load() {
 		return fmt.Errorf("init job is not yet done")
-	}
-
-	p, err := r.upgrader.upgradeState(_p)
-	if err != nil {
-		if errors.Is(err, ErrEntNodeConfigNotFound) {
-			r.logger.Debug("Enterprise node config not found yet, skipping reconciliation")
-			return nil
-		}
-		if errors.Is(err, ErrNotInitialized) {
-			r.logger.Debug("Initialization is not done, skipping reconciliation")
-			return nil
-		}
-		if errors.Is(err, ErrUpdateConfigNotSet) {
-			r.logger.Debug("Instance config not yet set, skipping reconciliation")
-			return nil
-		}
-		return err
 	}
 
 	// Clear all RIB entries inserted by the deleted instance
