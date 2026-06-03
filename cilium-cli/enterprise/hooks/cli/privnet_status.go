@@ -11,14 +11,14 @@
 package cli
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sync"
 
+	"github.com/cilium/workerpool"
 	"github.com/spf13/cobra"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/cilium/cilium/cilium-cli/api"
@@ -27,60 +27,66 @@ import (
 	"github.com/cilium/cilium/cilium-cli/status"
 	pnstatus "github.com/cilium/cilium/enterprise/pkg/privnet/status"
 	"github.com/cilium/cilium/pkg/lock"
+	"github.com/cilium/cilium/pkg/slices"
 )
 
-func GetPrivnetStatus(ctx context.Context, k8sClient *k8s.Client, namespace string) (pnstatus.ClusterStatus, error) {
-	stat := pnstatus.ClusterStatus{}
+func GetPrivnetStatus(ctx context.Context, k8sClient *k8s.Client, namespace string, workers uint) (pnstatus.ClusterStatus, error) {
 	pods, err := k8sClient.ListPods(ctx, namespace, metav1.ListOptions{LabelSelector: defaults.AgentPodSelector})
 	if err != nil {
-		return stat, fmt.Errorf("failed to get cilium agent pods: %w", err)
+		return pnstatus.ClusterStatus{}, fmt.Errorf("failed to get cilium agent pods: %w", err)
 	}
 
-	var errs error
-	var wg sync.WaitGroup
-	var mu lock.Mutex
+	var (
+		wp   = workerpool.NewWithContext(ctx, int(workers))
+		stat pnstatus.ClusterStatus
+		mu   lock.Mutex
+	)
 
-	// max number of concurrent go routines will be number of cilium agent pods
-	wg.Add(len(pods.Items))
+	defer func() { _ = wp.Close() }()
 
 	// concurrently fetch status from each cilium pod
 	for _, pod := range pods.Items {
-		go func(ctx context.Context, pod corev1.Pod) {
-			defer wg.Done()
+		if err = wp.Submit(pod.Name, func(ctx context.Context) error {
 			output, err := k8sClient.ExecInPod(ctx, pod.Namespace, pod.Name, "cilium-agent", []string{"cilium-dbg", "shell", "--", "privnet/status", "-o=json"})
 			if err != nil {
-				mu.Lock()
-				errs = errors.Join(errs, fmt.Errorf("failed to collect node status for %q: %w", pod.Name, err))
-				mu.Unlock()
-				return
+				return fmt.Errorf("failed to collect node status for %q: %w", pod.Name, err)
 			}
+
 			var status pnstatus.NodeStatus
 			err = json.Unmarshal(output.Bytes(), &status)
 			if err != nil {
-				mu.Lock()
-				errs = errors.Join(errs, fmt.Errorf("failed to parse node status for %q: %w", pod.Name, err))
-				mu.Unlock()
-				return
+				return fmt.Errorf("failed to parse node status for %q: %w", pod.Name, err)
 			}
+
 			mu.Lock()
 			stat.Nodes = append(stat.Nodes, status)
 			mu.Unlock()
-		}(ctx, pod)
+
+			return nil
+		}); err != nil {
+			return stat, fmt.Errorf("failed to collect status: %w", err)
+		}
 	}
 
-	wg.Wait()
+	tasks, err := wp.Drain()
+	if err != nil {
+		return stat, fmt.Errorf("failed to collect status: %w", err)
+	}
 
 	if len(stat.Nodes) > 0 {
 		stat.Name = stat.Nodes[0].Cluster
 	}
 
-	return stat, errs
+	return stat, errors.Join(slices.Map(tasks, func(t workerpool.Task) error { return t.Err() })...)
 }
 
 func newCmdPrivNetStatus() *cobra.Command {
+	const defaultWorkers = 8
+
 	var namespace string
 	var output string
 	var colors bool
+	var workers uint
 
 	cmd := &cobra.Command{
 		Use:   "status",
@@ -91,7 +97,7 @@ func newCmdPrivNetStatus() *cobra.Command {
 
 			k8sClient, _ := api.GetK8sClientContextValue(c.Context())
 
-			stat, errs := GetPrivnetStatus(c.Context(), k8sClient, namespace)
+			stat, errs := GetPrivnetStatus(c.Context(), k8sClient, namespace, cmp.Or(workers, defaultWorkers))
 
 			switch output {
 			case status.OutputJSON:
@@ -111,6 +117,7 @@ func newCmdPrivNetStatus() *cobra.Command {
 
 	cmd.Flags().StringVarP(&output, "output", "o", status.OutputSummary, "Output format. One of: json, summary")
 	cmd.Flags().BoolVarP(&colors, "colors", "c", true, "Enable colors in 'summary' output")
+	cmd.Flags().UintVar(&workers, "workers", defaultWorkers, "The number of workers used to collect the status")
 
 	return cmd
 }
