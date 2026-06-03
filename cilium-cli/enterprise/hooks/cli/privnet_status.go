@@ -84,7 +84,7 @@ func newCmdPrivNetStatus() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "status",
-		Short: "Display Private Networking status",
+		Short: "Display Private Network status",
 		Long:  "",
 		RunE: func(c *cobra.Command, _ []string) error {
 			namespace = ciliumNamespace(c)

@@ -37,6 +37,7 @@ cilium status
 
 * [cilium completion](cilium_completion.md)	 - Generate the autocompletion script for the specified shell
 * [cilium diagnostics](cilium_diagnostics.md)	 - Collect and display diagnostics
+* [cilium privnet](cilium_privnet.md)	 - Interact with the Private Network feature
 * [cilium status](cilium_status.md)	 - Display status
 * [cilium sysdump](cilium_sysdump.md)	 - Collects information required to troubleshoot issues with Cilium and Hubble
 * [cilium version](cilium_version.md)	 - Display detailed version information

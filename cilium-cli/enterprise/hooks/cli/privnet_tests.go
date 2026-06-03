@@ -51,9 +51,10 @@ func newCmdPrivNetTest() *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "test",
-		Short: "Run private network tests",
-		Long:  "",
+		Use:    "test",
+		Short:  "Run Private Network tests",
+		Long:   "",
+		Hidden: true,
 		RunE: func(c *cobra.Command, _ []string) error {
 			params.CiliumNamespace = cli.RootParams.Namespace
 

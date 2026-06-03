@@ -144,6 +144,7 @@ func (eh *EnterpriseHooks) InitializeCommand(command *cobra.Command) {
 		"sysdump",
 		"version",
 		"diagnostics",
+		"privnet",
 	}
 	command.Short = "CLI to collect troubleshooting information for Isovalent Enterprise for Cilium"
 	command.Long = ""

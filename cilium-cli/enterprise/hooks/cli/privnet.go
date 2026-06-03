@@ -14,10 +14,9 @@ import "github.com/spf13/cobra"
 
 func NewCmdPrivNet() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:    "privnet",
-		Short:  "Private networks",
-		Long:   ``,
-		Hidden: true,
+		Use:   "privnet",
+		Short: "Interact with the Private Network feature",
+		Long:  ``,
 	}
 
 	cmd.AddCommand(newCmdPrivNetTest())
