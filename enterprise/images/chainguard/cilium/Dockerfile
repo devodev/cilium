@@ -125,12 +125,13 @@ RUN apk add --no-cache --no-commit-hooks --root /rootfs \
 
     # needed by iptables build
 RUN apk add --no-cache \
-    gcc \
+    gcc-15 \
     libmnl-dev \
     libnftnl-dev \
     pkgconf \
     make \
-    curl
+    curl && \
+    ln -sf /usr/bin/gcc-15 /usr/local/bin/gcc
 
 ARG IPTABLES_VERSION=1.8.8
 
@@ -141,8 +142,9 @@ RUN curl -fsSLO "https://www.netfilter.org/projects/iptables/files/iptables-${IP
     tar -xjf "iptables-${IPTABLES_VERSION}.tar.bz2"
 
 WORKDIR /build/iptables-${IPTABLES_VERSION}
-RUN ./configure --prefix=/usr/local --sbindir=/sbin --libdir=/usr/local/lib && \
-    make && \
+RUN ./configure --prefix=/usr/local --sbindir=/sbin --libdir=/usr/local/lib \
+        || { echo 'iptables configure log : '; cat config.log; exit 1; }
+RUN make && \
     make DESTDIR=/rootfs install && \
     # copy matching libmnl and libnftnl from the build env (must match what iptables was linked against)
     cp -a /usr/lib/libmnl.so* /rootfs/usr/local/lib/ 2>/dev/null || true && \
@@ -150,7 +152,7 @@ RUN ./configure --prefix=/usr/local --sbindir=/sbin --libdir=/usr/local/lib && \
     # ensure dynamic linker finds iptables libs in /usr/local/lib
     mkdir -p /rootfs/etc/ld.so.conf.d && \
     echo "/usr/local/lib" > /rootfs/etc/ld.so.conf.d/iptables.conf && \
-    ldconfig -r /rootfs 2>/dev/null || true
+    ldconfig -r /rootfs
 
 RUN grep -E "^root:" /etc/passwd >> /rootfs/etc/passwd && \
     grep -E "^root:" /etc/group >> /rootfs/etc/group && \
