@@ -136,6 +136,19 @@ jobs:
           hubble: false
           include-unsafe-tests: true
 
+      - name: Set up job variables
+        id: vars
+        run: |
+          CILIUM_INSTALL_OVERRIDES=""
+          EVPN_SOURCE_INTERFACE_FILTER=true
+          if [ "${{ matrix.kernel }}" = "5.15" ]; then
+            # sourceInterface is not supported on this kernel version, do not use it and do not apply source IP filter on the router
+            CILIUM_INSTALL_OVERRIDES="--helm-set-string=enterprise.evpn.sourceInterface="
+            EVPN_SOURCE_INTERFACE_FILTER=false
+          fi
+          echo cilium_install_overrides=${CILIUM_INSTALL_OVERRIDES} >> $GITHUB_OUTPUT
+          echo evpn_source_interface_filter=${EVPN_SOURCE_INTERFACE_FILTER} >> $GITHUB_OUTPUT
+
       - name: Resolve full kernel version
         id: kernel-version
         uses: ./.github/actions/resolve-kernel-version
@@ -191,12 +204,12 @@ jobs:
         with:
           provision: 'false'
           cmd: |
-            cd /host/contrib/containerlab/enterprise/evpn && make deploy-lab
+            cd /host/contrib/containerlab/enterprise/evpn && EVPN_SOURCE_INTERFACE_FILTER=${{ steps.vars.outputs.evpn_source_interface_filter }} make deploy-lab
 
       - name: Install Cilium
         id: install-cilium
         run: |
-          cilium install --values contrib/containerlab/enterprise/evpn/values.yaml ${{ steps.default_vars.outputs.cilium_install_defaults }}
+          cilium install --values contrib/containerlab/enterprise/evpn/values.yaml ${{ steps.default_vars.outputs.cilium_install_defaults }} ${{ steps.vars.outputs.cilium_install_overrides }}
 
       - name: Wait for Cilium status to be ready
         run: |

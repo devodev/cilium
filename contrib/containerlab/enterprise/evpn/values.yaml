@@ -19,6 +19,7 @@ enterprise:
     enabled: true
   evpn:
     enabled: true
+    sourceInterface: lo
     securityGroupTags:
       enabled: true
       defaultGroupID: 1000

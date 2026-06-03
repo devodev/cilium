@@ -6,7 +6,7 @@ deploy-kind:
 	../../../../contrib/scripts/kind.sh 1 2 $(NAME) "" none dual "0.0.0.0" 6443
 
 deploy-lab:
-	sudo containerlab -t topo.yaml deploy
+	sudo EVPN_SOURCE_INTERFACE_FILTER="$(EVPN_SOURCE_INTERFACE_FILTER)" containerlab -t topo.yaml deploy
 
 deploy-cilium-local:
 	kind load --name $(NAME) docker-image quay.io/cilium/cilium-dev:local quay.io/cilium/operator-generic:local
