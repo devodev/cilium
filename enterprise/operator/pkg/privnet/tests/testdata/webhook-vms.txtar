@@ -75,17 +75,11 @@ replace trusting-newt-alpha not-existing vm-unknown-vm-id.yaml
 ! webhook/admit /virtualmachines/mutate create vm-unknown-vm-id.yaml
 cmp stderr err-unknown-vm-id.txt
 
-# Expect an error if a migrated VM references an unknown interface in the inventory
+# Expect an error if a migrated VM references an unknown interface in the inventory, with IP preservation.
 cp vm-2.yaml vm-interface-not-found.yaml
-replace 00:11:22:33:44:66 99:11:22:33:44:66 vm-interface-not-found.yaml
+replace 00:11:22:33:44:55 99:11:22:33:44:55 vm-interface-not-found.yaml
 ! webhook/admit /virtualmachines/mutate create vm-interface-not-found.yaml
 cmp stderr err-interface-not-found.txt
-
-# Expect an error if a migrated VM references an interface with unknown IPv4, with IP preservation.
-cp vm-2-preserve-ips.yaml vm-interface-missing-ipv4.yaml
-replace 00:11:22:33:44:66 00:11:22:33:66:66 vm-interface-missing-ipv4.yaml
-! webhook/admit /virtualmachines/mutate create vm-interface-missing-ipv4.yaml
-cmp stderr err-interface-missing-ipv4.txt
 
 # Don't expect an error if a migrated VM references an interface with unknown IPv4, without IP preservation.
 cp vm-2.yaml vm-interface-missing-ipv4.yaml
@@ -94,6 +88,37 @@ replace 00:11:22:33:44:66 00:11:22:33:66:66 vm-interface-missing-ipv4.yaml
 replace 00:11:22:33:44:66 00:11:22:33:66:66 vm-2-expected.v2.yaml
 webhook/admit /virtualmachines/mutate create vm-interface-missing-ipv4.yaml -o vm-actual.yaml
 cmp vm-actual.yaml vm-2-expected.v2.yaml
+
+# IPv4 only with DHCP should work
+cp vm-3.yaml vm-3-ipv4-only-dhcp.yaml
+replace 00:11:22:33:44:66 00:11:22:33:44:44 vm-3-ipv4-only-dhcp.yaml
+webhook/admit /virtualmachines/mutate create vm-3-ipv4-only-dhcp.yaml -o vm-actual.yaml
+cmp vm-actual.yaml vm-3-ipv4-expected.yaml
+
+# IPv4 only with static IP should work
+cp vm-3.yaml vm-3-ipv4-only.yaml
+cp vm-3-ipv4-expected.yaml vm-3-ipv4-static-expected.yaml
+replace 00:11:22:33:44:66 00:11:22:33:44:44 vm-3-ipv4-only.yaml
+replace parrot ewe vm-3-ipv4-only.yaml
+replace parrot ewe vm-3-ipv4-static-expected.yaml
+replace 0.0.0.0 192.168.2.100 vm-3-ipv4-static-expected.yaml
+webhook/admit /virtualmachines/mutate create vm-3-ipv4-only.yaml -o vm-actual.yaml
+cmp vm-actual.yaml vm-3-ipv4-static-expected.yaml
+
+# IPv6 only should work
+cp vm-3.yaml vm-3-ipv6-only.yaml
+replace parrot ewe vm-3-ipv6-only.yaml
+replace parrot ewe vm-3-ipv6-expected.yaml
+replace 00:11:22:33:44:66 00:11:22:33:66:66 vm-3-ipv6-only.yaml
+webhook/admit /virtualmachines/mutate create vm-3-ipv6-only.yaml -o vm-actual.yaml
+cmp vm-actual.yaml vm-3-ipv6-expected.yaml
+
+# No IP should fail
+cp vm-3.yaml vm-3-no-ip.yaml
+replace parrot ewe vm-3-no-ip.yaml
+replace 00:11:22:33:44:66 00:11:22:33:44:00 vm-3-no-ip.yaml
+! webhook/admit /virtualmachines/mutate create vm-3-no-ip.yaml
+cmp stderr err-interface-missing-ip.txt
 
 # ---
 
@@ -668,7 +693,10 @@ spec:
 
   "guestNetworks": [
     {"device": "nic1", "mac": "00:11:22:33:44:66", "ip": "192.168.2.100"},
-    {"device": "nic1", "mac": "00:11:22:33:44:66", "ip": "2001::2:1002"}
+    {"device": "nic1", "mac": "00:11:22:33:44:66", "ip": "2001::2:1002"},
+    {"device": "nic2", "mac": "00:11:22:33:66:66", "ip": "2001::2:1002"},
+    {"device": "nic3", "mac": "00:11:22:33:44:44", "ip": "192.168.2.100"},
+    {"device": "nic4", "mac": "00:11:22:33:44:00", "ip": "169.254.2.100"}
   ],
 
   "guestIpStacks": [
@@ -725,6 +753,103 @@ spec:
 status: {}
 -- EOR --
 
+-- vm-3-ipv4-expected.yaml --
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  labels:
+    plan: 2dabc5ef-f1b5-4e63-9534-a8a17c0c0adf
+    vmID: trusting-newt-beta
+  name: trusting-newt
+  namespace: spaniel
+  uid: cc2a8419-636b-406e-af81-daecb1c34b02
+spec:
+  runStrategy: Always
+  template:
+    metadata:
+      annotations:
+        privnet.isovalent.com/secondary-network-attachments: |-
+          [
+            {
+              "network": "egret",
+              "interface": "net-1",
+              "subnet": "parrot",
+              "ipv4": "0.0.0.0",
+              "mac": "00:11:22:33:44:44"
+            }
+          ]
+      labels:
+        app: trusting-newt
+    spec:
+      domain:
+        devices:
+          interfaces:
+          - macAddress: "00:11:22:33:44:55"
+            masquerade: {}
+            name: net-0
+          - binding:
+              name: privnet
+            macAddress: "00:11:22:33:44:44"
+            name: net-1
+        resources: {}
+      networks:
+      - name: net-0
+        pod: {}
+      - multus:
+          networkName: spaniel/egret-parrot
+        name: net-1
+status: {}
+-- EOR --
+
+-- vm-3-ipv6-expected.yaml --
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  labels:
+    plan: 2dabc5ef-f1b5-4e63-9534-a8a17c0c0adf
+    vmID: trusting-newt-beta
+  name: trusting-newt
+  namespace: spaniel
+  uid: cc2a8419-636b-406e-af81-daecb1c34b02
+spec:
+  runStrategy: Always
+  template:
+    metadata:
+      annotations:
+        privnet.isovalent.com/secondary-network-attachments: |-
+          [
+            {
+              "network": "egret",
+              "interface": "net-1",
+              "subnet": "parrot",
+              "ipv6": "2001::2:1002",
+              "mac": "00:11:22:33:66:66"
+            }
+          ]
+      labels:
+        app: trusting-newt
+    spec:
+      domain:
+        devices:
+          interfaces:
+          - macAddress: "00:11:22:33:44:55"
+            masquerade: {}
+            name: net-0
+          - binding:
+              name: privnet
+            macAddress: 00:11:22:33:66:66
+            name: net-1
+        resources: {}
+      networks:
+      - name: net-0
+        pod: {}
+      - multus:
+          networkName: spaniel/egret-parrot
+        name: net-1
+status: {}
+-- EOR --
+
+
 -- err-nad-not-existing.txt --
 invalid NAD "something/else" for VM network "net-0": not found
 -- err-net-not-existing.txt --
@@ -736,7 +861,7 @@ querying inventory: unsupported source provider type "other"
 -- err-unknown-vm-id.txt --
 querying inventory: looking up VM: unexpected status code: 404 Not Found
 -- err-interface-not-found.txt --
-retrieving IP addresses for VM network "net-1": no entry found in inventory
--- err-interface-missing-ipv4.txt --
-retrieving IP addresses for VM network "net-1": unknown IPv4 address
+retrieving IP addresses for VM network "net-0": no entry found in inventory
+-- err-interface-missing-ip.txt --
+retrieving IP addresses for VM network "net-1": no IP found in inventory
 -- EOR --
