@@ -1,0 +1,117 @@
+name: Destroy OpenShift cluster (ci-openshift)
+
+# Reusable workflow that destroys an OCP cluster provisioned by
+# enterprise-conformance-openshift.yaml.
+#
+# Called automatically at the end of the main workflow, or manually via
+# workflow_dispatch when a previous run left a cluster behind.
+#
+# Required artifact uploaded by the provisioning run (name: ocp-cluster-state-<run_id>):
+#   cluster-info.env  – CLUSTER_NAME, OCP_VERSION, REGION
+#   metadata.json     – consumed by `openshift-install destroy cluster`
+#   install-config.bak – consumed by destroy.sh to read credentialsMode / region
+
+on:
+  workflow_call:
+    inputs:
+      provisioning-run-id:
+        description: "Run ID of the workflow run that provisioned the cluster."
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      provisioning-run-id:
+        description: "Run ID of the enterprise-conformance-openshift workflow run that provisioned the cluster to destroy."
+        required: true
+
+permissions:
+  # To be able to access the repository with actions/checkout.
+  contents: read
+  # To be able to request the JWT from GitHub's OIDC provider.
+  id-token: write
+  # To download artifacts from another run.
+  actions: read
+
+jobs:
+  destroy:
+    name: Destroy OpenShift Cluster
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Checkout Cilium
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set Environment Variables
+        uses: ./.github/actions/set-env-variables
+
+      - name: Download cluster state artifact
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: ocp-cluster-state-${{ inputs.provisioning-run-id }}
+          path: cluster-state
+          run-id: ${{ inputs.provisioning-run-id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Read cluster info
+        id: cluster-info
+        run: |
+          source cluster-state/cluster-info.env
+          echo "cluster_name=${CLUSTER_NAME}" >> $GITHUB_OUTPUT
+          echo "ocp_version=${OCP_VERSION}" >> $GITHUB_OUTPUT
+          echo "region=${REGION}" >> $GITHUB_OUTPUT
+
+      - name: Set up AWS CLI credentials
+        uses: aws-actions/configure-aws-credentials@99214aa6889fcddfa57764031d71add364327e59 # v6.1.3
+        with:
+          role-to-assume: ${{ secrets.AWS_PR_ASSUME_ROLE }}
+          aws-region: ${{ steps.cluster-info.outputs.region }}
+          role-duration-seconds: 5400
+
+      - name: Install OpenShift installer and oc client
+        run: |
+          ocp_version="${{ steps.cluster-info.outputs.ocp_version }}"
+          ocp_minor_version=$(echo "${ocp_version}" | cut -d '.' -f 1,2)
+          URL=https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/${ocp_version}/openshift-install-linux-${ocp_version}.tar.gz
+          curl -fsSL -o openshift-install.tar.gz ${URL}
+          tar zxvf openshift-install.tar.gz openshift-install
+          sudo install -o root -g root -m 0755 openshift-install /usr/local/bin/openshift-install
+          rm openshift-install.tar.gz
+          curl -sLO "https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/latest-${ocp_minor_version}/openshift-client-linux.tar.gz"
+          curl -sLO "https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/latest-${ocp_minor_version}/sha256sum.txt"
+          echo "$(grep 'openshift-client-linux-4' sha256sum.txt | cut -f1 -d ' ') openshift-client-linux.tar.gz" | sha256sum --check
+          tar -zxvf openshift-client-linux.tar.gz oc
+          sudo install -o root -g root -m 0755 oc /usr/local/bin/oc
+
+      - name: Checkout the openshift-ci repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: isovalent/openshift-ci
+          token: ${{ secrets.ISOVALENT_BOT_READ_PRIVATE_REPOSITORIES }}
+          path: openshift-ci
+
+      - name: Restore cluster state into workdir
+        run: |
+          cluster_name="${{ steps.cluster-info.outputs.cluster_name }}"
+          work_dir="openshift-ci/aws-ipi/.workdir/${cluster_name}"
+          mkdir -p "${work_dir}/bin"
+          cp cluster-state/metadata.json "${work_dir}/metadata.json"
+          cp cluster-state/install-config.bak "${work_dir}/install-config.bak"
+          printf 'CLUSTER_NAME=%s\n' "${cluster_name}" > openshift-ci/aws-ipi/.workdir/current.properties
+
+      - name: Install ccoctl
+        working-directory: ./openshift-ci/aws-ipi
+        run: |
+          cluster_name="${{ steps.cluster-info.outputs.cluster_name }}"
+          echo "${{ secrets.OPENSHIFT_PULL_SECRET }}" | base64 -d > .pullsecret.json
+          source scripts/ccoctl.sh
+          install_ccoctl "${PWD}/.pullsecret.json" "${PWD}/.workdir/${cluster_name}/bin"
+          rm .pullsecret.json
+
+      - name: Destroy the cluster
+        timeout-minutes: 60
+        working-directory: ./openshift-ci/aws-ipi
+        run: |
+          echo "Destroying cluster ${{ steps.cluster-info.outputs.cluster_name }} ..."
+          scripts/destroy.sh
