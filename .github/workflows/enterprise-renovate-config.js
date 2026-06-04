@@ -4,23 +4,23 @@ module.exports = {
   prConcurrentLimit: 0,
   prHourlyLimit: 0,
   secrets: {
-    RH_REGISTRY_USERNAME: "{{ process.env.RH_REGISTRY_USERNAME }}",
-    RH_REGISTRY_PASSWORD: "{{ process.env.RH_REGISTRY_PASSWORD }}",
-    ARTIFACTORY_USERNAME: "{{ process.env.ARTIFACTORY_USERNAME }}",
-    ARTIFACTORY_PASSWORD: "{{ process.env.ARTIFACTORY_PASSWORD }}",
+    RH_REGISTRY_USERNAME: process.env.RH_REGISTRY_USERNAME,
+    RH_REGISTRY_PASSWORD: process.env.RH_REGISTRY_PASSWORD,
+    ARTIFACTORY_USERNAME: process.env.ARTIFACTORY_USERNAME,
+    ARTIFACTORY_PASSWORD: process.env.ARTIFACTORY_PASSWORD,
   },
   hostRules: [
     {
       matchHost: "https://registry.redhat.io",
       hostType: "docker",
-      username: "{{ process.env.RH_REGISTRY_USERNAME }}",
-      password: "{{ process.env.RH_REGISTRY_PASSWORD }}",
+      username: process.env.RH_REGISTRY_USERNAME,
+      password: process.env.RH_REGISTRY_PASSWORD,
     },
     {
       matchHost: "https://artifactory.devhub-cloud.cisco.com",
       hostType: "docker",
-      username: "{{ process.env.ARTIFACTORY_USERNAME }}",
-      password: "{{ process.env.ARTIFACTORY_PASSWORD }}",
+      username: process.env.ARTIFACTORY_USERNAME,
+      password: process.env.ARTIFACTORY_PASSWORD,
     },
   ],
   allowedCommands: [
