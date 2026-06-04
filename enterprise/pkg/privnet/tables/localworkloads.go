@@ -93,7 +93,7 @@ func (lw *LocalWorkload) TableRow() []string {
 
 var (
 	unspecifiedIPv4String = netip.IPv4Unspecified().String()
-	unspecifiedIPv6String = netip.IPv4Unspecified().String()
+	unspecifiedIPv6String = netip.IPv6Unspecified().String()
 )
 
 // HasUsableIP returns true if the endpoint has a valid network IPv4 or IPv6
