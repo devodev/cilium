@@ -10,8 +10,32 @@ db/initialized privnet-device-mappings
 
 db/insert devices device.eth1.yaml device.eth2.yaml device.eth4.yaml
 
-# Add two ClusterwidePrivateNetworks
-k8s/add icpn-1.yaml icpn-2.yaml
+# No device mappings yet.
+* db/empty privnet-device-mappings
+
+# No device map entries either.
+privnet/maps-dump privnet_devices
+empty stdout
+
+# Create a local workload referencing a private network that doesn't exist
+# yet. This must not yet produce a device mapping, namely not one with the
+# reserved network ID 0.
+privnet/epm-create ep-speedy-cheetah.json
+* db/empty privnet-device-mappings
+
+# Add the first private network.
+k8s/add icpn-1.yaml
+
+# Ensure the device mapping and the device map entry now exist
+db/cmp privnet-device-mappings device-mappings.v0.table
+privnet/maps-dump privnet_devices devices-actual.map
+* cmp devices.v0.map devices-actual.map
+
+# Delete the local workload. It will be re-added later on.
+privnet/epm-delete bar/speedy-cheetah
+
+# Add another private network and corresponding node attachments.
+k8s/add icpn-2.yaml
 k8s/add pnna-1.yaml pnna-2.yaml
 
 # Ensure that they are correctly propagated into the device-mappings table
@@ -68,7 +92,7 @@ db/cmp privnet-device-mappings device-mappings.v5.table
 privnet/maps-dump privnet_devices devices-actual.map
 * cmp devices.v5.map devices-actual.map
 
-# Add one more one endpoint, and delete another, and assert that updates are propagated.
+# Add one more endpoint, and delete another, and assert that updates are propagated.
 privnet/epm-create ep-clever-fox.json
 privnet/epm-delete qux/sleepy-sloth
 db/cmp privnet-device-mappings device-mappings.v6.table
@@ -222,6 +246,10 @@ spec:
       subnetRefs:
         - name: foo
 
+-- device-mappings.v0.table --
+Interface   Network          NetworkID   Owner
+lxc16 (96)  direct-maggot    0x1         lw-16
+
 -- device-mappings.v1.table --
 Interface   Network          NetworkID   Owner
 eth1 (10)   direct-maggot    0x1         pnna-direct-maggot-na
@@ -342,6 +370,8 @@ lxc18 (98)  united-firefly  0x2          lw-18
   }
 }
 
+-- devices.v0.map --
+96 -> 0x1 lxc 10.20.0.11 fd00:10:20::11
 -- devices.v1.map --
 10 -> 0x1 netdev 0.0.0.0 ::
 20 -> 0x1 netdev 0.0.0.0 ::

@@ -158,7 +158,7 @@ func (dm *DeviceMappings) registerReconciler() {
 								lwsProcessed.Insert(network)
 
 								// Reconcile all local workloads belonging to the network.
-								dm.reconcileLocalWorkloads(wtx, network)
+								dm.reconcileLocalWorkloads(wtx, change.Object)
 							}
 						}
 					}
@@ -177,15 +177,17 @@ func (dm *DeviceMappings) registerReconciler() {
 					}
 
 					for change := range lwChanges {
-						var network = tables.NetworkName(change.Object.Interface.Network)
-						if lwsProcessed.Has(network) && !change.Deleted {
+						networkName := tables.NetworkName(change.Object.Interface.Network)
+						if lwsProcessed.Has(networkName) && !change.Deleted {
 							continue
 						}
 
-						new := dm.forLocalWorkload(change.Object)
-						if change.Deleted {
-							// Causes [dm.reconcile] to delete the entry.
-							new.DeviceIndex = 0
+						new := dm.forLocalWorkloadDeletion(change.Object)
+						if !change.Deleted {
+							network, _, found := dm.networks.Get(wtx, tables.PrivateNetworkByName(networkName))
+							if found {
+								new = dm.forLocalWorkload(network, change.Object)
+							}
 						}
 
 						dm.reconcile(wtx, new, false)
@@ -259,9 +261,9 @@ func (dm *DeviceMappings) deleteForNetwork(wtx statedb.WriteTxn, network tables.
 	}
 }
 
-func (dm *DeviceMappings) reconcileLocalWorkloads(wtx statedb.WriteTxn, network tables.NetworkName) {
-	for lw := range dm.workloads.List(wtx, tables.LocalWorkloadsByNetwork(string(network))) {
-		dm.reconcile(wtx, dm.forLocalWorkload(lw), false)
+func (dm *DeviceMappings) reconcileLocalWorkloads(wtx statedb.WriteTxn, network tables.PrivateNetwork) {
+	for lw := range dm.workloads.List(wtx, tables.LocalWorkloadsByNetwork(string(network.Name))) {
+		dm.reconcile(wtx, dm.forLocalWorkload(network, lw), false)
 	}
 }
 
@@ -284,8 +286,15 @@ func (dm *DeviceMappings) reconcileNetworkAttachments(wtx statedb.WriteTxn, netw
 	}
 }
 
-func (dm *DeviceMappings) forLocalWorkload(lw *tables.LocalWorkload) tables.DeviceMapping {
-	var network = tables.NetworkName(lw.Interface.Network)
+func (dm *DeviceMappings) forLocalWorkloadDeletion(lw *tables.LocalWorkload) tables.DeviceMapping {
+	return tables.DeviceMapping{
+		Owner:       tables.NewDeviceMappingOwner(ownerPrefixLocalWorkload, strconv.FormatUint(uint64(lw.EndpointID), 10)),
+		DeviceName:  lw.LXC.IfName,
+		NetworkName: tables.NetworkName(lw.Interface.Network),
+	}
+}
+
+func (dm *DeviceMappings) forLocalWorkload(network tables.PrivateNetwork, lw *tables.LocalWorkload) tables.DeviceMapping {
 	ipv4, _ := netip.ParseAddr(lw.Interface.Addressing.IPv4)
 	ipv6, _ := netip.ParseAddr(lw.Interface.Addressing.IPv6)
 
@@ -293,8 +302,8 @@ func (dm *DeviceMappings) forLocalWorkload(lw *tables.LocalWorkload) tables.Devi
 		Owner:       tables.NewDeviceMappingOwner(ownerPrefixLocalWorkload, strconv.FormatUint(uint64(lw.EndpointID), 10)),
 		DeviceIndex: lw.LXC.IfIndex,
 		DeviceName:  lw.LXC.IfName,
-		NetworkName: network,
-		NetworkID:   dm.netIDs[network],
+		NetworkName: network.Name,
+		NetworkID:   network.ID,
 		NetworkIPv4: ipv4,
 		NetworkIPv6: ipv6,
 	}
