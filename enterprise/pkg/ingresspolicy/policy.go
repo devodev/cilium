@@ -4,7 +4,6 @@
 package ingresspolicy
 
 import (
-	"iter"
 	"log/slog"
 
 	"github.com/cilium/cilium/api/v1/models"
@@ -141,8 +140,8 @@ func (i *IngressPolicy) ConntrackNameLocked() string {
 	return "global"
 }
 
-// GetNamedPort is to satisfy the EndpointInfoSource interface.
-func (i *IngressPolicy) GetNamedPort(ingress bool, name string, proto u8proto.U8proto, destIdentities iter.Seq[identity.NumericIdentity]) uint16 {
+// GetIngressNamedPort is to satisfy the EndpointInfoSource interface.
+func (i *IngressPolicy) GetIngressNamedPort(name string, proto u8proto.U8proto) uint16 {
 	return 0
 }
 
@@ -228,8 +227,8 @@ func (owner *ingressPolicyOwner) GetID() uint64 {
 	return owner.id
 }
 
-// GetNamedPort is to satisfy the PolicyOwner interface.
-func (owner *ingressPolicyOwner) GetNamedPort(ingress bool, name string, proto u8proto.U8proto, destIdentities iter.Seq[identity.NumericIdentity]) uint16 {
+// GetIngressNamedPort is to satisfy the PolicyOwner interface.
+func (owner *ingressPolicyOwner) GetIngressNamedPort(name string, proto u8proto.U8proto) uint16 {
 	return 0
 }
 
