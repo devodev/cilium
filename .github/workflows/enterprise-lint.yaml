@@ -18,6 +18,7 @@ permissions: read-all
 
 jobs:
   mindfulness:
+    if: ${{ (github.base_ref || github.ref_name) == github.event.repository.default_branch }}
     name: Mindfulness
     runs-on: ubuntu-24.04
     steps:
@@ -31,9 +32,10 @@ jobs:
         id: checkout-oss
         env:
           UPSTREAM: "https://github.com/cilium/cilium"
+          BRANCH: ${{ github.base_ref || github.ref_name }}
         run: |
           git remote add upstream "$UPSTREAM"
-          git fetch --no-write-fetch-head upstream "refs/heads/main:refs/remotes/upstream/main"
+          git fetch --no-write-fetch-head upstream "refs/heads/${BRANCH%-ce}:refs/remotes/upstream/${BRANCH%-ce}"
       - name: Create branch based on upstream with backported patches
         if: ${{ always() && steps.checkout.outcome == 'success' && steps.checkout-oss.outcome == 'success' }}
         env:
@@ -84,9 +86,10 @@ jobs:
         id: checkout-oss
         env:
           UPSTREAM: "https://github.com/cilium/cilium"
+          BRANCH: ${{ github.base_ref || github.ref_name }}
         run: |
           git remote add upstream "$UPSTREAM"
-          git fetch --no-write-fetch-head upstream "refs/heads/main:refs/remotes/upstream/main"
+          git fetch --no-write-fetch-head upstream "refs/heads/${BRANCH%-ce}:refs/remotes/upstream/${BRANCH%-ce}"
 
       - name: Check TESTOWNERS.enterprise is up to date
         run: |
@@ -96,8 +99,10 @@ jobs:
             exit 1
           fi
       - name: Check that all enterprise files are covered in CODEOWNERS
+        env:
+          BRANCH: ${{ github.base_ref || github.ref_name }}
         run: |
-          ./contrib/scripts/enterprise-codeowners.sh
+          UPSTREAM_BRANCH=upstream/${BRANCH%-ce} ORIGIN_BRANCH=origin/${BRANCH} ./contrib/scripts/enterprise-codeowners.sh
 
   generate-enterprise-api:
     runs-on: ubuntu-24.04
