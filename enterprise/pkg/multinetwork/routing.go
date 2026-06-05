@@ -381,7 +381,7 @@ func extractDirectNodeRoutes(logger *slog.Logger, networks []*iso_v1alpha1.Isova
 
 		nodeIPv4, nodeIPv6 := extractNodeIP(&n, poolNetwork)
 		for _, cidr := range pool.CIDRs {
-			route, err := createDirectNodeRoute(string(cidr), nodeIPv4, nodeIPv6)
+			route, err := createDirectNodeRoute(cidr.String(), nodeIPv4, nodeIPv6)
 			if err != nil {
 				scopedLog.
 					Warn("unable to create direct node route, skipping",

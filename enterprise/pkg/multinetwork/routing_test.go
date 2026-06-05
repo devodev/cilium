@@ -2,6 +2,7 @@ package multinetwork
 
 import (
 	"net"
+	"net/netip"
 	"testing"
 
 	"github.com/cilium/hive/hivetest"
@@ -10,6 +11,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/cilium/cilium/pkg/datapath/linux/linux_defaults"
+	iputil "github.com/cilium/cilium/pkg/ip"
 	ipamTypes "github.com/cilium/cilium/pkg/ipam/types"
 	v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	iso_v1alpha1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
@@ -293,8 +295,8 @@ func Test_extractDirectNodeRoutes(t *testing.T) {
 								Allocated: []ipamTypes.IPAMPoolAllocation{
 									{
 										Pool: "default",
-										CIDRs: []ipamTypes.IPAMCIDR{
-											"10.20.30.0/24",
+										CIDRs: []iputil.Prefix{
+											iputil.PrefixFrom(netip.MustParsePrefix("10.20.30.0/24")),
 										},
 									},
 								},
@@ -333,8 +335,8 @@ func Test_extractDirectNodeRoutes(t *testing.T) {
 								Allocated: []ipamTypes.IPAMPoolAllocation{
 									{
 										Pool: "default",
-										CIDRs: []ipamTypes.IPAMCIDR{
-											"10.20.30.0/24",
+										CIDRs: []iputil.Prefix{
+											iputil.PrefixFrom(netip.MustParsePrefix("10.20.30.0/24")),
 										},
 									},
 								},
@@ -379,8 +381,8 @@ func Test_extractDirectNodeRoutes(t *testing.T) {
 								Allocated: []ipamTypes.IPAMPoolAllocation{
 									{
 										Pool: "default",
-										CIDRs: []ipamTypes.IPAMCIDR{
-											"10.20.30.0/24",
+										CIDRs: []iputil.Prefix{
+											iputil.PrefixFrom(netip.MustParsePrefix("10.20.30.0/24")),
 										},
 									},
 								},
@@ -452,18 +454,18 @@ func Test_extractDirectNodeRoutes(t *testing.T) {
 								Allocated: []ipamTypes.IPAMPoolAllocation{
 									{
 										Pool: "default",
-										CIDRs: []ipamTypes.IPAMCIDR{
-											"10.20.30.0/24",
-											"fd00:20::/64",
+										CIDRs: []iputil.Prefix{
+											iputil.PrefixFrom(netip.MustParsePrefix("10.20.30.0/24")),
+											iputil.PrefixFrom(netip.MustParsePrefix("fd00:20::/64")),
 										},
 									},
 									{
 										Pool: "pool-1",
-										CIDRs: []ipamTypes.IPAMCIDR{
-											"172.20.40.0/26",
-											"172.20.50.0/26",
-											"fd00:80::/96",
-											"fd00:90::/96",
+										CIDRs: []iputil.Prefix{
+											iputil.PrefixFrom(netip.MustParsePrefix("172.20.40.0/26")),
+											iputil.PrefixFrom(netip.MustParsePrefix("172.20.50.0/26")),
+											iputil.PrefixFrom(netip.MustParsePrefix("fd00:80::/96")),
+											iputil.PrefixFrom(netip.MustParsePrefix("fd00:90::/96")),
 										},
 									},
 								},
