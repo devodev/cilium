@@ -546,10 +546,10 @@ func (r *ServiceReconciler) getLoadBalancerIPPaths(p EnterpriseReconcileParams, 
 	}
 
 	// Check if this service has a local proxy (Envoy) handling its traffic.
-	// ProxyRedirect is non-nil when the local Envoy proxy is running and configured
+	// ProxyRedirects is non-empty when the local Envoy proxy is running and configured
 	// to handle this service (e.g., Gateway API or Ingress services).
-	// If cilium-envoy has a nodeSelector that excludes the node, ProxyRedirect will not be set.
-	hasLocalProxy := svc.ProxyRedirect != nil
+	// If cilium-envoy has a nodeSelector that excludes the node, ProxyRedirects will be empty.
+	hasLocalProxy := !svc.ProxyRedirects.Empty()
 
 	for _, fe := range frontends {
 		if fe.Type != loadbalancer.SVCTypeLoadBalancer {
