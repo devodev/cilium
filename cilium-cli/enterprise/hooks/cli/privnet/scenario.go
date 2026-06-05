@@ -25,6 +25,10 @@ var ExpectationOK = Expectation{
 	ExitStatus: 0,
 }
 
+var ExpectationCurlFailedToConnect = Expectation{
+	ExitStatus: 7,
+}
+
 var ExpectationCurlTimeout = Expectation{
 	ExitStatus: 28,
 }

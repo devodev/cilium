@@ -72,8 +72,18 @@ spec:
           containerPort: {{ .ServePort }}
           protocol: TCP
         readinessProbe:
+          {{- if .IPv6Only }}
+          exec:
+            command:
+            - curl
+            - --fail
+            - --max-time
+            - "1"
+            - localhost:{{ .ServePort }}
+          {{- else }}
           httpGet:
             port: http
+          {{- end }}
           failureThreshold: 3
           periodSeconds: 1
           successThreshold: 1

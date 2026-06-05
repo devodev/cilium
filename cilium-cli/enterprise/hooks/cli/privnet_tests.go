@@ -27,6 +27,7 @@ import (
 	"github.com/cilium/cilium/cilium-cli/enterprise/hooks/cli/privnet"
 	enterpriseK8s "github.com/cilium/cilium/cilium-cli/enterprise/hooks/k8s"
 	"github.com/cilium/cilium/cilium-cli/k8s"
+	"github.com/cilium/cilium/cilium-cli/utils/features"
 )
 
 func newClient(params cli.RootParameters) (*enterpriseK8s.EnterpriseClient, error) {
@@ -105,11 +106,15 @@ func newCmdPrivNetTest() *cobra.Command {
 			vmClientA := t.VM(privnet.NetworkA, privnet.ClientVM(privnet.NetworkA))
 			vmEchoA := t.VM(privnet.NetworkA, privnet.EchoVM(privnet.NetworkA))
 			vmEchoOtherA := t.VM(privnet.NetworkA, privnet.EchoOtherVM(privnet.NetworkA))
+			vmEchoAIPv4only := t.VM(privnet.NetworkA, privnet.EchoOtherVM(privnet.NetworkA)+"-ipv4-only")
+			vmEchoAIPv6only := t.VM(privnet.NetworkA, privnet.EchoOtherVM(privnet.NetworkA)+"-ipv6-only")
 
 			vmClientB := t.VM(privnet.NetworkB, privnet.ClientVM(privnet.NetworkB))
 			vmEchoOtherB := t.VM(privnet.NetworkB, privnet.EchoOtherVM(privnet.NetworkB))
 
 			vmClientC := t.VM(privnet.NetworkC, privnet.ClientVM(privnet.NetworkC))
+			vmClientCIPv4Only := t.VM(privnet.NetworkC, privnet.ClientVM(privnet.NetworkC)+"-ipv4-only")
+			vmClientCIPv6Only := t.VM(privnet.NetworkC, privnet.ClientVM(privnet.NetworkC)+"-ipv6-only")
 			vmEchoOtherC := t.VM(privnet.NetworkC, privnet.EchoOtherVM(privnet.NetworkC))
 			podEchoOtherC := t.VirtLauncherPodForVM(vmEchoOtherC)
 
@@ -134,10 +139,16 @@ func newCmdPrivNetTest() *cobra.Command {
 
 			t.Run(ctx, privnet.NewClientToEcho(t, vmClientA, vmEchoA), privnet.ExpectationOK)
 			t.Run(ctx, privnet.NewClientToEcho(t, vmClientA, vmEchoOtherA), privnet.ExpectationOK)
+			t.Run(ctx, privnet.NewClientToEcho(t, vmClientA, vmEchoAIPv4only), privnet.ExpectationOK, features.IPFamilyV4)
+			t.Run(ctx, privnet.NewClientToEcho(t, vmClientA, vmEchoAIPv6only), privnet.ExpectationOK, features.IPFamilyV6)
 
 			t.Run(ctx, privnet.NewClientToEcho(t, vmClientA, vmEchoOtherB), privnet.ExpectationCurlTimeout)
 			t.Run(ctx, privnet.NewClientToEcho(t, vmClientB, vmEchoOtherB), privnet.ExpectationOK)
 			t.Run(ctx, privnet.NewClientToEcho(t, vmClientC, vmEchoOtherC), privnet.ExpectationOK)
+			t.Run(ctx, privnet.NewClientToEcho(t, vmClientCIPv4Only, vmEchoOtherC), privnet.ExpectationOK, features.IPFamilyV4)
+			t.Run(ctx, privnet.NewClientToEcho(t, vmClientCIPv4Only, vmEchoOtherC), privnet.ExpectationCurlFailedToConnect, features.IPFamilyV6)
+			t.Run(ctx, privnet.NewClientToEcho(t, vmClientCIPv6Only, vmEchoOtherC), privnet.ExpectationOK, features.IPFamilyV6)
+			t.Run(ctx, privnet.NewClientToEcho(t, vmClientCIPv6Only, vmEchoOtherC), privnet.ExpectationCurlTimeout, features.IPFamilyV4)
 
 			// Test connectivity via secondary interfaces
 			t.Run(ctx, privnet.NewClientToEcho(t,
@@ -168,6 +179,7 @@ func newCmdPrivNetTest() *cobra.Command {
 
 			// Network C has default route via the INB, which can exit to the world.
 			t.Run(ctx, privnet.NewClientToWorld(t, vmClientC, externalTarget), privnet.ExpectationOK)
+			t.Run(ctx, privnet.NewClientToWorld(t, vmClientCIPv4Only, externalTarget), privnet.ExpectationOK, features.IPFamilyV4)
 
 			// Test multi subnet privnet communication
 			vmClientB2 := t.VM(privnet.NetworkB, privnet.ClientVM(privnet.NetworkB)+"-2")
@@ -331,12 +343,18 @@ func newCmdPrivNetTest() *cobra.Command {
 			//
 			t.ApplyPolicies(ctx,
 				t.PolicyFor(vmClientC, "allow-egress-cidr.yaml", privnet.WithPolicyCIDRsForVM(vmUnknownC1)),
+				t.PolicyFor(vmClientCIPv4Only, "allow-egress-cidr.yaml", privnet.WithPolicyCIDRsForVM(vmUnknownC1)),
+				t.PolicyFor(vmClientCIPv6Only, "allow-egress-cidr.yaml", privnet.WithPolicyCIDRsForVM(vmUnknownC1)),
 				t.PolicyFor(vmEchoOtherC, "allow-ingress-all-endpoints.yaml"),
 			)
 			// egress denied by toCIDR
 			t.Run(ctx, privnet.NewClientToEcho(t, vmClientC, vmExtC1), privnet.ExpectationCurlTimeout)
+			t.Run(ctx, privnet.NewClientToEcho(t, vmClientCIPv4Only, vmExtC1), privnet.ExpectationCurlTimeout, features.IPFamilyV4)
+			t.Run(ctx, privnet.NewClientToEcho(t, vmClientCIPv6Only, vmExtC1), privnet.ExpectationCurlTimeout, features.IPFamilyV6)
 			// egress allowed by toCIDR, ingress (unknown-c1 is alias of a1) allowed by toPorts
 			t.Run(ctx, privnet.NewClientToEcho(t, vmClientC, vmUnknownC1), privnet.ExpectationOK)
+			t.Run(ctx, privnet.NewClientToEcho(t, vmClientCIPv4Only, vmUnknownC1), privnet.ExpectationOK, features.IPFamilyV4)
+			t.Run(ctx, privnet.NewClientToEcho(t, vmClientCIPv6Only, vmUnknownC1), privnet.ExpectationOK, features.IPFamilyV6)
 			// egress denied by toCIDR
 			t.Run(ctx, privnet.NewClientToEcho(t, vmClientC, vmUnknownC2), privnet.ExpectationCurlTimeout)
 

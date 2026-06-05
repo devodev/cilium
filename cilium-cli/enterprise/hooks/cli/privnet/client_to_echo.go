@@ -43,7 +43,9 @@ func NewClientToEcho(t *TestRun, src, dst VM, opts ...opt) Scenario {
 
 func (s *clientToEcho) Run(ctx context.Context, exp Expectation, overrideIPFamilies ...features.IPFamily) {
 	for family := range s.t.theFamilies(overrideIPFamilies...) {
-		s.run(ctx, exp, family)
+		if s.src.SupportsFamilies(family) {
+			s.run(ctx, exp, family)
+		}
 	}
 }
 
