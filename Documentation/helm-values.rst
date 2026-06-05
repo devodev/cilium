@@ -2024,6 +2024,10 @@
      - Maximum number of connections on Envoy clusters
      - int
      - ``1024``
+   * - :spelling:ignore:`envoy.clusterMaxPendingRequests`
+     - Maximum number of pending requests on Envoy clusters
+     - int
+     - ``1024``
    * - :spelling:ignore:`envoy.clusterMaxRequests`
      - Maximum number of requests on Envoy clusters
      - int
@@ -2301,7 +2305,7 @@
      - bool
      - ``false``
    * - :spelling:ignore:`envoy.securityContext.capabilities.envoy`
-     - Capabilities for the ``cilium-envoy`` container. Even though granted to the container, the cilium-envoy-starter wrapper drops all capabilities after forking the actual Envoy process. ``NET_BIND_SERVICE`` is the only capability that can be passed to the Envoy process by setting ``envoy.securityContext.capabilities.keepNetBindService=true`` (in addition to granting the capability to the container). Note: In case of embedded envoy, the capability must  be granted to the cilium-agent container.
+     - Capabilities for the ``cilium-envoy`` container. Even though granted to the container, the cilium-envoy-starter wrapper drops all capabilities after forking the actual Envoy process. ``NET_BIND_SERVICE`` is the only capability that can be passed to the Envoy process by setting ``envoy.securityContext.capabilities.keepCapNetBindService=true`` (in addition to granting the capability to the container). Note: In case of embedded envoy, the capability must  be granted to the cilium-agent container.
      - list
      - ``["NET_ADMIN","SYS_ADMIN"]``
    * - :spelling:ignore:`envoy.securityContext.capabilities.keepCapNetBindService`
@@ -2486,6 +2490,10 @@
      - ``"cilium-secrets"``
    * - :spelling:ignore:`gatewayAPI.secretsNamespace.sync`
      - Enable secret sync, which will make sure all TLS secrets used by Ingress are synced to secretsNamespace.name. If disabled, TLS secrets must be maintained externally.
+     - bool
+     - ``true``
+   * - :spelling:ignore:`gatewayAPI.useRemoteAddress`
+     - Configure whether to use the remote address of the client when determining the source IP. When enabled, the source IP is determined from the remote address instead of the proxy protocol header.
      - bool
      - ``true``
    * - :spelling:ignore:`gatewayAPI.xffNumTrustedHops`
@@ -3884,6 +3892,14 @@
      - Service type for the shared LB service
      - string
      - ``"LoadBalancer"``
+   * - :spelling:ignore:`ingressController.useRemoteAddress`
+     - Configure whether to use the remote address of the client when determining the source IP. When enabled, the source IP is determined from the remote address instead of the proxy protocol header.
+     - bool
+     - ``true``
+   * - :spelling:ignore:`ingressController.xffNumTrustedHops`
+     - The number of additional Ingress proxy hops from the right side of the HTTP header to trust when determining the origin client's IP address.
+     - int
+     - ``0``
    * - :spelling:ignore:`initResources`
      - resources & limits for the agent init containers
      - object
