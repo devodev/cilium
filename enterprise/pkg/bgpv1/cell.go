@@ -15,6 +15,7 @@ import (
 
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/agent"
+	"github.com/cilium/cilium/enterprise/pkg/bgpv1/api"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/commands"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/manager"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/manager/reconcilerv2"
@@ -45,6 +46,9 @@ var Cell = cell.Module(
 
 	// enterprise-specific commands
 	commands.Cell,
+
+	// enterprise-specific API handlers
+	api.Cell,
 
 	// enterprise BGP agent components
 	cell.Provide(
