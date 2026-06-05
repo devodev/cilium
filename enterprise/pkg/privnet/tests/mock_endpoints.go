@@ -34,12 +34,12 @@ import (
 	"github.com/cilium/cilium/pkg/endpoint/regeneration"
 	eptypes "github.com/cilium/cilium/pkg/endpoint/types"
 	"github.com/cilium/cilium/pkg/endpointstate"
-	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/cilium/pkg/mac"
 	"github.com/cilium/cilium/pkg/maps/policymap"
 	"github.com/cilium/cilium/pkg/promise"
+	ciliumTypes "github.com/cilium/cilium/pkg/types"
 )
 
 func mockEndpointCell(t testing.TB) cell.Cell {
@@ -167,7 +167,7 @@ func (f *fakeEP) GetK8sNamespaceAndPodName() string {
 }
 
 // SetK8sMetadata implements endpoints.Endpoint.
-func (f *fakeEP) SetK8sMetadata(containerPorts []slim_corev1.ContainerPort) {
+func (f *fakeEP) SetK8sMetadata(_ ciliumTypes.NamedPortMap) {
 	// no-op
 }
 

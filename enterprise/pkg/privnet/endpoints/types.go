@@ -28,11 +28,11 @@ import (
 	"github.com/cilium/cilium/enterprise/pkg/privnet/types"
 	"github.com/cilium/cilium/pkg/endpoint"
 	"github.com/cilium/cilium/pkg/ipam"
-	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/mac"
 	"github.com/cilium/cilium/pkg/maps/policymap"
 	"github.com/cilium/cilium/pkg/time"
+	ciliumTypes "github.com/cilium/cilium/pkg/types"
 )
 
 // EndpointGetter allows read operations on the endpoint manager.
@@ -79,7 +79,7 @@ type Endpoint interface {
 
 	GetK8sNamespaceAndCEPName() string
 	GetK8sNamespaceAndPodName() string
-	SetK8sMetadata(containerPorts []slim_corev1.ContainerPort)
+	SetK8sMetadata(namedPorts ciliumTypes.NamedPortMap)
 
 	SyncEndpointHeaderFile()
 
