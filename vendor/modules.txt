@@ -3434,4 +3434,3 @@ sigs.k8s.io/yaml/kyaml
 # sigs.k8s.io/controller-tools => github.com/cilium/controller-tools v0.21.0-1
 # github.com/YutaroHayakawa/go-ra => github.com/isovalent/go-ra v0.0.0-20241125075947-1274124821d6
 # sigs.k8s.io/controller-runtime => sigs.k8s.io/controller-runtime v0.23.1-0.20260331131016-598e330bda55
-# github.com/osrg/gobgp/v3 => github.com/isovalent/gobgp/v3 v3.0.0-20260116195249-1eca87faca1a

@@ -413,10 +413,6 @@ replace github.com/YutaroHayakawa/go-ra => github.com/isovalent/go-ra v0.0.0-202
 // Use a commit from main that includes the k8s v0.36 bump.
 replace sigs.k8s.io/controller-runtime => sigs.k8s.io/controller-runtime v0.23.1-0.20260331131016-598e330bda55
 
-// Using private fork of gobgp. See commit msg for more context as to why we
-// are using a private fork.
-replace github.com/osrg/gobgp/v3 => github.com/isovalent/gobgp/v3 v3.0.0-20260116195249-1eca87faca1a
-
 tool (
 	github.com/AdamKorcz/go-118-fuzz-build/testing
 	github.com/cilium/cilium/tools/dpgen
