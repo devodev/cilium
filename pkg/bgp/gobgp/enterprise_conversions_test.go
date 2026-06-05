@@ -39,16 +39,10 @@ func TestToAgentPathsExtended(t *testing.T) {
 		Nlri:   nlri,
 	}
 	invalidPath.Nlri = nil // Force an invalid NLRI
-
+	ossInvalidPath, err := ToAgentPath(invalidPath)
+	require.NoError(t, err)
 	expectedInvalidPath := &types.ExtendedPath{
-		Path: ossTypes.Path{
-			Family: ossTypes.Family{
-				Afi:  ossTypes.AfiIPv4,
-				Safi: ossTypes.SafiUnicast,
-			},
-			NLRI:      nil,
-			SourceASN: 0,
-		},
+		Path: *ossInvalidPath,
 	}
 
 	p, err := ToAgentPath(validPath)
