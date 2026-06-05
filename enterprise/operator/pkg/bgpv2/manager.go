@@ -74,6 +74,9 @@ type BGPResourceMapper struct {
 
 	// Default RR peering mode
 	defaultRRPeeringAddressFamily v1.RouteReflectorPeeringAddressFamily
+
+	// toggle cee-oss resource mapping
+	enableOSSResourceMapping bool
 }
 
 type BGPResourceManagerParams struct {
@@ -112,20 +115,21 @@ func RegisterBGPResourceMapper(in BGPResourceManagerParams) error {
 	}
 
 	m := &BGPResourceMapper{
-		logger:                in.Logger,
-		jobs:                  in.Jobs,
-		signal:                in.Signal,
-		clientSet:             in.ClientSet,
-		dc:                    in.DaemonCfg,
-		metrics:               in.Metrics,
-		clusterConfig:         in.ClusterConfig,
-		peerConfig:            in.PeerConfig,
-		advertisements:        in.Advertisements,
-		nodeConfigOverride:    in.NodeConfigOverride,
-		ciliumNode:            in.CiliumNode,
-		vrf:                   in.VRF,
-		vrfConfig:             in.VRFConfig,
-		enableStatusReporting: in.Config.StatusReportEnabled,
+		logger:                   in.Logger,
+		jobs:                     in.Jobs,
+		signal:                   in.Signal,
+		clientSet:                in.ClientSet,
+		dc:                       in.DaemonCfg,
+		metrics:                  in.Metrics,
+		clusterConfig:            in.ClusterConfig,
+		peerConfig:               in.PeerConfig,
+		advertisements:           in.Advertisements,
+		nodeConfigOverride:       in.NodeConfigOverride,
+		ciliumNode:               in.CiliumNode,
+		vrf:                      in.VRF,
+		vrfConfig:                in.VRFConfig,
+		enableStatusReporting:    in.Config.StatusReportEnabled,
+		enableOSSResourceMapping: in.DaemonCfg.BGPControlPlaneEnabled(),
 	}
 
 	switch {
@@ -146,21 +150,23 @@ func RegisterBGPResourceMapper(in BGPResourceManagerParams) error {
 			}
 
 			// initialize oss stores
-			m.ossClusterConfigStore, err = in.OSSClusterConfig.Store(ctx)
-			if err != nil {
-				return err
-			}
-			m.ossPeerConfigStore, err = in.OSSPeerConfig.Store(ctx)
-			if err != nil {
-				return err
-			}
-			m.ossAdvertStore, err = in.OSSAdvert.Store(ctx)
-			if err != nil {
-				return err
-			}
-			m.ossNodeConfigOverrideStore, err = in.OSSNodeConfigOverride.Store(ctx)
-			if err != nil {
-				return err
+			if m.enableOSSResourceMapping {
+				m.ossClusterConfigStore, err = in.OSSClusterConfig.Store(ctx)
+				if err != nil {
+					return err
+				}
+				m.ossPeerConfigStore, err = in.OSSPeerConfig.Store(ctx)
+				if err != nil {
+					return err
+				}
+				m.ossAdvertStore, err = in.OSSAdvert.Store(ctx)
+				if err != nil {
+					return err
+				}
+				m.ossNodeConfigOverrideStore, err = in.OSSNodeConfigOverride.Store(ctx)
+				if err != nil {
+					return err
+				}
 			}
 
 			m.logger.Info("Enterprise BGPv2 control plane operator started")
@@ -227,9 +233,13 @@ func (m *BGPResourceMapper) reconcileWithRetry(ctx context.Context) error {
 }
 
 func (m *BGPResourceMapper) reconcile(ctx context.Context) error {
+	var err error
+
 	reconcileStart := time.Now()
 
-	err := m.reconcileMappings(ctx)
+	if m.enableOSSResourceMapping {
+		err = m.reconcileMappings(ctx)
+	}
 
 	rErr := m.reconcileClusterConfigs(ctx)
 	if rErr != nil {
