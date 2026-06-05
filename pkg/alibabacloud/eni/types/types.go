@@ -4,6 +4,7 @@
 package types
 
 import (
+	iputil "github.com/cilium/cilium/pkg/ip"
 	"github.com/cilium/cilium/pkg/ipam/types"
 )
 
@@ -35,7 +36,7 @@ type Spec struct {
 	// CIDRBlock is vpc ipv4 CIDR
 	//
 	// +kubebuilder:validation:Optional
-	CIDRBlock string `json:"cidr-block,omitempty"`
+	CIDRBlock iputil.Prefix `json:"cidr-block,omitzero"`
 
 	// VSwitches is the ID of vSwitch available for ENI
 	//
@@ -113,7 +114,7 @@ type ENI struct {
 	// PrimaryIPAddress is the primary IP on ENI
 	//
 	// +optional
-	PrimaryIPAddress string `json:"primary-ip-address,omitempty"`
+	PrimaryIPAddress iputil.Addr `json:"primary-ip-address,omitzero"`
 
 	// PrivateIPSets is the list of all IPs on the ENI, including PrimaryIPAddress
 	//
@@ -135,20 +136,6 @@ func (e *ENI) InterfaceID() string {
 	return e.NetworkInterfaceID
 }
 
-// ForeachAddress iterates over all addresses and calls fn
-func (e *ENI) ForeachAddress(id string, fn types.AddressIterator) error {
-	for _, address := range e.PrivateIPSets {
-		if address.Primary {
-			continue
-		}
-		if err := fn(id, e.NetworkInterfaceID, address.PrivateIpAddress, address); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 // ENIStatus is the status of ENI addressing of the node
 type ENIStatus struct {
 	// ENIs is the list of ENIs on the node
@@ -159,8 +146,10 @@ type ENIStatus struct {
 
 // PrivateIPSet is a nested struct in ecs response
 type PrivateIPSet struct {
-	PrivateIpAddress string `json:"private-ip-address,omitempty"`
-	Primary          bool   `json:"primary,omitempty" `
+	// +optional
+	PrivateIpAddress iputil.Addr `json:"private-ip-address,omitzero"`
+	// +optional
+	Primary bool `json:"primary,omitempty"`
 }
 
 type VPC struct {
@@ -172,17 +161,17 @@ type VPC struct {
 	// CIDRBlock is the VPC IPv4 CIDR
 	//
 	// +optional
-	CIDRBlock string `json:"cidr,omitempty"`
+	CIDRBlock iputil.Prefix `json:"cidr,omitzero"`
 
 	// IPv6CIDRBlock is the VPC IPv6 CIDR
 	//
 	// +optional
-	IPv6CIDRBlock string `json:"ipv6-cidr,omitempty"`
+	IPv6CIDRBlock iputil.Prefix `json:"ipv6-cidr,omitzero"`
 
 	// SecondaryCIDRs is the list of Secondary CIDRs associated with the VPC
 	//
 	// +optional
-	SecondaryCIDRs []string `json:"secondary-cidrs,omitempty"`
+	SecondaryCIDRs []iputil.Prefix `json:"secondary-cidrs,omitempty"`
 }
 
 type VSwitch struct {
@@ -194,10 +183,10 @@ type VSwitch struct {
 	// CIDRBlock is the vSwitch IPv4 CIDR
 	//
 	// +optional
-	CIDRBlock string `json:"cidr,omitempty"`
+	CIDRBlock iputil.Prefix `json:"cidr,omitzero"`
 
 	// IPv6CIDRBlock is the vSwitch IPv6 CIDR
 	//
 	// +optional
-	IPv6CIDRBlock string `json:"ipv6-cidr,omitempty"`
+	IPv6CIDRBlock iputil.Prefix `json:"ipv6-cidr,omitzero"`
 }

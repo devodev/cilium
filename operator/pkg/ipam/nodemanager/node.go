@@ -441,12 +441,11 @@ func (n *Node) trackMultiPoolAllocatedLocked() {
 
 	currentCIDRs := sets.New[netip.Prefix]()
 	for _, alloc := range n.resource.Spec.IPAM.Pools.Allocated {
-		for _, cidr := range alloc.CIDRs {
-			prefix, err := cidr.ToPrefix()
-			if err != nil {
+		for _, c := range alloc.CIDRs {
+			if !c.IsValid() {
 				continue
 			}
-			currentCIDRs.Insert(*prefix)
+			currentCIDRs.Insert(c.Prefix)
 		}
 	}
 
@@ -669,6 +668,8 @@ func (n *Node) recalculate(ctx context.Context) {
 	n.ipv4Alloc.available = a
 	if stats.AssignedStaticIP != "" {
 		n.stats.IPv4.AssignedStaticIP = stats.AssignedStaticIP
+	} else if n.stats.IPv4.AssignedStaticIP == "" && n.resource != nil {
+		n.stats.IPv4.AssignedStaticIP = n.resource.Status.IPAM.AssignedStaticIP
 	}
 
 	n.stats.IPv4.AvailableIPs = len(n.ipv4Alloc.available)

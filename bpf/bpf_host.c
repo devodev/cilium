@@ -1075,7 +1075,6 @@ do_netdev(struct __ctx_buff *ctx, __be16 proto, __u32 identity,
 			if (likely(hdrlen > 0) &&
 			    ctx_is_wireguard(ctx, ETH_HLEN + hdrlen, next_proto, identity)) {
 				trace.reason = TRACE_REASON_ENCRYPTED;
-				set_decrypt_mark(ctx, 0);
 			}
 		}
 # endif /* ENABLE_WIREGUARD */
@@ -1115,7 +1114,6 @@ do_netdev(struct __ctx_buff *ctx, __be16 proto, __u32 identity,
 			hdrlen = ipv4_hdrlen(ip4);
 			if (ctx_is_wireguard(ctx, ETH_HLEN + hdrlen, next_proto, identity)) {
 				trace.reason = TRACE_REASON_ENCRYPTED;
-				set_decrypt_mark(ctx, 0);
 			}
 		}
 #endif /* ENABLE_WIREGUARD */
@@ -1252,7 +1250,7 @@ int cil_from_netdev(struct __ctx_buff *ctx)
 #endif
 	ret = tcx_early_hook(ctx, proto);
 	if (ret != CTX_ACT_OK)
-		return ret;
+		goto drop_err;
 
 	return do_netdev(ctx, proto, UNKNOWN_ID, TRACE_FROM_NETWORK, false);
 drop_err:
@@ -1905,7 +1903,7 @@ int cil_host_policy(struct __ctx_buff *ctx __maybe_unused)
 		if (IS_ERR(ret))
 			goto drop_err;
 
-		local_delivery_fill_meta(ctx, src_sec_identity, false,
+		local_delivery_fill_meta(ctx, src_sec_identity, false, false,
 					 true, false, 0);
 		ret = tail_call_policy(ctx, (__u16)lxc_id);
 	} else {

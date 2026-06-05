@@ -20,6 +20,7 @@ import (
 	"github.com/cilium/cilium/pkg/policy/api"
 	"github.com/cilium/cilium/pkg/policy/types"
 	"github.com/cilium/cilium/pkg/time"
+	pkgTypes "github.com/cilium/cilium/pkg/types"
 	"github.com/cilium/cilium/pkg/u8proto"
 )
 
@@ -163,6 +164,13 @@ type SelectorPolicy interface {
 
 	// GetSelectorSnapshot returns a selector snapshot if available and valid
 	GetSelectorSnapshot() SelectorSnapshot
+
+	// GetEgressNamedPorts iterates named ports for the given identities
+	GetEgressNamedPorts(name string, proto u8proto.U8proto, idents iter.Seq[identity.NumericIdentity]) pkgTypes.NidPortSeq
+}
+
+type NamedPortsGetter interface {
+	GetNamedPorts() (npm pkgTypes.NamedPortMultiMap)
 }
 
 // selectorPolicy is a structure which contains the resolved policy for a
@@ -175,6 +183,9 @@ type selectorPolicy struct {
 
 	// SelectorCache managing selectors in L4Policy
 	SelectorCache *SelectorCache
+
+	// Getter for egress named ports
+	namedPortsGetter NamedPortsGetter
 
 	// L4Policy contains the computed L4 and L7 policy.
 	L4Policy L4Policy
@@ -190,6 +201,13 @@ type selectorPolicy struct {
 
 func (p *selectorPolicy) GetSelectorSnapshot() SelectorSnapshot {
 	return p.SelectorCache.GetSelectorSnapshot()
+}
+
+func (p *selectorPolicy) GetEgressNamedPorts(name string, proto u8proto.U8proto, idents iter.Seq[identity.NumericIdentity]) pkgTypes.NidPortSeq {
+	if p.namedPortsGetter == nil {
+		return pkgTypes.EmptyNidPortSeq
+	}
+	return p.namedPortsGetter.GetNamedPorts().GetNamedPorts(name, proto, idents)
 }
 
 func (p *selectorPolicy) Attach(ctx PolicyContext) {
@@ -269,7 +287,7 @@ func (p *EndpointPolicy) CopyMapStateFrom(m MapStateMap) {
 // PolicyOwner is anything which consumes a EndpointPolicy.
 type PolicyOwner interface {
 	GetID() uint64
-	GetNamedPort(ingress bool, name string, proto u8proto.U8proto, destIdentities iter.Seq[identity.NumericIdentity]) uint16
+	GetIngressNamedPort(name string, proto u8proto.U8proto) uint16
 	PolicyDebug(msg string, attrs ...any)
 	IsHost() bool
 	PreviousMapState() *MapState
@@ -585,6 +603,16 @@ func (p *EndpointPolicy) ConsumeMapChanges() (closer func(), changes ChangeState
 	features := p.SelectorPolicy.L4Policy.Ingress.features | p.SelectorPolicy.L4Policy.Egress.features
 	selectors, changes := p.policyMapChanges.consumeMapChanges(p, features)
 
+	// Even if there were no incremental map changes, follow-on processing may
+	// still need a usable selector snapshot. Reopen one on demand if the
+	// current snapshot is already stale.
+	// This block can be removed when UpdateNetworkPolicy no longer requires a selector
+	// snapshot.
+	if !selectors.IsValid() && !p.selectors.IsValid() {
+		// this will get stored to p.selectors below
+		selectors = p.SelectorPolicy.GetSelectorSnapshot()
+	}
+
 	// Update current selector snapshot and provide a closer function to close the new snapshot
 	// if (and only if) the old one was already closed.
 	closer = func() {}
@@ -615,9 +643,15 @@ func (p *EndpointPolicy) ConsumeMapChanges() (closer func(), changes ChangeState
 
 // NewEndpointPolicy returns an empty EndpointPolicy stub.
 // The returned stub is not modified.
+// PolicyOwner is left as nil
 func NewEndpointPolicy(logger *slog.Logger, repo PolicyRepository) *EndpointPolicy {
 	return &EndpointPolicy{
 		SelectorPolicy: newSelectorPolicy(repo.GetSelectorCache()),
 		policyMapState: emptyMapState(logger),
 	}
+}
+
+// IsValid returns true if the policy is a result of a policy computation, false for the empty stub.
+func (p *EndpointPolicy) IsValid() bool {
+	return p.PolicyOwner != nil
 }

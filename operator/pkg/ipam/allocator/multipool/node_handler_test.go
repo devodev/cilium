@@ -7,20 +7,26 @@ import (
 	"context"
 	"errors"
 	"net/netip"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/cilium/hive/hivetest"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
+	k8sTesting "k8s.io/client-go/testing"
 
+	iputil "github.com/cilium/cilium/pkg/ip"
 	ipamTypes "github.com/cilium/cilium/pkg/ipam/types"
 	v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
+	ciliumFake "github.com/cilium/cilium/pkg/k8s/client/clientset/versioned/fake"
 	"github.com/cilium/cilium/pkg/testutils"
 )
 
@@ -292,8 +298,10 @@ func TestOrphanCIDRsAfterRestart(t *testing.T) {
 					Allocated: []ipamTypes.IPAMPoolAllocation{
 						{
 							Pool: "test-pool",
-							CIDRs: []ipamTypes.IPAMCIDR{
-								"10.0.0.0/24", "10.0.1.0/24", "10.0.2.0/24",
+							CIDRs: []iputil.Prefix{
+								iputil.PrefixFrom(netip.MustParsePrefix("10.0.0.0/24")),
+								iputil.PrefixFrom(netip.MustParsePrefix("10.0.1.0/24")),
+								iputil.PrefixFrom(netip.MustParsePrefix("10.0.2.0/24")),
 							},
 						},
 					},
@@ -429,8 +437,11 @@ func TestOrphanCIDRsReleased(t *testing.T) {
 	assert.Equal(t, node.Name, nodeUpdate.node.Name)
 	assert.Len(t, nodeUpdate.node.Spec.IPAM.Pools.Allocated, 1)
 	assert.Equal(t, "test-pool", nodeUpdate.node.Spec.IPAM.Pools.Allocated[0].Pool)
-	assert.ElementsMatch(t, []ipamTypes.IPAMCIDR{
-		"10.0.0.0/28", "10.0.0.16/28", "10.0.0.32/28", "10.0.0.48/28",
+	assert.ElementsMatch(t, []iputil.Prefix{
+		iputil.PrefixFrom(netip.MustParsePrefix("10.0.0.0/28")),
+		iputil.PrefixFrom(netip.MustParsePrefix("10.0.0.16/28")),
+		iputil.PrefixFrom(netip.MustParsePrefix("10.0.0.32/28")),
+		iputil.PrefixFrom(netip.MustParsePrefix("10.0.0.48/28")),
 	}, nodeUpdate.node.Spec.IPAM.Pools.Allocated[0].CIDRs)
 	onUpdateResult <- mockResult{node: nodeUpdate.node}
 
@@ -463,8 +474,11 @@ func TestOrphanCIDRsReleased(t *testing.T) {
 		Needed: ipamTypes.IPAMPoolDemand{IPv4Addrs: 24},
 	}}
 	node.Spec.IPAM.Pools.Allocated = []ipamTypes.IPAMPoolAllocation{{
-		Pool:  "test-pool",
-		CIDRs: []ipamTypes.IPAMCIDR{"10.0.0.0/28", "10.0.0.16/28"},
+		Pool: "test-pool",
+		CIDRs: []iputil.Prefix{
+			iputil.PrefixFrom(netip.MustParsePrefix("10.0.0.0/28")),
+			iputil.PrefixFrom(netip.MustParsePrefix("10.0.0.16/28")),
+		},
 	}}
 	nh.Upsert(node)
 
@@ -486,4 +500,159 @@ func TestOrphanCIDRsReleased(t *testing.T) {
 	}
 
 	nh.Stop()
+}
+
+func TestNodeHandlerRetries(t *testing.T) {
+	t.Cleanup(func() { testutils.GoleakVerifyNone(t) })
+
+	t.Run("get and update", func(t *testing.T) {
+		backend := NewPoolAllocator(hivetest.Logger(t), true, false)
+		assert.NoError(t, backend.UpsertPool("default", []string{"10.0.0.0/8"}, 24, nil, 0))
+
+		node := &v2.CiliumNode{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "node-status",
+			},
+			Spec: v2.NodeSpec{
+				IPAM: ipamTypes.IPAMSpec{
+					Pools: ipamTypes.IPAMPoolSpec{
+						Requested: []ipamTypes.IPAMPoolRequest{
+							{
+								Pool:   "default",
+								Needed: ipamTypes.IPAMPoolDemand{IPv4Addrs: 16},
+							},
+						},
+					},
+				},
+			},
+			Status: v2.NodeStatus{
+				IPAM: ipamTypes.IPAMStatus{
+					OperatorStatus: ipamTypes.OperatorStatus{Error: "stale allocation error"},
+				},
+			},
+		}
+
+		clientset := ciliumFake.NewSimpleClientset(node.DeepCopy())
+
+		var (
+			gets    atomic.Int32
+			updates atomic.Int32
+		)
+		clientset.PrependReactor("get", "ciliumnodes", func(action k8sTesting.Action) (bool, runtime.Object, error) {
+			gets.Add(1)
+			if gets.Load() == 1 {
+				return true, nil, errors.New("transient get failure")
+			}
+			return false, nil, nil
+		})
+		clientset.PrependReactor("update", "ciliumnodes", func(action k8sTesting.Action) (bool, runtime.Object, error) {
+			if action.GetSubresource() != "" {
+				return false, nil, nil
+			}
+
+			updates.Add(1)
+			if updates.Load() == 1 {
+				return true, nil, k8sErrors.NewConflict(
+					schema.GroupResource{
+						Group:    v2.CustomResourceDefinitionGroup,
+						Resource: v2.CNPluralName,
+					},
+					node.Name,
+					errors.New("update refused by unit test"),
+				)
+			}
+			return false, nil, nil
+		})
+
+		nh := NewNodeHandler("test", hivetest.Logger(t), backend, clientset.CiliumV2().CiliumNodes(), GetIPAMPools)
+		t.Cleanup(nh.Stop)
+		nh.controllerErrorRetryBaseDuration = time.Millisecond
+
+		nh.Upsert(node)
+		nh.Resync(t.Context(), time.Time{})
+
+		assert.EventuallyWithT(t, func(c *assert.CollectT) {
+			// wait for controller to retry after:
+			// - transient get failure
+			// - update conflict
+			assert.GreaterOrEqual(c, gets.Load(), int32(2))
+			assert.GreaterOrEqual(c, updates.Load(), int32(2))
+		}, 5*time.Second, 10*time.Millisecond)
+
+		updatedNode, err := clientset.CiliumV2().CiliumNodes().Get(t.Context(), node.Name, metav1.GetOptions{})
+		require.NoError(t, err)
+		require.Len(t, updatedNode.Spec.IPAM.Pools.Allocated, 1)
+		require.Equal(t, "default", updatedNode.Spec.IPAM.Pools.Allocated[0].Pool)
+	})
+
+	t.Run("updatestatus", func(t *testing.T) {
+		backend := NewPoolAllocator(hivetest.Logger(t), true, false)
+		assert.NoError(t, backend.UpsertPool("default", []string{"10.0.0.0/8"}, 24, nil, 0))
+
+		node := &v2.CiliumNode{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "node-status",
+			},
+			Spec: v2.NodeSpec{
+				IPAM: ipamTypes.IPAMSpec{
+					Pools: ipamTypes.IPAMPoolSpec{
+						Allocated: []ipamTypes.IPAMPoolAllocation{
+							{
+								Pool:  "default",
+								CIDRs: []iputil.Prefix{iputil.PrefixFrom(netip.MustParsePrefix("10.0.0.0/24"))},
+							},
+						},
+						Requested: []ipamTypes.IPAMPoolRequest{
+							{
+								Pool:   "default",
+								Needed: ipamTypes.IPAMPoolDemand{IPv4Addrs: 16},
+							},
+						},
+					},
+				},
+			},
+			Status: v2.NodeStatus{
+				IPAM: ipamTypes.IPAMStatus{
+					OperatorStatus: ipamTypes.OperatorStatus{Error: "stale allocation error"},
+				},
+			},
+		}
+
+		clientset := ciliumFake.NewSimpleClientset(node.DeepCopy())
+
+		var updateStatuses atomic.Int32
+		clientset.PrependReactor("update", "ciliumnodes", func(action k8sTesting.Action) (bool, runtime.Object, error) {
+			if action.GetSubresource() != "status" {
+				return false, nil, nil
+			}
+
+			if updateStatuses.Add(1) == 1 {
+				return true, nil, k8sErrors.NewConflict(
+					schema.GroupResource{
+						Group:    v2.CustomResourceDefinitionGroup,
+						Resource: v2.CNPluralName,
+					},
+					node.Name,
+					errors.New("update refused by unit test"),
+				)
+			}
+			return false, nil, nil
+		})
+
+		nh := NewNodeHandler("test", hivetest.Logger(t), backend, clientset.CiliumV2().CiliumNodes(), GetIPAMPools)
+		t.Cleanup(nh.Stop)
+		nh.controllerErrorRetryBaseDuration = time.Millisecond
+
+		nh.Upsert(node)
+		nh.Resync(t.Context(), time.Time{})
+
+		assert.EventuallyWithT(t, func(c *assert.CollectT) {
+			// wait for controller to retry after update conflict on status update
+			assert.GreaterOrEqual(c, updateStatuses.Load(), int32(2))
+		}, 5*time.Second, 10*time.Millisecond)
+
+		updatedNode, err := clientset.CiliumV2().CiliumNodes().Get(t.Context(), node.Name, metav1.GetOptions{})
+		assert.NoError(t, err)
+		assert.Empty(t, updatedNode.Status.IPAM.OperatorStatus.Error)
+	})
 }

@@ -236,6 +236,7 @@ func (e *Endpoint) addNewRedirects(selectorPolicy policy.SelectorPolicy, proxyWa
 		return nil, 0, nil
 	}
 
+	selectors := selectorPolicy.GetSelectorSnapshot()
 	desiredRedirects = make(map[string]uint16)
 
 	var (
@@ -248,58 +249,52 @@ func (e *Endpoint) addNewRedirects(selectorPolicy policy.SelectorPolicy, proxyWa
 		// Possible listener name for both the proxy ID and the proxyPolicy below.
 		listener := policySelectorTuple.Policy.GetListener()
 
-		// proxyID() returns also the destination port for the policy,
-		// which may be resolved from a named port
-		proxyID, dstPort, dstProto := e.proxyID(l4, listener, selectorPolicy.GetSelectorSnapshot())
-		if proxyID == "" {
-			// Skip redirects for which a proxyID cannot be created.
-			// This may happen due to the named port mapping not
-			// existing or multiple PODs defining the same port name
-			// with different port values. The redirect will be created
-			// when the mapping is available or when the port name
-			// conflicts have been resolved in POD specs.
-			skipped++
-			continue
-		}
-		// desiredRedirects starts out empty, so we can use it check
-		// if the redirect has already been updated on this round.
-		if desiredRedirects[proxyID] != 0 {
-			continue
-		}
-
-		pp := newProxyPolicy(l4, policySelectorTuple.Policy.L7Parser, listener, dstPort, dstProto)
-		proxyPort, err, revertFunc := e.proxy.CreateOrUpdateRedirect(e.aliveCtx, &pp, proxyID, e.ID, proxyWaitGroup)
-		if err != nil {
-			// Skip redirects that can not be created or updated.  This
-			// can happen when a listener is missing, for example when
-			// restarting and k8s delivers the CNP before the related
-			// CEC.
-			// Policy is regenerated when listeners are added or removed
-			// to fix this condition when the listener is available.
-			if listener != "" {
-				e.getLogger().Debug(
-					"Redirect rule with missing listener skipped, will be applied once the listener is available",
-					logfields.Error, err,
-					logfields.Listener, listener,
-				)
-			} else {
-				e.getLogger().Error(
-					"Redirect rule with missing listener skipped, policy will drop",
-					logfields.Error, err,
-				)
-
+		n := 0
+		for proxyID, dstPort := range e.proxyIDs(selectorPolicy, l4, listener, selectors) {
+			n++
+			// desiredRedirects starts out empty, so we can use it to check if this
+			// redirect has already been updated on this round.
+			if desiredRedirects[proxyID] != 0 {
+				continue
 			}
-			skipped++
-			continue
-		}
-		revertStack.Push(revertFunc)
-		desiredRedirects[proxyID] = proxyPort
+			pp := newProxyPolicy(l4, policySelectorTuple.Policy.L7Parser, listener, dstPort, l4.U8Proto)
+			proxyPort, err, revertFunc := e.proxy.CreateOrUpdateRedirect(e.aliveCtx, &pp, proxyID, e.ID, proxyWaitGroup)
+			if err != nil {
+				// Skip redirects that can not be created or updated.  This
+				// can happen when a listener is missing, for example when
+				// restarting and k8s delivers the CNP before the related
+				// CEC.
+				// Policy is regenerated when listeners are added or removed
+				// to fix this condition when the listener is available.
+				if listener != "" {
+					e.getLogger().Debug(
+						"Redirect rule with missing listener skipped, will be applied once the listener is available",
+						logfields.Error, err,
+						logfields.Listener, listener,
+					)
+				} else {
+					e.getLogger().Error(
+						"Redirect rule with missing listener skipped, policy will drop",
+						logfields.Error, err,
+					)
 
-		// Update the endpoint API model to report that Cilium manages a
-		// redirect for that port.
-		statsKey := policy.ProxyStatsKey(l4.Ingress, string(l4.Protocol), dstPort, proxyPort)
-		proxyStats := e.getProxyStatistics(statsKey, string(policySelectorTuple.Policy.L7Parser), dstPort, l4.Ingress, proxyPort)
-		updatedStats = append(updatedStats, proxyStats)
+				}
+				skipped++
+				continue
+			}
+			revertStack.Push(revertFunc)
+			desiredRedirects[proxyID] = proxyPort
+
+			// Update the endpoint API model to report that Cilium manages a
+			// redirect for that port.
+			statsKey := policy.ProxyStatsKey(l4.Ingress, string(l4.Protocol), dstPort, proxyPort)
+			proxyStats := e.getProxyStatistics(statsKey, string(policySelectorTuple.Policy.L7Parser), dstPort, l4.Ingress, proxyPort)
+			updatedStats = append(updatedStats, proxyStats)
+		}
+		// count missing proxy port mapping as skipped
+		if n == 0 {
+			skipped++
+		}
 	}
 
 	// revert function is called with endpoint mutex held
@@ -1052,10 +1047,11 @@ func (e *Endpoint) addPolicyKey(keyToAdd policy.Key, entry policy.MapStateEntry)
 // ApplyPolicyMapChanges updates the Endpoint's PolicyMap with the changes
 // that have accumulated for the PolicyMap via various outside events (e.g.,
 // identities added / deleted).
-// 'proxyWaitGroup' may not be nil.
-func (e *Endpoint) ApplyPolicyMapChanges(proxyWaitGroup *completion.WaitGroup) error {
-	if err := e.lockAlive(); err != nil {
-		return err
+// 'proxyWaitGroup' may not be nil. Caller must ultimately call either the returned revert or
+// finalize func, if non-nil and proxyWaitGroup.Wait fails or succeeds, respectively.
+func (e *Endpoint) ApplyPolicyMapChanges(proxyWaitGroup *completion.WaitGroup) (err error, rf revert.RevertFunc, ff revert.FinalizeFunc) {
+	if err = e.lockAlive(); err != nil {
+		return err, nil, nil
 	}
 	defer e.unlock()
 
@@ -1065,23 +1061,41 @@ func (e *Endpoint) ApplyPolicyMapChanges(proxyWaitGroup *completion.WaitGroup) e
 		metrics.EndpointDetachedSelectorPolicyTimeStats.WithLabelValues("incremental-update").Observe(time.Since(t).Seconds())
 	}
 
-	// NOTE: Since we create an ephemeral regenerationContext for the endpoint here,
-	// the revert functions of updated proxy network policies are not retained.
-	// This means that even if Envoy would end up NACKing a NetworkPolicy, it will remain in the
-	// xDS cache until the next update.
-	err := e.applyPolicyMapChangesLocked(&regenerationContext{
+	if !e.desiredPolicy.IsValid() {
+		// The endpoint has no computed policy yet, so it is pointless to try apply
+		// incremental changes on it.
+		return nil, nil, nil
+	}
+
+	regenCtx := regenerationContext{
 		datapathRegenerationContext: &datapathRegenerationContext{
 			proxyWaitGroup: proxyWaitGroup,
 		},
-	}, false)
+	}
+	err = e.applyPolicyMapChangesLocked(&regenCtx, false)
 
 	if err != nil {
 		e.logStatusLocked(Policy, Failure, err.Error())
-	} else {
-		e.LogStatusOKLocked(Policy, "Policy Map changes applied")
+
+		// revert any changes on synchronous error for an endpoint
+		regenCtx.datapathRegenerationContext.revertStack.Revert()
+
+		return err, nil, nil
 	}
 
-	return err
+	e.LogStatusOKLocked(Policy, "Policy Map changes applied")
+
+	// otherwise the revert/finalize decision is postponed after
+	// eventual proxyWaitGroup.Wait by the caller
+
+	if !regenCtx.datapathRegenerationContext.revertStack.Empty() {
+		rf = regenCtx.datapathRegenerationContext.revertStack.Revert
+	}
+	if !regenCtx.datapathRegenerationContext.finalizeList.Empty() {
+		ff = regenCtx.datapathRegenerationContext.finalizeList.Finalize
+	}
+
+	return nil, rf, ff
 }
 
 // applyPolicyMapChangesLocked applies any incremental policy map changes
@@ -1112,8 +1126,6 @@ func (e *Endpoint) applyPolicyMapChangesLocked(regenContext *regenerationContext
 
 	stats := &regenContext.Stats
 	datapathRegenCtxt := regenContext.datapathRegenerationContext
-	var err error
-
 	proxyWaitGroup := datapathRegenCtxt.proxyWaitGroup
 
 	// Ingress endpoint does not need to wait.
@@ -1144,11 +1156,18 @@ func (e *Endpoint) applyPolicyMapChangesLocked(regenContext *regenerationContext
 		if hasNewPolicy || hasEnvoyRedirect || e.isIngress {
 			e.getLogger().Debug("applyPolicyMapChanges: Updating Envoy NetworkPolicy")
 			stats.proxyPolicyCalculation.Start()
-			var rf revert.RevertFunc
-			err, rf = e.proxy.UpdateNetworkPolicy(e, e.desiredPolicy, proxyWaitGroup)
-			stats.proxyPolicyCalculation.End(err == nil)
-			if err == nil {
+			proxyErr, rf, ff := e.proxy.UpdateNetworkPolicy(e, e.desiredPolicy, proxyWaitGroup)
+			stats.proxyPolicyCalculation.End(proxyErr == nil)
+
+			// UpdateNetworkPolicy only returns revert/finalize func if there is no
+			// synchronous error
+			if proxyErr == nil {
 				datapathRegenCtxt.revertStack.Push(rf)
+				datapathRegenCtxt.finalizeList.Append(ff)
+			} else {
+				e.getLogger().Debug("applyPolicyMapChanges: UpdateNetworkPolicy failed",
+					logfields.Error, proxyErr)
+				return proxyErr
 			}
 		}
 	}
@@ -1192,6 +1211,7 @@ func (e *Endpoint) applyPolicyMapChangesLocked(regenContext *regenerationContext
 	if errors > 0 {
 		return fmt.Errorf("updating bpf policy maps failed")
 	}
+
 	if len(changes.Adds) > 0 || len(changes.Deletes) > 0 {
 		e.getLogger().Debug(
 			"Applied policy map updates due to identity changes",
@@ -1199,6 +1219,7 @@ func (e *Endpoint) applyPolicyMapChangesLocked(regenContext *regenerationContext
 			logfields.DeletedPolicyID, changes.Deletes,
 		)
 	}
+
 	return nil
 }
 

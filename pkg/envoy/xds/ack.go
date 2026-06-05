@@ -77,9 +77,6 @@ type AckingResourceMutator interface {
 	// method call.
 	Upsert(typeURL string, resourceName string, resource proto.Message, nodeIDs []string, wg *completion.WaitGroup, callback func(error)) AckingResourceMutatorRevertFunc
 
-	// DeleteNode frees resources held for the named node
-	DeleteNode(nodeID string)
-
 	// Delete deletes a resource from this set by name and increases the cache's
 	// version number atomically if the resource is actually deleted.
 	// The completion is called back when the new deleted resources' version is
@@ -133,6 +130,9 @@ type AckingResourceMutatorWrapper struct {
 
 // pendingCompletion is an update that is pending completion.
 type pendingCompletion struct {
+	// owner is the mutator wrapper that owns the pending completion.
+	owner *AckingResourceMutatorWrapper
+
 	// version is the version to be ACKed.
 	version uint64
 
@@ -168,6 +168,19 @@ func (pc *pendingCompletion) remainingString() string {
 	}
 	sb.WriteString("]")
 	return sb.String()
+}
+
+func (pc *pendingCompletion) ID() string {
+	return pc.remainingString()
+}
+
+func (pc *pendingCompletion) CleanupAfterWait(comp *completion.Completion) {
+	if pc.owner == nil {
+		return
+	}
+	pc.owner.locker.Lock()
+	defer pc.owner.locker.Unlock()
+	delete(pc.owner.pendingCompletions, comp)
 }
 
 // NewAckingResourceMutatorWrapper creates a new AckingResourceMutatorWrapper
@@ -260,11 +273,12 @@ func (m *AckingResourceMutatorWrapper) addCurrentVersionCompletion(typeURL strin
 	}
 
 	comp := &pendingCompletion{
+		owner:                   m,
 		version:                 m.version,
 		typeURL:                 typeURL,
 		remainingNodesResources: remainingNodesResources,
 	}
-	c := wg.AddCompletionWithCallback(comp.remainingString, callback)
+	c := wg.AddCompletionWithCallback(comp, callback)
 	m.pendingCompletions[c] = comp
 	return true
 }
@@ -278,18 +292,6 @@ func (m *AckingResourceMutatorWrapper) maybeAddCurrentVersionCompletion(wait boo
 	if !wait && callback != nil {
 		callback(nil)
 	}
-}
-
-// DeleteNode frees resources held for the named nodes
-func (m *AckingResourceMutatorWrapper) DeleteNode(nodeID string) {
-	m.locker.Lock()
-	defer m.locker.Unlock()
-
-	delete(m.ackedVersions, nodeID)
-	if ch, exists := m.ackedNodes[nodeID]; exists && ch != nil {
-		close(ch)
-	}
-	delete(m.ackedNodes, nodeID)
 }
 
 // CancelCompletions is called after it is known the xDS client has been terminated, so that waiting
@@ -358,6 +360,7 @@ func (m *AckingResourceMutatorWrapper) Upsert(typeURL string, resourceName strin
 
 	if wait {
 		comp := &pendingCompletion{
+			owner:                   m,
 			version:                 m.version,
 			typeURL:                 typeURL,
 			remainingNodesResources: make(map[string]map[string]struct{}, len(nodeIDs)),
@@ -367,7 +370,7 @@ func (m *AckingResourceMutatorWrapper) Upsert(typeURL string, resourceName strin
 			comp.remainingNodesResources[nodeID][resourceName] = struct{}{}
 		}
 
-		c := wg.AddCompletionWithCallback(comp.remainingString, callback)
+		c := wg.AddCompletionWithCallback(comp, callback)
 		m.pendingCompletions[c] = comp
 	} else if callback != nil {
 		callback(nil)

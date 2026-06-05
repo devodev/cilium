@@ -1,3 +1,12 @@
+
+# Test history against the state inserted in [cmd_test.go].
+health/history --output=history
+cmp history.expected.txt history
+
+# From here on test the 'health' command with direct modifications
+# to health table.
+# Health not OK as there's a non-closed degraded entry
+! health/ok 
 db/insert health allok.yaml
 
 # Should be all ok
@@ -19,17 +28,31 @@ health --output=out agent.m0
 sed ' \(.*\)' '' out
 cmp m0.expected.txt out
 
+health --output=out --match=c1 agent.m0
+sed ' \(.*\)' '' out
+cmp m0.c1.expected.txt out
+
 health --output=out --levels=degraded 
 sed ' \(.*\)' '' out
 cmp degraded.expected.txt out
+
+health --output=out --levels=degraded,stopped
+sed ' \(.*\)' '' out
+cmp degraded-stopped.expected.txt out
+
+# Inserting a new root will show two trees
+db/insert health foo.yaml
+health --output=out
+sed ' \(.*\)' '' out
+cmp foo.expected.txt out
 
 -- allok.yaml --
 id:
     module:
         - agent
-        - m0
+        - m2
     component:
-        - c0
+        - degraded
 level: OK
 message: ok
 error: ""
@@ -70,6 +93,21 @@ id:
         - m1
     component:
         - c1
+level: OK
+message: yay
+error: ""
+lastok: 2025-04-01T21:28:00.000000000-07:00
+updated: 2025-04-01T21:28:00.000000000-07:00
+stopped: 0001-01-01T00:00:00Z
+final: ""
+count: 1
+
+-- foo.yaml --
+id:
+    module:
+        - foo
+    component:
+        - c1
 level: OK 
 message: yay 
 error: ""
@@ -78,13 +116,18 @@ updated: 2025-04-01T21:28:00.000000000-07:00
 stopped: 0001-01-01T00:00:00Z
 final: ""
 count: 1
+
 -- all.expected.txt --
 agent
 ├── m0
 │   ├── c0                                          [OK] ok
 │   └── c1                                          [DEGRADED] no!
-└── m1
-    └── c1                                          [OK] yay
+├── m1
+│   └── c1                                          [OK] yay
+├── m2
+│   └── degraded                                    [OK] ok
+└── m4
+    └── stopped                                     [STOPPED] ok
 
 -- m0.expected.txt --
 agent
@@ -92,8 +135,40 @@ agent
     ├── c0                                          [OK] ok
     └── c1                                          [DEGRADED] no!
 
+-- m0.c1.expected.txt --
+agent
+└── m0
+    └── c1                                          [DEGRADED] no!
+
 -- degraded.expected.txt --
 agent
 └── m0
     └── c1                                          [DEGRADED] no!
 
+-- degraded-stopped.expected.txt --
+agent
+├── m0
+│   └── c1                                          [DEGRADED] no!
+└── m4
+    └── stopped                                     [STOPPED] ok
+
+-- foo.expected.txt --
+agent
+├── m0
+│   ├── c0                                          [OK] ok
+│   └── c1                                          [DEGRADED] no!
+├── m1
+│   └── c1                                          [OK] yay
+├── m2
+│   └── degraded                                    [OK] ok
+└── m4
+    └── stopped                                     [STOPPED] ok
+foo
+└── c1                                          [OK] yay
+
+-- history.expected.txt --
+1970-01-01T00:00:01Z | Degraded         | agent.m2.degraded-closed: broken | err2
+1970-01-01T00:00:01Z | Closed(Degraded) | agent.m2.degraded-closed: broken | err2
+1970-01-01T00:00:01Z | Degraded         | agent.m2.degraded: broken | err2
+1970-01-01T00:00:01Z | Closed(OK)       | agent.m3.done: finished
+1970-01-01T00:00:01Z | Stopped          | agent.m4.stopped: now stopped

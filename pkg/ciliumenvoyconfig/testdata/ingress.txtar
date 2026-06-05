@@ -37,7 +37,7 @@ lb/maps-dump maps.actual
 
 -- services.table --
 Name                                  Source  PortNames           TrafficPolicy  Flags
-default/cilium-ingress-basic-ingress  k8s     http=80, https=443  Cluster        ProxyRedirect=1000 (ports: [80])
+default/cilium-ingress-basic-ingress  k8s     http=80, https=443  Cluster        ProxyRedirects=1000 (ports: [80])
 default/details                       k8s     http=9080           Cluster
 default/productpage                   k8s     http=9080           Cluster
 
@@ -480,6 +480,9 @@ clusters:default/cilium-ingress-default-basic-ingress/default:details:9080:
       max_connections: {
         value: 1024
       }
+      max_pending_requests: {
+        value: 1024
+      }
       max_requests: {
         value: 1024
       }
@@ -549,6 +552,9 @@ clusters:default/cilium-ingress-default-basic-ingress/default:productpage:9080:
   circuit_breakers: {
     thresholds: {
       max_connections: {
+        value: 1024
+      }
+      max_pending_requests: {
         value: 1024
       }
       max_requests: {

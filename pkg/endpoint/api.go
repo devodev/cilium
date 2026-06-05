@@ -27,7 +27,6 @@ import (
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/policy"
 	"github.com/cilium/cilium/pkg/policy/trafficdirection"
-	"github.com/cilium/cilium/pkg/types"
 	"github.com/cilium/cilium/pkg/u8proto"
 )
 
@@ -334,10 +333,11 @@ func (e *Endpoint) GetHealthModel() *models.EndpointHealth {
 
 // getNamedPortsModel returns the endpoint's NamedPorts object.
 func (e *Endpoint) getNamedPortsModel() models.NamedPorts {
-	var k8sPorts types.NamedPortMap
-	if p := e.k8sPorts.Load(); p != nil {
-		k8sPorts = *p
+	p := e.k8sPorts.Load()
+	if p == nil || *p == nil {
+		return models.NamedPorts{}
 	}
+	k8sPorts := *p
 
 	np := make(models.NamedPorts, 0, len(k8sPorts))
 	// keep named ports ordered to avoid the unnecessary updates to
@@ -564,7 +564,9 @@ func (e *Endpoint) ProcessChangeRequest(newEp *Endpoint, validPatchTransitionSta
 	}
 
 	e.replaceInformationLabels(labels.LabelSourceAny, newEp.labels.OrchestrationInfo)
-	rev := e.replaceIdentityLabels(labels.LabelSourceAny, newEp.labels.IdentityLabels())
+	// PATCH does not remove generated labels and the caller has a comment stating that
+	// labels are ignored, but here we go.
+	rev := e.replaceNonGeneratedIdentityLabels(labels.LabelSourceAny, newEp.labels.IdentityLabels())
 	if rev != 0 {
 		// Run as a goroutine since the runIdentityResolver needs to get the lock
 		go e.runIdentityResolver(e.aliveCtx, false, 0)
@@ -653,4 +655,12 @@ func (e *Endpoint) GetRealizedL4PolicyRuleOriginModel() (policy *models.L4Policy
 		return
 	}
 	return e.realizedPolicy.SelectorPolicy.L4Policy.GetRuleOriginModel(), e.policyRevision, nil
+}
+
+// GetDesiredPolicy returns the desired or current endpoint policy.
+// May return nil in certain circumstances.
+func (e *Endpoint) GetDesiredPolicy() *policy.EndpointPolicy {
+	e.mutex.RLock()
+	defer e.mutex.RUnlock()
+	return e.desiredPolicy
 }

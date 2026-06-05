@@ -8,6 +8,7 @@ import (
 	"maps"
 	"net/netip"
 
+	iputil "github.com/cilium/cilium/pkg/ip"
 	"github.com/cilium/cilium/pkg/lock"
 )
 
@@ -55,24 +56,6 @@ type AllocationIP struct {
 // AllocationMap is a map of allocated IPs indexed by IP
 type AllocationMap map[string]AllocationIP
 
-// IPAMCIDR is a CIDR used for IPAM
-//
-// +kubebuilder:validation:Format=cidr
-type IPAMCIDR string
-
-func (c *IPAMCIDR) ToPrefix() (*netip.Prefix, error) {
-	if c == nil {
-		return nil, fmt.Errorf("nil ipam cidr")
-	}
-
-	prefix, err := netip.ParsePrefix(string(*c))
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse ipam cidr %v: %w", c, err)
-	}
-
-	return &prefix, nil
-}
-
 // IPAMPoolAllocation describes an allocation of an IPAM pool from the operator to the
 // node. It contains the assigned PodCIDRs allocated from this pool
 type IPAMPoolAllocation struct {
@@ -84,7 +67,7 @@ type IPAMPoolAllocation struct {
 	// CIDRs contains a list of pod CIDRs currently allocated from this pool
 	//
 	// +optional
-	CIDRs []IPAMCIDR `json:"cidrs,omitempty"`
+	CIDRs []iputil.Prefix `json:"cidrs,omitempty"`
 }
 
 type IPAMPoolRequest struct {
@@ -407,13 +390,13 @@ type VirtualNetwork struct {
 	ID string
 
 	// PrimaryCIDR is the primary IPv4 CIDR
-	PrimaryCIDR string
+	PrimaryCIDR iputil.Prefix
 
 	// CIDRs is the list of secondary IPv4 CIDR ranges associated with the VPC
-	CIDRs []string
+	CIDRs []iputil.Prefix
 
 	// IPv6CIDRs is the list of IPv6 CIDR ranges associated with the VPC
-	IPv6CIDRs []string
+	IPv6CIDRs []iputil.Prefix
 }
 
 // VirtualNetworkMap indexes virtual networks by their ID
@@ -467,10 +450,6 @@ type PoolQuotaMap map[PoolID]PoolQuota
 type Interface interface {
 	// InterfaceID must return the identifier of the interface
 	InterfaceID() string
-
-	// ForeachAddress must iterate over all addresses of the interface and
-	// call fn for each address
-	ForeachAddress(instanceID string, fn AddressIterator) error
 
 	// DeepCopyInterface returns a deep copy of the underlying interface type.
 	DeepCopyInterface() Interface
@@ -547,49 +526,6 @@ func (m *InstanceMap) updateLocked(instanceID string, iface Interface) {
 	}
 
 	i.Interfaces[iface.InterfaceID()] = iface
-}
-
-type Address any
-
-// AddressIterator is the function called by the ForeachAddress iterator
-type AddressIterator func(instanceID, interfaceID, ip string, address Address) error
-
-func foreachAddress(instanceID string, instance *Instance, fn AddressIterator) error {
-	for _, iface := range instance.Interfaces {
-		if err := iface.ForeachAddress(instanceID, fn); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// ForeachAddress calls fn for each address on each interface attached to each
-// instance. If an instanceID is specified, the only the interfaces and
-// addresses of the specified instance are considered.
-//
-// The InstanceMap is read-locked throughout the iteration process, i.e., no
-// updates will occur. However, the address object given to the AddressIterator
-// will point to live data and must be deep copied if used outside of the
-// context of the iterator function.
-func (m *InstanceMap) ForeachAddress(instanceID string, fn AddressIterator) error {
-	m.mutex.RLock()
-	defer m.mutex.RUnlock()
-
-	if instanceID != "" {
-		if instance := m.data[instanceID]; instance != nil {
-			return foreachAddress(instanceID, instance, fn)
-		}
-		return fmt.Errorf("instance does not exist: %q", instanceID)
-	}
-
-	for instanceID, instance := range m.data {
-		if err := foreachAddress(instanceID, instance, fn); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 // InterfaceIterator is the function called by the ForeachInterface iterator

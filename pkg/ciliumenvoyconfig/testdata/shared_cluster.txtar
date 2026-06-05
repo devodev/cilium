@@ -66,7 +66,7 @@ test/echo
 
 -- services_redirected.table --
 Name        Flags
-test/echo   ProxyRedirect=1000 (ports: [80])
+test/echo   ProxyRedirects=1000 (ports: [80])
 
 -- backends.table --
 Address
@@ -232,6 +232,9 @@ clusters:test/listener-a/test:echo:80:
       max_connections: {
         value: 1024
       }
+      max_pending_requests: {
+        value: 1024
+      }
       max_requests: {
         value: 1024
       }
@@ -276,6 +279,9 @@ clusters:test/listener-b/test:echo:80:
   circuit_breakers: {
     thresholds: {
       max_connections: {
+        value: 1024
+      }
+      max_pending_requests: {
         value: 1024
       }
       max_requests: {
@@ -373,6 +379,9 @@ clusters:test/listener-b/test:echo:80:
   circuit_breakers: {
     thresholds: {
       max_connections: {
+        value: 1024
+      }
+      max_pending_requests: {
         value: 1024
       }
       max_requests: {

@@ -21,7 +21,6 @@ import (
 	"testing"
 
 	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/btf"
 	"github.com/cilium/ebpf/rlimit"
 	"github.com/cilium/hive/hivetest"
 
@@ -159,13 +158,14 @@ func (c *collection) Run(t *testing.T, kv kernelVersion, records *verifierComple
 		t.Parallel()
 		i := 1
 		for perm := range buildPermutations(c.progDir, kv, c.loadPermutations) {
-			t.Run(strconv.Itoa(i), compileAndLoad(perm, c.collection, c.source, c.output, i, records))
+			t.Run(strconv.Itoa(i), compileAndLoad(perm, c.collection, c.source, c.output, kv, i, records))
 			i++
 		}
 	})
 }
 
-func compileAndLoad(perm buildPermutation, collection, source, output string, build int, records *verifierComplexityRecords) func(t *testing.T) {
+func compileAndLoad(perm buildPermutation, collection, source, output string, kv kernelVersion,
+	build int, records *verifierComplexityRecords) func(t *testing.T) {
 	return func(t *testing.T) {
 		t.Parallel()
 
@@ -207,7 +207,7 @@ func compileAndLoad(perm buildPermutation, collection, source, output string, bu
 				spec,
 				constants,
 				collection,
-				build, ii,
+				kv, build, ii,
 				records,
 			))
 			ii++
@@ -228,6 +228,7 @@ func loadAndRecordComplexity(
 	spec *ebpf.CollectionSpec,
 	constants any,
 	collection string,
+	kv kernelVersion,
 	build, load int,
 	records *verifierComplexityRecords,
 ) func(t *testing.T) {
@@ -365,11 +366,19 @@ func loadAndRecordComplexity(
 				t.Fatalf("Failed to parse verifier log for program %s: %v", n, err)
 			}
 
-			stackDepth, stackDepthIndex, err := parseStackDepth(s, p.VerifierLog, lastLineIndex, lastOff)
-			if err != nil {
-				t.Fatalf("Failed to parse stack depth for program %s: %v", n, err)
+			stackDepthIndex := strings.LastIndex(p.VerifierLog[:lastLineIndex], "\n")
+			// On older kernels, the max field is missing in verifier logs so
+			// we can't easily retrieve the max stack size. We'll just return
+			// it for bpf-next, where it's likely already the highest value
+			// anyway.
+			if kv == kernelVersionNetNext {
+				var stackDepth int
+				stackDepth, stackDepthIndex, err = parseStackDepth(s, p.VerifierLog, lastLineIndex, lastOff)
+				if err != nil {
+					t.Fatalf("Failed to parse stack depth for program %s: %v", n, err)
+				}
+				r.StackDepth = stackDepth
 			}
-			r.StackDepth = stackDepth
 
 			// Extract the third to last line, which looks like:
 			//   verification time 355643 usec
@@ -406,61 +415,21 @@ func parseStackDepth(s *ebpf.ProgramSpec, verifierLogs string, lastLineIndex, la
 		}
 	}
 	stackDepthLine = strings.TrimPrefix(strings.TrimSpace(stackDepthLine), "stack depth ")
+	// On newer kernels, the stack depth line may look as follows, so we need
+	// to remove the max info at the end.
+	//   stack depth 144+255 max 400
+	stackDepthInfo := strings.Split(stackDepthLine, " max ")
 
-	// Remove prefix so we are just left with plus separated stack depths, and parse them into ints.
-	//   144+280+120
-	// Split and parse to ints
-	var depths []int
-	for part := range strings.SplitSeq(stackDepthLine, "+") {
-		depth, err := strconv.Atoi(part)
-		if err != nil {
-			return 0, stackDepthIndex, err
-		}
-		depths = append(depths, depth)
-	}
-	return maxStackDepth(s, depths), stackDepthIndex, nil
-}
-
-func maxStackDepth(spec *ebpf.ProgramSpec, stackDepths []int) int {
-	insns := spec.Instructions
-	graph := make(map[string][]string)
-	sizes := make(map[string]int)
-
-	// The stack depths in the verifier log are in the same order as the functions in the instructions.
-	// We iterate through the instructions, and whenever we see a function definition, we take the next stack depth
-	// from the log and associate it with that function. Also record calls to construct a call graph.
-	var cur string
-	for _, insn := range insns {
-		if insn.IsFunctionCall() {
-			graph[cur] = append(graph[cur], insn.Reference())
-			continue
-		}
-		if fn := btf.FuncMetadata(&insn); fn != nil {
-			cur = fn.Name
-			sizes[cur] = stackDepths[0]
-			stackDepths = stackDepths[1:]
-		}
+	// The max field isn't reported on older kernels.
+	if len(stackDepthInfo) != 2 {
+		return 0, stackDepthIndex, fmt.Errorf("Couldn't find max stack depth value in verifier logs")
 	}
 
-	// Recursively visit the call graph to calculate the maximum stack depth, by summing the stack sizes of called
-	// functions. This is safe to do since the verifier will have rejected any program with recursive calls, so we know
-	// the graph is acyclic.
-	maxDepth := 0
-	var visit func(callstack []string)
-	visit = func(callstack []string) {
-		depth := 0
-		for _, fn := range callstack {
-			depth += sizes[fn]
-		}
-		maxDepth = max(maxDepth, depth)
-
-		for _, callee := range graph[callstack[len(callstack)-1]] {
-			visit(append(callstack, callee))
-		}
+	maxDepth, err := strconv.Atoi(stackDepthInfo[1])
+	if err != nil {
+		return 0, stackDepthIndex, err
 	}
-	visit([]string{spec.Name})
-
-	return maxDepth
+	return maxDepth, stackDepthIndex, nil
 }
 
 type verifierComplexityRecord struct {

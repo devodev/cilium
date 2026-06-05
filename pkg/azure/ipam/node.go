@@ -169,30 +169,6 @@ func (n *Node) ResyncInterfacesAndIPs(ctx context.Context, scopedLog *slog.Logge
 	n.manager.mutex.RLock()
 	defer n.manager.mutex.RUnlock()
 	usePrimary := n.manager.usePrimary
-	err = n.manager.instances.ForeachAddress(n.node.InstanceID(), func(instanceID, interfaceID, ip string, addressObj ipamTypes.Address) error {
-		address, ok := addressObj.(types.AzureAddress)
-		if !ok {
-			scopedLog.Warn(
-				"Not an Azure address object, ignoring IP",
-				logfields.IPAddr, ip,
-			)
-			return nil
-		}
-
-		if address.State == types.StateSucceeded {
-			available[address.IP] = ipamTypes.AllocationIP{Resource: interfaceID}
-		} else {
-			scopedLog.Warn(
-				"Ignoring potentially available IP due to non-successful state",
-				logfields.IPAddr, ip,
-				logfields.State, address.State,
-			)
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, stats, err
-	}
 
 	// Azure caps both NICs and VMs at 256 addresses; start from that ceiling
 	// and decrement per NIC below for any primary slot we can't allocate.
@@ -204,6 +180,18 @@ func (n *Node) ResyncInterfacesAndIPs(ctx context.Context, scopedLog *slog.Logge
 			return fmt.Errorf("invalid interface object")
 		}
 
+		for _, address := range iface.Addresses {
+			if address.State == types.StateSucceeded {
+				available[address.IP.String()] = ipamTypes.AllocationIP{Resource: interfaceID}
+			} else {
+				scopedLog.Warn(
+					"Ignoring potentially available IP due to non-successful state",
+					logfields.IPAddr, address.IP,
+					logfields.State, address.State,
+				)
+			}
+		}
+
 		// Cache the VMSS name from the first interface we see
 		if n.vmss == "" {
 			n.vmss = iface.GetVMScaleSetName()
@@ -211,12 +199,11 @@ func (n *Node) ResyncInterfacesAndIPs(ctx context.Context, scopedLog *slog.Logge
 
 		// The primary IP still consumes a NIC slot even when it is not
 		// allocatable; reserve it from the VM-wide budget.
-		if !usePrimary && iface.IP != "" {
+		if !usePrimary && iface.IP.IsValid() {
 			nodeCapacity--
 		}
 
-		_, available := isAvailableInterface(requiredIfaceName, iface, usePrimary, scopedLog)
-		if available {
+		if _, isAvailable := isAvailableInterface(requiredIfaceName, iface, usePrimary, scopedLog); isAvailable {
 			stats.RemainingAvailableInterfaceCount++
 		}
 		return nil
@@ -288,7 +275,7 @@ func isAvailableInterface(requiredIfaceName string, iface *types.AzureInterface,
 	// When the primary is not exposed to the pool, its slot is consumed but
 	// not reflected in iface.Addresses, so reserve it here.
 	limit := types.InterfaceAddressLimit
-	if !usePrimary && iface.IP != "" {
+	if !usePrimary && iface.IP.IsValid() {
 		limit--
 	}
 	availableOnInterface = max(limit-len(iface.Addresses), 0)

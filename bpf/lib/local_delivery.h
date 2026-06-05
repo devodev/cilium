@@ -112,13 +112,15 @@ static __always_inline int redirect_ep(struct __ctx_buff *ctx,
  */
 static __always_inline void
 local_delivery_fill_meta(struct __ctx_buff *ctx, __u32 seclabel,
-			 bool delivery_redirect, bool from_host,
-			 bool from_tunnel, __u32 cluster_id)
+			 bool delivery_redirect, bool use_redirect_peer,
+			 bool from_host, bool from_tunnel, __u32 cluster_id)
 {
 	__u32 delivery_flags = 0;
 
 	if (delivery_redirect)
 		delivery_flags |= CB_DELIVERY_FLAGS_REDIRECT;
+	if (use_redirect_peer)
+		delivery_flags |= CB_DELIVERY_FLAGS_USE_REDIRECT_PEER;
 	if (from_host)
 		delivery_flags |= CB_DELIVERY_FLAGS_FROM_HOST;
 	if (from_tunnel)
@@ -163,7 +165,7 @@ local_delivery(struct __ctx_buff *ctx, __u32 seclabel, __u32 magic,
 	 * policy (the cil_to_container BPF program) is bypassed.
 	 */
 	use_redirect_peer = should_redirect_peer(ctx, from_host);
-	if (is_defined(USE_BPF_PROG_FOR_INGRESS_POLICY) && !use_redirect_peer &&
+	if (CONFIG(enable_endpoint_routes) && !use_redirect_peer &&
 	    /* We need to enforce policies at the source in case of netkit
 	     * devices because we can't redirect to proxy from bpf_lxc. That
 	     * needs a fix upstream. This must stay in sync with the predicate
@@ -191,11 +193,12 @@ local_delivery(struct __ctx_buff *ctx, __u32 seclabel, __u32 magic,
 		}
 # endif /* !ENABLE_NODEPORT */
 
-		return redirect_ep(ctx, ep->ifindex, use_redirect_peer, from_tunnel);
+		return redirect_ep(ctx, ep->ifindex, false, from_tunnel);
 	}
 
 	/* Jumps to destination pod's BPF program to enforce ingress policies. */
-	local_delivery_fill_meta(ctx, seclabel, true, from_host, from_tunnel, cluster_id);
+	local_delivery_fill_meta(ctx, seclabel, true, use_redirect_peer,
+				 from_host, from_tunnel, cluster_id);
 	return tail_call_policy(ctx, ep->lxc_id);
 }
 

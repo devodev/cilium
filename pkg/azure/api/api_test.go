@@ -7,12 +7,14 @@ import (
 	"net/netip"
 	"testing"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v7"
+	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v8"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v9"
+	"github.com/cilium/hive/hivetest"
 	"github.com/stretchr/testify/require"
 
 	// Required so SetID() resolves the Azure resource-ID parser.
 	_ "github.com/cilium/cilium/pkg/azure/types/azureid"
+	iputil "github.com/cilium/cilium/pkg/ip"
 	ipamTypes "github.com/cilium/cilium/pkg/ipam/types"
 )
 
@@ -52,11 +54,11 @@ func TestParseInterface(t *testing.T) {
 		iface            *armnetwork.Interface
 		subnets          ipamTypes.SubnetMap
 		usePrimary       bool
-		expectedIP       string
-		expectedAddrs    []string
+		expectedIP       iputil.Addr
+		expectedAddrs    []iputil.Addr
 		expectedSubnetID string
-		expectedCIDR     string
-		expectedGateway  string
+		expectedCIDR     iputil.Prefix
+		expectedGateway  iputil.Addr
 	}{
 		{
 			name: "primary and secondaries, usePrimary=false",
@@ -65,13 +67,16 @@ func TestParseInterface(t *testing.T) {
 				newIPConfig("10.0.0.5", false),
 				newIPConfig("10.0.0.6", false),
 			),
-			subnets:          subnetMap,
-			usePrimary:       false,
-			expectedIP:       "10.0.0.4",
-			expectedAddrs:    []string{"10.0.0.5", "10.0.0.6"},
+			subnets:    subnetMap,
+			usePrimary: false,
+			expectedIP: iputil.AddrFrom(netip.MustParseAddr("10.0.0.4")),
+			expectedAddrs: []iputil.Addr{
+				iputil.AddrFrom(netip.MustParseAddr("10.0.0.5")),
+				iputil.AddrFrom(netip.MustParseAddr("10.0.0.6")),
+			},
 			expectedSubnetID: subnetID,
-			expectedCIDR:     "10.0.0.0/24",
-			expectedGateway:  "10.0.0.1",
+			expectedCIDR:     iputil.PrefixFrom(netip.MustParsePrefix("10.0.0.0/24")),
+			expectedGateway:  iputil.AddrFrom(netip.MustParseAddr("10.0.0.1")),
 		},
 		{
 			name: "primary and secondaries, usePrimary=true",
@@ -80,30 +85,34 @@ func TestParseInterface(t *testing.T) {
 				newIPConfig("10.0.0.5", false),
 				newIPConfig("10.0.0.6", false),
 			),
-			subnets:          subnetMap,
-			usePrimary:       true,
-			expectedIP:       "10.0.0.4",
-			expectedAddrs:    []string{"10.0.0.4", "10.0.0.5", "10.0.0.6"},
+			subnets:    subnetMap,
+			usePrimary: true,
+			expectedIP: iputil.AddrFrom(netip.MustParseAddr("10.0.0.4")),
+			expectedAddrs: []iputil.Addr{
+				iputil.AddrFrom(netip.MustParseAddr("10.0.0.4")),
+				iputil.AddrFrom(netip.MustParseAddr("10.0.0.5")),
+				iputil.AddrFrom(netip.MustParseAddr("10.0.0.6")),
+			},
 			expectedSubnetID: subnetID,
-			expectedCIDR:     "10.0.0.0/24",
-			expectedGateway:  "10.0.0.1",
+			expectedCIDR:     iputil.PrefixFrom(netip.MustParsePrefix("10.0.0.0/24")),
+			expectedGateway:  iputil.AddrFrom(netip.MustParseAddr("10.0.0.1")),
 		},
 		{
 			name:             "only primary, usePrimary=false, subnet derived from primary",
 			iface:            newIface(newIPConfig("10.0.0.4", true)),
 			subnets:          subnetMap,
 			usePrimary:       false,
-			expectedIP:       "10.0.0.4",
+			expectedIP:       iputil.AddrFrom(netip.MustParseAddr("10.0.0.4")),
 			expectedAddrs:    nil,
 			expectedSubnetID: subnetID,
-			expectedCIDR:     "10.0.0.0/24",
-			expectedGateway:  "10.0.0.1",
+			expectedCIDR:     iputil.PrefixFrom(netip.MustParsePrefix("10.0.0.0/24")),
+			expectedGateway:  iputil.AddrFrom(netip.MustParseAddr("10.0.0.1")),
 		},
 		{
 			name:          "no IPConfigurations",
 			iface:         newIface(),
 			usePrimary:    false,
-			expectedIP:    "",
+			expectedIP:    iputil.Addr{},
 			expectedAddrs: nil,
 		},
 		{
@@ -112,13 +121,16 @@ func TestParseInterface(t *testing.T) {
 				newIPConfig("10.0.0.5", false),
 				newIPConfig("10.0.0.6", false),
 			),
-			subnets:          subnetMap,
-			usePrimary:       false,
-			expectedIP:       "",
-			expectedAddrs:    []string{"10.0.0.5", "10.0.0.6"},
+			subnets:    subnetMap,
+			usePrimary: false,
+			expectedIP: iputil.Addr{},
+			expectedAddrs: []iputil.Addr{
+				iputil.AddrFrom(netip.MustParseAddr("10.0.0.5")),
+				iputil.AddrFrom(netip.MustParseAddr("10.0.0.6")),
+			},
 			expectedSubnetID: subnetID,
-			expectedCIDR:     "10.0.0.0/24",
-			expectedGateway:  "10.0.0.1",
+			expectedCIDR:     iputil.PrefixFrom(netip.MustParsePrefix("10.0.0.0/24")),
+			expectedGateway:  iputil.AddrFrom(netip.MustParseAddr("10.0.0.1")),
 		},
 		{
 			name: "nil Primary pointer treated as non-primary",
@@ -132,17 +144,17 @@ func TestParseInterface(t *testing.T) {
 			}),
 			subnets:          subnetMap,
 			usePrimary:       false,
-			expectedIP:       "",
-			expectedAddrs:    []string{"10.0.0.5"},
+			expectedIP:       iputil.Addr{},
+			expectedAddrs:    []iputil.Addr{iputil.AddrFrom(netip.MustParseAddr("10.0.0.5"))},
 			expectedSubnetID: subnetID,
-			expectedCIDR:     "10.0.0.0/24",
-			expectedGateway:  "10.0.0.1",
+			expectedCIDR:     iputil.PrefixFrom(netip.MustParsePrefix("10.0.0.0/24")),
+			expectedGateway:  iputil.AddrFrom(netip.MustParseAddr("10.0.0.1")),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, got := parseInterface(tt.iface, tt.subnets, tt.usePrimary)
+			_, got := parseInterface(hivetest.Logger(t), tt.iface, tt.subnets, tt.usePrimary)
 			require.NotNil(t, got)
 			require.Equal(t, tt.expectedIP, got.IP)
 			require.Equal(t, tt.expectedSubnetID, got.Subnet.ID)
@@ -150,7 +162,7 @@ func TestParseInterface(t *testing.T) {
 			require.Equal(t, tt.expectedCIDR, got.CIDR) //nolint:staticcheck // verifies the deprecated mirror still tracks Subnet.CIDR
 			require.Equal(t, tt.expectedGateway, got.Gateway)
 
-			gotAddrs := make([]string, 0, len(got.Addresses))
+			gotAddrs := make([]iputil.Addr, 0, len(got.Addresses))
 			for _, a := range got.Addresses {
 				gotAddrs = append(gotAddrs, a.IP)
 				require.Equal(t, tt.expectedSubnetID, a.Subnet) //nolint:staticcheck // exercises the deprecated mirror
