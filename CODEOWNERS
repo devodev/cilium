@@ -1063,7 +1063,6 @@ Makefile* @cilium/build
 /install/kubernetes/cilium/templates/*enterprise* @isovalent/sig-k8s @isovalent/helm
 /install/kubernetes/cilium/templates/_extensions.tpl @isovalent/sig-k8s @isovalent/helm
 /install/kubernetes/cilium/templates/cilium-agent/*enterprise* @isovalent/sig-k8s @isovalent/helm
-/install/kubernetes/cilium/templates/cilium-envoy/*enterprise* @isovalent/sig-k8s @isovalent/helm
 /install/kubernetes/cilium/templates/cilium-operator/*enterprise* @isovalent/sig-k8s @isovalent/helm
 /install/kubernetes/cilium/templates/cilium-preflight/*enterprise* @isovalent/sig-k8s @isovalent/helm
 /install/kubernetes/cilium/templates/clustermesh-apiserver/*enterprise* @isovalent/clustermesh @isovalent/sig-k8s @isovalent/helm
