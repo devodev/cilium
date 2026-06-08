@@ -5514,6 +5514,23 @@ enterprise:
     failureMode: Open
     # -- Name of the ConfigMap used to publish shared WAF inline rule bundles.
     inlineRulesConfigMap: waf-inline-rules
+    # -- Global CRS override for WAF. When image.repository or image.override is set,
+    # cilium-envoy mounts CRS from this image instead of the bundled CRS.
+    crs:
+      image:
+        # @schema
+        # type: [null, string]
+        # @schema
+        override: ~
+        repository: ""
+        tag: ""
+        pullPolicy: "IfNotPresent"
+        digest: ""
+        useDigest: false
+      # -- Path in the CRS image that contains the CRS root directory. The
+      # directory must contain rules/ and either crs-setup.conf or
+      # crs-setup.conf.example.
+      sourcePath: /etc/coraza/crs
   # -- Diagnostics
   diagnostics:
     # -- Path to the file to which diagnostics status updates are appended.

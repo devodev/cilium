@@ -301,6 +301,16 @@ Allow packagers to add extra arguments to the clustermesh-apiserver kvstoremesh 
 {{- end }}
 
 {{/*
+Return true when WAF is configured to override bundled CRS from an OCI image.
+*/}}
+{{- define "enterprise.waf.crs.customImageEnabled" -}}
+{{- $image := .Values.enterprise.waf.crs.image -}}
+{{- if and .Values.enterprise.waf.enabled (or $image.override $image.repository) -}}
+true
+{{- end -}}
+{{- end }}
+
+{{/*
 Allow packagers to add lifecycle hooks to the cilium-envoy container.
 */}}
 {{- define "envoy.lifecycle"}}
@@ -318,8 +328,10 @@ postStart:
 Allow packagers to add init containers to the cilium-envoy pods.
 */}}
 {{- define "envoy.initContainers" -}}
-{{- if and .Values.envoy.gracefulRestart .Values.envoy.gracefulRestart.enabled }}
+{{- $wafCRSImageEnabled := eq (include "enterprise.waf.crs.customImageEnabled" .) "true" -}}
+{{- if or (and .Values.envoy.gracefulRestart .Values.envoy.gracefulRestart.enabled) $wafCRSImageEnabled }}
 initContainers:
+{{- if and .Values.envoy.gracefulRestart .Values.envoy.gracefulRestart.enabled }}
 - name: get-hot-restart-epoch
   image: {{ include "cilium.image" .Values.envoy.kubectl.image }}
   volumeMounts:
@@ -377,6 +389,41 @@ initContainers:
       echo "Committed next_epoch=${next_epoch}"
 
 {{- end }}
+{{- if $wafCRSImageEnabled }}
+- name: prepare-waf-crs
+  image: {{ include "cilium.image" .Values.enterprise.waf.crs.image | quote }}
+  imagePullPolicy: {{ .Values.enterprise.waf.crs.image.pullPolicy }}
+  env:
+  - name: WAF_CRS_SOURCE_PATH
+    value: {{ .Values.enterprise.waf.crs.sourcePath | quote }}
+  command:
+  - sh
+  - -c
+  - |
+    set -eu
+    test -d "${WAF_CRS_SOURCE_PATH}/rules"
+    if [ ! -f "${WAF_CRS_SOURCE_PATH}/crs-setup.conf" ] && [ ! -f "${WAF_CRS_SOURCE_PATH}/crs-setup.conf.example" ]; then
+      echo "${WAF_CRS_SOURCE_PATH} must contain crs-setup.conf or crs-setup.conf.example" >&2
+      exit 1
+    fi
+    cp -R "${WAF_CRS_SOURCE_PATH}/." /waf-crs/crs/
+    if [ ! -f /waf-crs/crs/crs-setup.conf ]; then
+      cp /waf-crs/crs/crs-setup.conf.example /waf-crs/crs/crs-setup.conf
+    fi
+    test -f /waf-crs/crs/crs-setup.conf
+    test -d /waf-crs/crs/rules
+  securityContext:
+    runAsUser: 0
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+      - ALL
+  volumeMounts:
+  - name: waf-crs
+    mountPath: /waf-crs/crs
+    readOnly: false
+{{- end }}
+{{- end }}
 {{- end }}
 
 {{/*
@@ -417,10 +464,15 @@ Allow packagers to add extra volume mounts to the cilium-envoy container.
 - mountPath: /var/run/cilium-envoy/restart
   name: envoy-restart-epoch-state
 {{- end }}
+{{- if eq (include "enterprise.waf.crs.customImageEnabled" .) "true" }}
+- mountPath: /etc/coraza/crs
+  name: waf-crs
+  readOnly: true
+{{- end }}
 {{- end }}
 
 {{/*
-Allow packagers to add extra host path mounts to the cilium-envoy container.
+Allow packagers to add extra volumes to the cilium-envoy pods.
 */}}
 {{- define "envoy.hostPathMounts.extra" -}}
 {{- if and .Values.envoy.gracefulRestart .Values.envoy.gracefulRestart.enabled }}
@@ -436,6 +488,10 @@ Allow packagers to add extra host path mounts to the cilium-envoy container.
       path: "{{ .Values.daemon.runPath }}/cilium-envoy/restart"
       type: DirectoryOrCreate
     name: envoy-restart-epoch-state
+{{- end }}
+{{- if eq (include "enterprise.waf.crs.customImageEnabled" .) "true" }}
+  - name: waf-crs
+    emptyDir: {}
 {{- end }}
 {{- end }}
 

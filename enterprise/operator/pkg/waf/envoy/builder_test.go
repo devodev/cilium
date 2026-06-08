@@ -93,7 +93,11 @@ func TestProxyConfigBuilderBuild(t *testing.T) {
 				ResponseBlockStatus: 403,
 				ResponseBlockBody:   "blocked by waf",
 				Directives: `SecAction "id:1000000,phase:1,pass,nolog,t:none,setvar:tx.blocking_paranoia_level=2,setvar:tx.detection_paranoia_level=3,setvar:tx.inbound_anomaly_score_threshold=7,setvar:tx.outbound_anomaly_score_threshold=6"
-Include /etc/coraza/rules/main.conf
+SecRuleEngine On
+SecRequestBodyAccess On
+SecResponseBodyAccess On
+Include /etc/coraza/crs/crs-setup.conf
+Include /etc/coraza/crs/rules/*.conf
 SecRuleRemoveById 949110
 SecRuleUpdateTargetById 942100 !ARGS:note
 SecAction "id:1000,phase:1,pass,nolog"`,
@@ -122,7 +126,15 @@ SecAction "id:1000,phase:1,pass,nolog"`,
 				BlockPath:           wafBlockPath,
 				ResponseBlockStatus: 403,
 				ResponseBlockBody:   "blocked by waf",
-				Directives:          "Include /etc/coraza/rules/profiles/high_security.conf\nSecRuleRemoveById 949110\nSecRuleUpdateTargetById 942100 !ARGS:note\nSecAction \"id:1000,phase:1,pass,nolog\"",
+				Directives: `SecAction "id:1100002,phase:1,pass,nolog,t:none,setvar:tx.blocking_paranoia_level=2,setvar:tx.detection_paranoia_level=2,setvar:tx.inbound_anomaly_score_threshold=7,setvar:tx.outbound_anomaly_score_threshold=6"
+SecRuleEngine On
+SecRequestBodyAccess On
+SecResponseBodyAccess On
+Include /etc/coraza/crs/crs-setup.conf
+Include /etc/coraza/crs/rules/*.conf
+SecRuleRemoveById 949110
+SecRuleUpdateTargetById 942100 !ARGS:note
+SecAction "id:1000,phase:1,pass,nolog"`,
 			},
 		},
 
@@ -151,7 +163,11 @@ SecAction "id:1000,phase:1,pass,nolog"`,
 				ResponseBlockStatus: 403,
 				ResponseBlockBody:   "blocked by waf",
 				Directives: `SecAction "id:1000000,phase:1,pass,nolog,t:none,setvar:tx.blocking_paranoia_level=2,setvar:tx.detection_paranoia_level=3,setvar:tx.inbound_anomaly_score_threshold=7,setvar:tx.outbound_anomaly_score_threshold=6"
-Include /etc/coraza/rules/main.conf`,
+SecRuleEngine On
+SecRequestBodyAccess On
+SecResponseBodyAccess On
+Include /etc/coraza/crs/crs-setup.conf
+Include /etc/coraza/crs/rules/*.conf`,
 			},
 		},
 		{
@@ -173,7 +189,12 @@ Include /etc/coraza/rules/main.conf`,
 				BlockPath:           wafBlockPath,
 				ResponseBlockStatus: 403,
 				ResponseBlockBody:   "blocked by waf",
-				Directives:          "Include /etc/coraza/rules/profiles/balanced.conf",
+				Directives: `SecAction "id:1100003,phase:1,pass,nolog,t:none,setvar:tx.blocking_paranoia_level=1,setvar:tx.detection_paranoia_level=1,setvar:tx.inbound_anomaly_score_threshold=10,setvar:tx.outbound_anomaly_score_threshold=8"
+SecRuleEngine On
+SecRequestBodyAccess On
+SecResponseBodyAccess On
+Include /etc/coraza/crs/crs-setup.conf
+Include /etc/coraza/crs/rules/*.conf`,
 			},
 		},
 		{
@@ -200,7 +221,12 @@ Include /etc/coraza/rules/main.conf`,
 				BlockPath:           wafBlockPath,
 				ResponseBlockStatus: int(blockStatusCode),
 				ResponseBlockBody:   blockBody,
-				Directives:          "Include /etc/coraza/rules/profiles/high_security.conf",
+				Directives: `SecAction "id:1100002,phase:1,pass,nolog,t:none,setvar:tx.blocking_paranoia_level=2,setvar:tx.detection_paranoia_level=2,setvar:tx.inbound_anomaly_score_threshold=7,setvar:tx.outbound_anomaly_score_threshold=6"
+SecRuleEngine On
+SecRequestBodyAccess On
+SecResponseBodyAccess On
+Include /etc/coraza/crs/crs-setup.conf
+Include /etc/coraza/crs/rules/*.conf`,
 			},
 		},
 		{

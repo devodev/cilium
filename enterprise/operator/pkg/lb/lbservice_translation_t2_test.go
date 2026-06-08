@@ -38,7 +38,8 @@ func TestDesiredManagedWAFHTTPRouteConfig(t *testing.T) {
 				Enabled: true,
 				Mode:    isovalentv1alpha1.IsovalentWAFPolicyModeEnforce,
 				Rules: wafpolicy.EffectiveRules{
-					Source: wafpolicy.EffectiveRuleSourceManaged,
+					Source:        wafpolicy.EffectiveRuleSourceManaged,
+					PolicyProfile: isovalentv1alpha1.IsovalentWAFPolicyProfileBalanced,
 				},
 				HandlingOverrides: wafpolicy.EffectiveHandlingOverrides{
 					BlockResponseStatusCode: &blockStatusCode,

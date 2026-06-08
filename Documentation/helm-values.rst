@@ -1984,6 +1984,14 @@
      - Enable VRF support for isolated routing domains.
      - bool
      - ``false``
+   * - :spelling:ignore:`enterprise.waf.crs`
+     - Global CRS override for WAF. When image.repository or image.override is set, cilium-envoy mounts CRS from this image instead of the bundled CRS.
+     - object
+     - ``{"image":{"digest":"","override":null,"pullPolicy":"IfNotPresent","repository":"","tag":"","useDigest":false},"sourcePath":"/etc/coraza/crs"}``
+   * - :spelling:ignore:`enterprise.waf.crs.sourcePath`
+     - Path in the CRS image that contains the CRS root directory. The directory must contain rules/ and either crs-setup.conf or crs-setup.conf.example.
+     - string
+     - ``"/etc/coraza/crs"``
    * - :spelling:ignore:`enterprise.waf.enabled`
      - Enable WAF policy validation and default WAF settings in the enterprise operator.
      - bool

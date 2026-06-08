@@ -23,19 +23,57 @@ const (
 	wafResponseBlockStatus = 403
 	wafResponseBlockBody   = "blocked by waf"
 	wafBodyLimitBytes      = 1024 * 1024
-	wafRulesPath           = "/etc/coraza/rules"
-	wafProfilesPath        = "/etc/coraza/rules/profiles"
-	wafMainConfigPath      = wafRulesPath + "/main.conf"
+	wafCRSPath             = "/etc/coraza/crs"
+	wafCRSSetupPath        = wafCRSPath + "/crs-setup.conf"
+	wafCRSRulesPath        = wafCRSPath + "/rules/*.conf"
 	// Coraza requires an ID for the generated SecAction that applies custom CRS tuning.
 	wafCustomProfileRuleID = 1000000
 )
 
 var (
 	directiveBuilders = map[policy.EffectiveRuleSource]func(policy.EffectiveRules) (string, error){
-		policy.EffectiveRuleSourceManaged: directivesForManagedProfile,
-		policy.EffectiveRuleSourceProfile: directivesForCustomProfile,
+		policy.EffectiveRuleSourceManaged: managedProfileDirectives,
+		policy.EffectiveRuleSourceProfile: customProfileDirectives,
 		policy.EffectiveRuleSourceInline: func(rules policy.EffectiveRules) (string, error) {
 			return rules.Inline.Inline, nil
+		},
+	}
+
+	managedProfileTunings = map[isovalentv1alpha1.IsovalentWAFPolicyProfileType]crsTuning{
+		isovalentv1alpha1.IsovalentWAFPolicyProfileMaxSecurity: {
+			RuleID:                        1100001,
+			BlockingParanoiaLevel:         3,
+			DetectionParanoiaLevel:        3,
+			InboundAnomalyScoreThreshold:  5,
+			OutboundAnomalyScoreThreshold: 4,
+		},
+		isovalentv1alpha1.IsovalentWAFPolicyProfileHighSecurity: {
+			RuleID:                        1100002,
+			BlockingParanoiaLevel:         2,
+			DetectionParanoiaLevel:        2,
+			InboundAnomalyScoreThreshold:  7,
+			OutboundAnomalyScoreThreshold: 6,
+		},
+		isovalentv1alpha1.IsovalentWAFPolicyProfileBalanced: {
+			RuleID:                        1100003,
+			BlockingParanoiaLevel:         1,
+			DetectionParanoiaLevel:        1,
+			InboundAnomalyScoreThreshold:  10,
+			OutboundAnomalyScoreThreshold: 8,
+		},
+		isovalentv1alpha1.IsovalentWAFPolicyProfileLowFriction: {
+			RuleID:                        1100004,
+			BlockingParanoiaLevel:         1,
+			DetectionParanoiaLevel:        1,
+			InboundAnomalyScoreThreshold:  15,
+			OutboundAnomalyScoreThreshold: 12,
+		},
+		isovalentv1alpha1.IsovalentWAFPolicyProfileMinFriction: {
+			RuleID:                        1100005,
+			BlockingParanoiaLevel:         1,
+			DetectionParanoiaLevel:        1,
+			InboundAnomalyScoreThreshold:  20,
+			OutboundAnomalyScoreThreshold: 16,
 		},
 	}
 
@@ -51,6 +89,14 @@ var (
 		},
 	}
 )
+
+type crsTuning struct {
+	RuleID                        int
+	BlockingParanoiaLevel         int32
+	DetectionParanoiaLevel        int32
+	InboundAnomalyScoreThreshold  int32
+	OutboundAnomalyScoreThreshold int32
+}
 
 type ProxyConfig struct {
 	DefaultMode         string `json:"default_mode"`
@@ -112,23 +158,26 @@ func toWAFFailPolicy(mode isovalentv1alpha1.WAFFailureModeType) string {
 	return "open"
 }
 
-func directivesForManagedProfile(rules policy.EffectiveRules) (string, error) {
-	overrides, err := directivesOverrides(rules.Overrides)
-	if err != nil {
-		return "", err
+func managedProfileDirectives(rules policy.EffectiveRules) (string, error) {
+	tuning, ok := managedProfileTunings[rules.PolicyProfile]
+	if !ok {
+		return "", fmt.Errorf("unsupported WAF managed profile %q", rules.PolicyProfile)
 	}
 
-	directives := []string{fmt.Sprintf("Include %s/%s.conf", wafProfilesPath, rules.PolicyProfile)}
-	if overrides != "" {
-		directives = append(directives, overrides)
-	}
-	if rules.Inline.Inline != "" {
-		directives = append(directives, rules.Inline.Inline)
-	}
-	return strings.Join(directives, "\n"), nil
+	return profileDirectives(tuning, rules)
 }
 
-func directivesForCustomProfile(rules policy.EffectiveRules) (string, error) {
+func customProfileDirectives(rules policy.EffectiveRules) (string, error) {
+	return profileDirectives(crsTuning{
+		RuleID:                        wafCustomProfileRuleID,
+		BlockingParanoiaLevel:         rules.CustomProfile.BlockingParanoiaLevel,
+		DetectionParanoiaLevel:        rules.CustomProfile.DetectionParanoiaLevel,
+		InboundAnomalyScoreThreshold:  rules.CustomProfile.InboundAnomalyScoreThreshold,
+		OutboundAnomalyScoreThreshold: rules.CustomProfile.OutboundAnomalyScoreThreshold,
+	}, rules)
+}
+
+func profileDirectives(tuning crsTuning, rules policy.EffectiveRules) (string, error) {
 	overrides, err := directivesOverrides(rules.Overrides)
 	if err != nil {
 		return "", err
@@ -137,13 +186,17 @@ func directivesForCustomProfile(rules policy.EffectiveRules) (string, error) {
 	directives := []string{
 		fmt.Sprintf(
 			`SecAction "id:%d,phase:1,pass,nolog,t:none,setvar:tx.blocking_paranoia_level=%d,setvar:tx.detection_paranoia_level=%d,setvar:tx.inbound_anomaly_score_threshold=%d,setvar:tx.outbound_anomaly_score_threshold=%d"`,
-			wafCustomProfileRuleID,
-			rules.CustomProfile.BlockingParanoiaLevel,
-			rules.CustomProfile.DetectionParanoiaLevel,
-			rules.CustomProfile.InboundAnomalyScoreThreshold,
-			rules.CustomProfile.OutboundAnomalyScoreThreshold,
+			tuning.RuleID,
+			tuning.BlockingParanoiaLevel,
+			tuning.DetectionParanoiaLevel,
+			tuning.InboundAnomalyScoreThreshold,
+			tuning.OutboundAnomalyScoreThreshold,
 		),
-		fmt.Sprintf("Include %s", wafMainConfigPath),
+		"SecRuleEngine On",
+		"SecRequestBodyAccess On",
+		"SecResponseBodyAccess On",
+		fmt.Sprintf("Include %s", wafCRSSetupPath),
+		fmt.Sprintf("Include %s", wafCRSRulesPath),
 	}
 	if overrides != "" {
 		directives = append(directives, overrides)

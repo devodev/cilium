@@ -542,6 +542,8 @@ contributors across the globe, there is almost always someone available to help.
 | enterprise.srv6.encapMode | string | `"reduced"` | Specify SRv6 SID encapsulation. |
 | enterprise.srv6.locatorPoolEnabled | bool | `false` | Enables custom SRv6 SID locator pool operator support. |
 | enterprise.vrf.enabled | bool | `false` | Enable VRF support for isolated routing domains. |
+| enterprise.waf.crs | object | `{"image":{"digest":"","override":null,"pullPolicy":"IfNotPresent","repository":"","tag":"","useDigest":false},"sourcePath":"/etc/coraza/crs"}` | Global CRS override for WAF. When image.repository or image.override is set, cilium-envoy mounts CRS from this image instead of the bundled CRS. |
+| enterprise.waf.crs.sourcePath | string | `"/etc/coraza/crs"` | Path in the CRS image that contains the CRS root directory. The directory must contain rules/ and either crs-setup.conf or crs-setup.conf.example. |
 | enterprise.waf.enabled | bool | `false` | Enable WAF policy validation and default WAF settings in the enterprise operator. |
 | enterprise.waf.failureMode | string | `"Open"` | Default WAF failure mode for operator-managed resources.  Valid values are: Open, Close |
 | enterprise.waf.inlineRulesConfigMap | string | `"waf-inline-rules"` | Name of the ConfigMap used to publish shared WAF inline rule bundles. |

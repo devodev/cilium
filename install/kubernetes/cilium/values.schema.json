@@ -2891,6 +2891,40 @@
         },
         "waf": {
           "properties": {
+            "crs": {
+              "properties": {
+                "image": {
+                  "properties": {
+                    "digest": {
+                      "type": "string"
+                    },
+                    "override": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "pullPolicy": {
+                      "type": "string"
+                    },
+                    "repository": {
+                      "type": "string"
+                    },
+                    "tag": {
+                      "type": "string"
+                    },
+                    "useDigest": {
+                      "type": "boolean"
+                    }
+                  },
+                  "type": "object"
+                },
+                "sourcePath": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
             "enabled": {
               "type": "boolean"
             },

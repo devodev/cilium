@@ -160,7 +160,8 @@ func TestBlockRoute(t *testing.T) {
 			config: &policy.EffectiveConfig{
 				Enabled: true,
 				Rules: policy.EffectiveRules{
-					Source: policy.EffectiveRuleSourceManaged,
+					Source:        policy.EffectiveRuleSourceManaged,
+					PolicyProfile: isovalentv1alpha1.IsovalentWAFPolicyProfileBalanced,
 				},
 			},
 			expected: &envoy_config_route_v3.Route{
@@ -218,7 +219,8 @@ func TestBlockRoute(t *testing.T) {
 			config: &policy.EffectiveConfig{
 				Enabled: true,
 				Rules: policy.EffectiveRules{
-					Source: policy.EffectiveRuleSourceManaged,
+					Source:        policy.EffectiveRuleSourceManaged,
+					PolicyProfile: isovalentv1alpha1.IsovalentWAFPolicyProfileBalanced,
 				},
 				HandlingOverrides: policy.EffectiveHandlingOverrides{
 					BlockResponseStatusCode: &blockStatusCode,
