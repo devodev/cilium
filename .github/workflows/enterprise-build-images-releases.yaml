@@ -21,7 +21,7 @@ jobs:
       ubi-micro: ${{ steps.load.outputs.ubi-micro }}
     steps:
       - name: Checkout sources
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
       - name: Load UBI versions
@@ -36,7 +36,7 @@ jobs:
       version: ${{ steps.version.outputs.envoy_version }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ github.event.push.after }}
           persist-credentials: false
@@ -49,7 +49,7 @@ jobs:
         id: version
         env:
           # renovate: datasource=docker depName=mikefarah/yq
-          yq_version: 4.53.2
+          yq_version: 4.53.3
         run: |
           tag=${GITHUB_REF##*/}
           echo release_tag=$tag >> $GITHUB_OUTPUT
@@ -84,7 +84,7 @@ jobs:
       version: ${{ steps.version.outputs.envoy_version }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ github.event.push.after }}
           persist-credentials: false
@@ -97,7 +97,7 @@ jobs:
         id: version
         env:
           # renovate: datasource=docker depName=mikefarah/yq
-          yq_version: 4.53.2
+          yq_version: 4.53.3
         run: |
           tag=${GITHUB_REF##*/}
           echo release_tag=$tag >> $GITHUB_OUTPUT
@@ -160,7 +160,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ github.event.push.after }}
           persist-credentials: false
@@ -198,7 +198,7 @@ jobs:
           password: ${{ secrets.QUAY_PASSWORD_RELEASE_PASSWORD }}
 
       - name: Login to Artifactory
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: ${{ vars.ARTIFACTORY_HOST }}
           username: ${{ vars.ARTIFACTORY_USERNAME }}
@@ -331,7 +331,7 @@ jobs:
 
     steps:
       - name: Checkout main branch to access local actions
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
@@ -353,7 +353,7 @@ jobs:
           password: ${{ secrets.QUAY_PASSWORD_RELEASE_PASSWORD }}
 
       - name: Login to Artifactory
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: ${{ vars.ARTIFACTORY_HOST }}
           username: ${{ vars.ARTIFACTORY_USERNAME }}
@@ -382,7 +382,7 @@ jobs:
           echo "build_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
 
       - name: Checkout Source Code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
 
@@ -466,7 +466,7 @@ jobs:
 
     steps:
       - name: Checkout main branch to access local actions
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
@@ -482,7 +482,7 @@ jobs:
         with:
           cache: false
           # renovate: datasource=golang-version depName=go
-          go-version: 1.26.3
+          go-version: 1.26.4
 
       - name: Getting image tag
         id: tag
@@ -505,7 +505,7 @@ jobs:
           password: ${{ secrets.QUAY_PASSWORD_RELEASE_PASSWORD }}
 
       - name: Login to Artifactory
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: ${{ vars.ARTIFACTORY_HOST }}
           username: ${{ vars.ARTIFACTORY_USERNAME }}
@@ -519,7 +519,7 @@ jobs:
           password: ${{ secrets.REDHAT_PASSWORD_CI }}
 
       - name: Checkout Source Code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
 
@@ -581,9 +581,9 @@ jobs:
         working-directory: ./enterprise/olm
         env:
           # renovate: datasource=docker depName=mikefarah/yq
-          yq_version: 4.53.2
+          yq_version: 4.53.3
           # renovate: datasource=github-releases depName=operator-framework/operator-registry
-          opm_version: 1.69.0
+          opm_version: 1.71.0
           VERSION: "${{ steps.tag.outputs.tag }}"
           CATALOG_TAG: "1.0.0"
           IMAGE_TAG_BASE: "${{ steps.tag.outputs.image_tag_base }}"
@@ -602,9 +602,9 @@ jobs:
         working-directory: ./enterprise/olm
         env:
           # renovate: datasource=docker depName=mikefarah/yq
-          yq_version: 4.53.2
+          yq_version: 4.53.3
           # renovate: datasource=github-releases depName=operator-framework/operator-registry
-          opm_version: 1.67.0
+          opm_version: 1.71.0
           VERSION: "${{ steps.tag.outputs.tag }}"
           CATALOG_TAG: "1.0.0"
           IMAGE_TAG_BASE: "${{ steps.tag.outputs.artifactory_image_tag_base }}"

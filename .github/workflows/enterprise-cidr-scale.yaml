@@ -53,11 +53,11 @@ concurrency:
 
 env:
   # renovate: datasource=golang-version depName=go
-  go_version: 1.26.3
+  go_version: 1.26.4
   test_name: cidr-scale
   cluster_name: ${{ github.run_id }}-${{ github.run_attempt }}
   # renovate: datasource=docker depName=google/cloud-sdk
-  gcloud_version: 570.0.0
+  gcloud_version: 571.0.0
 
 jobs:
   echo-inputs:
@@ -84,7 +84,7 @@ jobs:
     timeout-minutes: 90
     steps:
       - name: Checkout context ref (trusted)
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ inputs.context-ref || github.sha }}
           persist-credentials: false
@@ -174,7 +174,7 @@ jobs:
           echo VERSION=${VERSION} >> $GITHUB_OUTPUT
 
       - name: Checkout pull request branch (NOT TRUSTED)
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ steps.vars.outputs.SHA }}
           persist-credentials: false
@@ -214,7 +214,7 @@ jobs:
           version: ${{ env.gcloud_version }}
 
       - name: Clone ClusterLoader2
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           repository: kubernetes/perf-tests
           # Avoid using renovate to update this dependency because: (1)

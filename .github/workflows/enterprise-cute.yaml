@@ -79,7 +79,7 @@ jobs:
     timeout-minutes: 750
     steps:
       - name: Checkout workflow context branch
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
 
@@ -166,7 +166,7 @@ jobs:
           helm repo add ${{ env.CILIUM_OSS_HELM_REPO_NAME }} ${{ env.CILIUM_OSS_HELM_REPO_URL }}
 
       - name: Checkout CuTE repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           repository: isovalent/cute-${{ steps.vars.outputs.cute_repo }}
           ref: ${{ steps.vars.outputs.cute_ref }}
@@ -305,7 +305,7 @@ jobs:
 
       - name: Set up AWS CLI credentials
         if: steps.cute_props.outputs.provider == 'aws'
-        uses: aws-actions/configure-aws-credentials@99214aa6889fcddfa57764031d71add364327e59 # v6.1.3
+        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
         with:
           role-to-assume: ${{ secrets.AWS_PR_CUTE_ASSUME_ROLE }}
           aws-region: ${{ steps.cute_props.outputs.region }}

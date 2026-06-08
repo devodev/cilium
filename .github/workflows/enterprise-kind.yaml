@@ -58,7 +58,7 @@ env:
   helm_chart_repo: oci://quay.io/isovalent-charts-dev/cilium
   kind_config: .github/kind-config-enterprise-dual.yaml
   # renovate: datasource=github-releases depName=yannh/kubeconform
-  kubeconform_version: v0.7.0
+  kubeconform_version: v0.8.0
 
 jobs:
   echo-inputs:
@@ -90,7 +90,7 @@ jobs:
           comment_on_pr: false
 
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           # checkout pull request head ref so that print-chart-version.sh prints the correct chart version.
           ref: ${{ github.event.pull_request.head.ref }}

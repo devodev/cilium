@@ -42,7 +42,7 @@ jobs:
           app_id: ${{ secrets.ISOVALENT_MIRROR_UPSTREAM_BOT_APP_ID }}
 
       - name: Checkout default branch (trusted)
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: true
@@ -52,7 +52,7 @@ jobs:
         uses: ./.github/actions/disk-cleanup
 
       - name: Checkout base branch (trusted)
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ github.base_ref }}
           persist-credentials: true
@@ -69,7 +69,7 @@ jobs:
         uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
 
       - name: Checkout pull request branch (NOT TRUSTED)
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: true
           ref: ${{ github.event.pull_request.head.sha }}
@@ -102,7 +102,7 @@ jobs:
       - name: Release enterprise-runtime-base
         if: ${{ steps.runtime-base-tag.outputs.exists == 'false' }}
         id: enterprise-runtime-base-release
-        uses: chainguard-images/actions/apko-publish@fd1c2dbd37bd78ce8dee6f142cedae81d04b254a # main
+        uses: chainguard-images/actions/apko-publish@d3e31d8149976e801966d39958e2d86ba952eee4 # main
         with:
           config: ./enterprise/images/wolfi/runtime-base/image.yaml
           tag: quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/cilium-runtime-base-wfi:${{  steps.runtime-base-tag.outputs.tag }}

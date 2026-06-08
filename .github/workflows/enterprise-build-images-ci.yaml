@@ -77,7 +77,7 @@ jobs:
       ubi-micro: ${{ steps.load.outputs.ubi-micro }}
     steps:
       - name: Checkout sources
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
 
@@ -92,7 +92,7 @@ jobs:
       version: ${{ steps.version.outputs.envoy_version }}
     steps:
       - name: Checkout sources
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
           fetch-depth: 0
@@ -101,7 +101,7 @@ jobs:
         id: version
         env:
           # renovate: datasource=docker depName=mikefarah/yq
-          yq_version: 4.53.2
+          yq_version: 4.53.3
         run: |
           repo_dir=$(git rev-parse --show-toplevel)
           envoy_version=$(docker run --rm -v "${repo_dir}/install/kubernetes/cilium/values.yaml":/workdir/values.yaml --user "$(id -u):$(id -g)" mikefarah/yq:${yq_version} e ".envoy.image.tag" /workdir/values.yaml)
@@ -265,7 +265,7 @@ jobs:
 
     steps:
       - name: Checkout pull request branch
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ inputs.SHA || github.sha }}
           persist-credentials: false

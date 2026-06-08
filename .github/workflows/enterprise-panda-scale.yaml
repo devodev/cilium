@@ -54,7 +54,7 @@ concurrency:
 
 env:
   # renovate: datasource=golang-version depName=go
-  go_version: 1.26.3
+  go_version: 1.26.4
   cilium_cli_ci_version:
   # Adding k8s.local to the end makes kops happy-
   # has stricter DNS naming requirements.
@@ -71,7 +71,7 @@ env:
   # 'server supports reverse-lookup on wildcard DNS SAN').
   domain: c.${{ secrets.GCP_PERF_PROJECT_ID }}.internal
   # renovate: datasource=docker depName=google/cloud-sdk
-  gcloud_version: 570.0.0
+  gcloud_version: 571.0.0
 
   # renovate: datasource=github-releases depName=cert-manager/cert-manager
   cert_manager_version: v1.20.2
@@ -103,7 +103,7 @@ jobs:
     timeout-minutes: 150
     steps:
       - name: Checkout context ref (trusted)
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ inputs.context-ref || github.sha }}
           persist-credentials: false
@@ -246,7 +246,7 @@ jobs:
           echo VERSION=${VERSION} >> $GITHUB_OUTPUT
 
       - name: Checkout pull request branch (NOT TRUSTED)
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ steps.vars.outputs.SHA }}
           persist-credentials: false
@@ -286,7 +286,7 @@ jobs:
           version: ${{ env.gcloud_version }}
 
       - name: Clone ClusterLoader2
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           repository: kubernetes/perf-tests
           # Avoid using renovate to update this dependency because: (1)
