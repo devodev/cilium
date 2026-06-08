@@ -26,7 +26,7 @@ org="${CL_ORG:-containers.isovalent.com}"
 suffix="${CL_SUFFIX:-}"
 
 # renovate: datasource=docker depName=mikefarah/yq
-yq_version=4.53.2
+yq_version=4.53.3
 # yq_get retrieves values of fields in values.yaml
 yq_get_result=""
 function yq_get {

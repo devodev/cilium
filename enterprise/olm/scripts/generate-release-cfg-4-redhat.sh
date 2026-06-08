@@ -23,7 +23,7 @@ echo "Red Hat certified operators repo: ${rh_repo}"
 root_dir=$(git rev-parse --show-toplevel)
 
 # renovate: datasource=docker depName=mikefarah/yq
-yq_version=4.53.2
+yq_version=4.53.3
 
 bundle_major=$(echo "$CL_TAG" | cut -d \. -f 1)
 bundle_major=${bundle_major#v}

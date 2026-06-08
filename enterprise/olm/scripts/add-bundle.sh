@@ -11,7 +11,7 @@ set -o pipefail
 set -o nounset
 
 # renovate: datasource=docker depName=mikefarah/yq
-yq_version=4.53.2
+yq_version=4.53.3
 # renovate: datasource=github-releases depName=operator-framework/operator-registry
 opm_version=v1.72.0
 
