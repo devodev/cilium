@@ -374,11 +374,13 @@ func (m *BGPResourceMapper) updateConflictingClusterConfigsCondition(config *v1.
 		Status:             meta_v1.ConditionFalse,
 		ObservedGeneration: config.Generation,
 		LastTransitionTime: meta_v1.Now(),
-		Reason:             "ConflictingClusterConfigs",
+		Message:            "",
+		Reason:             "ClusterConfigValidated",
 	}
 	if conflictingClusterConfigs.Len() != 0 {
 		cond.Status = meta_v1.ConditionTrue
 		cond.Message = fmt.Sprintf("Selecting the same node(s) with ClusterConfig(s): %v", sets.List(conflictingClusterConfigs))
+		cond.Reason = "ClusterConfigConflict"
 	}
 	return meta.SetStatusCondition(&config.Status.Conditions, cond)
 }
@@ -389,11 +391,13 @@ func (m *BGPResourceMapper) updateMissingPeerConfigsCondition(config *v1.Isovale
 		Status:             meta_v1.ConditionFalse,
 		ObservedGeneration: config.Generation,
 		LastTransitionTime: meta_v1.Now(),
-		Reason:             "MissingPeerConfigs",
+		Message:            "",
+		Reason:             "PeerConfigsResolved",
 	}
 	if len(missingPCs) != 0 {
 		cond.Status = meta_v1.ConditionTrue
 		cond.Message = fmt.Sprintf("Referenced IsovalentBGPPeerConfig(s) are missing: %v", missingPCs)
+		cond.Reason = "PeerConfigsMissing"
 	}
 	return meta.SetStatusCondition(&config.Status.Conditions, cond)
 }
@@ -404,11 +408,13 @@ func (m *BGPResourceMapper) updateNoMatchingNodeCondition(config *v1.IsovalentBG
 		Status:             meta_v1.ConditionTrue,
 		ObservedGeneration: config.Generation,
 		LastTransitionTime: meta_v1.Now(),
-		Reason:             "NoMatchingNode",
+		Reason:             "MatchingNodeUnavailable",
 		Message:            "No node matches spec.nodeSelector",
 	}
 	if !noMatchingNode {
 		cond.Status = meta_v1.ConditionFalse
+		cond.Message = ""
+		cond.Reason = "MatchingNodeSelected"
 	}
 	return meta.SetStatusCondition(&config.Status.Conditions, cond)
 }
@@ -419,11 +425,13 @@ func (m *BGPResourceMapper) updateMissingVRFsCondition(config *v1.IsovalentBGPCl
 		Status:             meta_v1.ConditionFalse,
 		ObservedGeneration: config.Generation,
 		LastTransitionTime: meta_v1.Now(),
-		Reason:             "MissingVRF",
+		Message:            "",
+		Reason:             "VRFResolved",
 	}
 	if len(missingVRFs) != 0 {
 		cond.Status = meta_v1.ConditionTrue
 		cond.Message = fmt.Sprintf("Referenced IsovalentVRF(s) are missing: %v", missingVRFs)
+		cond.Reason = "VRFMissing"
 	}
 	return meta.SetStatusCondition(&config.Status.Conditions, cond)
 }
@@ -434,11 +442,13 @@ func (m *BGPResourceMapper) updateMissingVRFConfigsCondition(config *v1.Isovalen
 		Status:             meta_v1.ConditionFalse,
 		ObservedGeneration: config.Generation,
 		LastTransitionTime: meta_v1.Now(),
-		Reason:             "MissingBGPVRFConfig",
+		Message:            "",
+		Reason:             "BGPVRFConfigResolved",
 	}
 	if len(missingVRFConfigs) != 0 {
 		cond.Status = meta_v1.ConditionTrue
 		cond.Message = fmt.Sprintf("Referenced IsovalentBGPVRFConfig(s) are missing: %v", missingVRFConfigs)
+		cond.Reason = "BGPVRFConfigMissing"
 	}
 	return meta.SetStatusCondition(&config.Status.Conditions, cond)
 }

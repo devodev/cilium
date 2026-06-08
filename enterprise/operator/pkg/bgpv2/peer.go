@@ -243,13 +243,13 @@ func (u *peerConfigStatusReconciler) cleanupStatus(ctx context.Context, health c
 func (u *peerConfigStatusReconciler) reconcilePeerConfig(ctx context.Context, config *v1.IsovalentBGPPeerConfig) error {
 	updateStatus := false
 
-	authSecretMissing := u.authSecretMissing(config)
-	bfdProfileMissing := u.bfdProfileMissing(config)
+	authSecretConfigured, authSecretMissing := u.authSecretMissing(config)
+	bfdProfileConfigured, bfdProfileMissing := u.bfdProfileMissing(config)
 
-	if changed := u.updateMissingAuthSecretCondition(config, authSecretMissing); changed {
+	if changed := u.updateMissingAuthSecretCondition(config, authSecretConfigured, authSecretMissing); changed {
 		updateStatus = true
 	}
-	if changed := u.updateMissingBFDProfileCondition(config, bfdProfileMissing); changed {
+	if changed := u.updateMissingBFDProfileCondition(config, bfdProfileConfigured, bfdProfileMissing); changed {
 		updateStatus = true
 	}
 
@@ -266,56 +266,70 @@ func (u *peerConfigStatusReconciler) reconcilePeerConfig(ctx context.Context, co
 	return nil
 }
 
-func (u *peerConfigStatusReconciler) authSecretMissing(c *v1.IsovalentBGPPeerConfig) bool {
+func (u *peerConfigStatusReconciler) authSecretMissing(c *v1.IsovalentBGPPeerConfig) (isConfigured bool, isMissing bool) {
 	if u.secretStore == nil || c.Spec.AuthSecretRef == nil {
-		return false
+		return false, false
 	}
 	if _, exists, _ := u.secretStore.GetByKey(resource.Key{Namespace: u.secretNamespace, Name: *c.Spec.AuthSecretRef}); !exists {
-		return true
+		return true, true
 	}
-	return false
+	return true, false
 }
 
-func (u *peerConfigStatusReconciler) updateMissingAuthSecretCondition(config *v1.IsovalentBGPPeerConfig, missing bool) bool {
+func (u *peerConfigStatusReconciler) updateMissingAuthSecretCondition(config *v1.IsovalentBGPPeerConfig, configured, missing bool) bool {
 	cond := meta_v1.Condition{
 		Type:               v1.BGPPeerConfigConditionMissingAuthSecret,
 		Status:             meta_v1.ConditionFalse,
 		ObservedGeneration: config.Generation,
 		LastTransitionTime: meta_v1.Now(),
-		Reason:             "MissingAuthSecret",
+		Message:            "",
+		Reason:             "AuthSecretValidated",
 	}
-	if missing {
+	if !configured {
+		cond.Status = meta_v1.ConditionFalse
+		cond.Message = "Auth Secret is not configured"
+		cond.Reason = "AuthSecretNotConfigured"
+	}
+	if missing && configured {
 		cond.Status = meta_v1.ConditionTrue
 		cond.Message = fmt.Sprintf("Referenced Auth Secret %q is missing", *config.Spec.AuthSecretRef)
+		cond.Reason = "AuthSecretMissing"
 	}
 	return meta.SetStatusCondition(&config.Status.Conditions, cond)
 }
 
-func (u *peerConfigStatusReconciler) bfdProfileMissing(c *v1.IsovalentBGPPeerConfig) bool {
+func (u *peerConfigStatusReconciler) bfdProfileMissing(c *v1.IsovalentBGPPeerConfig) (isConfigured bool, isMissing bool) {
 	if u.bfdProfileStore == nil {
 		// If BFD is disabled, always false.
-		return false
+		return false, false
 	}
 	if c.Spec.BFDProfileRef == nil {
-		return false
+		return false, false
 	}
 	if _, exists, _ := u.bfdProfileStore.GetByKey(resource.Key{Name: *c.Spec.BFDProfileRef}); !exists {
-		return true
+		return true, true
 	}
-	return false
+	return true, false
 }
 
-func (u *peerConfigStatusReconciler) updateMissingBFDProfileCondition(config *v1.IsovalentBGPPeerConfig, missing bool) bool {
+func (u *peerConfigStatusReconciler) updateMissingBFDProfileCondition(config *v1.IsovalentBGPPeerConfig, configured, missing bool) bool {
 	cond := meta_v1.Condition{
 		Type:               v1.BGPPeerConfigConditionMissingBFDProfile,
 		Status:             meta_v1.ConditionFalse,
 		ObservedGeneration: config.Generation,
 		LastTransitionTime: meta_v1.Now(),
-		Reason:             "MissingBFDProfile",
+		Message:            "",
+		Reason:             "BFDProfileValidated",
 	}
-	if missing {
+	if !configured {
+		cond.Status = meta_v1.ConditionFalse
+		cond.Message = "BFD Profile is not configured"
+		cond.Reason = "BFDProfileNotConfigured"
+	}
+	if missing && configured {
 		cond.Status = meta_v1.ConditionTrue
 		cond.Message = fmt.Sprintf("Referenced BFP Profile %q is missing", *config.Spec.BFDProfileRef)
+		cond.Reason = "BFDProfileMissing"
 	}
 	return meta.SetStatusCondition(&config.Status.Conditions, cond)
 }
