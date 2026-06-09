@@ -8,8 +8,6 @@
 // information or reproduction of this material is strictly forbidden unless
 // prior written permission is obtained from Isovalent Inc.
 
-//go:build enterprise_integrated_timescape_e2e
-
 package tests
 
 import (
@@ -49,13 +47,27 @@ import (
 	observerpb "github.com/cilium/cilium/api/v1/observer"
 )
 
+const enableIntegratedTimescapeE2E = "ENABLE_ENTERPRISE_INTEGRATED_TIMESCAPE_E2E"
+
+func requireIntegratedTimescapeE2E(t *testing.T) {
+	t.Helper()
+
+	if !strings.EqualFold(os.Getenv(enableIntegratedTimescapeE2E), "true") {
+		t.Skipf("skipping: set %s=true to run integrated Timescape e2e tests", enableIntegratedTimescapeE2E)
+	}
+}
+
+func hubbleObserveTLS() bool {
+	return strings.EqualFold(os.Getenv("TEST_HUBBLE_OBSERVE_TLS"), "true")
+}
+
 func hubbleObserve(t *testing.T, ctx context.Context, extraArgs ...string) string {
 	t.Helper()
 	args := append(
 		[]string{"observe", "-o", "json"},
 		extraArgs...,
 	)
-	if strings.ToLower(os.Getenv("TEST_HUBBLE_OBSERVE_TLS")) == "true" {
+	if hubbleObserveTLS() {
 		args = append(args, "--tls", "--tls-allow-insecure")
 	}
 	out, err := HubbleCLI(ctx, args...)
@@ -64,6 +76,8 @@ func hubbleObserve(t *testing.T, ctx context.Context, extraArgs ...string) strin
 }
 
 func TestHubbleObserve(t *testing.T) {
+	requireIntegratedTimescapeE2E(t)
+
 	ctx := context.Background()
 
 	out := hubbleObserve(t, ctx)
@@ -72,6 +86,8 @@ func TestHubbleObserve(t *testing.T) {
 }
 
 func TestPushFlows(t *testing.T) {
+	requireIntegratedTimescapeE2E(t)
+
 	now := time.Now()
 	ctx := context.Background()
 	// Generate some fake flow data to push to timescape
@@ -92,7 +108,7 @@ func TestPushFlows(t *testing.T) {
 	}}
 
 	pushURL := "http://localhost:4260/push"
-	if strings.ToLower(os.Getenv("TEST_HUBBLE_OBSERVE_TLS")) == "true" {
+	if hubbleObserveTLS() {
 		pushURL = "https://localhost:4260/push"
 	}
 
@@ -116,12 +132,14 @@ func TestPushFlows(t *testing.T) {
 }
 
 func TestIngestK8sEvents(t *testing.T) {
+	requireIntegratedTimescapeE2E(t)
+
 	ctx := context.Background()
 	now := time.Now()
 
 	var conn *grpc.ClientConn
 	var err error
-	if strings.ToLower(os.Getenv("TEST_HUBBLE_OBSERVE_TLS")) == "true" {
+	if hubbleObserveTLS() {
 		creds := credentials.NewTLS(&tls.Config{
 			InsecureSkipVerify: true, // #nosec G402
 		})
