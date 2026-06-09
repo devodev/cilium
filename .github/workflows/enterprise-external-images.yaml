@@ -58,7 +58,7 @@ jobs:
             echo "version=${version}" >> $GITHUB_OUTPUT
           fi
           # Don't rebuild if the image already exists
-          if  ${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}/${{ inputs.image-name }}:${version} && docker manifest inspect quay.io/isovalent-dev/${{ inputs.image-name }}:${version}; then
+          if docker manifest inspect ${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}/${{ inputs.image-name }}:${version} && docker manifest inspect quay.io/isovalent-dev/${{ inputs.image-name }}:${version}; then
             echo "Image already exist!"
             echo "rebuild=false" >> $GITHUB_OUTPUT
           else
