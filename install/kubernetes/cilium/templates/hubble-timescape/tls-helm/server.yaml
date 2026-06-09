@@ -17,7 +17,7 @@
   "localhost"
 -}}
 {{- if .Values.hubble.timescape.tls.server.extraDnsNames }}
-{{- $dns = append $dns .Values.hubble.timescape.tls.server.extraDnsNames }}
+{{- $dns = concat $dns .Values.hubble.timescape.tls.server.extraDnsNames }}
 {{- end }}
 {{- $cert := genSignedCert $cn $ip $dns (.Values.hubble.tls.auto.certValidityDuration | int) .commonCA -}}
 ---
