@@ -178,9 +178,10 @@ jobs:
 
       - name: Run tests - Hubble Relay
         run: |
-          go test -tags enterprise_hubble_rbac_e2e ./enterprise/test/hubble-rbac --count 1
+          go test ./enterprise/test/hubble-rbac --count 1
         shell: bash
         env:
+          ENABLE_ENTERPRISE_HUBBLE_RBAC_E2E: "true"
           HUBBLE_TLS: "true"
           HUBBLE_TLS_ALLOW_INSECURE: "true"
           HUBBLE_ISSUER: "http://dex.test"
@@ -199,9 +200,10 @@ jobs:
 
       - name: Run tests - Hubble Timescape
         run: |
-          go test -tags enterprise_hubble_rbac_e2e ./enterprise/test/hubble-rbac --count 1
+          go test ./enterprise/test/hubble-rbac --count 1
         shell: bash
         env:
+          ENABLE_ENTERPRISE_HUBBLE_RBAC_E2E: "true"
           HUBBLE_SERVER: localhost:4246
           HUBBLE_TLS: "true"
           HUBBLE_TLS_ALLOW_INSECURE: "true"
