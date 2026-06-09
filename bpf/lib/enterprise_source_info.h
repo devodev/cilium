@@ -15,6 +15,7 @@ __enterprise_id_for_file(const char *const header_name)
 
 	/* header files from bpf/lib/ */
 	_strcase_(220, "enterprise_evpn.h");
+	_strcase_(221, "enterprise_privnet.h");
 
 	/* @@ source files list end */
 

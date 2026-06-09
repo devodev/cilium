@@ -837,8 +837,12 @@ privnet_redirect_neigh_fib_ipv4(const struct privnet_fib_val *dip_val, __be32 da
 
 /* privnet_local_access_egress_ipv4() - redirect packet to the connected local
  * access interface, if specified in the given FIB map entry.
+ * @ctx: packet context
+ * @sec_label: source security identity
+ * @dst_sec_identity: destination security identity for trace notification
  * @dip_val: FIB map entry
  * @daddr: destination address extracted from the packet
+ * @trace: trace metadata for trace notification
  *
  * The packet is redirected using privnet_redirect_neigh_fib_ipv4().
  *
@@ -847,16 +851,26 @@ privnet_redirect_neigh_fib_ipv4(const struct privnet_fib_val *dip_val, __be32 da
  *         IP and the packet should be dropped.
  */
 static __always_inline int
-privnet_local_access_egress_ipv4(const struct privnet_fib_val *dip_val, __be32 daddr)
+privnet_local_access_egress_ipv4(struct __ctx_buff *ctx, __u32 sec_label,
+				 __u32 dst_sec_identity,
+				 const struct privnet_fib_val *dip_val, __be32 daddr,
+				 struct trace_ctx *trace)
 {
 	__u32 ifindex = dip_val->ifindex;
+	int ret;
 
-	if (CONFIG(privnet_local_access_enable) && ifindex != 0 &&
-	    (dip_val->type == PRIVNET_FIB_VAL_TYPE_STATIC_ROUTE ||
-	     dip_val->type == PRIVNET_FIB_VAL_TYPE_SUBNET_ROUTE))
-		return privnet_redirect_neigh_fib_ipv4(dip_val, daddr, ifindex);
+	if (!CONFIG(privnet_local_access_enable) || ifindex == 0 ||
+	    (dip_val->type != PRIVNET_FIB_VAL_TYPE_STATIC_ROUTE &&
+	     dip_val->type != PRIVNET_FIB_VAL_TYPE_SUBNET_ROUTE))
+		return CTX_ACT_OK;
 
-	return CTX_ACT_OK;
+	ret = privnet_redirect_neigh_fib_ipv4(dip_val, daddr, ifindex);
+	if (ret == CTX_ACT_REDIRECT && trace)
+		send_trace_notify(ctx, TRACE_TO_NETWORK, sec_label, dst_sec_identity,
+				  TRACE_EP_ID_UNKNOWN, ifindex, trace->reason,
+				  trace->monitor, bpf_htons(ETH_P_IP));
+
+	return ret;
 }
 
 static __always_inline int
@@ -1059,7 +1073,9 @@ static __always_inline int privnet_egress_ipv4(struct __ctx_buff *ctx,
 			if (ret != CTX_ACT_OK)
 				return ret;
 
-			ret = privnet_local_access_egress_ipv4(dip_val, ip4->daddr);
+			ret = privnet_local_access_egress_ipv4(ctx, sec_label,
+							       *dst_sec_identity, dip_val,
+							       ip4->daddr, trace);
 			if (IS_ERR(ret) || ret == CTX_ACT_REDIRECT)
 				return ret;
 
@@ -1264,16 +1280,26 @@ privnet_redirect_neigh_fib_ipv6(const struct privnet_fib_val *dip_val, const uni
 
 /* See comment for privnet_local_access_egress_ipv4() */
 static __always_inline int
-privnet_local_access_egress_ipv6(const struct privnet_fib_val *dip_val, const union v6addr *daddr)
+privnet_local_access_egress_ipv6(struct __ctx_buff *ctx, __u32 sec_label,
+				 __u32 dst_sec_identity,
+				 const struct privnet_fib_val *dip_val,
+				 const union v6addr *daddr, struct trace_ctx *trace)
 {
 	__u32 ifindex = dip_val->ifindex;
+	int ret;
 
-	if (CONFIG(privnet_local_access_enable) && ifindex != 0 &&
-	    (dip_val->type == PRIVNET_FIB_VAL_TYPE_STATIC_ROUTE ||
-	     dip_val->type == PRIVNET_FIB_VAL_TYPE_SUBNET_ROUTE))
-		return privnet_redirect_neigh_fib_ipv6(dip_val, daddr, ifindex);
+	if (!CONFIG(privnet_local_access_enable) || ifindex == 0 ||
+	    (dip_val->type != PRIVNET_FIB_VAL_TYPE_STATIC_ROUTE &&
+	     dip_val->type != PRIVNET_FIB_VAL_TYPE_SUBNET_ROUTE))
+		return CTX_ACT_OK;
 
-	return CTX_ACT_OK;
+	ret = privnet_redirect_neigh_fib_ipv6(dip_val, daddr, ifindex);
+	if (ret == CTX_ACT_REDIRECT && trace)
+		send_trace_notify(ctx, TRACE_TO_NETWORK, sec_label, dst_sec_identity,
+				  TRACE_EP_ID_UNKNOWN, ifindex, trace->reason,
+				  trace->monitor, bpf_htons(ETH_P_IPV6));
+
+	return ret;
 }
 
 static __always_inline int
@@ -1334,7 +1360,9 @@ static __always_inline int privnet_egress_ipv6(struct __ctx_buff *ctx,
 			if (ret != CTX_ACT_OK)
 				return ret;
 
-			ret = privnet_local_access_egress_ipv6(dip_val, &orig_dip);
+			ret = privnet_local_access_egress_ipv6(ctx, sec_label,
+							       *dst_sec_identity, dip_val,
+							       &orig_dip, trace);
 			if (IS_ERR(ret) || ret == CTX_ACT_REDIRECT)
 				return ret;
 

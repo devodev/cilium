@@ -23,6 +23,7 @@ func init() {
 
 		// header files from bpf/lib/
 		220: "enterprise_evpn.h",
+		221: "enterprise_privnet.h",
 
 		// @@ source files list end
 	}
