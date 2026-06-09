@@ -172,7 +172,7 @@ jobs:
         id: update-runtime-image
         shell: bash
         run: |
-          enterprise/images/runtime/update-runtime-image.sh ${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}/cilium-runtime-ubi:${{ steps.runtime-tag.outputs.tag }}
+          enterprise/images/runtime/update-runtime-image.sh cilium-runtime-ubi:${{ steps.runtime-tag.outputs.tag }}
           if git commit -sam "images: update cilium-runtime-ubi"; then
             echo "# Changes to this file trigger OpenShift CI." > enterprise/olm/cilium-runtime-version.txt
             echo "CILIUM_RUNTIME_UBI=${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}/cilium-runtime-ubi:${{ steps.runtime-tag.outputs.tag }}" >> enterprise/olm/cilium-runtime-version.txt
