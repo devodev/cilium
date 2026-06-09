@@ -20,8 +20,10 @@ import (
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/manager"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/manager/reconcilerv2"
 	"github.com/cilium/cilium/pkg/bgp/gobgp"
+	ossManager "github.com/cilium/cilium/pkg/bgp/manager"
 	"github.com/cilium/cilium/pkg/bgp/types"
 	"github.com/cilium/cilium/pkg/k8s"
+	"github.com/cilium/cilium/pkg/option"
 )
 
 // Cell is module with Enterprise BGP Control Plane components
@@ -70,5 +72,30 @@ var Cell = cell.Module(
 	cell.Invoke(
 		// Invoke enterprise bgp controller to trigger the constructor.
 		func(*agent.Controller) {},
+	),
+
+	// FIXME: Provide OSS RouterManager as stateNotifier. This is only
+	// needed for the OSS-CEE separation transition period.
+	cell.ProvidePrivate(
+		func(
+			dc *option.DaemonConfig,
+			config config.Config,
+			m agent.EnterpriseBGPRouterManager,
+		) reconcilerv2.StateChangeNotifier {
+			switch {
+			case dc.BGPControlPlaneEnabled():
+				// In OSS-only or OSS-CEE hybrid mode, the OSS
+				// RouterManager is provided as a
+				// EnterpriseBGPRouterManager.
+				return m.(*ossManager.BGPRouterManager)
+			case config.Enabled:
+				// In Enterprise-only mode, the enterprise
+				// RouterManager is provided as a
+				// EnterpriseBGPRouterManager.
+				return m.(*manager.BGPRouterManager)
+			default:
+				return nil
+			}
+		},
 	),
 )

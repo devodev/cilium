@@ -1134,4 +1134,17 @@ func (m *BGPRouterManager) GetRoutePoliciesExtended(ctx context.Context, instanc
 	return res, nil
 }
 
+func (m *BGPRouterManager) NotifyStateChange() {
+	m.Lock()
+	defer m.Unlock()
+
+	if !m.running {
+		return
+	}
+
+	for _, instance := range m.BGPInstances {
+		instance.NotifyStateChange()
+	}
+}
+
 var _ agent.EnterpriseBGPRouterManager = (*BGPRouterManager)(nil)

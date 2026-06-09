@@ -22,9 +22,11 @@ import (
 	evpnConfig "github.com/cilium/cilium/enterprise/pkg/evpn/config"
 	privnetConfig "github.com/cilium/cilium/enterprise/pkg/privnet/config"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/tables"
-	"github.com/cilium/cilium/pkg/bgp/agent"
-	"github.com/cilium/cilium/pkg/bgp/manager"
 )
+
+type StateChangeNotifier interface {
+	NotifyStateChange()
+}
 
 type privnetStatusNotifierIn struct {
 	cell.In
@@ -35,22 +37,14 @@ type privnetStatusNotifierIn struct {
 	EVPNConfig    evpnConfig.Config
 	PrivnetConfig privnetConfig.Config
 
-	JG            job.Group
-	DB            *statedb.DB
-	Table         statedb.Table[tables.PrivateNetwork]
-	RouterManager agent.BGPRouterManager
+	JG       job.Group
+	DB       *statedb.DB
+	Table    statedb.Table[tables.PrivateNetwork]
+	Notifier StateChangeNotifier
 }
 
 func registerPrivnetStatusNotifier(in privnetStatusNotifierIn) {
 	if !in.Config.Enabled || !in.EVPNConfig.Enabled || !in.PrivnetConfig.Enabled {
-		return
-	}
-
-	// This is needed for mindfullness. To avoid this dirty hack, we would
-	// need to modify OSS NewBGPRouterManager to return the concrete type.
-	rm, ok := in.RouterManager.(*manager.BGPRouterManager)
-	if !ok {
-		in.Logger.Error("Failed to cast RouterManager to concrete type")
 		return
 	}
 
@@ -81,11 +75,7 @@ func registerPrivnetStatusNotifier(in privnetStatusNotifierIn) {
 			}
 
 			if count > 0 {
-				rm.Lock()
-				for _, instance := range rm.BGPInstances {
-					instance.NotifyStateChange()
-				}
-				rm.Unlock()
+				in.Notifier.NotifyStateChange()
 				health.OK("Status change notified")
 			}
 
