@@ -19,6 +19,7 @@ import (
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/commands"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/manager"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/manager/reconcilerv2"
+	"github.com/cilium/cilium/enterprise/pkg/bgpv1/metrics"
 	"github.com/cilium/cilium/pkg/bgp/gobgp"
 	ossManager "github.com/cilium/cilium/pkg/bgp/manager"
 	"github.com/cilium/cilium/pkg/bgp/types"
@@ -72,6 +73,9 @@ var Cell = cell.Module(
 	cell.Invoke(
 		// Invoke enterprise bgp controller to trigger the constructor.
 		func(*agent.Controller) {},
+
+		// Register metrics collector
+		metrics.RegisterCollector,
 	),
 
 	// FIXME: Provide OSS RouterManager as stateNotifier. This is only
