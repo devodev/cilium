@@ -126,9 +126,9 @@ jobs:
             build_args: |
               PUSH=true
               # renovate: datasource=docker
-              RUNTIME_IMAGE=${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}/cilium-runtime-ubi:26e8752fc01feae8506352d33b9eb1bc2cad671f
+              RUNTIME_IMAGE=${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}/cilium-runtime-ubi:0292e7be011ab44aa3de2f8aa933161d5899a563
               # renovate: datasource=docker
-              UBI_IMAGE=${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}/cilium-runtime-ubi:26e8752fc01feae8506352d33b9eb1bc2cad671f
+              UBI_IMAGE=${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}/cilium-runtime-ubi:0292e7be011ab44aa3de2f8aa933161d5899a563
               CILIUM_ENVOY_IMAGE=quay.io/isovalent-dev/cilium-envoy-ubi:${{ needs.envoy-version.outputs.version }}
               OPERATOR_VARIANT=cilium-ubi
 
