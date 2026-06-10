@@ -24,6 +24,7 @@ import (
 
 	api "github.com/cilium/cilium/enterprise/pkg/privnet/grpc/api/v1"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/tables"
+	"github.com/cilium/cilium/enterprise/pkg/privnet/types"
 )
 
 func TestClientServer(t *testing.T) {
@@ -42,13 +43,13 @@ func TestClientServer(t *testing.T) {
 		_ = srv.Serve(lis)
 	}()
 
-	factory := func(_ context.Context, target tables.INBNode) (*grpc.ClientConn, error) {
-		return grpc.NewClient(target.APIAddress(), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	factory := func(_ context.Context, cluster tables.ClusterName, node tables.NodeName, addrPort netip.AddrPort) (*grpc.ClientConn, error) {
+		return grpc.NewClient(addrPort.String(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
 	stream, err := StartMigration(
 		t.Context(),
 		factory,
-		tables.INBNode{
+		types.Node{
 			Cluster: "default",
 			Name:    "worker-a",
 			IP:      netip.MustParseAddr("127.0.0.1"),

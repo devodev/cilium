@@ -103,7 +103,7 @@ func (r *grpcRelay) Relay(ctx context.Context, waitTime time.Duration, req *dhcp
 		return nil, fmt.Errorf("active INB not found for network %q", r.network)
 	}
 
-	conn, err := r.factory(ctx, inb.Node)
+	conn, err := r.factory(ctx, inb.Node.Cluster, inb.Node.Name, inb.Node.AddrPort())
 	if err != nil {
 		log.Info("Failed to dial INB for DHCP relay",
 			logfields.Target, inb.Node,

@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/netip"
 	"os"
 	"path"
 	"sync/atomic"
@@ -64,9 +65,9 @@ func (f ConnFactory) NewListener(inst Instance) (net.Listener, error) {
 }
 
 func (f ConnFactory) ClientConnFactory() grpcclient.ConnFactoryFn {
-	return func(_ context.Context, target tables.INBNode) (*grpc.ClientConn, error) {
+	return func(_ context.Context, cluster tables.ClusterName, node tables.NodeName, addrPort netip.AddrPort) (*grpc.ClientConn, error) {
 		return grpc.NewClient(
-			"unix://"+f.Path(Instance{Cluster: target.Cluster, Name: target.Name}),
+			"unix://"+f.Path(Instance{Cluster: cluster, Name: node}),
 			grpc.WithChainStreamInterceptor(f.interceptors.Stream()...),
 			grpc.WithTransportCredentials(insecure.NewCredentials()),
 			grpc.WithConnectParams(grpc.ConnectParams{

@@ -12,6 +12,7 @@ package client
 
 import (
 	"crypto/tls"
+	"fmt"
 	"net"
 	"net/netip"
 	"testing"
@@ -24,7 +25,6 @@ import (
 	grpc_health_v1 "google.golang.org/grpc/health/grpc_health_v1"
 
 	"github.com/cilium/cilium/enterprise/pkg/privnet/grpc/config"
-	"github.com/cilium/cilium/enterprise/pkg/privnet/tables"
 	privnettestutils "github.com/cilium/cilium/enterprise/pkg/privnet/testutils"
 	"github.com/cilium/cilium/pkg/crypto/certloader"
 	"github.com/cilium/cilium/pkg/promise"
@@ -86,11 +86,11 @@ func TestConnFactory(t *testing.T) {
 				TLSConfigPromise: config.ClientConfigPromise(tlsPromise),
 			})
 
-			conn, err := factory(t.Context(), tables.INBNode{
-				Cluster: "remote-cluster",
-				IP:      netip.MustParseAddr("127.0.0.1"),
-				APIPort: port,
-			})
+			conn, err := factory(t.Context(),
+				"remote-cluster",
+				"remote-node",
+				netip.MustParseAddrPort(fmt.Sprintf("127.0.0.1:%d", port)),
+			)
 			require.NoError(t, err)
 			t.Cleanup(func() { _ = conn.Close() })
 

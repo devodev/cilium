@@ -68,3 +68,7 @@ func NewNode(node types.Node, ipv6Underlay bool, defAPIPort uint16) *Node {
 func (no *Node) ValidAndSelectedBy(selector labels.Selector) bool {
 	return no.IP.IsValid() && !no.IP.IsUnspecified() && selector.Matches(no.labels)
 }
+
+func (no *Node) AddrPort() netip.AddrPort {
+	return netip.AddrPortFrom(no.IP, no.APIPort)
+}

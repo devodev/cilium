@@ -79,9 +79,10 @@ func TestGRPCRelay(t *testing.T) {
 				},
 			},
 		},
-		factory: func(_ context.Context, target tables.INBNode) (*grpc.ClientConn, error) {
-			require.Equal(t, "local/inb-0", target.String())
-			require.Equal(t, uint16(4242), target.APIPort)
+		factory: func(_ context.Context, cluster tables.ClusterName, node tables.NodeName, addrPort netip.AddrPort) (*grpc.ClientConn, error) {
+			require.Equal(t, "local", string(cluster))
+			require.Equal(t, "inb-0", string(node))
+			require.Equal(t, uint16(4242), addrPort.Port())
 			return grpc.NewClient(
 				"passthrough:///bufnet",
 				grpc.WithTransportCredentials(insecure.NewCredentials()),

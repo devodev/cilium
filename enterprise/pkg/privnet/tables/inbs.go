@@ -122,7 +122,12 @@ func (node INBNode) String() string {
 
 // APIAddress returns the address to connect to the INB API server.
 func (node INBNode) APIAddress() string {
-	return netip.AddrPortFrom(node.IP, node.APIPort).String()
+	return node.AddrPort().String()
+}
+
+// AddrPort returns the address and port of the INB API server.
+func (node INBNode) AddrPort() netip.AddrPort {
+	return netip.AddrPortFrom(node.IP, node.APIPort)
 }
 
 // INBState represents the health state of an INB for a given private network.
