@@ -20,6 +20,7 @@ packages=(
   glibc
   findutils
   libstdc++
+  libatomic # required by cilium-envoy
 )
 
 # tzdata is one of the dependencies and a timezone must be set
