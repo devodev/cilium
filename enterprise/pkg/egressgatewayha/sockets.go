@@ -143,11 +143,16 @@ func (m *socketsManager) closeSockets(toClose sets.Set[tuple.TupleKey4]) (socket
 					logfields.SourcePort, sock.ID.SourcePort,
 					logfields.DstIP, sock.ID.Destination,
 					logfields.DstPort, sock.ID.DestinationPort,
+					logfields.Family, sock.Family,
 				)
 				sourceAddr := toAddr4(sock.ID.Source)
 				destAddr := toAddr4(sock.ID.Destination)
 				if sourceAddr == nil || destAddr == nil {
-					logger.Warn("unexpected nil address in socket data (will skip)")
+					if sock.Family == unix.AF_INET {
+						logger.Warn("unexpected nil address in socket data (will skip)")
+					} else {
+						logger.Debug("skipping socket (not v4-in-v6)")
+					}
 					return nil
 				}
 
@@ -181,7 +186,14 @@ func (m *socketsManager) closeSockets(toClose sets.Set[tuple.TupleKey4]) (socket
 			}
 
 			nsFile.Do(func() error {
-				sockets.Iterate(proto, unix.AF_INET, stateFilter, destroySocket)
+				families := []uint8{unix.AF_INET, unix.AF_INET6}
+
+				for _, family := range families {
+					logger.Debug("iterating over sockets",
+						logfields.Family, family)
+
+					sockets.Iterate(proto, family, stateFilter, destroySocket)
+				}
 				return nil
 			})
 		}
