@@ -152,9 +152,9 @@ func (m *socketsManager) closeSockets(toClose sets.Set[tuple.TupleKey4]) (socket
 				}
 
 				if _, ok := toClose[tuple.TupleKey4{
-					SourceAddr: ciliumTypes.IPv4(sock.ID.Source.To4()[:]),
+					SourceAddr: ciliumTypes.IPv4(sourceAddr.AsSlice()),
 					SourcePort: sock.ID.SourcePort,
-					DestAddr:   ciliumTypes.IPv4(sock.ID.Destination.To4()[:]),
+					DestAddr:   ciliumTypes.IPv4(destAddr.AsSlice()),
 					DestPort:   sock.ID.DestinationPort,
 					NextHeader: u8p,
 				}]; !ok {
