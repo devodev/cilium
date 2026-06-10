@@ -81,6 +81,10 @@ type NodeAttachment struct {
 	// Interface is the network interface.
 	Interface NodeAttachmentInterface
 
+	// ParentInterface is the parent network interface for Cilium-managed
+	// devices.
+	ParentInterface NodeAttachmentInterface
+
 	// Type is device origin type (user defined or managed by Cilium).
 	Type DeviceType
 
@@ -120,13 +124,19 @@ func (a *NodeAttachment) Key() NodeAttachmentPrimaryKey {
 }
 
 func (a *NodeAttachment) TableHeader() []string {
-	return []string{"Origin", "Interface", "Type", "Config", "NodeSelected", "Network", "Subnets", "Conflict", "Status"}
+	return []string{"Origin", "Interface", "ParentInterface", "Type", "Config", "NodeSelected", "Network", "Subnets", "Conflict", "Status"}
 }
 
 func (a *NodeAttachment) TableRow() []string {
+	parentInterface := "N/A"
+	if a.ParentInterface.Name != "" {
+		parentInterface = a.ParentInterface.String()
+	}
+
 	return []string{
 		a.Resource.String(),
 		a.Interface.String(),
+		parentInterface,
 		string(a.Type),
 		cmp.Or(a.Config.String(), "N/A"),
 		strconv.FormatBool(a.NodeSelector.SelectorMatches),

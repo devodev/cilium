@@ -235,6 +235,7 @@ func (na *nodeAttachments) registerK8sReflector(sync promise.Promise[synced.CRDS
 						VLANID:              *attachmentObj.VlanID,
 					}
 					attachment.Interface = na.newNodeAttachmentInterface(txn, attachment.Config.GetDeviceName())
+					attachment.ParentInterface = na.newNodeAttachmentInterface(txn, attachment.Config.ParentInterfaceName)
 				}
 
 				desired[attachment.Key()] = attachment

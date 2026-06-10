@@ -213,37 +213,37 @@ united-firefly   subnet-1   0x1   192.168.1.0/24   fd10:0:1::/64   N/A
 united-firefly   subnet-2   0x2   192.168.2.0/24   fd10:0:2::/64   N/A
 
 -- node-attachments.v0.table --
-Interface   Type           NodeSelected   Network          Subnets
-eth3 (13)   user-managed   true           united-firefly   <all-subnets>
+Interface   ParentInterface Type           NodeSelected   Network          Subnets
+eth3 (13)   N/A             user-managed   true           united-firefly   <all-subnets>
 
 -- node-attachments.v1.table --
-Interface   Type           NodeSelected   Network          Subnets
-eth1 (11)   user-managed   true           direct-maggot    subnet-1
-eth2 (12)   user-managed   true           direct-maggot    subnet-2
-eth3 (13)   user-managed   true           united-firefly   <all-subnets>
+Interface   ParentInterface Type           NodeSelected   Network          Subnets
+eth1 (11)   N/A             user-managed   true           direct-maggot    subnet-1
+eth2 (12)   N/A             user-managed   true           direct-maggot    subnet-2
+eth3 (13)   N/A             user-managed   true           united-firefly   <all-subnets>
 
 -- node-attachments.v2.table --
-Interface   Type           NodeSelected   Network          Subnets
-eth1 (11)   user-managed   true           direct-maggot    subnet-1
-eth2 (12)   user-managed   true           direct-maggot    subnet-2
-eth4 (!)    user-managed   true           united-firefly   <all-subnets>
+Interface   ParentInterface Type           NodeSelected   Network          Subnets
+eth1 (11)   N/A             user-managed   true           direct-maggot    subnet-1
+eth2 (12)   N/A             user-managed   true           direct-maggot    subnet-2
+eth4 (!)    N/A             user-managed   true           united-firefly   <all-subnets>
 
 -- node-attachments.v3.table --
-Interface   Type           NodeSelected   Network          Subnets
-eth1 (11)   user-managed   true           direct-maggot    subnet-1
-eth2 (12)   user-managed   true           direct-maggot    subnet-2
-eth4 (14)   user-managed   true           united-firefly   <all-subnets>
+Interface   ParentInterface Type           NodeSelected   Network          Subnets
+eth1 (11)   N/A             user-managed   true           direct-maggot    subnet-1
+eth2 (12)   N/A             user-managed   true           direct-maggot    subnet-2
+eth4 (14)   N/A             user-managed   true           united-firefly   <all-subnets>
 
 -- node-attachments.v4.table --
-Interface   Type           NodeSelected   Network          Subnets
-eth1 (11)   user-managed   true           direct-maggot    subnet-1
-eth2 (12)   user-managed   true           direct-maggot    subnet-3
-eth4 (14)   user-managed   true           united-firefly   <all-subnets>
+Interface   ParentInterface Type           NodeSelected   Network          Subnets
+eth1 (11)   N/A             user-managed   true           direct-maggot    subnet-1
+eth2 (12)   N/A             user-managed   true           direct-maggot    subnet-3
+eth4 (14)   N/A             user-managed   true           united-firefly   <all-subnets>
 
 -- node-attachments.v5.table --
-Interface   Type           NodeSelected   Network          Subnets
-eth4 (14)   user-managed   true           united-firefly   <all-subnets>
+Interface   ParentInterface Type           NodeSelected   Network          Subnets
+eth4 (14)   N/A             user-managed   true           united-firefly   <all-subnets>
 
 -- node-attachments.v6.table --
-Interface   Type           NodeSelected   Network          Subnets
-eth4 (14)   user-managed   true           direct-maggot    <all-subnets>
+Interface   ParentInterface Type           NodeSelected   Network          Subnets
+eth4 (14)   N/A             user-managed   true           direct-maggot    <all-subnets>
