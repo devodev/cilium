@@ -12,6 +12,9 @@
 {{- end -}}
 {{- $strictFeatureGates := .enterprise.featureGate.strict -}}
 {{- $fails := false -}}
+{{- if (and (eq "true" (print .encryption.nodeEncryption)) (eq "wireguard" (print .encryption.type)) ) -}}
+  {{- fail "\nUnsupported feature: EncryptionWireguardNodeToNode cannot be enabled. Please contact Isovalent Support for more information." -}}
+{{- end -}}
 {{- if (eq "true" (print .enterprise.bfd.enabled))  -}}
   {{- if (and (gt (get $featureMaturityLevels "Limited") $minimumMaturityOrder) (not (has "BFD" .enterprise.featureGate.approved))) -}}
     {{- if $strictFeatureGates -}}
@@ -239,16 +242,6 @@ WARNING: A Limited feature EncryptionIPSec was enabled, but it is not an approve
     {{- else -}}
       {{ $fails = true }}
 WARNING: A Limited feature EncryptionPolicy was enabled, but it is not an approved feature.
-    {{- end -}}
-  {{- end -}}
-{{- end -}}
-{{- if (and (eq "true" (print .encryption.nodeEncryption)) (eq "wireguard" (print .encryption.type)) ) -}}
-  {{- if (and (gt (get $featureMaturityLevels "Beta") $minimumMaturityOrder) (not (has "EncryptionWireguardNodeToNode" .enterprise.featureGate.approved))) -}}
-    {{- if $strictFeatureGates -}}
-      {{- fail "\nBeta feature: EncryptionWireguardNodeToNode was enabled, but is not an approved feature. Please contact Isovalent Support for more information on how to grant an exception." -}}
-    {{- else -}}
-      {{ $fails = true }}
-WARNING: A Beta feature EncryptionWireguardNodeToNode was enabled, but it is not an approved feature.
     {{- end -}}
   {{- end -}}
 {{- end -}}

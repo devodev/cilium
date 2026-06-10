@@ -251,4 +251,6 @@ runs:
       run: |
         SKIP=false
 
+        [ "${{ inputs.encryption-node }}" == "true" ] && SKIP=true # enterprise does not support node-to-node encryption
+
         echo "skip=${SKIP}" >> "$GITHUB_OUTPUT"

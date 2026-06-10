@@ -452,7 +452,9 @@ features:
       encryption.type: wireguard
 
   EncryptionWireguardNodeToNode:
-    maturity: Beta
+    # NOTE: when moving away from Unsupported, remove the limitation added in
+    # the cilium-config GH action to start testing this feature again.
+    maturity: Unsupported
     description: |
       Transparent Wireguard encryption for node-to-node traffic
     flags:
