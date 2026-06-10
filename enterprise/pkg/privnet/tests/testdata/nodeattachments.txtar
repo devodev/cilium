@@ -45,35 +45,49 @@ k8s/update pnna-specific-node.yaml
 db/cmp privnet-node-attachments node-attachments.v3.table
 db/cmp test-privnet-desired-devices desired-devices.v3.table
 
+# parent device index changes should retrigger managed attachment operations
+db/delete devices device.eth1.yaml
+replace 'index: 10' 'index: 11' device.eth1.yaml
+db/insert devices device.eth1.yaml
+db/cmp privnet-node-attachments node-attachments.v4.table
+db/cmp test-privnet-desired-devices desired-devices.v4.table
+
+# restore the parent device index for the remaining test cases
+db/delete devices device.eth1.yaml
+replace 'index: 11' 'index: 10' device.eth1.yaml
+db/insert devices device.eth1.yaml
+db/cmp privnet-node-attachments node-attachments.v3.table
+db/cmp test-privnet-desired-devices desired-devices.v3.table
+
 # add conflicting attachment
 k8s/add pnna-conflict.yaml
-db/cmp privnet-node-attachments node-attachments.v4.table
+db/cmp privnet-node-attachments node-attachments.v5.table
 * db/empty test-privnet-desired-devices
 
 # fix the conflict
 replace 'vlanID: 10' 'vlanID: 20' pnna-conflict.yaml
 k8s/update pnna-conflict.yaml
-db/cmp privnet-node-attachments node-attachments.v5.table
-db/cmp test-privnet-desired-devices desired-devices.v5.table
+db/cmp privnet-node-attachments node-attachments.v6.table
+db/cmp test-privnet-desired-devices desired-devices.v6.table
 
 # modify local node label, break it to no longer match
 db/get local-node --index local true -f yaml -o local-node.yaml
 replace 'node: node1' 'node: mismatch' local-node.yaml
 db/insert local-node local-node.yaml
-db/cmp privnet-node-attachments node-attachments.v6.table
+db/cmp privnet-node-attachments node-attachments.v7.table
 * db/empty test-privnet-desired-devices
 
 # modify local node label, fix it to match again
 db/get local-node --index local true -f yaml -o local-node.yaml
 replace 'node: mismatch' 'node: node1' local-node.yaml
 db/insert local-node local-node.yaml
-db/cmp privnet-node-attachments node-attachments.v5.table
-db/cmp test-privnet-desired-devices desired-devices.v5.table
+db/cmp privnet-node-attachments node-attachments.v6.table
+db/cmp test-privnet-desired-devices desired-devices.v6.table
 
 # add a single node attachment CR with two attachments on the same interface
 k8s/add pnna-same-interface.yaml
-db/cmp privnet-node-attachments node-attachments.v7.table
-db/cmp test-privnet-desired-devices desired-devices.v7.table
+db/cmp privnet-node-attachments node-attachments.v8.table
+db/cmp test-privnet-desired-devices desired-devices.v8.table
 
 # change the network targeted by a node attachment, while updating one of the VLAN
 # IDs, to trigger a visible change in the desired devices table.
@@ -82,27 +96,27 @@ replace 'name: network-4' 'name: network-5' pnna-same-interface.v2.yaml
 replace '200' '201' pnna-same-interface.v2.yaml
 k8s/update pnna-same-interface.v2.yaml
 
-db/cmp privnet-node-attachments node-attachments.v8.table
-db/cmp test-privnet-desired-devices desired-devices.v8.table
+db/cmp privnet-node-attachments node-attachments.v9.table
+db/cmp test-privnet-desired-devices desired-devices.v9.table
 
 k8s/delete pnna-same-interface.v2.yaml
 
 # Two node attachments sharing the same interface, both selected via node selector.
 # Should show a conflict.
 k8s/add pnna-conflict-a.yaml pnna-conflict-b.yaml
-db/cmp privnet-node-attachments node-attachments.v9.table
+db/cmp privnet-node-attachments node-attachments.v10.table
 
 # Change the node label so neither is selected. The conflict should clear.
 db/get local-node --index local true -f yaml -o local-node.yaml
 replace 'node: node1' 'node: mismatch' local-node.yaml
 db/insert local-node local-node.yaml
-db/cmp privnet-node-attachments node-attachments.v10.table
+db/cmp privnet-node-attachments node-attachments.v11.table
 
 # Restore the label so both are selected again and the conflict re-appears.
 db/get local-node --index local true -f yaml -o local-node.yaml
 replace 'node: mismatch' 'node: node1' local-node.yaml
 db/insert local-node local-node.yaml
-db/cmp privnet-node-attachments node-attachments.v9.table
+db/cmp privnet-node-attachments node-attachments.v10.table
 
 k8s/delete pnna-conflict-a.yaml pnna-conflict-b.yaml
 
@@ -211,28 +225,37 @@ privnet-node-attachments eth1.10     Type=vlan, ParentDevice=eth1 (10), VLAN=10
 
 -- node-attachments.v4.table --
 Interface   ParentInterface Type              Config                  NodeSelected     Network     Subnets  Conflict
+eth1 (11)   N/A             user-managed      N/A                     true             network-1   subnet-1 none
+eth1.10 (!) eth1 (11)       cilium-managed    parent: eth1, VLAN: 10  true             network-2   subnet-2 none
+
+-- desired-devices.v4.table --
+Owner                    Name        Properties
+privnet-node-attachments eth1.10     Type=vlan, ParentDevice=eth1 (11), VLAN=10
+
+-- node-attachments.v5.table --
+Interface   ParentInterface Type              Config                  NodeSelected     Network     Subnets  Conflict
 eth1 (10)   N/A             user-managed      N/A                     true             network-1   subnet-1 none
 eth1.10 (!) eth1 (10)       cilium-managed    parent: eth1, VLAN: 10  true             network-2   subnet-2 device-overlap
 eth1.10 (!) eth1 (10)       cilium-managed    parent: eth1, VLAN: 10  true             network-3   subnet-2 device-overlap
 
--- node-attachments.v5.table --
+-- node-attachments.v6.table --
 Interface   ParentInterface Type              Config                  NodeSelected     Network     Subnets  Conflict
 eth1 (10)   N/A             user-managed      N/A                     true             network-1   subnet-1 none
 eth1.10 (!) eth1 (10)       cilium-managed    parent: eth1, VLAN: 10  true             network-2   subnet-2 none
 eth1.20 (!) eth1 (10)       cilium-managed    parent: eth1, VLAN: 20  true             network-3   subnet-2 none
 
--- desired-devices.v5.table --
+-- desired-devices.v6.table --
 Owner                    Name        Properties
 privnet-node-attachments eth1.10     Type=vlan, ParentDevice=eth1 (10), VLAN=10
 privnet-node-attachments eth1.20     Type=vlan, ParentDevice=eth1 (10), VLAN=20
 
--- node-attachments.v6.table --
+-- node-attachments.v7.table --
 Interface   ParentInterface Type              Config                  NodeSelected      Network     Subnets  Conflict
 eth1 (10)   N/A             user-managed      N/A                     true              network-1   subnet-1 none
 eth1.10 (!) eth1 (10)       cilium-managed    parent: eth1, VLAN: 10  false             network-2   subnet-2 none
 eth1.20 (!) eth1 (10)       cilium-managed    parent: eth1, VLAN: 20  false             network-3   subnet-2 none
 
--- node-attachments.v7.table --
+-- node-attachments.v8.table --
 Interface    ParentInterface Type              Config                  NodeSelected     Network     Subnets  Conflict
 eth1 (10)    N/A             user-managed      N/A                     true             network-1   subnet-1 none
 eth1.10 (!)  eth1 (10)       cilium-managed    parent: eth1, VLAN: 10  true             network-2   subnet-2 none
@@ -240,14 +263,14 @@ eth1.20 (!)  eth1 (10)       cilium-managed    parent: eth1, VLAN: 20  true     
 eth2.100 (!) eth2 (20)       cilium-managed    parent: eth2, VLAN: 100 true             network-4   subnet-1 none
 eth2.200 (!) eth2 (20)       cilium-managed    parent: eth2, VLAN: 200 true             network-4   subnet-2 none
 
--- desired-devices.v7.table --
+-- desired-devices.v8.table --
 Owner                    Name        Properties
 privnet-node-attachments eth1.10     Type=vlan, ParentDevice=eth1 (10), VLAN=10
 privnet-node-attachments eth1.20     Type=vlan, ParentDevice=eth1 (10), VLAN=20
 privnet-node-attachments eth2.100    Type=vlan, ParentDevice=eth2 (20), VLAN=100
 privnet-node-attachments eth2.200    Type=vlan, ParentDevice=eth2 (20), VLAN=200
 
--- node-attachments.v8.table --
+-- node-attachments.v9.table --
 Interface    ParentInterface Type              Config                  NodeSelected     Network     Subnets  Conflict
 eth1 (10)    N/A             user-managed      N/A                     true             network-1   subnet-1 none
 eth1.10 (!)  eth1 (10)       cilium-managed    parent: eth1, VLAN: 10  true             network-2   subnet-2 none
@@ -255,7 +278,7 @@ eth1.20 (!)  eth1 (10)       cilium-managed    parent: eth1, VLAN: 20  true     
 eth2.100 (!) eth2 (20)       cilium-managed    parent: eth2, VLAN: 100 true             network-5   subnet-1 none
 eth2.201 (!) eth2 (20)       cilium-managed    parent: eth2, VLAN: 201 true             network-5   subnet-2 none
 
--- desired-devices.v8.table --
+-- desired-devices.v9.table --
 Owner                    Name        Properties
 privnet-node-attachments eth1.10     Type=vlan, ParentDevice=eth1 (10), VLAN=10
 privnet-node-attachments eth1.20     Type=vlan, ParentDevice=eth1 (10), VLAN=20
@@ -296,7 +319,7 @@ spec:
       subnetRefs:
         - name: subnet-1
 
--- node-attachments.v9.table --
+-- node-attachments.v10.table --
 Interface    ParentInterface Type              Config                  NodeSelected     Network     Subnets  Conflict
 eth1.30 (!)  eth1 (10)       cilium-managed    parent: eth1, VLAN: 30  true             network-6   subnet-1 device-overlap
 eth1.30 (!)  eth1 (10)       cilium-managed    parent: eth1, VLAN: 30  true             network-7   subnet-1 device-overlap
@@ -304,7 +327,7 @@ eth1 (10)    N/A             user-managed      N/A                     true     
 eth1.10 (!)  eth1 (10)       cilium-managed    parent: eth1, VLAN: 10  true             network-2   subnet-2 none
 eth1.20 (!)  eth1 (10)       cilium-managed    parent: eth1, VLAN: 20  true             network-3   subnet-2 none
 
--- node-attachments.v10.table --
+-- node-attachments.v11.table --
 Interface    ParentInterface Type              Config                  NodeSelected      Network     Subnets  Conflict
 eth1.30 (!)  eth1 (10)       cilium-managed    parent: eth1, VLAN: 30  false             network-6   subnet-1 none
 eth1.30 (!)  eth1 (10)       cilium-managed    parent: eth1, VLAN: 30  false             network-7   subnet-1 none

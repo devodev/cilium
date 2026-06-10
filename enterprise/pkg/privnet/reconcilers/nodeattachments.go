@@ -123,7 +123,6 @@ func newNodeAttachments(in struct {
 func (na *nodeAttachments) registerReconciler(
 	cfg config.Config,
 	params reconciler.Params,
-	devices statedb.Table[*dptables.Device],
 ) error {
 	if !cfg.IsLocallyConnected() {
 		return nil
@@ -137,7 +136,6 @@ func (na *nodeAttachments) registerReconciler(
 		(*tables.NodeAttachment).GetDeviceCreationStatus,
 		&nodeAttachmentOps{
 			log:               na.log,
-			devices:           devices,
 			deviceOwner:       na.desiredDevManager.GetOrRegisterOwner("privnet-node-attachments"),
 			desiredDevManager: na.desiredDevManager,
 		},
@@ -543,9 +541,16 @@ func (na *nodeAttachments) registerDeviceIndexReconciler() {
 
 				for attachment := range na.tbl.All(wtx) {
 					iface := na.newNodeAttachmentInterface(wtx, attachment.Interface.Name)
-					if attachment.Interface != iface {
+					parentIface := attachment.ParentInterface
+					if attachment.Type == tables.DeviceTypeCiliumManaged {
+						parentIface = na.newNodeAttachmentInterface(wtx, attachment.Config.ParentInterfaceName)
+					}
+
+					if attachment.Interface != iface || attachment.ParentInterface != parentIface {
 						cpy := attachment.Clone()
 						cpy.Interface = iface
+						cpy.ParentInterface = parentIface
+						cpy.OpsStatus = reconciler.StatusPending()
 						na.tbl.Insert(wtx, cpy)
 					}
 				}
@@ -570,7 +575,6 @@ var _ reconciler.Operations[*tables.NodeAttachment] = &nodeAttachmentOps{}
 type nodeAttachmentOps struct {
 	log *slog.Logger
 
-	devices           statedb.Table[*dptables.Device]
 	deviceOwner       device.DeviceOwner
 	desiredDevManager device.ManagerOperations
 }
@@ -580,23 +584,20 @@ func (ops *nodeAttachmentOps) Update(ctx context.Context, txn statedb.ReadTxn, r
 		return ops.Delete(ctx, txn, rev, obj)
 	}
 
-	// check if parent interface exists
 	if obj.Config.ParentInterfaceName == "" {
 		return fmt.Errorf("parent interface name not specified")
 	}
-
-	// TODO: hardening required.
-	// There are couple of cases where reconciliation need to be retriggered, for eg, parent device might be down at the time
-	// of this processing or parent device idx changes (due to device removal/addition).
-	parentDevice, _, exists := ops.devices.Get(txn, dptables.DeviceNameIndex.Query(string(obj.Config.ParentInterfaceName)))
-	if !exists || parentDevice.Index == 0 {
-		return fmt.Errorf("%q not found", obj.Config.ParentInterfaceName)
+	if obj.ParentInterface.Index == 0 {
+		if obj.ParentInterface.Error != "" {
+			return fmt.Errorf("%s", obj.ParentInterface.Error)
+		}
+		return fmt.Errorf("parent interface %q not found", obj.Config.ParentInterfaceName)
 	}
 
 	desiredDevice := device.DesiredDevice{
 		Owner:      ops.deviceOwner,
 		Name:       string(obj.Interface.Name),
-		DeviceSpec: newDesiredVLANDeviceSpec(obj, parentDevice.Index),
+		DeviceSpec: newDesiredVLANDeviceSpec(obj, obj.ParentInterface.Index),
 	}
 
 	err := ops.desiredDevManager.UpsertDevice(desiredDevice)
