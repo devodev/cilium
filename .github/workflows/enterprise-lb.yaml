@@ -57,6 +57,7 @@ concurrency:
 
 env:
   cilium_cli_ci_version:
+  image_pull_secret_name: isovalent-registry
 
 jobs:
   echo-inputs:
@@ -395,13 +396,33 @@ jobs:
           ip=$(docker inspect '--format={{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' testing-host)
           echo ip=${ip} >> $GITHUB_OUTPUT
 
+      - name: Login to Artifactory
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        with:
+          registry: ${{ env.ARTIFACTORY_DEV }}
+          username: ${{ vars.ARTIFACTORY_USERNAME }}
+          password: ${{ secrets.ARTIFACTORY_PASSWORD }}
+
       - name: Wait for images to be available
         timeout-minutes: 30
         shell: bash
         run: |
           for image in cilium-ci operator-generic-ci hubble-relay-ci ; do
-            until docker manifest inspect quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/$image:${{ steps.vars.outputs.sha }} &> /dev/null; do sleep 45s; done
+            until docker manifest inspect ${{ env.ARTIFACTORY_DEV }}/${{ env.ARTIFACTORY_ORGANIZATION_DEV }}/$image:${{ steps.vars.outputs.sha }} &> /dev/null; do sleep 45s; done
           done
+          echo "images available"
+
+      - name: Configure artifactory pull secret
+        run: |
+          ARTIFACTORY_AUTH=$(echo -n "${{ vars.ARTIFACTORY_USERNAME }}:${{ secrets.ARTIFACTORY_PASSWORD }}" | base64 -w0)
+          jq -n \
+            --arg auth "$ARTIFACTORY_AUTH" \
+            --arg registry "${{ env.ARTIFACTORY_DEV }}" \
+            '{ auths: { ($registry): { auth: $auth } } }' > .pullsecret.json
+
+          kubectl -n kube-system create secret generic ${{ env.image_pull_secret_name }} \
+                  --from-file=.dockerconfigjson=.pullsecret.json \
+                  --type=kubernetes.io/dockerconfigjson
 
       - name: Install Isovalent LB
         shell: bash
@@ -461,14 +482,15 @@ jobs:
 
           cilium install \
              --wait --chart-directory=./install/kubernetes/cilium \
-             --helm-set=image.repository=quay.io/isovalent-dev/cilium-ci \
+             --helm-set='imagePullSecrets[0].name=${{ env.image_pull_secret_name }}' \
+             --helm-set=image.repository=${{ env.ARTIFACTORY_DEV }}/${{ env.ARTIFACTORY_ORGANIZATION_DEV }}/cilium-ci \
              --helm-set=image.useDigest=false \
              --helm-set=image.tag=${{ steps.vars.outputs.sha }} \
-             --helm-set=operator.image.repository=quay.io/isovalent-dev/operator \
+             --helm-set=operator.image.repository=${{ env.ARTIFACTORY_DEV }}/${{ env.ARTIFACTORY_ORGANIZATION_DEV }}/operator \
              --helm-set=operator.image.suffix=-ci \
              --helm-set=operator.image.tag=${{ steps.vars.outputs.sha }} \
              --helm-set=operator.image.useDigest=false \
-             --helm-set=hubble.relay.image.repository=quay.io/isovalent-dev/hubble-relay-ci \
+             --helm-set=hubble.relay.image.repository=${{ env.ARTIFACTORY_DEV }}/${{ env.ARTIFACTORY_ORGANIZATION_DEV }}/hubble-relay-ci \
              --helm-set=hubble.relay.image.tag=${{ steps.vars.outputs.sha }} \
              --helm-set=hubble.relay.image.useDigest=false \
              --helm-set=enterprise.loadbalancer.enabled=true \
@@ -479,7 +501,7 @@ jobs:
              --helm-set=enterprise.featureGate.minimumMaturity=Alpha \
              --helm-set=debug.enabled=true \
              --helm-set=debug.verbose="envoy datapath" \
-             --helm-set=envoy.image.repository=quay.io/isovalent-dev/cilium-envoy-ubi \
+             --helm-set=envoy.image.repository=${{ env.ARTIFACTORY_DEV }}/${{ env.ARTIFACTORY_ORGANIZATION_DEV }}/cilium-envoy-chainguard \
              --helm-set=envoy.image.tag=${{ needs.envoy-version.outputs.version }} \
              --helm-set=envoy.image.useDigest=false \
              --helm-set=envoy.dnsPolicy=ClusterFirstWithHostNet \
