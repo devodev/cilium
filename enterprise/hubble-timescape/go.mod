@@ -23,7 +23,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cilium/ebpf v0.21.0 // indirect
 	github.com/cilium/fake v0.7.0 // indirect
-	github.com/cilium/hive v1.0.1 // indirect
+	github.com/cilium/hive v1.0.4-rc2 // indirect
 	github.com/cilium/statedb v0.8.0 // indirect
 	github.com/cilium/stream v0.0.1 // indirect
 	github.com/cloudflare/cfssl v1.6.5 // indirect
