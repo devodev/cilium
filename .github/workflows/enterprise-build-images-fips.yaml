@@ -36,8 +36,6 @@ on:
 permissions:
   # To be able to access the repository with `actions/checkout`
   contents: read
-  # Required to generate OIDC tokens for `sigstore/cosign-installer` authentication
-  id-token: write
 
 # Avoid building/pushing images for the same ref concurrently.
 concurrency:
@@ -48,11 +46,9 @@ env:
   go_version: 1.26.3
 
 # This workflow builds each platform as part of separate jobs and then merges the
-# built images into a manifest before pushing. This is done for two reasons:
-# 1. Before pushing, it must be confirmed for each platform-specific image that the
-#    crypto libraries the images are using are correct,.
-# 2. Before pushing, an SBOM must be created and attached to each platform-specific
-#    image.
+# built images into a manifest before pushing. This is done so that before pushing,
+# it can be confirmed for each platform-specific image that the crypto libraries
+# the images are using are correct.
 
 jobs:
   sanity-checks:
@@ -378,28 +374,6 @@ jobs:
           output=$(docker image inspect ${{ steps.tags.outputs.image_tag_platform }} | jq -r '.[] | "image=\(.RepoDigests[0])"')
           echo $output
           echo "$output" >> $GITHUB_OUTPUT
-
-      - name: Install Cosign
-        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
-
-      - name: Sign Container Images
-        run: |
-          cosign sign -y ${{ steps.docker_push.outputs.image }}
-
-      - name: Generate SBOM
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
-        with:
-          artifact-name: sbom_${{ steps.tags.outputs.target }}_${{ steps.tags.outputs.tag }}_${{ matrix.platform }}.spdx.json
-          output-file: ./sbom_${{ steps.tags.outputs.target }}_${{ steps.tags.outputs.tag }}_${{ matrix.platform }}.spdx.json
-          image: ${{ steps.docker_push.outputs.image }}
-          # Use an older version of Syft so the boring crypto experiment is displayed.
-          # Do not upgrade without verifying the goexperiment is placed into the SBOM!
-          syft-version: v1.4.1
-          upload-release-assets: false
-
-      - name: Attach SBOM attestation to container image
-        run: |
-          cosign attest -y --predicate sbom_${{ steps.tags.outputs.target }}_${{ steps.tags.outputs.tag }}_${{ matrix.platform }}.spdx.json --type spdxjson ${{ steps.docker_push.outputs.image }}
 
       - name: Pass image to next job
         id: pass_image
