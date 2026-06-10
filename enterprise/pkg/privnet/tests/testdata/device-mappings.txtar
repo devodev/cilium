@@ -15,7 +15,7 @@ db/insert devices device.eth1.yaml device.eth2.yaml device.eth4.yaml
 
 # No device map entries either.
 privnet/maps-dump privnet_devices
-empty stdout
+* empty stdout
 
 # Create a local workload referencing a private network that doesn't exist
 # yet. This must not yet produce a device mapping, namely not one with the
