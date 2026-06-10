@@ -49,8 +49,12 @@ FROM ${APK_IMAGE} AS deps-builder
 COPY --from=base-image / /rootfs
 RUN apk add --no-cache --no-commit-hooks --root /rootfs ld-linux
 
-# Stage 3: Minimal static runtime
-FROM ${BASE_IMAGE} AS release
+    # cleanup apk remnants
+RUN rm -f /rootfs/etc/apko.json && \
+    rm -rf /rootfs/etc/apk /rootfs/var/cache/apk
+
+# Stage 3: Build image under scratch base
+FROM scratch AS release
 
 ARG TARGETOS
 ARG TARGETARCH

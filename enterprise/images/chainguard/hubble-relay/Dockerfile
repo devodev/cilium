@@ -76,8 +76,12 @@ RUN apk add --no-cache --no-commit-hooks --root /rootfs ca-certificates
 RUN mkdir -p /rootfs/run/cilium && chmod 0777 /rootfs/run/cilium && \
     mkdir -p /rootfs/var && ln -sfn /run /rootfs/var/run
 
-# Stage 4: Runtime image
-FROM ${BASE_IMAGE} AS release
+    # cleanup apk remnants
+RUN rm -f /rootfs/etc/apko.json && \
+    rm -rf /rootfs/etc/apk /rootfs/var/cache/apk
+
+# Stage 4: Build image under scratch base
+FROM scratch AS release
 
 ARG TARGETOS
 ARG TARGETARCH

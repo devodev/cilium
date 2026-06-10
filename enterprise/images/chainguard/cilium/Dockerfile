@@ -158,8 +158,12 @@ RUN grep -E "^root:" /etc/passwd >> /rootfs/etc/passwd && \
     grep -E "^root:" /etc/group >> /rootfs/etc/group && \
     mkdir /rootfs/home/cilium
 
-# Stage 4: Final minimal runtime image
-FROM ${BASE_IMAGE} AS release
+    # cleanup apk remnants
+RUN rm -f /rootfs/etc/apko.json && \
+    rm -rf /rootfs/etc/apk /rootfs/var/cache/apk
+
+# Stage 4: Build image under scratch base
+FROM scratch AS release
 
 ARG TARGETOS
 ARG TARGETARCH

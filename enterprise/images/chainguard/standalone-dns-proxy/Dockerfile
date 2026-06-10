@@ -55,7 +55,11 @@ RUN apk add --no-cache --no-commit-hooks --root /rootfs ld-linux
 RUN mkdir -p /rootfs/run/cilium && chmod 0777 /rootfs/run/cilium && \
     mkdir -p /rootfs/var && ln -sfn /run /rootfs/var/run
 
-FROM ${BASE_IMAGE} AS release
+    # cleanup apk remnants
+RUN rm -f /rootfs/etc/apko.json && \
+    rm -rf /rootfs/etc/apk /rootfs/var/cache/apk
+
+FROM scratch AS release
 # TARGETOS is an automatic platform ARG enabled by Docker BuildKit.
 ARG TARGETOS
 # TARGETARCH is an automatic platform ARG enabled by Docker BuildKit.
@@ -69,4 +73,5 @@ LABEL maintainer="support@isovalent.com" \
 COPY --from=deps-builder /rootfs/ /
 COPY --from=builder /out/${TARGETOS}/${TARGETARCH}/usr/bin/standalone-dns-proxy /usr/bin/standalone-dns-proxy
 ENV HOME=/tmp
+USER 65532:65532
 ENTRYPOINT [ "/usr/bin/standalone-dns-proxy" ]
