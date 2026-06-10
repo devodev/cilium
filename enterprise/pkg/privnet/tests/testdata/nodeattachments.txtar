@@ -207,7 +207,7 @@ eth1.10 (!) cilium-managed    parent: eth1, VLAN: 10  true             network-2
 
 -- desired-devices.v3.table --
 Owner                    Name        Properties
-privnet-node-attachments eth1.10     Type=vlan, ParentDevice=eth1, VLAN=10
+privnet-node-attachments eth1.10     Type=vlan, ParentDevice=eth1 (10), VLAN=10
 
 -- node-attachments.v4.table --
 Interface   Type              Config                  NodeSelected     Network     Subnets  Conflict
@@ -223,8 +223,8 @@ eth1.20 (!) cilium-managed    parent: eth1, VLAN: 20  true             network-3
 
 -- desired-devices.v5.table --
 Owner                    Name        Properties
-privnet-node-attachments eth1.10     Type=vlan, ParentDevice=eth1, VLAN=10
-privnet-node-attachments eth1.20     Type=vlan, ParentDevice=eth1, VLAN=20
+privnet-node-attachments eth1.10     Type=vlan, ParentDevice=eth1 (10), VLAN=10
+privnet-node-attachments eth1.20     Type=vlan, ParentDevice=eth1 (10), VLAN=20
 
 -- node-attachments.v6.table --
 Interface   Type              Config                  NodeSelected      Network     Subnets  Conflict
@@ -242,10 +242,10 @@ eth2.200 (!) cilium-managed    parent: eth2, VLAN: 200 true             network-
 
 -- desired-devices.v7.table --
 Owner                    Name        Properties
-privnet-node-attachments eth1.10     Type=vlan, ParentDevice=eth1, VLAN=10
-privnet-node-attachments eth1.20     Type=vlan, ParentDevice=eth1, VLAN=20
-privnet-node-attachments eth2.100    Type=vlan, ParentDevice=eth2, VLAN=100
-privnet-node-attachments eth2.200    Type=vlan, ParentDevice=eth2, VLAN=200
+privnet-node-attachments eth1.10     Type=vlan, ParentDevice=eth1 (10), VLAN=10
+privnet-node-attachments eth1.20     Type=vlan, ParentDevice=eth1 (10), VLAN=20
+privnet-node-attachments eth2.100    Type=vlan, ParentDevice=eth2 (20), VLAN=100
+privnet-node-attachments eth2.200    Type=vlan, ParentDevice=eth2 (20), VLAN=200
 
 -- node-attachments.v8.table --
 Interface    Type              Config                  NodeSelected     Network     Subnets  Conflict
@@ -257,10 +257,10 @@ eth2.201 (!) cilium-managed    parent: eth2, VLAN: 201 true             network-
 
 -- desired-devices.v8.table --
 Owner                    Name        Properties
-privnet-node-attachments eth1.10     Type=vlan, ParentDevice=eth1, VLAN=10
-privnet-node-attachments eth1.20     Type=vlan, ParentDevice=eth1, VLAN=20
-privnet-node-attachments eth2.100    Type=vlan, ParentDevice=eth2, VLAN=100
-privnet-node-attachments eth2.201    Type=vlan, ParentDevice=eth2, VLAN=201
+privnet-node-attachments eth1.10     Type=vlan, ParentDevice=eth1 (10), VLAN=10
+privnet-node-attachments eth1.20     Type=vlan, ParentDevice=eth1 (10), VLAN=20
+privnet-node-attachments eth2.100    Type=vlan, ParentDevice=eth2 (20), VLAN=100
+privnet-node-attachments eth2.201    Type=vlan, ParentDevice=eth2 (20), VLAN=201
 
 -- pnna-conflict-a.yaml --
 apiVersion: isovalent.com/v1alpha1
