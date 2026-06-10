@@ -284,7 +284,7 @@ func (e *LocalEndpointSlices) registerReconciler() error {
 		// ops
 		ops,
 		// batchOps
-		ops,
+		nil,
 		// options
 		reconciler.WithName("local-endpoint-slices"),
 	)
@@ -384,23 +384,11 @@ func (r *endpointSlicesReconcilerOps) Update(ctx context.Context, txn statedb.Re
 	return r.updateEndpointSlice(ctx, es.Namespace)
 }
 
-func (r *endpointSlicesReconcilerOps) UpdateBatch(ctx context.Context, txn statedb.ReadTxn, batch []reconciler.BatchEntry[tables.EndpointSlice]) {
-	for _, entry := range batch {
-		entry.Result = r.updateEndpointSlice(ctx, entry.Object.Namespace)
-	}
-}
-
 // Delete is called when the K8s endpoint slice was deleted. Usually, it was just deleted by us due to a
 // workload update, in which case updateEndpointSlice will do nothing. However, it could also have been
 // deleted by some external actor, in which case updateEndpointSlice will re-create it.
 func (r *endpointSlicesReconcilerOps) Delete(ctx context.Context, txn statedb.ReadTxn, revision statedb.Revision, es tables.EndpointSlice) error {
 	return r.updateEndpointSlice(ctx, es.Namespace)
-}
-
-func (r *endpointSlicesReconcilerOps) DeleteBatch(ctx context.Context, txn statedb.ReadTxn, batch []reconciler.BatchEntry[tables.EndpointSlice]) {
-	for _, entry := range batch {
-		entry.Result = r.updateEndpointSlice(ctx, entry.Object.Namespace)
-	}
 }
 
 func (r *endpointSlicesReconcilerOps) Prune(ctx context.Context, txn statedb.ReadTxn, endpointSlices iter.Seq2[tables.EndpointSlice, statedb.Revision]) error {
