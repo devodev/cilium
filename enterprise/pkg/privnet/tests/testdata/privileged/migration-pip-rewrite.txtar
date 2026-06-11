@@ -1,0 +1,183 @@
+#! --private-networks-enabled
+
+# This tests needs to run privileged for the CT BPF maps
+[!privileged] stop
+
+hive start
+clustermesh/endpoints/sync
+clustermesh/nodes/sync
+privnet/epm-finish-restoration
+db/initialized
+
+# Deploy some endpoints (including one stale migration)
+k8s/add icpn-blue.v1.yaml
+k8s/add pneps-worker1.v1.yaml
+k8s/add pneps-worker2.v1.yaml
+
+# Populate the CT map with some ongoing connections
+privnet/mock-global-ct-maps/upsert TCP OUT  10.244.2.200:12345            10.244.1.100:8000           src_sec_id=123
+privnet/mock-global-ct-maps/upsert TCP OUT  10.244.2.200:60123            1.1.1.1:80                  src_sec_id=123
+privnet/mock-global-ct-maps/upsert TCP IN   10.244.1.100:45678            10.244.2.200:8080           src_sec_id=456
+privnet/mock-global-ct-maps/upsert TCP IN   [2606:4700:4700::1001]:49214  [fd00:10:244:2::200]:9000   src_sec_id=10
+privnet/mock-global-ct-maps/upsert TCP IN   [fd00:10:244:1::100]:34567    [fd00:10:244:2::200]:9000   src_sec_id=456
+privnet/mock-global-ct-maps/upsert UDP OUT  10.244.2.200:34567            10.244.1.100:53             src_sec_id=123
+privnet/mock-global-ct-maps/upsert UDP OUT  [fd00:10:244:2::200]:34567    [fd00:10:244:1::100]:53     src_sec_id=123
+
+# Assert CT maps pre-migration
+privnet/mock-global-ct-maps/show any4
+cmp stdout ctmap-any4.v1.txt
+
+privnet/mock-global-ct-maps/show tcp4
+cmp stdout ctmap-tcp4.v1.txt
+
+privnet/mock-global-ct-maps/show any6
+cmp stdout ctmap-any6.v1.txt
+
+privnet/mock-global-ct-maps/show tcp6
+cmp stdout ctmap-tcp6.v1.txt
+
+# Migrate optimum-mouse to worker-node-3
+k8s/add pneps-worker3.v2.yaml
+
+# Wait for the reconciler to settle
+db/show privnet-migration-pip-rewrite -o migration-pip-rewrite.v2.table
+sed 'Done \([^)]+\)' 'Done (<time>)' migration-pip-rewrite.v2.table
+* cmp migration-pip-rewrite.expected.v2.table migration-pip-rewrite.v2.table
+
+# Assert CT maps post-migration
+privnet/mock-global-ct-maps/show any4
+cmp stdout ctmap-any4.v2.txt
+
+privnet/mock-global-ct-maps/show tcp4
+cmp stdout ctmap-tcp4.v2.txt
+
+privnet/mock-global-ct-maps/show any6
+cmp stdout ctmap-any6.v2.txt
+
+privnet/mock-global-ct-maps/show tcp6
+cmp stdout ctmap-tcp6.v2.txt
+
+-- icpn-blue.v1.yaml --
+apiVersion: isovalent.com/v1alpha1
+kind: ClusterwidePrivateNetwork
+metadata:
+  name: blue-network
+spec:
+  subnets:
+  - name: blue-0
+    cidrv4: 192.168.250.0/24
+    cidrv6: fd10:0:250::0/64
+
+-- pneps-worker1.v1.yaml --
+apiVersion: isovalent.com/v1alpha1
+kind: PrivateNetworkEndpointSlice
+metadata:
+  namespace: default
+  name: worker-node-1
+nodeName: worker-node-1
+endpoints:
+- activatedAt: "2025-06-20T15:54:04.501000Z"
+  endpoint:
+    addressing:
+      ipv4: 10.244.1.100
+      ipv6: fd00:10:244:1::100
+    name: optimum-mouse
+  interface:
+    addressing:
+      ipv4: 192.168.250.10
+      ipv6: fd10:0:250::10
+    mac: 00:50:56:ad:45:ec
+    network: blue-network
+- activatedAt: "2025-06-19T08:00:00.000000Z"
+  endpoint:
+    addressing:
+      ipv4: 10.244.1.101
+      ipv6: fd00:10:244:1::101
+    previousAddressing:
+    - ipv4: 10.244.2.200
+      ipv6: fd00:10:244:2::200
+      lastSeen: "2025-06-19T08:00:00.000000Z"
+    name: stale-snail
+  interface:
+    addressing:
+      ipv4: 192.168.250.11
+      ipv6: fd10:0:250::11
+    mac: 52:74:7c:37:8a:13
+    network: blue-network
+
+-- pneps-worker2.v1.yaml --
+apiVersion: isovalent.com/v1alpha1
+kind: PrivateNetworkEndpointSlice
+metadata:
+  namespace: default
+  name: worker-node-2
+nodeName: worker-node-2
+endpoints:
+- activatedAt: "2025-06-20T16:29:49.321000Z"
+  endpoint:
+    addressing:
+      ipv4: 10.244.2.200
+      ipv6: fd00:10:244:2::200
+    name: pumped-ocelot
+  interface:
+    addressing:
+      ipv4: 192.168.250.20
+      ipv6: fd10:0:250::20
+    mac: 00:50:56:ad:45:d8
+    network: blue-network
+
+-- pneps-worker3.v2.yaml --
+apiVersion: isovalent.com/v1alpha1
+kind: PrivateNetworkEndpointSlice
+metadata:
+  namespace: default
+  name: worker-node-3
+nodeName: worker-node-3
+endpoints:
+- activatedAt: "2025-06-20T16:10:11.131200Z"
+  endpoint:
+    addressing:
+      ipv4: 10.244.3.50
+      ipv6: fd00:10:244:3::50
+    previousAddressing:
+    - ipv4: 10.244.1.100
+      ipv6: fd00:10:244:1::100
+      lastSeen: "2025-06-20T16:00:00.000000Z"
+    name: optimum-mouse
+  interface:
+    addressing:
+      ipv4: 192.168.250.10
+      ipv6: fd10:0:250::10
+    mac: 00:50:56:ad:45:ec
+    network: blue-network
+
+-- ctmap-any4.v1.txt --
+UDP OUT 10.244.1.100:34567 -> 10.244.2.200:53 expires=0 Packets=0 Bytes=0 RxFlagsSeen=0x00 LastRxReport=0 TxFlagsSeen=0x00 LastTxReport=0 Flags=0x0000 [ ] RevNAT=0 SourceSecurityID=123 BackendID=0 NatPort=0 
+-- ctmap-tcp4.v1.txt --
+TCP IN 10.244.2.200:45678 -> 10.244.1.100:8080 expires=0 Packets=0 Bytes=0 RxFlagsSeen=0x00 LastRxReport=0 TxFlagsSeen=0x00 LastTxReport=0 Flags=0x0000 [ ] RevNAT=0 SourceSecurityID=456 BackendID=0 NatPort=0 
+TCP OUT 1.1.1.1:60123 -> 10.244.2.200:80 expires=0 Packets=0 Bytes=0 RxFlagsSeen=0x00 LastRxReport=0 TxFlagsSeen=0x00 LastTxReport=0 Flags=0x0000 [ ] RevNAT=0 SourceSecurityID=123 BackendID=0 NatPort=0 
+TCP OUT 10.244.1.100:12345 -> 10.244.2.200:8000 expires=0 Packets=0 Bytes=0 RxFlagsSeen=0x00 LastRxReport=0 TxFlagsSeen=0x00 LastTxReport=0 Flags=0x0000 [ ] RevNAT=0 SourceSecurityID=123 BackendID=0 NatPort=0 
+-- ctmap-any6.v1.txt --
+UDP OUT fd00:10:244:1::100:34567 -> fd00:10:244:2::200:53 expires=0 Packets=0 Bytes=0 RxFlagsSeen=0x00 LastRxReport=0 TxFlagsSeen=0x00 LastTxReport=0 Flags=0x0000 [ ] RevNAT=0 SourceSecurityID=123 BackendID=0 NatPort=0 
+-- ctmap-tcp6.v1.txt --
+TCP IN fd00:10:244:2::200:34567 -> fd00:10:244:1::100:9000 expires=0 Packets=0 Bytes=0 RxFlagsSeen=0x00 LastRxReport=0 TxFlagsSeen=0x00 LastTxReport=0 Flags=0x0000 [ ] RevNAT=0 SourceSecurityID=456 BackendID=0 NatPort=0 
+TCP IN fd00:10:244:2::200:49214 -> 2606:4700:4700::1001:9000 expires=0 Packets=0 Bytes=0 RxFlagsSeen=0x00 LastRxReport=0 TxFlagsSeen=0x00 LastTxReport=0 Flags=0x0000 [ ] RevNAT=0 SourceSecurityID=10 BackendID=0 NatPort=0 
+-- EOF --
+
+-- ctmap-any4.v2.txt --
+UDP OUT 10.244.3.50:34567 -> 10.244.2.200:53 expires=0 Packets=0 Bytes=0 RxFlagsSeen=0x00 LastRxReport=0 TxFlagsSeen=0x00 LastTxReport=0 Flags=0x0000 [ ] RevNAT=0 SourceSecurityID=123 BackendID=0 NatPort=0 
+-- ctmap-tcp4.v2.txt --
+TCP IN 10.244.2.200:45678 -> 10.244.3.50:8080 expires=0 Packets=0 Bytes=0 RxFlagsSeen=0x00 LastRxReport=0 TxFlagsSeen=0x00 LastTxReport=0 Flags=0x0000 [ ] RevNAT=0 SourceSecurityID=456 BackendID=0 NatPort=0 
+TCP OUT 1.1.1.1:60123 -> 10.244.2.200:80 expires=0 Packets=0 Bytes=0 RxFlagsSeen=0x00 LastRxReport=0 TxFlagsSeen=0x00 LastTxReport=0 Flags=0x0000 [ ] RevNAT=0 SourceSecurityID=123 BackendID=0 NatPort=0 
+TCP OUT 10.244.3.50:12345 -> 10.244.2.200:8000 expires=0 Packets=0 Bytes=0 RxFlagsSeen=0x00 LastRxReport=0 TxFlagsSeen=0x00 LastTxReport=0 Flags=0x0000 [ ] RevNAT=0 SourceSecurityID=123 BackendID=0 NatPort=0 
+-- ctmap-any6.v2.txt --
+UDP OUT fd00:10:244:3::50:34567 -> fd00:10:244:2::200:53 expires=0 Packets=0 Bytes=0 RxFlagsSeen=0x00 LastRxReport=0 TxFlagsSeen=0x00 LastTxReport=0 Flags=0x0000 [ ] RevNAT=0 SourceSecurityID=123 BackendID=0 NatPort=0 
+-- ctmap-tcp6.v2.txt --
+TCP IN fd00:10:244:2::200:34567 -> fd00:10:244:3::50:9000 expires=0 Packets=0 Bytes=0 RxFlagsSeen=0x00 LastRxReport=0 TxFlagsSeen=0x00 LastTxReport=0 Flags=0x0000 [ ] RevNAT=0 SourceSecurityID=456 BackendID=0 NatPort=0 
+TCP IN fd00:10:244:2::200:49214 -> 2606:4700:4700::1001:9000 expires=0 Packets=0 Bytes=0 RxFlagsSeen=0x00 LastRxReport=0 TxFlagsSeen=0x00 LastTxReport=0 Flags=0x0000 [ ] RevNAT=0 SourceSecurityID=10 BackendID=0 NatPort=0 
+-- EOF --
+
+-- migration-pip-rewrite.expected.v2.table --
+Endpoint                        OldPIP               NewPIP              Status
+default/default/optimum-mouse   10.244.1.100         10.244.3.50         Done (<time>)
+default/default/optimum-mouse   fd00:10:244:1::100   fd00:10:244:3::50   Done (<time>)
