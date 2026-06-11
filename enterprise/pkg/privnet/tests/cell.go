@@ -65,6 +65,7 @@ func NewTestHive(t testing.TB) *hive.Hive {
 		mockLocalCiliumNodeCell(t),
 		mockGneigh(t),
 		mockBPFMapCell(t),
+		mockCTMaps(t),
 		mockK8sCell(t),
 		mockPolicyCell(t),
 		mockDeviceManagerCell(t),
