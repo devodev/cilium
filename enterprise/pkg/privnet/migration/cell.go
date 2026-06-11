@@ -27,13 +27,16 @@ var Cell = cell.Module(
 
 	cell.Invoke(
 		registerController,
+		registerPIPRewriteReconciler,
 	),
 	cell.ProvidePrivate(
 		newService,
+		tables.NewMigrationPIPRewriteTable,
 	),
 	cell.Provide(
 		tables.NewMigrationsTable,
 		statedb.RWTable[tables.Migration].ToTable,
+		statedb.RWTable[tables.MigrationPIPRewrite].ToTable,
 
 		func(cfg pncfg.Config, svc *service) grpcserver.RegistrarOut {
 			if !cfg.Enabled {
