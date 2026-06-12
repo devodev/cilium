@@ -1072,6 +1072,7 @@ Makefile* @cilium/build
 /install/kubernetes/cilium/templates/private-networks/ @isovalent/sig-k8s @isovalent/helm @isovalent/private-networking
 /install/kubernetes/cilium/files/hubble-timescape/ @isovalent/sig-k8s @isovalent/helm @isovalent/timescape
 /install/kubernetes/cilium/templates/hubble-timescape/ @isovalent/sig-k8s @isovalent/helm @isovalent/timescape
+/operator/pkg/lbipam/enterprise_cell* @isovalent/traffic-engineering
 /pkg/bgp/**/enterprise_* @isovalent/traffic-engineering
 /pkg/clustermesh/**/enterprise_* @isovalent/clustermesh
 /pkg/datapath/**/enterprise*.go @isovalent/cilium-datapath

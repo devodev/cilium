@@ -33,6 +33,7 @@ import (
 	"github.com/cilium/cilium/enterprise/pkg/egressgatewayha"
 	"github.com/cilium/cilium/enterprise/pkg/egressgatewayha/healthcheck"
 	"github.com/cilium/cilium/operator/cmd"
+	"github.com/cilium/cilium/operator/pkg/lbipam"
 
 	metricsFeatures "github.com/cilium/cilium/pkg/metrics/features/operator"
 )
@@ -91,6 +92,8 @@ var (
 			cmapisrv.EnterpriseOperator,
 
 			metricsFeatures.EnterpriseCell,
+
+			lbipam.EnterpriseCell,
 		),
 	)
 )
