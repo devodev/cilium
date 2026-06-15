@@ -39,7 +39,7 @@ PRIVNET_KUBEVIRT_VERSION ?= v1.8.3
 PRIVNET_FORKLIFT_VERSION ?= v2.11.7
 
 # renovate: datasource=github-releases depName=k8snetworkplumbingwg/multus-cni
-PRIVNET_MULTUS_VERSION ?= v4.2.4
+PRIVNET_MULTUS_VERSION ?= v4.3.0
 
 PRIVNET_DNS_SERVER ?= 8.8.8.8
 
