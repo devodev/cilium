@@ -15,9 +15,10 @@ func (in *AzureAddress) DeepEqual(other *AzureAddress) bool {
 		return false
 	}
 
-	if in.IP != other.IP {
+	if !in.IP.DeepEqual(&other.IP) {
 		return false
 	}
+
 	if in.Subnet != other.Subnet {
 		return false
 	}
@@ -38,9 +39,10 @@ func (in *AzureInterface) DeepEqual(other *AzureInterface) bool {
 	if in.ID != other.ID {
 		return false
 	}
-	if in.IP != other.IP {
+	if !in.IP.DeepEqual(&other.IP) {
 		return false
 	}
+
 	if in.Name != other.Name {
 		return false
 	}
@@ -70,16 +72,18 @@ func (in *AzureInterface) DeepEqual(other *AzureInterface) bool {
 	if in.SecurityGroup != other.SecurityGroup {
 		return false
 	}
-	if in.Subnet != other.Subnet {
+	if !in.Subnet.DeepEqual(&other.Subnet) {
 		return false
 	}
 
-	if in.Gateway != other.Gateway {
+	if !in.Gateway.DeepEqual(&other.Gateway) {
 		return false
 	}
-	if in.CIDR != other.CIDR {
+
+	if !in.CIDR.DeepEqual(&other.CIDR) {
 		return false
 	}
+
 	if in.vmssName != other.vmssName {
 		return false
 	}
@@ -144,7 +148,7 @@ func (in *AzureSubnet) DeepEqual(other *AzureSubnet) bool {
 	if in.ID != other.ID {
 		return false
 	}
-	if in.CIDR != other.CIDR {
+	if !in.CIDR.DeepEqual(&other.CIDR) {
 		return false
 	}
 

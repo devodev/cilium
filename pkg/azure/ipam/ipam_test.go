@@ -18,6 +18,7 @@ import (
 	"github.com/cilium/cilium/operator/pkg/ipam/nodemanager"
 	apimock "github.com/cilium/cilium/pkg/azure/api/mock"
 	"github.com/cilium/cilium/pkg/azure/types"
+	iputil "github.com/cilium/cilium/pkg/ip"
 	ipamTypes "github.com/cilium/cilium/pkg/ipam/types"
 	v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	"github.com/cilium/cilium/pkg/lock"
@@ -36,10 +37,6 @@ var (
 		{ID: "s-1", CIDR: netip.MustParsePrefix("1.1.0.0/16"), VirtualNetworkID: "vpc-1"},
 		{ID: "s-2", CIDR: netip.MustParsePrefix("2.2.0.0/16"), VirtualNetworkID: "vpc-1"},
 		{ID: "s-3", CIDR: netip.MustParsePrefix("3.3.3.3/16"), VirtualNetworkID: "vpc-1"},
-	}
-
-	testVnet = &ipamTypes.VirtualNetwork{
-		ID: "vpc-1",
 	}
 )
 
@@ -146,7 +143,7 @@ func TestIpamPreAllocate8(t *testing.T) {
 	minAllocate := 0
 	toUse := 7
 
-	api := apimock.NewAPI([]*ipamTypes.Subnet{testSubnet}, []*ipamTypes.VirtualNetwork{testVnet})
+	api := apimock.NewAPI([]*ipamTypes.Subnet{testSubnet})
 	instances := NewInstancesManager(hivetest.Logger(t), api, false)
 	require.NotNil(t, instances)
 
@@ -158,7 +155,7 @@ func TestIpamPreAllocate8(t *testing.T) {
 		Subnet:        types.AzureSubnet{ID: "subnet-1"},
 		Addresses: []types.AzureAddress{
 			{
-				IP:    "1.1.1.1",
+				IP:    iputil.AddrFrom(netip.MustParseAddr("1.1.1.1")),
 				State: types.StateSucceeded,
 			},
 		},
@@ -208,7 +205,7 @@ func TestIpamMinAllocate10(t *testing.T) {
 	minAllocate := 10
 	toUse := 7
 
-	api := apimock.NewAPI([]*ipamTypes.Subnet{testSubnet}, []*ipamTypes.VirtualNetwork{testVnet})
+	api := apimock.NewAPI([]*ipamTypes.Subnet{testSubnet})
 	instances := NewInstancesManager(hivetest.Logger(t), api, false)
 	require.NotNil(t, instances)
 
@@ -220,7 +217,7 @@ func TestIpamMinAllocate10(t *testing.T) {
 		Subnet:        types.AzureSubnet{ID: "subnet-1"},
 		Addresses: []types.AzureAddress{
 			{
-				IP:    "1.1.1.1",
+				IP:    iputil.AddrFrom(netip.MustParseAddr("1.1.1.1")),
 				State: types.StateSucceeded,
 			},
 		},
@@ -292,7 +289,7 @@ func TestIpamManyNodes(t *testing.T) {
 				numNodes    = 2
 				minAllocate = 1
 			)
-			api := apimock.NewAPI(testSubnets, []*ipamTypes.VirtualNetwork{testVnet})
+			api := apimock.NewAPI(testSubnets)
 			instances := NewInstancesManager(hivetest.Logger(t), api, false)
 			require.NotNil(t, instances)
 
@@ -312,7 +309,7 @@ func TestIpamManyNodes(t *testing.T) {
 					Subnet:        types.AzureSubnet{ID: "subnet-1"},
 					Addresses: []types.AzureAddress{
 						{
-							IP:    fmt.Sprintf("10.0.0.%d", i+10),
+							IP:    iputil.AddrFrom(netip.MustParseAddr(fmt.Sprintf("10.0.0.%d", i+10))),
 							State: types.StateSucceeded,
 						},
 					},
@@ -364,7 +361,7 @@ func TestIpamManyNodes(t *testing.T) {
 }
 
 func benchmarkAllocWorker(b *testing.B, workers int64, delay time.Duration, rateLimit float64, burst int) {
-	api := apimock.NewAPI(testSubnets, []*ipamTypes.VirtualNetwork{testVnet})
+	api := apimock.NewAPI(testSubnets)
 	api.SetDelay(apimock.AllOperations, delay)
 	api.SetLimiter(rateLimit, burst)
 

@@ -27,6 +27,7 @@ import (
 	"github.com/cilium/cilium/operator/pkg/model/translation"
 	gatewayApiTranslation "github.com/cilium/cilium/operator/pkg/model/translation/gateway-api"
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
+	"github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2alpha1"
 	"github.com/cilium/cilium/pkg/shortener"
 )
 
@@ -57,6 +58,7 @@ var (
 func Test_Conformance(t *testing.T) {
 	logger := hivetest.Logger(t, hivetest.LogLevel(slog.LevelDebug))
 	cecTranslator := translation.NewCECTranslator(translation.Config{
+		SecretsNamespace: "cilium-secrets",
 		RouteConfig: translation.RouteConfig{
 			HostNameSuffixMatch: true,
 		},
@@ -66,10 +68,16 @@ func Test_Conformance(t *testing.T) {
 		ClusterConfig: translation.ClusterConfig{
 			IdleTimeoutSeconds: 60,
 		},
+		OriginalIPDetectionConfig: translation.OriginalIPDetectionConfig{
+			UseRemoteAddress: true,
+		},
 	})
 	gatewayAPITranslator := gatewayApiTranslation.NewTranslator(cecTranslator, translation.Config{
 		ServiceConfig: translation.ServiceConfig{
 			ExternalTrafficPolicy: string(corev1.ServiceExternalTrafficPolicyCluster),
+		},
+		OriginalIPDetectionConfig: translation.OriginalIPDetectionConfig{
+			UseRemoteAddress: true,
 		},
 	})
 
@@ -104,7 +112,7 @@ func Test_Conformance(t *testing.T) {
 		{
 			name: "gateway-invalid-route-kind",
 			gateway: []gwDetails{
-				{FullName: types.NamespacedName{Name: "gateway-only-invalid-route-kind", Namespace: "gateway-conformance-infra"}, wantErr: true},
+				{FullName: types.NamespacedName{Name: "gateway-only-invalid-route-kind", Namespace: "gateway-conformance-infra"}},
 				{FullName: types.NamespacedName{Name: "gateway-supported-and-invalid-route-kind", Namespace: "gateway-conformance-infra"}},
 			},
 		},
@@ -418,6 +426,67 @@ func Test_Conformance(t *testing.T) {
 				readOutput(t, fmt.Sprintf("testdata/gateway/%s/output/backendtlspolicy-%s.yaml", tt.name, btlsp.Name), expectedBTLSP)
 				require.Empty(t, cmp.Diff(expectedBTLSP, actualBTLSP, cmpIgnoreFields...))
 			}
+		})
+	}
+}
+
+func Test_grpcWebTranslationEnabled(t *testing.T) {
+	tests := []struct {
+		name   string
+		config *v2alpha1.CiliumGatewayClassConfig
+		want   bool
+	}{
+		{
+			name: "nil config",
+			want: true,
+		},
+		{
+			name:   "empty config",
+			config: &v2alpha1.CiliumGatewayClassConfig{},
+			want:   true,
+		},
+		{
+			name: "nil enabled",
+			config: &v2alpha1.CiliumGatewayClassConfig{
+				Spec: v2alpha1.CiliumGatewayClassConfigSpec{
+					HTTPOptions: &v2alpha1.HTTPOptions{
+						GRPCWebTranslation: &v2alpha1.GRPCWebTranslationConfig{},
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "explicitly enabled",
+			config: &v2alpha1.CiliumGatewayClassConfig{
+				Spec: v2alpha1.CiliumGatewayClassConfigSpec{
+					HTTPOptions: &v2alpha1.HTTPOptions{
+						GRPCWebTranslation: &v2alpha1.GRPCWebTranslationConfig{
+							Enabled: ptr.To(true),
+						},
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "disabled",
+			config: &v2alpha1.CiliumGatewayClassConfig{
+				Spec: v2alpha1.CiliumGatewayClassConfigSpec{
+					HTTPOptions: &v2alpha1.HTTPOptions{
+						GRPCWebTranslation: &v2alpha1.GRPCWebTranslationConfig{
+							Enabled: ptr.To(false),
+						},
+					},
+				},
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, tt.config.GRPCWebTranslationEnabled())
 		})
 	}
 }

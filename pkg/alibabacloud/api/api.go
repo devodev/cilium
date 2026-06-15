@@ -7,7 +7,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/netip"
+	"slices"
 	"strings"
 	"time"
 
@@ -21,8 +23,10 @@ import (
 	eniTypes "github.com/cilium/cilium/pkg/alibabacloud/eni/types"
 	"github.com/cilium/cilium/pkg/alibabacloud/types"
 	"github.com/cilium/cilium/pkg/api/helpers"
+	iputil "github.com/cilium/cilium/pkg/ip"
 	ipamTypes "github.com/cilium/cilium/pkg/ipam/types"
-	"github.com/cilium/cilium/pkg/slices"
+	"github.com/cilium/cilium/pkg/logging/logfields"
+	cslices "github.com/cilium/cilium/pkg/slices"
 	"github.com/cilium/cilium/pkg/spanstat"
 )
 
@@ -46,6 +50,7 @@ var maxAttachRetries = wait.Backoff{
 
 // Client an AlibabaCloud API client
 type Client struct {
+	logger           *slog.Logger
 	vpcClient        *vpc.Client
 	ecsClient        *ecs.Client
 	limiter          *helpers.APILimiter
@@ -60,8 +65,9 @@ type MetricsAPI interface {
 }
 
 // NewClient create the client
-func NewClient(vpcClient *vpc.Client, client *ecs.Client, metrics MetricsAPI, rateLimit float64, burst int, filters map[string]string) *Client {
+func NewClient(logger *slog.Logger, vpcClient *vpc.Client, client *ecs.Client, metrics MetricsAPI, rateLimit float64, burst int, filters map[string]string) *Client {
 	return &Client{
+		logger:           logger,
 		vpcClient:        vpcClient,
 		ecsClient:        client,
 		limiter:          helpers.NewAPILimiter(metrics, rateLimit, burst),
@@ -82,7 +88,7 @@ func (c *Client) GetInstance(ctx context.Context, vpcs ipamTypes.VirtualNetworkM
 
 	for _, iface := range networkInterfaceSets {
 		ifId := iface.NetworkInterfaceId
-		_, eni := parseENI(&iface, vpcs, subnets)
+		_, eni := parseENI(c.logger, &iface, vpcs, subnets)
 
 		instance.Interfaces[ifId] = eni
 	}
@@ -106,7 +112,7 @@ func (c *Client) GetInstances(ctx context.Context, vpcs ipamTypes.VirtualNetwork
 	}
 
 	for _, iface := range networkInterfaceSets {
-		id, eni := parseENI(&iface, vpcs, subnets)
+		id, eni := parseENI(c.logger, &iface, vpcs, subnets)
 
 		instances.Update(id, eni)
 	}
@@ -172,11 +178,7 @@ func (c *Client) GetVPC(ctx context.Context, vpcID string) (*ipamTypes.VirtualNe
 		return nil, fmt.Errorf("cannot find VPC by ID %s", vpcID)
 	}
 
-	return &ipamTypes.VirtualNetwork{
-		ID:          resp.Vpcs.Vpc[0].VpcId,
-		PrimaryCIDR: resp.Vpcs.Vpc[0].CidrBlock,
-		CIDRs:       resp.Vpcs.Vpc[0].SecondaryCidrBlocks.SecondaryCidrBlock,
-	}, nil
+	return parseVPC(&resp.Vpcs.Vpc[0])
 }
 
 // GetVPCs retrieves and returns all VPCs
@@ -196,12 +198,12 @@ func (c *Client) GetVPCs(ctx context.Context) (ipamTypes.VirtualNetworkMap, erro
 		if result == nil {
 			result = make(ipamTypes.VirtualNetworkMap, resp.TotalCount)
 		}
-		for _, v := range resp.Vpcs.Vpc {
-			result[v.VpcId] = &ipamTypes.VirtualNetwork{
-				ID:          v.VpcId,
-				PrimaryCIDR: v.CidrBlock,
-				CIDRs:       v.SecondaryCidrBlocks.SecondaryCidrBlock,
+		for i := range resp.Vpcs.Vpc {
+			vn, err := parseVPC(&resp.Vpcs.Vpc[i])
+			if err != nil {
+				return nil, err
 			}
+			result[vn.ID] = vn
 		}
 		if resp.TotalCount < resp.PageNumber*resp.PageSize {
 			break
@@ -209,6 +211,28 @@ func (c *Client) GetVPCs(ctx context.Context) (ipamTypes.VirtualNetworkMap, erro
 		i++
 	}
 	return result, nil
+}
+
+// parseVPC converts a vpc.Vpc into an ipamTypes.VirtualNetwork, parsing CIDR
+// strings into iputil.Prefix.
+func parseVPC(v *vpc.Vpc) (*ipamTypes.VirtualNetwork, error) {
+	primary, err := netip.ParsePrefix(v.CidrBlock)
+	if err != nil {
+		return nil, fmt.Errorf("unable to parse VPC %s primary CIDR %q: %w", v.VpcId, v.CidrBlock, err)
+	}
+	var cidrs []iputil.Prefix
+	for _, s := range v.SecondaryCidrBlocks.SecondaryCidrBlock {
+		p, err := netip.ParsePrefix(s)
+		if err != nil {
+			return nil, fmt.Errorf("unable to parse VPC %s secondary CIDR %q: %w", v.VpcId, s, err)
+		}
+		cidrs = append(cidrs, iputil.PrefixFrom(p))
+	}
+	return &ipamTypes.VirtualNetwork{
+		ID:          v.VpcId,
+		PrimaryCIDR: iputil.PrefixFrom(primary),
+		CIDRs:       cidrs,
+	}, nil
 }
 
 // GetInstanceTypes returns all the known ECS instance types in the configured region
@@ -312,9 +336,19 @@ func (c *Client) CreateNetworkInterface(ctx context.Context, secondaryPrivateIPC
 
 	var privateIPSets []eniTypes.PrivateIPSet
 	for _, p := range resp.PrivateIpSets.PrivateIpSet {
+		addr, err := netip.ParseAddr(p.PrivateIpAddress)
+		if err != nil {
+			c.logger.Warn(
+				"Ignoring private IP with unparseable address",
+				logfields.IPAddr, p.PrivateIpAddress,
+				logfields.Interface, resp.NetworkInterfaceId,
+				logfields.Error, err,
+			)
+			continue
+		}
 		privateIPSets = append(privateIPSets, eniTypes.PrivateIPSet{
 			Primary:          p.Primary,
-			PrivateIpAddress: p.PrivateIpAddress,
+			PrivateIpAddress: iputil.AddrFrom(addr),
 		})
 	}
 	eni := &eniTypes.ENI{
@@ -329,9 +363,18 @@ func (c *Client) CreateNetworkInterface(ctx context.Context, secondaryPrivateIPC
 		VSwitch: eniTypes.VSwitch{
 			VSwitchID: resp.VSwitchId,
 		},
-		PrimaryIPAddress: resp.PrivateIpAddress,
-		PrivateIPSets:    privateIPSets,
-		Tags:             parseECSTags(resp.Tags.Tag),
+		PrivateIPSets: privateIPSets,
+		Tags:          parseECSTags(resp.Tags.Tag),
+	}
+	if addr, err := netip.ParseAddr(resp.PrivateIpAddress); err != nil {
+		c.logger.Warn(
+			"Ignoring ENI primary IP with unparseable address",
+			logfields.IPAddr, resp.PrivateIpAddress,
+			logfields.Interface, resp.NetworkInterfaceId,
+			logfields.Error, err,
+		)
+	} else {
+		eni.PrimaryIPAddress = iputil.AddrFrom(addr)
 	}
 	return resp.NetworkInterfaceId, eni, nil
 }
@@ -452,7 +495,7 @@ func (c *Client) describeNetworkInterfacesFromInstances(ctx context.Context) ([]
 		instanceIds = append(instanceIds, t.ResourceId)
 	}
 	// The response of ListTagResources can have duplicate instanceId
-	slices.Unique(instanceIds)
+	cslices.Unique(instanceIds)
 
 	if len(instanceIds) == 0 {
 		return result, nil
@@ -620,12 +663,22 @@ func deriveStatus(err error) string {
 
 // parseENI parses a ecs.NetworkInterface as returned by the ecs service API,
 // converts it into a eniTypes.ENI object
-func parseENI(iface *ecs.NetworkInterfaceSet, vpcs ipamTypes.VirtualNetworkMap, subnets ipamTypes.SubnetMap) (instanceID string, eni *eniTypes.ENI) {
+func parseENI(logger *slog.Logger, iface *ecs.NetworkInterfaceSet, vpcs ipamTypes.VirtualNetworkMap, subnets ipamTypes.SubnetMap) (instanceID string, eni *eniTypes.ENI) {
 	var privateIPSets []eniTypes.PrivateIPSet
 	for _, p := range iface.PrivateIpSets.PrivateIpSet {
+		addr, err := netip.ParseAddr(p.PrivateIpAddress)
+		if err != nil {
+			logger.Warn(
+				"Ignoring private IP with unparseable address",
+				logfields.IPAddr, p.PrivateIpAddress,
+				logfields.Interface, iface.NetworkInterfaceId,
+				logfields.Error, err,
+			)
+			continue
+		}
 		privateIPSets = append(privateIPSets, eniTypes.PrivateIPSet{
 			Primary:          p.Primary,
-			PrivateIpAddress: p.PrivateIpAddress,
+			PrivateIpAddress: iputil.AddrFrom(addr),
 		})
 	}
 
@@ -642,19 +695,32 @@ func parseENI(iface *ecs.NetworkInterfaceSet, vpcs ipamTypes.VirtualNetworkMap, 
 		VSwitch: eniTypes.VSwitch{
 			VSwitchID: iface.VSwitchId,
 		},
-		PrimaryIPAddress: iface.PrivateIpAddress,
-		PrivateIPSets:    privateIPSets,
-		Tags:             parseECSTags(iface.Tags.Tag),
+		PrivateIPSets: privateIPSets,
+		Tags:          parseECSTags(iface.Tags.Tag),
+	}
+	if addr, err := netip.ParseAddr(iface.PrivateIpAddress); err != nil {
+		logger.Warn(
+			"Ignoring ENI primary IP with unparseable address",
+			logfields.IPAddr, iface.PrivateIpAddress,
+			logfields.Interface, iface.NetworkInterfaceId,
+			logfields.Error, err,
+		)
+	} else {
+		eni.PrimaryIPAddress = iputil.AddrFrom(addr)
 	}
 	vpc, ok := vpcs[iface.VpcId]
 	if ok {
-		eni.VPC.CIDRBlock = vpc.PrimaryCIDR
-		eni.VPC.SecondaryCIDRs = vpc.CIDRs
+		if vpc.PrimaryCIDR.IsValid() {
+			eni.VPC.CIDRBlock = vpc.PrimaryCIDR
+		}
+		if len(vpc.CIDRs) > 0 {
+			eni.VPC.SecondaryCIDRs = slices.Clone(vpc.CIDRs)
+		}
 	}
 
 	subnet, ok := subnets[iface.VSwitchId]
 	if ok && subnet.CIDR.IsValid() {
-		eni.VSwitch.CIDRBlock = subnet.CIDR.String()
+		eni.VSwitch.CIDRBlock = iputil.PrefixFrom(subnet.CIDR)
 	}
 	return iface.InstanceId, eni
 }

@@ -3092,6 +3092,9 @@
         "clusterMaxConnections": {
           "type": "integer"
         },
+        "clusterMaxPendingRequests": {
+          "type": "integer"
+        },
         "clusterMaxRequests": {
           "type": "integer"
         },
@@ -3728,6 +3731,12 @@
             }
           },
           "type": "object"
+        },
+        "useRemoteAddress": {
+          "type": [
+            "null",
+            "boolean"
+          ]
         },
         "xffNumTrustedHops": {
           "type": "integer"
@@ -6370,6 +6379,15 @@
             }
           },
           "type": "object"
+        },
+        "useRemoteAddress": {
+          "type": [
+            "null",
+            "boolean"
+          ]
+        },
+        "xffNumTrustedHops": {
+          "type": "integer"
         }
       },
       "type": "object"

@@ -221,7 +221,7 @@ func PrintRoutes(
 					Prefix:   route.Prefix,
 					NextHop:  api.NextHopFromPathAttributes(path.PathAttributes),
 					Best:     strconv.FormatBool(path.Best),
-					Age:      time.Duration(path.AgeNanoseconds).Truncate(time.Second).String(),
+					Age:      path.Age().Truncate(time.Second).String(),
 					Error:    errStr,
 					Attrs:    FormatPathAttributes(path.PathAttributes),
 				}

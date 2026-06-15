@@ -644,10 +644,6 @@ return false;`))
 
 func (h *HeaderfileWriter) writeNetdevConfig(w io.Writer, opts *option.IntOptions) {
 	fmt.Fprint(w, opts.GetFmtList())
-
-	if option.Config.EnableEndpointRoutes {
-		fmt.Fprint(w, "#define USE_BPF_PROG_FOR_INGRESS_POLICY 1\n")
-	}
 }
 
 // WriteNetdevConfig writes the BPF configuration for the endpoint to a writer.
@@ -667,10 +663,6 @@ func (h *HeaderfileWriter) WriteEndpointConfig(w io.Writer, e endpoint.Config) e
 }
 
 func (h *HeaderfileWriter) writeTemplateConfig(fw *bufio.Writer, e endpoint.Config) error {
-	if e.RequireEgressProg() {
-		fmt.Fprintf(fw, "#define USE_BPF_PROG_FOR_INGRESS_POLICY 1\n")
-	}
-
 	if e.RequireRouting() {
 		fmt.Fprintf(fw, "#define ENABLE_ROUTING 1\n")
 	}

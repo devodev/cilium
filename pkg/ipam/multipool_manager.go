@@ -16,10 +16,12 @@ import (
 
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/hive/job"
+	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	agentK8s "github.com/cilium/cilium/daemon/k8s"
 	"github.com/cilium/cilium/pkg/defaults"
+	iputil "github.com/cilium/cilium/pkg/ip"
 	"github.com/cilium/cilium/pkg/ipam/types"
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	cilium_v2 "github.com/cilium/cilium/pkg/k8s/client/clientset/versioned/typed/cilium.io/v2"
@@ -36,7 +38,7 @@ const (
 	// be fulfilled
 	pendingAllocationTTL = 5 * time.Minute
 
-	// refreshPoolsInterval defines the run interval of the ipam-sync-multi-pool controller
+	// refreshPoolInterval defines the run interval of the ipam-sync-multi-pool controller
 	refreshPoolInterval = 1 * time.Minute
 )
 
@@ -568,7 +570,7 @@ func (m *multiPoolManager) updateLocalNode(ctx context.Context) error {
 	for poolName, pool := range m.pools {
 		neededIPs := neededIPsPerPool[poolName]
 
-		cidrs := []types.IPAMCIDR{}
+		cidrs := []iputil.Prefix{}
 		if v4Pool := pool.v4; v4Pool != nil {
 			if m.isRestoreFinishedLocked(IPv4) {
 				// releaseExcessCIDRsMultiPool interprets neededIPs as how many
@@ -579,7 +581,7 @@ func (m *multiPoolManager) updateLocalNode(ctx context.Context) error {
 			}
 			v4CIDRs := v4Pool.inUseCIDRs()
 
-			slices.Sort(v4CIDRs)
+			slices.SortFunc(v4CIDRs, func(a, b iputil.Prefix) int { return a.Prefix.Compare(b.Prefix) })
 			cidrs = append(cidrs, v4CIDRs...)
 		}
 		if v6Pool := pool.v6; v6Pool != nil {
@@ -589,7 +591,7 @@ func (m *multiPoolManager) updateLocalNode(ctx context.Context) error {
 			}
 			v6CIDRs := v6Pool.inUseCIDRs()
 
-			slices.Sort(v6CIDRs)
+			slices.SortFunc(v6CIDRs, func(a, b iputil.Prefix) int { return a.Prefix.Compare(b.Prefix) })
 			cidrs = append(cidrs, v6CIDRs...)
 		}
 
@@ -627,7 +629,14 @@ func (m *multiPoolManager) updateLocalNode(ctx context.Context) error {
 
 	if !newNode.Spec.IPAM.Pools.DeepEqual(&curNode.Spec.IPAM.Pools) {
 		updatedNode, err := m.cnClient.Update(ctx, newNode, metav1.UpdateOptions{})
-		if err != nil {
+		switch {
+		case k8sErrors.IsConflict(err):
+			m.logger.Info(
+				"Conflict when updating local CiliumNode resource, will retry",
+				logfields.Error, err,
+			)
+			return nil
+		case err != nil:
 			return fmt.Errorf("failed to update node spec: %w", err)
 		}
 		newNode = updatedNode
@@ -642,7 +651,15 @@ func (m *multiPoolManager) updateLocalNode(ctx context.Context) error {
 	// TODO: Remove with 1.21.
 	if len(newNode.Status.IPAM.Used) > 0 {
 		newNode.Status.IPAM.Used = nil
-		if _, err := m.cnClient.UpdateStatus(ctx, newNode, metav1.UpdateOptions{}); err != nil {
+		_, err := m.cnClient.UpdateStatus(ctx, newNode, metav1.UpdateOptions{})
+		switch {
+		case k8sErrors.IsConflict(err):
+			m.logger.Info(
+				"Conflict when updating local CiliumNode Status subresource, will retry",
+				logfields.Error, err,
+			)
+			return nil
+		case err != nil:
 			return fmt.Errorf("failed to clear stale Status.IPAM.Used: %w", err)
 		}
 	}
@@ -652,7 +669,7 @@ func (m *multiPoolManager) updateLocalNode(ctx context.Context) error {
 	return nil
 }
 
-func (m *multiPoolManager) upsertPoolLocked(poolName Pool, cidrs []types.IPAMCIDR) {
+func (m *multiPoolManager) upsertPoolLocked(poolName Pool, cidrs []iputil.Prefix) {
 	pool, ok := m.pools[poolName]
 	if !ok {
 		pool = &poolPair{}
@@ -665,17 +682,15 @@ func (m *multiPoolManager) upsertPoolLocked(poolName Pool, cidrs []types.IPAMCID
 	}
 
 	var ipv4Prefixes, ipv6Prefixes []netip.Prefix
-	for _, ipamCIDR := range cidrs {
-		prefix, err := netip.ParsePrefix(string(ipamCIDR))
-		if err != nil {
+	for _, c := range cidrs {
+		if !c.IsValid() {
 			m.logger.Error(
 				"ignoring invalid CIDR",
-				logfields.Error, err,
-				logfields.CIDR, ipamCIDR,
+				logfields.CIDR, c,
 			)
 			continue
 		}
-		prefix = prefix.Masked()
+		prefix := c.Prefix.Masked()
 		if prefix.Addr().Is6() {
 			ipv6Prefixes = append(ipv6Prefixes, prefix)
 		} else {

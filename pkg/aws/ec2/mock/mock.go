@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"slices"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	ec2_types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
@@ -19,12 +20,13 @@ import (
 	"github.com/cilium/cilium/pkg/aws/ec2"
 	eniTypes "github.com/cilium/cilium/pkg/aws/eni/types"
 	"github.com/cilium/cilium/pkg/aws/types"
-	"github.com/cilium/cilium/pkg/ip"
+	iputil "github.com/cilium/cilium/pkg/ip"
 	"github.com/cilium/cilium/pkg/ipam/cidrset"
 	"github.com/cilium/cilium/pkg/ipam/option"
 	"github.com/cilium/cilium/pkg/ipam/service/ipallocator"
 	ipamTypes "github.com/cilium/cilium/pkg/ipam/types"
 	"github.com/cilium/cilium/pkg/lock"
+	cslices "github.com/cilium/cilium/pkg/slices"
 	"github.com/cilium/cilium/pkg/time"
 )
 
@@ -321,7 +323,7 @@ func (e *API) CreateNetworkInterface(ctx context.Context, toAllocate int32, subn
 	if err != nil {
 		panic("Unable to allocate primary IP from allocator")
 	}
-	eni.IP = primaryIP.String()
+	eni.IP = iputil.AddrFrom(primaryIP)
 
 	if allocatePrefixes {
 		err := assignPrefixToENI(e, eni, int32(1))
@@ -330,11 +332,11 @@ func (e *API) CreateNetworkInterface(ctx context.Context, toAllocate int32, subn
 		}
 	} else {
 		for range toAllocate {
-			ip, err := e.allocator.AllocateNext()
+			addr, err := e.allocator.AllocateNext()
 			if err != nil {
 				panic("Unable to allocate IP from allocator")
 			}
-			eni.Addresses = append(eni.Addresses, ip.String())
+			eni.Addresses = append(eni.Addresses, iputil.AddrFrom(addr))
 		}
 	}
 
@@ -464,14 +466,14 @@ func (e *API) AssignPrivateIpAddresses(ctx context.Context, eniID string, addres
 			}
 
 			for range addresses {
-				ip, err := e.allocator.AllocateNext()
+				addr, err := e.allocator.AllocateNext()
 				if err != nil {
 					panic("Unable to allocate IP from allocator")
 				}
-				eni.Addresses = append(eni.Addresses, ip.String())
+				eni.Addresses = append(eni.Addresses, iputil.AddrFrom(addr))
 			}
 			subnet.AvailableAddresses -= int(addresses)
-			return eni.Addresses, nil
+			return cslices.Map(eni.Addresses, func(a iputil.Addr) string { return a.String() }), nil
 		}
 	}
 	return nil, fmt.Errorf("Unable to find ENI with ID %s", eniID)
@@ -507,15 +509,14 @@ func (e *API) UnassignPrivateIpAddresses(ctx context.Context, eniID string, addr
 			return fmt.Errorf("subnet %s not found", eni.Subnet.ID)
 		}
 
-		addressesAfterRelease := []string{}
+		var addressesAfterRelease []iputil.Addr
 
 		for _, address := range eni.Addresses {
-			_, ok := releaseMap[address]
+			_, ok := releaseMap[address.String()]
 			if !ok {
 				addressesAfterRelease = append(addressesAfterRelease, address)
 			} else {
-				addr, _ := netip.ParseAddr(address)
-				e.allocator.Release(addr)
+				e.allocator.Release(address.Addr)
 				subnet.AvailableAddresses++
 			}
 		}
@@ -545,13 +546,15 @@ func assignPrefixToENI(e *API, eni *eniTypes.ENI, prefixes int32) error {
 			return err
 		}
 
-		prefixStr := pfx.String()
-		eni.Prefixes = append(eni.Prefixes, prefixStr)
-		prefixIPs, err := ip.PrefixToIps(prefixStr, 0)
+		eni.Prefixes = append(eni.Prefixes, iputil.PrefixFrom(pfx))
+		prefixIPs, err := iputil.PrefixToIps(pfx.String(), 0)
 		if err != nil {
-			return fmt.Errorf("unable to convert prefix %s to ips", prefixStr)
+			return fmt.Errorf("unable to convert prefix %s to ips", pfx.String())
 		}
-		eni.Addresses = append(eni.Addresses, prefixIPs...)
+		for _, ipStr := range prefixIPs {
+			a, _ := netip.ParseAddr(ipStr)
+			eni.Addresses = append(eni.Addresses, iputil.AddrFrom(a))
+		}
 	}
 	subnet.AvailableAddresses -= int(prefixes * option.ENIPDBlockSizeIPv4)
 	return nil
@@ -595,7 +598,7 @@ func (e *API) UnassignENIPrefixes(ctx context.Context, eniID string, prefixes []
 			return fmt.Errorf("Invalid CIDR block %s", prefix)
 		}
 		e.pdAllocator.Release(pfx)
-		ips, _ := ip.PrefixToIps(prefix, 0)
+		ips, _ := iputil.PrefixToIps(prefix, 0)
 		addresses = append(addresses, ips...)
 	}
 
@@ -619,10 +622,10 @@ func (e *API) UnassignENIPrefixes(ctx context.Context, eniID string, prefixes []
 			return fmt.Errorf("subnet %s not found", eni.Subnet.ID)
 		}
 
-		var addressesAfterRelease []string
+		var addressesAfterRelease []iputil.Addr
 
 		for _, address := range eni.Addresses {
-			_, ok := releaseMap[address]
+			_, ok := releaseMap[address.String()]
 			if !ok {
 				addressesAfterRelease = append(addressesAfterRelease, address)
 			} else {
@@ -649,14 +652,16 @@ func (e *API) GetInstance(ctx context.Context, vpcs ipamTypes.VirtualNetworkMap,
 		for ifaceID, eni := range enis {
 			if subnets != nil {
 				if subnet, ok := subnets[eni.Subnet.ID]; ok && subnet.CIDR.IsValid() {
-					eni.Subnet.CIDR = subnet.CIDR.String()
+					eni.Subnet.CIDR = iputil.PrefixFrom(subnet.CIDR)
 				}
 			}
 
 			if vpcs != nil {
 				if vpc, ok := vpcs[eni.VPC.ID]; ok {
-					eni.VPC.PrimaryCIDR = vpc.PrimaryCIDR
-					eni.VPC.CIDRs = vpc.CIDRs
+					if vpc.PrimaryCIDR.IsValid() {
+						eni.VPC.PrimaryCIDR = vpc.PrimaryCIDR
+					}
+					eni.VPC.CIDRs = slices.Clone(vpc.CIDRs)
 				}
 			}
 
@@ -684,7 +689,8 @@ func (e *API) AssociateEIP(ctx context.Context, eniID string, eipTags ipamTypes.
 	for _, enis := range e.enis {
 		for id, eni := range enis {
 			if eniID == id {
-				eni.PublicIP = ipAddr
+				a, _ := netip.ParseAddr(ipAddr)
+				eni.PublicIP = iputil.AddrFrom(a)
 				return ipAddr, nil
 			}
 		}
@@ -703,14 +709,16 @@ func (e *API) GetInstances(ctx context.Context, vpcs ipamTypes.VirtualNetworkMap
 		for _, eni := range enis {
 			if subnets != nil {
 				if subnet, ok := subnets[eni.Subnet.ID]; ok && subnet.CIDR.IsValid() {
-					eni.Subnet.CIDR = subnet.CIDR.String()
+					eni.Subnet.CIDR = iputil.PrefixFrom(subnet.CIDR)
 				}
 			}
 
 			if vpcs != nil {
 				if vpc, ok := vpcs[eni.VPC.ID]; ok {
-					eni.VPC.PrimaryCIDR = vpc.PrimaryCIDR
-					eni.VPC.CIDRs = vpc.CIDRs
+					if vpc.PrimaryCIDR.IsValid() {
+						eni.VPC.PrimaryCIDR = vpc.PrimaryCIDR
+					}
+					eni.VPC.CIDRs = slices.Clone(vpc.CIDRs)
 				}
 			}
 

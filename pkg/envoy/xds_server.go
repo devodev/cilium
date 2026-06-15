@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"iter"
 	"log/slog"
 	"net"
 	"os"
@@ -40,6 +41,7 @@ import (
 	envoypolicy "github.com/cilium/cilium/pkg/envoy/policy"
 	_ "github.com/cilium/cilium/pkg/envoy/resource"
 	"github.com/cilium/cilium/pkg/envoy/xds"
+	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/maps/ipcache"
@@ -48,7 +50,9 @@ import (
 	policyTypes "github.com/cilium/cilium/pkg/policy/types"
 	"github.com/cilium/cilium/pkg/promise"
 	"github.com/cilium/cilium/pkg/proxy/endpoint"
+	"github.com/cilium/cilium/pkg/revert"
 	"github.com/cilium/cilium/pkg/time"
+	ciliumTypes "github.com/cilium/cilium/pkg/types"
 	"github.com/cilium/cilium/pkg/u8proto"
 )
 
@@ -117,15 +121,10 @@ type XDSServer interface {
 	// responds.
 	DeleteEnvoyResources(ctx context.Context, resources Resources) error
 
-	// GetNetworkPolicies returns the current version of the network policies with the given names.
-	// If resourceNames is empty, all resources are returned.
-	//
-	// Only used for testing
-	GetNetworkPolicies(resourceNames []string) (map[string]*cilium.NetworkPolicy, error)
 	// UpdateNetworkPolicy adds or updates a network policy in the set published to L7 proxies.
 	// When the proxy acknowledges the network policy update, it will result in
 	// a subsequent call to the endpoint's OnProxyPolicyUpdate() function.
-	UpdateNetworkPolicy(ep endpoint.EndpointUpdater, policy *policy.EndpointPolicy, wg *completion.WaitGroup) (error, func() error)
+	UpdateNetworkPolicy(ep endpoint.EndpointUpdater, policy *policy.EndpointPolicy, wg *completion.WaitGroup) (error, revert.RevertFunc, revert.FinalizeFunc)
 	// RemoveNetworkPolicy removes network policies relevant to the specified
 	// endpoint from the set published to L7 proxies, and stops listening for
 	// acks for policies on this endpoint.
@@ -1524,7 +1523,30 @@ func isEmptyRule(rule *cilium.PortNetworkPolicyRule) bool {
 	return rule.Precedence == 0 && isEmptyRuleButPrecedence(rule)
 }
 
-func (s *xdsServer) getDirectionNetworkPolicy(ep endpoint.EndpointUpdater, selectors policy.SelectorSnapshot, l4DirectionPolicy *policy.L4DirectionPolicy, policyEnforced bool, useFullTLSContext, useSDS bool, dir string, policySecretsNamespace string) []*cilium.PortNetworkPolicy {
+type portKey struct {
+	port    uint16
+	endPort uint16
+}
+
+type portState struct {
+	rules []*cilium.PortNetworkPolicyRule
+
+	// Assume none of the rules have side-effects so that rule evaluation can be
+	// stopped as soon as the first allowing rule is found. Values are added to
+	// 'cantShortCircuit' for each precedence for which this is not true.
+	cantShortCircuit map[uint32]struct{}
+
+	// port-specific wildcard selector rules, if any, only for the highest
+	// precedence rules.
+	allowAllPrecedence uint32
+	denyAllPrecedence  uint32
+	allowAllRule       *cilium.PortNetworkPolicyRule
+	denyAllRule        *cilium.PortNetworkPolicyRule
+}
+
+type GetEgressNamedPorts func(name string, proto u8proto.U8proto, idents iter.Seq[identity.NumericIdentity]) ciliumTypes.NidPortSeq
+
+func (s *xdsServer) getDirectionNetworkPolicy(ep endpoint.EndpointUpdater, getEgressNamedPorts GetEgressNamedPorts, selectors policy.SelectorSnapshot, l4DirectionPolicy *policy.L4DirectionPolicy, policyEnforced bool, useFullTLSContext, useSDS bool, dir string, policySecretsNamespace string) []*cilium.PortNetworkPolicy {
 	// TODO: integrate visibility with enforced policy
 	if !policyEnforced {
 		// Always allow all ports
@@ -1607,40 +1629,29 @@ func (s *xdsServer) getDirectionNetworkPolicy(ep endpoint.EndpointUpdater, selec
 			}
 		}
 
+		rulesByPort := map[portKey]portState{}
+		var ports []portKey
+		ensurePortState := func(key portKey) portState {
+			byPort, ok := rulesByPort[key]
+			if !ok {
+				byPort.cantShortCircuit = make(map[uint32]struct{})
+				ports = append(ports, key)
+			}
+			return byPort
+		}
+
 		for l4 := range l4Policy[tier].Filters() {
-			var protocol envoy_config_core.SocketAddress_Protocol
 			switch l4.U8Proto {
 			case u8proto.TCP, u8proto.ANY:
-				protocol = envoy_config_core.SocketAddress_TCP
 			default:
 				// Other protocol rules not sent to Envoy for now.
 				continue
 			}
 
 			port := l4.Port
-			if port == 0 && l4.PortName != "" {
-				port = ep.GetNamedPort(l4.Ingress, l4.PortName, l4.U8Proto, l4.Identities(selectors))
+			if port == 0 && l4.PortName != "" && l4.Ingress {
+				port = ep.GetIngressNamedPort(l4.PortName, l4.U8Proto)
 			}
-
-			// Skip if a named port can not be resolved (yet)
-			// wildcard port already taken care of above
-			if port == 0 {
-				continue
-			}
-
-			rules := make([]*cilium.PortNetworkPolicyRule, 0, len(l4.PerSelectorPolicies))
-
-			// Assume none of the rules have side-effects so that rule evaluation can be
-			// stopped as soon as the first allowing rule is found. Values are added to
-			// 'cantShortCircuit' for each precedence for which this is not true.
-			cantShortCircuit := make(map[uint32]struct{})
-
-			// port-specific wildcard selector rules, if any, only for the highest
-			// precedence rules.
-			var allowAllPrecedence uint32
-			var allowAllRule *cilium.PortNetworkPolicyRule
-			var denyAllPrecedence uint32
-			var denyAllRule *cilium.PortNetworkPolicyRule
 
 			for sel, psp := range l4.PerSelectorPolicies {
 				precedence := psp.GetPrecedence()
@@ -1658,14 +1669,65 @@ func (s *xdsServer) getDirectionNetworkPolicy(ep endpoint.EndpointUpdater, selec
 					continue
 				}
 
+				// Handle egress named ports separately
+				if port == 0 && l4.PortName != "" && !l4.Ingress {
+					if getEgressNamedPorts == nil {
+						continue
+					}
+
+					selections := sel.GetSelectionsAt(selectors)
+					if len(selections) == 0 {
+						continue
+					}
+
+					remotePoliciesByPort := map[uint16][]uint32{}
+					for id, port := range getEgressNamedPorts(l4.PortName, l4.U8Proto, slices.Values(selections)) {
+						// selections is sorted, so remotePolicies is also sorted.
+						remotePoliciesByPort[port] = append(remotePoliciesByPort[port], uint32(id))
+					}
+					for port, remotePolicies := range remotePoliciesByPort {
+						rule, csc := s.getPortNetworkPolicyRule(ep, selectors, sel, psp,
+							tierBasePriority, tierLastPriority,
+							useFullTLSContext, useSDS, policySecretsNamespace)
+						if rule == nil {
+							continue
+						}
+						rule.RemotePolicies = remotePolicies
+
+						if debugEnabled {
+							s.logger.Debug("PortNetworkPolicyRule matching remote IDs",
+								logfields.EndpointID, ep.GetID(),
+								logfields.Version, selectors,
+								logfields.TrafficDirection, dir,
+								logfields.Port, port,
+								logfields.ProxyPort, rule.ProxyId,
+								logfields.PolicyID, rule.RemotePolicies,
+								logfields.ServerNames, rule.ServerNames,
+							)
+						}
+
+						portKey := portKey{port, l4.EndPort}
+						byPort := ensurePortState(portKey)
+						if !csc {
+							byPort.cantShortCircuit[rule.Precedence] = struct{}{}
+						}
+						byPort.rules = append(byPort.rules, rule)
+						rulesByPort[portKey] = byPort
+					}
+					continue
+				}
+
+				// Skip if a named port can not be resolved (yet)
+				// wildcard port already taken care of above
+				if port == 0 {
+					continue
+				}
+
 				rule, csc := s.getPortNetworkPolicyRule(ep, selectors, sel, psp,
 					tierBasePriority, tierLastPriority,
 					useFullTLSContext, useSDS, policySecretsNamespace)
 				if rule == nil {
 					continue
-				}
-				if !csc {
-					cantShortCircuit[rule.Precedence] = struct{}{}
 				}
 
 				if debugEnabled {
@@ -1680,22 +1742,51 @@ func (s *xdsServer) getDirectionNetworkPolicy(ep endpoint.EndpointUpdater, selec
 					)
 				}
 
+				portKey := portKey{port, l4.EndPort}
+				byPort := ensurePortState(portKey)
+				if !csc {
+					byPort.cantShortCircuit[rule.Precedence] = struct{}{}
+				}
+
 				if len(rule.RemotePolicies) == 0 {
 					if rule.GetDeny() {
-						if rule.Precedence > denyAllPrecedence {
-							denyAllRule = rule
-							denyAllPrecedence = rule.Precedence
+						if rule.Precedence > byPort.denyAllPrecedence {
+							byPort.denyAllRule = rule
+							byPort.denyAllPrecedence = rule.Precedence
 						}
 					} else if isEmptyRuleButPrecedence(rule) {
-						if rule.Precedence > allowAllPrecedence {
-							allowAllRule = rule
-							allowAllPrecedence = rule.Precedence
+						if rule.Precedence > byPort.allowAllPrecedence {
+							byPort.allowAllRule = rule
+							byPort.allowAllPrecedence = rule.Precedence
 						}
 					}
 				}
-
-				rules = append(rules, rule)
+				byPort.rules = append(byPort.rules, rule)
+				rulesByPort[portKey] = byPort
 			}
+		}
+
+		if len(ports) > 1 {
+			slices.SortFunc(ports, func(a, b portKey) int {
+				if a.port < b.port {
+					return -1
+				}
+				if a.port > b.port {
+					return 1
+				}
+				if a.endPort < b.endPort {
+					return -1
+				}
+				if a.endPort > b.endPort {
+					return 1
+				}
+				return 0
+			})
+		}
+		for _, portKey := range ports {
+			byPort := rulesByPort[portKey]
+			rules, cantShortCircuit, allowAllRule, denyAllRule :=
+				byPort.rules, byPort.cantShortCircuit, byPort.allowAllRule, byPort.denyAllRule
 
 			// prune out rules due to wildcard rules on this port, if any
 			if denyAllRule != nil || allowAllRule != nil {
@@ -1714,7 +1805,7 @@ func (s *xdsServer) getDirectionNetworkPolicy(ep endpoint.EndpointUpdater, selec
 					s.logger.Debug("Pruned rules due to wildcard rules on the port ",
 						logfields.EndpointID, ep.GetID(),
 						logfields.TrafficDirection, dir,
-						logfields.Port, port,
+						logfields.Port, portKey.port,
 						logfields.Count, nRules-len(rules),
 					)
 				}
@@ -1728,7 +1819,7 @@ func (s *xdsServer) getDirectionNetworkPolicy(ep endpoint.EndpointUpdater, selec
 					s.logger.Debug("Skipping PortNetworkPolicy due to no matching remote identities",
 						logfields.EndpointID, ep.GetID(),
 						logfields.TrafficDirection, dir,
-						logfields.Port, port,
+						logfields.Port, portKey.port,
 					)
 				}
 				continue
@@ -1742,9 +1833,9 @@ func (s *xdsServer) getDirectionNetworkPolicy(ep endpoint.EndpointUpdater, selec
 
 			// NPDS supports port ranges.
 			portPolicy := &cilium.PortNetworkPolicy{
-				Port:     uint32(port),
-				EndPort:  uint32(l4.EndPort),
-				Protocol: protocol,
+				Port:     uint32(portKey.port),
+				EndPort:  uint32(portKey.endPort),
+				Protocol: envoy_config_core.SocketAddress_TCP,
 				Rules:    rules,
 			}
 			PerPortPolicies = append(PerPortPolicies, portPolicy)
@@ -1772,7 +1863,7 @@ func (s *xdsServer) getDirectionNetworkPolicy(ep endpoint.EndpointUpdater, selec
 }
 
 // getNetworkPolicy converts a network policy into a cilium.NetworkPolicy.
-func (s *xdsServer) getNetworkPolicy(ep endpoint.EndpointUpdater, selectors policy.SelectorSnapshot, names []string, l4Policy *policy.L4Policy,
+func (s *xdsServer) getNetworkPolicy(ep endpoint.EndpointUpdater, getEgressNamedPorts GetEgressNamedPorts, selectors policy.SelectorSnapshot, names []string, l4Policy *policy.L4Policy,
 	ingressPolicyEnforced, egressPolicyEnforced, useFullTLSContext, useSDS bool, policySecretsNamespace string,
 ) *cilium.NetworkPolicy {
 	p := &cilium.NetworkPolicy{
@@ -1781,8 +1872,8 @@ func (s *xdsServer) getNetworkPolicy(ep endpoint.EndpointUpdater, selectors poli
 	}
 
 	if l4Policy != nil {
-		p.IngressPerPortPolicies = s.getDirectionNetworkPolicy(ep, selectors, &l4Policy.Ingress, ingressPolicyEnforced, useFullTLSContext, useSDS, ingressDirection, policySecretsNamespace)
-		p.EgressPerPortPolicies = s.getDirectionNetworkPolicy(ep, selectors, &l4Policy.Egress, egressPolicyEnforced, useFullTLSContext, useSDS, egressDirection, policySecretsNamespace)
+		p.IngressPerPortPolicies = s.getDirectionNetworkPolicy(ep, getEgressNamedPorts, selectors, &l4Policy.Ingress, ingressPolicyEnforced, useFullTLSContext, useSDS, ingressDirection, policySecretsNamespace)
+		p.EgressPerPortPolicies = s.getDirectionNetworkPolicy(ep, getEgressNamedPorts, selectors, &l4Policy.Egress, egressPolicyEnforced, useFullTLSContext, useSDS, egressDirection, policySecretsNamespace)
 	}
 
 	return p
@@ -1801,13 +1892,22 @@ func getNodeIDs(ep endpoint.EndpointUpdater, policy *policy.L4Policy) []string {
 // implemented by Cilium.
 var ErrNilPolicy = errors.New("nil EndpointPolicy")
 
+// UpdateNetworkPolicy returns nil revert/finalize funcs with synchronous errors.
 func (s *xdsServer) UpdateNetworkPolicy(ep endpoint.EndpointUpdater, epp *policy.EndpointPolicy, wg *completion.WaitGroup,
-) (error, func() error) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
+) (error, revert.RevertFunc, revert.FinalizeFunc) {
 	if epp == nil {
-		return ErrNilPolicy, nil
+		return ErrNilPolicy, nil, nil
+	}
+
+	names := ep.GetPolicyNames()
+	if len(names) == 0 {
+		// It looks like the "host EP" (identity == 1) has no IPs, so it is possible to find
+		// there are no policy names here. In this case just skip without updating a policy.
+		s.logger.Debug("Endpoint has no policy names",
+			logfields.Name, names,
+			logfields.EndpointID, ep.GetID(),
+		)
+		return nil, func() error { return nil }, func() {}
 	}
 
 	l4policy := &epp.SelectorPolicy.L4Policy
@@ -1817,30 +1917,36 @@ func (s *xdsServer) UpdateNetworkPolicy(ep endpoint.EndpointUpdater, epp *policy
 
 	// Error out if the selectors are no longer valid
 	if !selectors.IsValid() {
-		return policy.ErrStaleSelectors, nil
+		return policy.ErrStaleSelectors, nil, nil
 	}
 
-	ips := ep.GetPolicyNames()
-	if len(ips) == 0 {
-		// It looks like the "host EP" (identity == 1) has no IPs, so it is possible to find
-		// there are no IPs here. In this case just skip without updating a policy, as
-		// policies are always keyed by an IP.
-		//
-		// TODO: When L7 policy support for the host is needed, all host IPs should be
-		// considered here?
-		s.logger.Debug("Endpoint has no IP addresses or name",
-			logfields.Name, ips,
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	// Update local endpoint IP/policy mapping for access log correlation and log any conflicts.
+	// This is done even if policy update fails, as this information only depends on the
+	// existence of the endpoint and does not need to be reverted even if policy update fails.
+	conflicts := s.localEndpointStore.setLocalEndpoint(ep)
+	if len(conflicts) > 0 {
+		s.logger.Error("Conflicting policy names detected while updating local endpoint store",
 			logfields.EndpointID, ep.GetID(),
+			logfields.Info, conflicts,
 		)
-		return nil, func() error { return nil }
+
+		// remove conflicting policies
+		for _, dup := range conflicts {
+			// We use the string form of the Endpoint's ID as the xDS resource name.
+			dupName := strconv.FormatUint(dup.ep.GetID(), 10)
+			s.networkPolicyMutator.Delete(NetworkPolicyTypeURL, dupName, nil, nil, nil)
+		}
 	}
 
-	networkPolicy := s.getNetworkPolicy(ep, selectors, ips, l4policy, ingressPolicyEnforced, egressPolicyEnforced, s.config.useFullTLSContext, s.config.useSDS, s.secretManager.GetSecretSyncNamespace())
+	networkPolicy := s.getNetworkPolicy(ep, epp.SelectorPolicy.GetEgressNamedPorts, selectors, names, l4policy, ingressPolicyEnforced, egressPolicyEnforced, s.config.useFullTLSContext, s.config.useSDS, s.secretManager.GetSecretSyncNamespace())
 
 	// First, validate the policy
 	err := networkPolicy.Validate()
 	if err != nil {
-		return fmt.Errorf("error validating generated NetworkPolicy for %d/%s: %w", ep.GetID(), ep.GetPolicyNames(), err), nil
+		return fmt.Errorf("error validating generated NetworkPolicy for %d/%s: %w", ep.GetID(), ep.GetPolicyNames(), err), nil, nil
 	}
 
 	// If there are no listeners configured, the local node's Envoy proxy won't
@@ -1851,44 +1957,35 @@ func (s *xdsServer) UpdateNetworkPolicy(ep endpoint.EndpointUpdater, epp *policy
 	}
 
 	// When successful, push policy into the cache.
-	var callback func(error)
 	policyRevision := l4policy.Revision
-	callback = func(err error) {
+	callback := func(err error) {
 		if err == nil {
 			go ep.OnProxyPolicyUpdate(policyRevision)
 		}
 	}
-
 	epID := ep.GetID()
 	nodeIDs := getNodeIDs(ep, l4policy)
 	resourceName := strconv.FormatUint(epID, 10)
 	revertFunc := s.networkPolicyMutator.Upsert(NetworkPolicyTypeURL, resourceName, networkPolicy, nodeIDs, wg, callback)
-	revertUpdatedNetworkPolicyEndpoints := make(map[string]endpoint.EndpointUpdater, len(ips))
-	for _, ip := range ips {
-		revertUpdatedNetworkPolicyEndpoints[ip] = s.localEndpointStore.getLocalEndpoint(ip)
-		s.localEndpointStore.setLocalEndpoint(ip, ep)
-	}
 
 	return nil, func() error {
-		s.logger.Debug("Reverting xDS network policy update")
+			s.logger.Debug("Reverting xDS network policy update",
+				logfields.EndpointID, epID,
+			)
 
-		s.mutex.Lock()
-		defer s.mutex.Unlock()
+			s.mutex.Lock()
+			defer s.mutex.Unlock()
 
-		for ip, ep := range revertUpdatedNetworkPolicyEndpoints {
-			if ep == nil {
-				s.localEndpointStore.removeLocalEndpoint(ip)
-			} else {
-				s.localEndpointStore.setLocalEndpoint(ip, ep)
-			}
+			revertFunc()
+
+			s.logger.Debug("Finished reverting xDS network policy update")
+
+			return nil
+		}, func() {
+			s.logger.Debug("Finalizing xDS network policy update",
+				logfields.EndpointID, epID,
+			)
 		}
-
-		revertFunc()
-
-		s.logger.Debug("Finished reverting xDS network policy update")
-
-		return nil
-	}
 }
 
 func (s *xdsServer) RemoveNetworkPolicy(ep endpoint.EndpointInfoSource) {
@@ -1902,35 +1999,11 @@ func (s *xdsServer) RemoveNetworkPolicy(ep endpoint.EndpointInfoSource) {
 	// ignored.
 	s.networkPolicyMutator.Delete(NetworkPolicyTypeURL, resourceName, nil, nil, nil)
 
-	ip := ep.GetIPv6Address()
-	if ip != "" {
-		s.localEndpointStore.removeLocalEndpoint(ip)
-	}
-	ip = ep.GetIPv4Address()
-	if ip != "" {
-		s.localEndpointStore.removeLocalEndpoint(ip)
-		// Delete node resources held in the cache for the endpoint
-		s.networkPolicyMutator.DeleteNode(ip)
-	}
+	s.localEndpointStore.removeLocalEndpoint(ep)
 }
 
 func (s *xdsServer) RemoveAllNetworkPolicies() {
 	s.networkPolicyCache.Clear(NetworkPolicyTypeURL)
-}
-
-func (s *xdsServer) GetNetworkPolicies(resourceNames []string) (map[string]*cilium.NetworkPolicy, error) {
-	resources, err := s.networkPolicyCache.GetResources(NetworkPolicyTypeURL, 0, "", resourceNames)
-	if err != nil {
-		return nil, err
-	}
-	networkPolicies := make(map[string]*cilium.NetworkPolicy, len(resources.Resources))
-	for _, res := range resources.Resources {
-		networkPolicy := res.(*cilium.NetworkPolicy)
-		for _, ip := range networkPolicy.EndpointIps {
-			networkPolicies[ip] = networkPolicy
-		}
-	}
-	return networkPolicies, nil
 }
 
 // Resources contains all Envoy resources parsed from a CiliumEnvoyConfig CRD

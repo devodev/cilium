@@ -20,6 +20,7 @@ import (
 	"github.com/cilium/cilium/pkg/envoy/xds"
 	"github.com/cilium/cilium/pkg/policy"
 	"github.com/cilium/cilium/pkg/proxy/endpoint"
+	"github.com/cilium/cilium/pkg/revert"
 )
 
 var _ envoy.XDSServer = &mockXDSServer{}
@@ -88,10 +89,10 @@ func (s *mockXDSServer) RemoveNetworkPolicy(ep endpoint.EndpointInfoSource) {
 	delete(s.policies, ep.GetPolicyNames()[0])
 }
 
-func (s *mockXDSServer) UpdateNetworkPolicy(ep endpoint.EndpointUpdater, policy *policy.EndpointPolicy, wg *completion.WaitGroup) (error, func() error) {
+func (s *mockXDSServer) UpdateNetworkPolicy(ep endpoint.EndpointUpdater, policy *policy.EndpointPolicy, wg *completion.WaitGroup) (error, revert.RevertFunc, revert.FinalizeFunc) {
 	s.nrOfUpdates++
 	s.policies[ep.GetPolicyNames()[0]] = policy
-	return nil, func() error { return nil }
+	return nil, func() error { return nil }, nil
 }
 
 func (*mockXDSServer) UseCurrentNetworkPolicy(ep endpoint.EndpointUpdater, policy *policy.EndpointPolicy, wg *completion.WaitGroup) {

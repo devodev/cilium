@@ -556,9 +556,11 @@ var (
 		Labels:           redSvcLabels,
 		ExtTrafficPolicy: loadbalancer.SVCTrafficPolicyLocal,
 		IntTrafficPolicy: loadbalancer.SVCTrafficPolicyCluster,
-		ProxyRedirect: &loadbalancer.ProxyRedirect{
-			ProxyPort: 10000,
-			Ports:     []uint16{80, 443},
+		ProxyRedirects: loadbalancer.ProxyRedirects{
+			{
+				ProxyPort: 10000,
+				Ports:     []uint16{80, 443},
+			},
 		},
 	}
 	svcFrontend = func(svc *loadbalancer.Service, addr string, port uint16, svcType loadbalancer.SVCType) *loadbalancer.Frontend {

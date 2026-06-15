@@ -24,7 +24,6 @@ import (
 	endpointtypes "github.com/cilium/cilium/pkg/endpoint/types"
 	"github.com/cilium/cilium/pkg/eventqueue"
 	"github.com/cilium/cilium/pkg/fqdn/restore"
-	"github.com/cilium/cilium/pkg/identity"
 	identityPkg "github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/ipcache"
 	"github.com/cilium/cilium/pkg/labels"
@@ -37,7 +36,6 @@ import (
 	policyTypes "github.com/cilium/cilium/pkg/policy/types"
 	"github.com/cilium/cilium/pkg/revert"
 	"github.com/cilium/cilium/pkg/time"
-	"github.com/cilium/cilium/pkg/types"
 	"github.com/cilium/cilium/pkg/u8proto"
 )
 
@@ -51,18 +49,10 @@ func (e *Endpoint) PreviousMapState() *policy.MapState {
 	return e.desiredPolicy.GetMapState()
 }
 
-// GetNamedPort returns the port for the given name.
-func (e *Endpoint) GetNamedPort(ingress bool, name string, proto u8proto.U8proto, idents iter.Seq[identity.NumericIdentity]) uint16 {
-	if ingress {
-		// Ingress only needs the ports of the POD itself
-		return e.getNamedPortIngress(e.GetK8sPorts(), name, proto)
-	}
-	// egress needs named ports of the destination pods
-	return e.getNamedPortEgress(e.namedPortsGetter.GetNamedPorts(), name, proto, idents)
-}
-
-func (e *Endpoint) getNamedPortIngress(npMap types.NamedPortMap, name string, proto u8proto.U8proto) uint16 {
-	port, err := npMap.GetNamedPort(name, proto)
+// GetIngressNamedPort returns one port for the given name.
+func (e *Endpoint) GetIngressNamedPort(name string, proto u8proto.U8proto) uint16 {
+	// Ingress only needs the ports of the POD itself
+	port, err := e.GetK8sPorts().GetNamedPort(name, proto)
 	if err != nil && e.logLimiter.Allow() {
 		e.getLogger().Warn(
 			"Skipping named port",
@@ -75,44 +65,37 @@ func (e *Endpoint) getNamedPortIngress(npMap types.NamedPortMap, name string, pr
 	return port
 }
 
-func (e *Endpoint) getNamedPortEgress(npMap types.NamedPortMultiMap, name string, proto u8proto.U8proto, idents iter.Seq[identity.NumericIdentity]) uint16 {
-	port, err := npMap.GetNamedPort(name, proto, idents)
-	// Skip logging for ErrUnknownNamedPort on egress, as the destination POD with the port name
-	// is likely not scheduled yet.
-	if err != nil && !errors.Is(err, types.ErrUnknownNamedPort) && e.logLimiter.Allow() {
-		e.getLogger().Warn(
-			"Skipping named port",
-			logfields.Error, err,
-			logfields.PortName, name,
-			logfields.Protocol, proto,
-			logfields.TrafficDirection, "egress",
-		)
-	}
-	return port
-}
-
-// proxyID returns a unique string to identify a proxy mapping,
-// and the resolved destination port number, if any.
-// For port ranges the proxy is identified by the first port in
-// the range, as overlapping proxy port ranges are not supported.
-// Must be called with e.mutex held.
-func (e *Endpoint) proxyID(l4 *policy.L4Filter, listener string, scSnapshot policy.SelectorSnapshot) (string, uint16, u8proto.U8proto) {
+// proxyIDs returns unique strings to identify proxy mappings, and the resolved
+// destination port numbers, if any. For port ranges the proxy is identified by
+// the first port in the range, as overlapping proxy port ranges are not
+// supported. Must be called with e.mutex held.
+func (e *Endpoint) proxyIDs(selectorPolicy policy.SelectorPolicy, l4 *policy.L4Filter, listener string, scSnapshot policy.SelectorSnapshot) iter.Seq2[string, uint16] {
 	port := l4.Port
-	protocol := l4.U8Proto
-	// Calculate protocol if it is 0 (default) and
-	// is not "ANY" (that is, it was not calculated).
-	if protocol == 0 && !l4.Protocol.IsAny() {
-		proto, _ := u8proto.ParseProtocol(string(l4.Protocol))
-		protocol = proto
-	}
-	if port == 0 && l4.PortName != "" {
-		port = e.GetNamedPort(l4.Ingress, l4.PortName, protocol, l4.Identities(scSnapshot))
-		if port == 0 {
-			return "", 0, 0
+
+	if port == 0 {
+		if l4.PortName == "" {
+			return func(func(string, uint16) bool) {}
+		}
+		if l4.Ingress {
+			port = e.GetIngressNamedPort(l4.PortName, l4.U8Proto)
+			if port == 0 {
+				return func(func(string, uint16) bool) {}
+			}
+		} else {
+			// Egress named port with different ports for different identities.
+			return func(yield func(string, uint16) bool) {
+				for _, port := range selectorPolicy.GetEgressNamedPorts(l4.PortName, l4.U8Proto, l4.Identities(scSnapshot)) {
+					if !yield(policy.ProxyID(e.ID, false, string(l4.Protocol), port, listener), port) {
+						return
+					}
+				}
+			}
 		}
 	}
 
-	return policy.ProxyID(e.ID, l4.Ingress, string(l4.Protocol), port, listener), port, protocol
+	return func(yield func(string, uint16) bool) {
+		yield(policy.ProxyID(e.ID, l4.Ingress, string(l4.Protocol), port, listener), port)
+	}
 }
 
 // setNextPolicyRevision updates the desired policy revision field
@@ -980,7 +963,7 @@ func (e *Endpoint) ComputeInitialPolicy(regenContext *regenerationContext) (erro
 
 		stats.proxyPolicyCalculation.Start()
 		// Initial NetworkPolicy is not reverted
-		err, _ = e.proxy.UpdateNetworkPolicy(e, e.desiredPolicy, nil)
+		err, _, finalize := e.proxy.UpdateNetworkPolicy(e, e.desiredPolicy, nil)
 		stats.proxyPolicyCalculation.End(err == nil)
 		if err != nil {
 			e.getLogger().Warn(
@@ -990,6 +973,7 @@ func (e *Endpoint) ComputeInitialPolicy(regenContext *regenerationContext) (erro
 			// Do not error out so that the policy regeneration is tried again.
 			return nil, release
 		}
+		finalize()
 	}
 
 	// Signal computation of the initial Envoy policy if not done yet
@@ -1166,7 +1150,7 @@ func (e *Endpoint) runIPIdentitySync(endpointIP netip.Addr) {
 func (e *Endpoint) SetIdentity(identity *identityPkg.Identity) (identityToRelease *identityPkg.Identity) {
 	oldIdentity := "no identity"
 	if e.SecurityIdentity != nil {
-		oldIdentity = e.SecurityIdentity.StringID()
+		oldIdentity = e.SecurityIdentity.String()
 	}
 
 	// Current security identity for endpoint is its old identity - delete its
@@ -1199,16 +1183,16 @@ func (e *Endpoint) SetIdentity(identity *identityPkg.Identity) (identityToReleas
 		e.runIPIdentitySync(e.IPv6)
 	}
 
-	if oldIdentity != identity.StringID() {
+	if oldIdentity != identity.String() {
 		e.getLogger().Info(
 			"Identity of endpoint changed",
-			logfields.IdentityNew, identity.StringID(),
+			logfields.IdentityNew, identity,
 			logfields.IdentityOld, oldIdentity,
 			logfields.IdentityLabels, map[string]labels.Label(identity.Labels),
 		)
 	}
 	e.UpdateLogger(map[string]any{
-		logfields.Identity: identity.StringID(),
+		logfields.Identity: identity.String(),
 	})
 	return identityToRelease
 }

@@ -95,7 +95,7 @@ static __always_inline bool validate_ethertype(struct __ctx_buff *ctx,
 }
 
 static __always_inline __maybe_unused bool
-__revalidate_data_pull(struct __ctx_buff *ctx, void **data_, void **data_end_,
+__revalidate_data_pull(const struct __ctx_buff *ctx, void **data_, void **data_end_,
 		       void **l3, const __u32 l3_off, const __u32 l3_len,
 		       const bool pull)
 {
@@ -306,9 +306,10 @@ enum metric_dir {
 #define TC_INDEX_F_SKIP_HEALTH_CHECK	8
 #define TC_INDEX_F_SKIP_HOST_FIREWALL	16
 
-#define CB_DELIVERY_FLAGS_REDIRECT	(1 << 0)
-#define CB_DELIVERY_FLAGS_FROM_HOST	(1 << 1)
-#define CB_DELIVERY_FLAGS_FROM_TUNNEL	(1 << 2)
+#define CB_DELIVERY_FLAGS_REDIRECT		(1 << 0)
+#define CB_DELIVERY_FLAGS_FROM_HOST		(1 << 1)
+#define CB_DELIVERY_FLAGS_FROM_TUNNEL		(1 << 2)
+#define CB_DELIVERY_FLAGS_USE_REDIRECT_PEER	(1 << 3)
 
 #define CB_NAT_FLAGS_REVDNAT_ONLY	(1 << 0)
 

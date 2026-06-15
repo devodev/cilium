@@ -42,6 +42,7 @@ import (
 	"github.com/cilium/cilium/pkg/maps/policymap"
 	nodeTypes "github.com/cilium/cilium/pkg/node/types"
 	"github.com/cilium/cilium/pkg/promise"
+	ciliumTypes "github.com/cilium/cilium/pkg/types"
 )
 
 func mockEndpointCell(t testing.TB) cell.Cell {
@@ -183,7 +184,7 @@ func (f *fakeEP) GetK8sNamespaceAndPodName() string {
 }
 
 // SetK8sMetadata implements endpoints.Endpoint.
-func (f *fakeEP) SetK8sMetadata(containerPorts []slim_corev1.ContainerPort) {
+func (f *fakeEP) SetK8sMetadata(_ ciliumTypes.NamedPortMap) {
 	// no-op
 }
 

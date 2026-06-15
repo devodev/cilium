@@ -84,6 +84,7 @@ spec:
                     type: string
                   cidr-block:
                     description: CIDRBlock is vpc ipv4 CIDR
+                    format: cidr
                     type: string
                   instance-type:
                     description: InstanceType is the ECS instance type, e.g. "ecs.g6.2xlarge"
@@ -359,7 +360,6 @@ spec:
                               description: CIDRs contains a list of pod CIDRs currently
                                 allocated from this pool
                               items:
-                                description: IPAMCIDR is a CIDR used for IPAM
                                 format: cidr
                                 type: string
                               type: array
@@ -482,14 +482,17 @@ spec:
                           properties:
                             cidr:
                               description: CIDRBlock is the VPC IPv4 CIDR
+                              format: cidr
                               type: string
                             ipv6-cidr:
                               description: IPv6CIDRBlock is the VPC IPv6 CIDR
+                              format: cidr
                               type: string
                             secondary-cidrs:
                               description: SecondaryCIDRs is the list of Secondary
                                 CIDRs associated with the VPC
                               items:
+                                format: cidr
                                 type: string
                               type: array
                             vpc-id:
@@ -501,9 +504,11 @@ spec:
                           properties:
                             cidr:
                               description: CIDRBlock is the vSwitch IPv4 CIDR
+                              format: cidr
                               type: string
                             ipv6-cidr:
                               description: IPv6CIDRBlock is the vSwitch IPv6 CIDR
+                              format: cidr
                               type: string
                             vswitch-id:
                               description: VSwitchID is the vSwitch to which the ENI
@@ -557,6 +562,7 @@ spec:
 
                             Deprecated: use Subnet.CIDR. Retained for one release so agent/operator
                             rolling upgrades work in either order.
+                          format: cidr
                           type: string
                         gateway:
                           description: Gateway is the interface's subnet's default
@@ -588,6 +594,7 @@ spec:
                             cidr:
                               description: CIDR is the CIDR range associated with
                                 the subnet
+                              format: cidr
                               type: string
                             id:
                               description: ID is the resource ID of the subnet
@@ -639,6 +646,7 @@ spec:
                           description: Prefixes is the list of all /28 prefixes associated
                             with the ENI
                           items:
+                            format: cidr
                             type: string
                           type: array
                         public-ip:
@@ -658,6 +666,7 @@ spec:
                             cidr:
                               description: CIDR is the CIDR range associated with
                                 the subnet
+                              format: cidr
                               type: string
                             id:
                               description: ID is the ID of the subnet
@@ -678,6 +687,7 @@ spec:
                               description: CIDRs is the list of CIDR ranges associated
                                 with the VPC
                               items:
+                                format: cidr
                                 type: string
                               type: array
                             id:
@@ -686,6 +696,7 @@ spec:
                             primary-cidr:
                               description: PrimaryCIDR is the primary CIDR of the
                                 VPC
+                              format: cidr
                               type: string
                           type: object
                       type: object

@@ -2166,6 +2166,21 @@ func (c *Collector) getGatewayAPITasks() []Task {
 			},
 		},
 		{
+			Description: "Collecting BackendTLSPolicy entries",
+			Quick:       true,
+			Task: func(ctx context.Context) error {
+				n := corev1.NamespaceAll
+				v, err := c.Client.ListUnstructured(ctx, backendTLSPolicy, &n, metav1.ListOptions{})
+				if err != nil {
+					return fmt.Errorf("failed to collect BackendTLSPolicy entries: %w", err)
+				}
+				if err := c.WriteYAML(backendTLSPoliciesFileName, v); err != nil {
+					return fmt.Errorf("failed to collect BackendTLSPolicy entries: %w", err)
+				}
+				return nil
+			},
+		},
+		{
 			Description: "Collecting GRPCRoute entries",
 			Quick:       true,
 			Task: func(ctx context.Context) error {
@@ -2206,6 +2221,21 @@ func (c *Collector) getGatewayAPITasks() []Task {
 				}
 				if err := c.WriteYAML(udpRoutesFileName, v); err != nil {
 					return fmt.Errorf("failed to collect UDPRoute entries: %w", err)
+				}
+				return nil
+			},
+		},
+		{
+			Description: "Collecting CiliumGatewayClassConfig entries",
+			Quick:       true,
+			Task: func(ctx context.Context) error {
+				n := corev1.NamespaceAll
+				v, err := c.Client.ListUnstructured(ctx, ciliumGatewayClassConfig, &n, metav1.ListOptions{})
+				if err != nil {
+					return fmt.Errorf("failed to collect CiliumGatewayClassConfig entries: %w", err)
+				}
+				if err := c.WriteYAML(ciliumGatewayClassConfigsFileName, v); err != nil {
+					return fmt.Errorf("failed to collect CiliumGatewayClassConfig entries: %w", err)
 				}
 				return nil
 			},

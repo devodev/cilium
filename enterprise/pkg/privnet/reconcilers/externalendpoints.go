@@ -45,7 +45,6 @@ import (
 	"github.com/cilium/cilium/pkg/k8s"
 	iso_v1alpha1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
 	"github.com/cilium/cilium/pkg/k8s/client"
-	slim_core_v1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	slim_metav1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
 	k8sSynced "github.com/cilium/cilium/pkg/k8s/synced"
 	k8sTables "github.com/cilium/cilium/pkg/k8s/tables"
@@ -572,7 +571,7 @@ func (e *externalEndpointReconcilerOps) createEndpoint(ctx context.Context, obj 
 	}
 	// Set K8s metadata, this is needed to ensure HaveK8sMetadata returns true.
 	// Without it, the endpoint subsystem will not create a CiliumEndpoint resource in Kubernetes
-	ep.SetK8sMetadata([]slim_core_v1.ContainerPort{})
+	ep.SetK8sMetadata(nil)
 	return nil
 }
 
@@ -889,7 +888,7 @@ func (e *externalEndpointRestorer) fixupRestoredEndpointProperties(ep endpoints.
 
 	// Also set K8s metadata again. For pods, RunRestoredMetadataResolver would do this, but we do not
 	// have a pod, so RunRestoredMetadataResolver is skipped upstream.
-	ep.SetK8sMetadata([]slim_core_v1.ContainerPort{})
+	ep.SetK8sMetadata(nil)
 }
 
 // RestorationNotify implements endpoints.RestorationNotifier
