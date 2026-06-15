@@ -122,6 +122,9 @@ type DesiredVM struct {
 	Affinity VMAffinity
 	Kind     VMKind
 	Mock     bool
+
+	IPv4Only bool
+	IPv6Only bool
 }
 
 func (vm DesiredVM) ToVMs() []VM {
@@ -138,6 +141,8 @@ func (vm DesiredVM) ToVMs() []VM {
 			Interface: iface.Name(uint(idx)),
 			Kind:      kind,
 			Mock:      vm.Mock,
+			IPv4Only:  vm.IPv4Only,
+			IPv6Only:  vm.IPv6Only,
 
 			NetName:   iface.Network,
 			NetSubnet: iface.Subnet,
@@ -148,6 +153,11 @@ func (vm DesiredVM) ToVMs() []VM {
 	}
 
 	return vms
+}
+
+func (vm DesiredVM) SupportsFamilies(families ...features.IPFamily) bool {
+	return !(vm.IPv6Only && !slices.Contains(families, features.IPFamilyV6)) &&
+		!(vm.IPv4Only && !slices.Contains(families, features.IPFamilyV4))
 }
 
 // VM models the source and/or destination endpoint of a test scenario. Each
@@ -165,12 +175,19 @@ type VM struct {
 	NetIPv6 netip.Addr
 	NetMAC  string
 
-	Kind VMKind
-	Mock bool
+	Kind     VMKind
+	Mock     bool
+	IPv4Only bool
+	IPv6Only bool
 }
 
 func (vm *VM) IsDHCPEnabled(family features.IPFamily) bool {
 	return family == features.IPFamilyV4 && vm.NetIPv4.IsUnspecified()
+}
+
+func (vm *VM) SupportsFamilies(families ...features.IPFamily) bool {
+	return !(vm.IPv6Only && !slices.Contains(families, features.IPFamilyV6)) &&
+		!(vm.IPv4Only && !slices.Contains(families, features.IPFamilyV4))
 }
 
 func (vm *VM) IP(family features.IPFamily) netip.Addr {
@@ -574,6 +591,40 @@ var networkTopology = struct {
 			Kind:     VMKindEcho,
 		},
 		{
+			ID:   "vm-A4",
+			Name: EchoOtherVM(NetworkA) + "-ipv4-only",
+			Interfaces: []Interface{
+				{
+					Network:   NetworkA,
+					NAD:       NADFor(NetworkA, SubnetName0),
+					IPv4:      netip.MustParseAddr("192.168.250.23"),
+					Routes:    newVMRoutes("0.0.0.0/0", 0),
+					DNSServer: netip.MustParseAddr("192.168.250.254"),
+					MAC:       "be:68:f6:fc:7a:2c",
+				},
+			},
+			Affinity: VMAffinity{OtherNode, ClientVM(NetworkA)},
+			Kind:     VMKindEcho,
+			IPv4Only: true,
+		},
+		{
+			Name: EchoOtherVM(NetworkA) + "-ipv6-only",
+			Interfaces: []Interface{
+				{
+					Network:   NetworkA,
+					NAD:       NADFor(NetworkA, SubnetName0),
+					IPv6:      netip.MustParseAddr("fd10:0:250::24"),
+					Routes:    newVMRoutes("::/0", 0),
+					DNSServer: netip.MustParseAddr("192.168.250.254"),
+					MAC:       "be:68:a1:3c:6a:4a",
+				},
+			},
+			Affinity: VMAffinity{OtherNode, ClientVM(NetworkA)},
+			Kind:     VMKindEcho,
+			IPv6Only: true,
+			Mock:     true,
+		},
+		{
 			Name: VMName("client-dhcp-network-b-a"),
 			Interfaces: []Interface{
 				{
@@ -668,6 +719,36 @@ var networkTopology = struct {
 			},
 			Kind: VMKindClient,
 			Mock: true,
+		},
+		{
+			Name: ClientVM(NetworkC) + "-ipv4-only",
+			Interfaces: []Interface{
+				{
+					Network:   NetworkC,
+					NAD:       NADFor(NetworkC, SubnetName0),
+					IPv4:      netip.MustParseAddr("192.168.252.12"),
+					DNSServer: netip.MustParseAddr("192.168.252.254"),
+					MAC:       "52:1f:62:04:1c:c7",
+				},
+			},
+			Kind:     VMKindClient,
+			Mock:     true,
+			IPv4Only: true,
+		},
+		{
+			Name: ClientVM(NetworkC) + "-ipv6-only",
+			Interfaces: []Interface{
+				{
+					Network:   NetworkC,
+					NAD:       NADFor(NetworkC, SubnetName0),
+					IPv6:      netip.MustParseAddr("fd10:0:252::12"),
+					DNSServer: netip.MustParseAddr("192.168.252.254"),
+					MAC:       "52:1f:61:04:4c:a7",
+				},
+			},
+			Kind:     VMKindClient,
+			Mock:     true,
+			IPv6Only: true,
 		},
 		{
 			Name: EchoOtherVM(NetworkC),

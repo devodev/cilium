@@ -8,8 +8,6 @@
 // information or reproduction of this material is strictly forbidden unless
 // prior written permission is obtained from Isovalent Inc.
 
-//go:build enterprise_hubble_rbac_e2e
-
 package hubblerbac
 
 import (
@@ -32,7 +30,19 @@ var (
 	demoPassword = os.Getenv("DEMO_OIDC_PASSWORD")
 )
 
+const enableHubbleRBACE2E = "ENABLE_ENTERPRISE_HUBBLE_RBAC_E2E"
+
+func requireHubbleRBACE2E(t *testing.T) {
+	t.Helper()
+
+	if !strings.EqualFold(os.Getenv(enableHubbleRBACE2E), "true") {
+		t.Skipf("skipping: set %s=true to run Hubble RBAC e2e tests", enableHubbleRBACE2E)
+	}
+}
+
 func TestHubbleObserve(t *testing.T) {
+	requireHubbleRBACE2E(t)
+
 	ctx := context.Background()
 
 	t.Run("unauthenticated", func(t *testing.T) {

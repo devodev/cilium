@@ -39,7 +39,9 @@ func NewClientToPod(t *TestRun, src VM, dst *corev1.Pod) Scenario {
 
 func (s *clientToPod) Run(ctx context.Context, exp Expectation, overrideIPFamilies ...features.IPFamily) {
 	for family := range s.t.theFamilies(overrideIPFamilies...) {
-		s.run(ctx, exp, family)
+		if s.src.SupportsFamilies(family) {
+			s.run(ctx, exp, family)
+		}
 	}
 }
 

@@ -33,19 +33,24 @@ def render_vm(id, info):
 
     guest_networks = []
     for idx, iface in enumerate(ifaces):
+        if "ip4" in iface:
+            guest_networks.extend([
+                {
+                    "device": str(idx),
+                    "mac": iface["mac"],
+                    "ip": iface["ip4"],
+                    "prefix": 24,
+                }])
+        if "ip6" in iface:
+            guest_networks.extend([
+                {
+                    "device": str(idx),
+                    "mac": iface["mac"],
+                    "ip": iface["ip6"],
+                    "prefix": 64,
+                }])
+
         guest_networks.extend([
-            {
-                "device": str(idx),
-                "mac": iface["mac"],
-                "ip": iface["ip4"],
-                "prefix": 24,
-            },
-            {
-                "device": str(idx),
-                "mac": iface["mac"],
-                "ip": iface["ip6"],
-                "prefix": 128,
-            },
             {
                 "device": str(idx),
                 "mac": iface["mac"],
@@ -173,6 +178,18 @@ data = {
                 "ip4": "192.168.250.21",
                 "ip6": "fd10:0:250::21",
                 "mac": "be:68:f6:fc:6a:4a",
+            }
+        ],
+        "dns": dns_server,
+    },
+    "vm-A4": {
+        "render": render_vm,
+        "name": "echo-other-node-network-a-ipv4-only",
+        "interfaces": [
+            {
+                "netID": "network-01",
+                "ip4": "192.168.250.23",
+                "mac": "be:68:f6:fc:7a:2c",
             }
         ],
         "dns": dns_server,

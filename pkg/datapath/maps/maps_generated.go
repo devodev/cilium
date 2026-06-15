@@ -117,6 +117,7 @@ const (
 	CiliumPerClusterSNATV4ExternalInner = "cilium_per_cluster_snat_v4_external_inner"
 	CiliumPerClusterSNATV6External      = "cilium_per_cluster_snat_v6_external"
 	CiliumPerClusterSNATV6ExternalInner = "cilium_per_cluster_snat_v6_external_inner"
+	CiliumPerCPUPrivnetNetID            = "cilium_percpu_privnet_net_id"
 	CiliumPerCPUTraceID                 = "cilium_percpu_trace_id"
 	CiliumPolicyV2                      = "cilium_policy_v2"
 	CiliumPolicystats                   = "cilium_policystats"
@@ -1263,6 +1264,20 @@ func newCiliumPerClusterSNATV6ExternalInnerSpec(btf *btf.Spec) *ebpf.MapSpec {
 	}
 }
 
+func newCiliumPerCPUPrivnetNetIDSpec(btf *btf.Spec) *ebpf.MapSpec {
+	return &ebpf.MapSpec{
+		Name:       CiliumPerCPUPrivnetNetID,
+		Type:       ebpf.PerCPUArray,
+		KeySize:    4,
+		Key:        anyTypeByName(btf, "__u32"),
+		ValueSize:  8,
+		Value:      anyTypeByName(btf, "privnet_net_id"),
+		MaxEntries: 1,
+		Flags:      0,
+		Pinning:    ebpf.PinByName,
+	}
+}
+
 func newCiliumPerCPUTraceIDSpec(btf *btf.Spec) *ebpf.MapSpec {
 	return &ebpf.MapSpec{
 		Name:       CiliumPerCPUTraceID,
@@ -1865,6 +1880,7 @@ var _outer []newMapFn = []newMapFn{
 	newCiliumPerClusterCTTCP6Spec,
 	newCiliumPerClusterSNATV4ExternalSpec,
 	newCiliumPerClusterSNATV6ExternalSpec,
+	newCiliumPerCPUPrivnetNetIDSpec,
 	newCiliumPerCPUTraceIDSpec,
 	newCiliumPolicyV2Spec,
 	newCiliumPolicystatsSpec,

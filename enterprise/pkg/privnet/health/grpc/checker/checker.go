@@ -360,7 +360,7 @@ func newConnectionFactory(factory grpcclient.ConnFactoryFn) func(tables.INBNode)
 func (c *connection) Init(ctx context.Context) {
 	defer close(c.init)
 
-	conn, err := c.factory(ctx, c.node)
+	conn, err := c.factory(ctx, c.node.Cluster, c.node.Name, c.node.AddrPort())
 	c.res.Store(&connResult{conn: conn, err: err})
 }
 

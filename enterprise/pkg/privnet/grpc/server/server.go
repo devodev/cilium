@@ -70,19 +70,28 @@ func registerServer(in serverParams) {
 				return fmt.Errorf("cannot create private networks gRPC listeners: %w", err)
 			}
 
+			// Add jobs for the listeners.
 			for _, lis := range listeners {
 				in.JobGroup.Add(
 					job.OneShot(fmt.Sprintf("server-%s", lis.Addr()),
 						func(ctx context.Context, health cell.Health) error {
-							in.Logger.Info("Starting privnet gRPC server", logfields.Address, lis.Addr().String())
-							health.OK("Serving")
+							addr := lis.Addr().String()
+							in.Logger.Info("Starting privnet gRPC server", logfields.Address, addr)
+							health.OK("Serving " + addr)
 							return gsrv.Serve(lis)
 						},
 						job.WithShutdown()))
 			}
 
-			<-ctx.Done()
-			gsrv.Stop()
+			// Finally add a job to tear down the server. This will be stopped before the
+			// listener jobs added above.
+			in.JobGroup.Add(
+				job.OneShot("server-stop",
+					func(ctx context.Context, health cell.Health) error {
+						<-ctx.Done()
+						gsrv.Stop()
+						return nil
+					}))
 
 			return nil
 		}))

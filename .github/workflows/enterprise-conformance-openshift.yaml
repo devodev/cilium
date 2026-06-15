@@ -1,7 +1,7 @@
 name: Conformance OpenShift (ci-openshift)
 
 # Usage with Ariane (GitHub issue comment):
-# `/ci-openshift {"kubevirt":"true", "ocp_version":"4.17.14", "kpr":"true", "ossm":"true", "hcp":"true", "region":"eu-central-1", "azs":"eu-central-1a"}`
+# `/ci-openshift {"kubevirt":"true", "ocp_version":"4.17.14", "kpr":"true", "bgp":"true", "ossm":"true", "hcp":"true", "region":"eu-central-1", "azs":"eu-central-1a"}`
 # The json parameters are optional. By default no KubeVirt and no OpenShift Service Mesh conformance tests are launched.
 # Bare-metal nodes get provisioned for running KubeVirt conformance tests, which is expensive.
 # The default region is us-east-1.
@@ -45,7 +45,8 @@ on:
 # specified are set to 'none'.
 permissions:
   # To read actions state with cilium/workflow-telemetry-action.
-  actions: read
+  # To dispatch the destroy workflow as an independent run.
+  actions: write
   # To be able to access the repository with actions/checkout.
   contents: read
   # To allow retrieving information from the PR API.
@@ -224,21 +225,23 @@ jobs:
           fi
           if [ "${{ github.event_name }}" == 'schedule' ]; then
             kubevirt='true'
+            bgp='true'
             ossm='true'
             hcp='true'
           elif [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            extra_args_raw='${{ inputs.extra-args }}'
+            extra_args_raw=$(echo '${{ inputs.extra-args }}' | jq -r '.')
             extra_args_raw="${extra_args_raw:='{}'}"
             if ! echo "$extra_args_raw" | jq -e . > /dev/null 2>&1; then
               echo "❌ ERROR: extra-args is not valid JSON. Aborting."
               exit 1
             fi
-            unknown_keys=$(echo "$extra_args_raw" | jq -r 'keys[] | select(. as $k | ["kpr","ocp_version","kubevirt","ossm","hcp","region"] | index($k) | not)' 2>/dev/null || echo "")
+            unknown_keys=$(echo "$extra_args_raw" | jq -r 'keys[] | select(. as $k | ["kpr","bgp","ocp_version","kubevirt","ossm","hcp","region"] | index($k) | not)' 2>/dev/null || echo "")
             if [[ -n "$unknown_keys" ]]; then
               echo "❌ ERROR: Unknown keys in extra-args: ${unknown_keys}"
               exit 1
             fi
             kpr=$(echo "$extra_args_raw" | jq -r '.kpr // empty')
+            bgp=$(echo "$extra_args_raw" | jq -r '.bgp // empty')
             ocp_version=$(echo "$extra_args_raw" | jq -r '.ocp_version // empty')
             kubevirt=$(echo "$extra_args_raw" | jq -r '.kubevirt // empty')
             ossm=$(echo "$extra_args_raw" | jq -r '.ossm // empty')
@@ -247,6 +250,10 @@ jobs:
             azs=$(echo "$extra_args_raw" | jq -r '.azs // empty')
             if [[ -n "$kpr" ]] && [[ ! "$kpr" =~ ^(true|false)$ ]]; then
               echo "❌ ERROR: Invalid kpr value. Must be 'true' or 'false', got: ${kpr}"
+              exit 1
+            fi
+            if [[ -n "$bgp" ]] && [[ ! "$bgp" =~ ^(true|false)$ ]]; then
+              echo "❌ ERROR: Invalid bgp value. Must be 'true' or 'false', got: ${bgp}"
               exit 1
             fi
             if [[ -n "$ocp_version" ]] && [[ ! "$ocp_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-z0-9]+)?$ ]]; then
@@ -275,6 +282,7 @@ jobs:
             fi
           fi
           kpr="${kpr:-true}"
+          bgp="${bgp:-false}"
           kubevirt="${kubevirt:-false}"
           ossm="${ossm:-false}"
           hcp="${hcp:-false}"
@@ -302,6 +310,7 @@ jobs:
 
           echo "✅ Input validation passed"
           echo "kpr=${kpr}" >> $GITHUB_OUTPUT
+          echo "bgp=${bgp}" >> $GITHUB_OUTPUT
           echo "kubevirt=${kubevirt}" >> $GITHUB_OUTPUT
           echo "ossm=${ossm}" >> $GITHUB_OUTPUT
           echo "hcp=${hcp}" >> $GITHUB_OUTPUT
@@ -415,13 +424,21 @@ jobs:
           WORKERS_INSTANCE_COUNT=3
           EOF
           fi
+          if [ "${{ steps.vars.outputs.bgp }}" == "true" ]; then
+            cat >> setup.conf << EOF
+          OPEN_PORTS='[{"source": "machine", "ports": "179"},{"source": "pod", "ports": "8080"},{"source": "machine", "ports": "8080"},{"source": "machine", "ports": "4000"}]'
+          EOF
+          fi
           cat setup.conf
           # Use the CI CiliumConfig
-          if [[ "${{ steps.vars.outputs.kpr }}" == "true" ]]
-          then
+          if [[ "${{ steps.vars.outputs.kpr }}" == "true" ]]; then
             cp ../../enterprise/olm/config/samples/openshift_ci_ciliumconfig_kpr.yaml ${{ github.workspace }}/enterprise/olm/dist/manifests/ciliumconfig.yaml
           else
             cp ../../enterprise/olm/config/samples/openshift_ci_ciliumconfig.yaml ${{ github.workspace }}/enterprise/olm/dist/manifests/ciliumconfig.yaml
+          fi
+          if [[ "${{ steps.vars.outputs.bgp }}" == "true" ]]; then
+            yq -i '.spec.enterprise.bgpControlPlane.enabled = true' ${{ github.workspace }}/enterprise/olm/dist/manifests/ciliumconfig.yaml
+            yq -i '.spec.enterprise.featureGate.approved = (.spec.enterprise.featureGate.approved // []) + ["EnterpriseBGPControlPlane"]' ${{ github.workspace }}/enterprise/olm/dist/manifests/ciliumconfig.yaml
           fi
 
       - name: Provision the OpenShift cluster
@@ -431,8 +448,30 @@ jobs:
         run: |
           ./scripts/provision.sh
 
+      - name: Upload cluster state for destroy
+        if: ${{ always() && steps.provisioning.outcome != 'skipped' }}
+        working-directory: "./openshift-ci/aws-ipi"
+        run: |
+          work_dir="${PWD}/.workdir/${{ env.clusterName }}"
+          mkdir -p /tmp/ocp-cluster-state
+          cp "${work_dir}/metadata.json" /tmp/ocp-cluster-state/metadata.json || true
+          cp "${work_dir}/install-config.bak" /tmp/ocp-cluster-state/install-config.bak || true
+          printf 'CLUSTER_NAME=%s\nOCP_VERSION=%s\nREGION=%s\n' \
+            "${{ env.clusterName }}" \
+            "${{ steps.vars.outputs.ocp_version }}" \
+            "${{ steps.vars.outputs.region }}" \
+            > /tmp/ocp-cluster-state/cluster-info.env
+
+      - name: Upload cluster state artifact
+        if: ${{ always() && steps.provisioning.outcome != 'skipped' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ocp-cluster-state-${{ github.run_id }}
+          path: /tmp/ocp-cluster-state/
+          retention-days: 7
+
       - name: Kubeconfig Setup
-        if: always() && steps.provisioning.outcome != 'skipped'
+        if: ${{ always() && steps.provisioning.outcome != 'skipped' }}
         id: kubeconfig
         working-directory: "./openshift-ci/aws-ipi"
         run: |
@@ -444,7 +483,7 @@ jobs:
           cp $KUBECONFIG /home/runner/.kube/config
 
       - name: Cluster state
-        if: always() && steps.provisioning.outcome != 'skipped'
+        if: ${{ always() && steps.provisioning.outcome != 'skipped' }}
         run: |
           kubectl get pods -A -o wide
           kubectl get nodes
@@ -541,6 +580,13 @@ jobs:
           mkdir -p test-results
           export CNI_TEST_RESULTS_DIR=${PWD}/test-results
           ./scripts/cni-tests.sh
+
+      - name: Refresh AWS CLI credentials for KubeVirt conformance tests
+        if: ${{ !cancelled() && steps.wait-for-co.outcome == 'success' && steps.vars.outputs.kubevirt == 'true' }}
+        uses: aws-actions/configure-aws-credentials@99214aa6889fcddfa57764031d71add364327e59 # v6.1.3
+        with:
+          role-to-assume: ${{ secrets.AWS_PR_ASSUME_ROLE }}
+          aws-region: ${{ steps.vars.outputs.region }}
 
       - name: KubeVirt conformance tests
         # Please create a comment with /ci-openshift {\"kubevirt\":\"true\"} if you want to run them
@@ -706,7 +752,7 @@ jobs:
       # This is to work around the fact that relative paths in actions/upload-artifact@v3 are rooted
       # against the workspace, which causes an "Invalid pattern" if the repo dir is ".".
       - name: Prepare upload
-        if: always() && steps.provisioning.outcome != 'skipped'
+        if: ${{ always() && steps.provisioning.outcome != 'skipped' }}
         id: upload_dir
         working-directory: ./openshift-ci/aws-ipi
         run: |
@@ -721,7 +767,7 @@ jobs:
           mv cilium-sysdump-*.zip ${GITHUB_WORKSPACE}/. || true
 
       - name: Upload Artifacts
-        if: always() && steps.provisioning.outcome != 'skipped'
+        if: ${{ always() && steps.provisioning.outcome != 'skipped' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: test-results
@@ -742,24 +788,15 @@ jobs:
           echo "destroying hosted cluster ..."
           ./hcp/scripts/destroy-cluster.sh
 
-      # refresh credentials
-      - name: Set up AWS CLI credentials
-        if: always() && steps.provisioning.outcome != 'skipped'
-        uses: aws-actions/configure-aws-credentials@99214aa6889fcddfa57764031d71add364327e59 # v6.1.3
-        with:
-          role-to-assume: ${{ secrets.AWS_PR_ASSUME_ROLE }}
-          aws-region: ${{ steps.vars.outputs.region }}
-
-      # Happens independently of the success or the failure of the provisioning and tests
-      - name: Destroy the cluster
-        if: always() && steps.provisioning.outcome != 'skipped'
-        timeout-minutes: 60
-        working-directory: "./openshift-ci/aws-ipi"
+      - name: Trigger the destroy of the OpenShift Cluster
+        if: ${{ always() && steps.provisioning.outcome != 'skipped' }}
         env:
-          KUBECONFIG: /home/runner/.kube/config
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "destroying cluster ..."
-          scripts/destroy.sh
+          gh workflow run enterprise-conformance-openshift-destroy.yaml \
+            --repo ${{ github.repository }} \
+            --ref ${{ github.ref }} \
+            --field provisioning-run-id=${{ github.run_id }}
 
       - name: Run common post steps
         if: ${{ always() }}

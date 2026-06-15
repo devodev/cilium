@@ -13,6 +13,7 @@ package client
 import (
 	"context"
 	"crypto/tls"
+	"net/netip"
 
 	"github.com/cilium/hive/cell"
 	"google.golang.org/grpc"
@@ -27,7 +28,7 @@ import (
 type (
 	// ConnFactoryFn is the type of the function returning a grpc client connection
 	// for a given target node.
-	ConnFactoryFn func(ctx context.Context, target tables.INBNode) (*grpc.ClientConn, error)
+	ConnFactoryFn func(ctx context.Context, cluster tables.ClusterName, node tables.NodeName, addrPort netip.AddrPort) (*grpc.ClientConn, error)
 )
 
 type connFactoryParams struct {
@@ -38,7 +39,7 @@ type connFactoryParams struct {
 }
 
 func NewDefaultConnFactory(params connFactoryParams) ConnFactoryFn {
-	return func(ctx context.Context, target tables.INBNode) (*grpc.ClientConn, error) {
+	return func(ctx context.Context, cluster tables.ClusterName, node tables.NodeName, addrPort netip.AddrPort) (*grpc.ClientConn, error) {
 		var tlsConfig *certloader.WatchedClientConfig
 		if params.TLSConfigPromise != nil {
 			var err error
@@ -47,7 +48,9 @@ func NewDefaultConnFactory(params connFactoryParams) ConnFactoryFn {
 				return nil, err
 			}
 		}
-		return grpc.NewClient(target.APIAddress(), transportCredentials(string(target.Cluster), tlsConfig))
+		return grpc.NewClient(
+			addrPort.String(),
+			transportCredentials(string(cluster), tlsConfig))
 	}
 }
 

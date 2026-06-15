@@ -1057,6 +1057,14 @@ type PrivnetFIBVal struct {
 	PeerSubnetID uint16
 }
 
+// PrivnetNetID is generated from the BPF C type privnet_net_id.
+type PrivnetNetID struct {
+	_     structs.HostLayout
+	SrcID uint16
+	DstID uint16
+	Pad   uint32
+}
+
 // PrivnetPIPKey is generated from the BPF C type privnet_pip_key.
 type PrivnetPIPKey struct {
 	_      structs.HostLayout

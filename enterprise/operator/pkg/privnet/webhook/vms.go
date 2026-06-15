@@ -59,8 +59,6 @@ func newVM(in struct {
 		db:        in.DB,
 		nads:      in.NADs,
 		nets:      in.Networks,
-		ipv4:      in.DaemonConfig.IPv4Enabled(),
-		ipv6:      in.DaemonConfig.IPv6Enabled(),
 		inventory: in.Inventory,
 	}
 
@@ -82,8 +80,7 @@ type vm struct {
 	nads statedb.Table[tables.NetworkAttachmentDefinition]
 	nets statedb.Table[tables.PrivateNetwork]
 
-	ipv4, ipv6 bool
-	inventory  forklift.Inventory
+	inventory forklift.Inventory
 }
 
 func (v *vm) Mutate(ctx context.Context, req admission.Request) admission.Response {
@@ -241,26 +238,19 @@ func (v *vm) lookupIPs(netInfo forklift.NetworkInfo, mac mac.MAC, dhcp bool) (v4
 	dhcp = dhcp && !netInfo.PreserveStaticIPs
 
 	info, ok := netInfo.ByMAC(mac)
-	if !ok && ((v.ipv4 && !dhcp) || v.ipv6) {
+	if !ok && !dhcp {
 		return v4, v6, errors.New("no entry found in inventory")
 	}
 
-	if v.ipv4 {
-		switch {
-		case dhcp:
-			v4 = netip.IPv4Unspecified()
-		case !info.IPv4.IsValid():
-			return v4, v6, errors.New("unknown IPv4 address")
-		default:
-			v4 = info.IPv4
-		}
+	v4 = info.IPv4
+	v6 = info.IPv6
+
+	if dhcp {
+		v4 = netip.IPv4Unspecified()
 	}
 
-	if v.ipv6 {
-		v6 = info.IPv6
-		if !v6.IsValid() {
-			return v4, v6, errors.New("unknown IPv6 address")
-		}
+	if !v4.IsValid() && !v6.IsValid() {
+		return v4, v6, errors.New("no IP found in inventory")
 	}
 
 	return v4, v6, nil

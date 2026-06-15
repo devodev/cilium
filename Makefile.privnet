@@ -33,7 +33,7 @@ PRIVNET_DNSMASQ_IMAGE ?= quay.io/poseidon/dnsmasq:v0.5.0-48-gbbba844@sha256:e16f
 PRIVNET_CERT_MANAGER_VERSION ?= v1.20.2
 
 # renovate: datasource=github-releases depName=kubevirt/kubevirt
-PRIVNET_KUBEVIRT_VERSION ?= v1.8.2
+PRIVNET_KUBEVIRT_VERSION ?= v1.8.3
 
 # renovate: datasource=github-tags depName=kubev2v/forklift
 PRIVNET_FORKLIFT_VERSION ?= v2.11.7

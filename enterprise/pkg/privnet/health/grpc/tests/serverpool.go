@@ -14,6 +14,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/netip"
 	"slices"
 	"strconv"
 	"sync"
@@ -27,6 +28,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	api "github.com/cilium/cilium/enterprise/pkg/privnet/grpc/api/v1"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/tables"
@@ -282,6 +284,7 @@ func (sp *ServerPool) reconcile(ctx context.Context, _ cell.Health) error {
 type Server struct {
 	api.UnimplementedHealthServer
 	api.UnimplementedNetworksServer
+	api.UnimplementedMigrationServer
 
 	factory ConnFactory
 	self    Instance
@@ -314,6 +317,7 @@ func (s *Server) Start() error {
 	srv := grpc.NewServer(grpc.WaitForHandlers(true))
 	api.RegisterHealthServer(srv, s)
 	api.RegisterNetworksServer(srv, s)
+	api.RegisterMigrationServer(srv, s)
 	s.stop = srv.Stop
 
 	s.block = make(chan struct{})
@@ -516,4 +520,46 @@ func (s *Server) deactivateAll() {
 		s.active.Delete(wtx, entry)
 	}
 	wtx.Commit()
+}
+
+func (s *Server) Migrate(stream grpc.BidiStreamingServer[api.MigrationRequest, api.MigrationBatch]) error {
+	// Simulate a migration with some fake data.
+	req, err := stream.Recv()
+	if err != nil {
+		return err
+	}
+	start := req.GetStart()
+	if start == nil {
+		return status.Error(codes.InvalidArgument, "expected start")
+	}
+
+	// tests/script_test.go sets time.Now to 2038-01-01. Use the same here.
+	fakeNow := time.Date(2038, 1, 1, 0, 0, 0, 0, time.UTC)
+	now := timestamppb.New(fakeNow)
+	expire := timestamppb.New(fakeNow.Add(time.Hour))
+
+	err = stream.Send(&api.MigrationBatch{
+		Records: []*api.CTRecord{},
+		DhcpLease: []*api.DHCPLease{{
+			Ipv4:       netip.MustParseAddr("1.2.3.4").AsSlice(),
+			ServerId:   "1.2.3.255",
+			ObtainedAt: now,
+			RenewAt:    expire,
+			ExpireAt:   expire,
+		}},
+	})
+	if err != nil {
+		return err
+	}
+
+	req, err = stream.Recv()
+	if err != nil {
+		return err
+	}
+	finalize := req.GetFinalize()
+	if finalize == nil {
+		return status.Error(codes.InvalidArgument, "expected finalize")
+	}
+
+	return nil
 }

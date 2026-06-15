@@ -19,12 +19,13 @@ import (
 	api "github.com/cilium/cilium/enterprise/pkg/privnet/grpc/api/v1"
 	grpcclient "github.com/cilium/cilium/enterprise/pkg/privnet/grpc/client"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/tables"
+	"github.com/cilium/cilium/enterprise/pkg/privnet/types"
 )
 
-func StartMigration(ctx context.Context, factory grpcclient.ConnFactoryFn, target tables.INBNode, network tables.NetworkName, workloadMAC string) (*Stream, error) {
-	conn, err := factory(ctx, target)
+func StartMigration(ctx context.Context, factory grpcclient.ConnFactoryFn, sourceNode types.Node, network tables.NetworkName, workloadMAC string) (*Stream, error) {
+	conn, err := factory(ctx, sourceNode.Cluster, sourceNode.Name, sourceNode.AddrPort())
 	if err != nil {
-		return nil, fmt.Errorf("dial migration target %s: %w", target.String(), err)
+		return nil, fmt.Errorf("dial migration target %s/%s (%s): %w", sourceNode.Cluster, sourceNode.Name, sourceNode.AddrPort(), err)
 	}
 	stream, err := api.NewMigrationClient(conn).Migrate(ctx)
 	if err != nil {

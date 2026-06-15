@@ -96,6 +96,71 @@ mock_redirect_neigh(int ifindex, const struct bpf_redir_neigh *params,
 			test_fatal("unexpected redirect_neigh nexthop");	\
 	} while (0)
 
+#include <bpf/config/node.h>
+#include "node_config.h"
+#include "lib/trace.h"
+#undef EVENT_SOURCE
+
+#undef send_trace_notify
+#define send_trace_notify(ctx, obs_point, src, dst, dst_id, ifindex, reason, monitor, proto) \
+	mock_send_trace_notify(ctx, obs_point, src, dst, dst_id, ifindex, reason, monitor, proto)
+
+static struct {
+	bool valid;
+	enum trace_point obs_point;
+	__u32 src;
+	__u32 dst;
+	__u32 ifindex;
+	__be16 proto;
+} last_notify;
+
+static __always_inline void
+mock_send_trace_notify(struct __ctx_buff *ctx __maybe_unused, enum trace_point obs_point,
+		       __u32 src, __u32 dst, __u16 dst_id __maybe_unused,
+		       __u32 ifindex, enum trace_reason reason __maybe_unused,
+		       __u32 monitor __maybe_unused, __be16 proto)
+{
+	last_notify.valid = true;
+	last_notify.obs_point = obs_point;
+	last_notify.src = src;
+	last_notify.dst = dst;
+	last_notify.ifindex = ifindex;
+	last_notify.proto = proto;
+}
+
+static __always_inline void
+reset_mock_notify(void)
+{
+	last_notify.valid = false;
+	last_notify.obs_point = 0;
+	last_notify.src = 0;
+	last_notify.dst = 0;
+	last_notify.ifindex = 0;
+	last_notify.proto = 0;
+}
+
+#define ASSERT_TRACE(__expected_obs_point, __expected_src, __expected_dst,		\
+		     __expected_ifindex, __expected_proto)				\
+	do {										\
+		if (!last_notify.valid)							\
+			test_fatal("expected trace_notify to be emitted");		\
+		if (last_notify.obs_point != (__expected_obs_point))			\
+			test_fatal("unexpected trace observation point (got %d, want %d)", \
+				   last_notify.obs_point, (__expected_obs_point));	\
+		if (last_notify.src != (__expected_src))				\
+			test_fatal("unexpected trace source (got %d, want %d)",		\
+				   last_notify.src, (__expected_src));			\
+		if (last_notify.dst != (__expected_dst))				\
+			test_fatal("unexpected trace destination (got %d, want %d)",	\
+				   last_notify.dst, (__expected_dst));			\
+		if (last_notify.ifindex != (__expected_ifindex))			\
+			test_fatal("unexpected trace ifindex (got %d, want %d)",	\
+				   last_notify.ifindex, (__expected_ifindex));		\
+		if (last_notify.proto != (__expected_proto))				\
+			test_fatal("unexpected trace proto (got %d, want %d)",		\
+				   last_notify.proto, (__expected_proto));		\
+	} while (0)
+
 #include "enterprise_privnet_common.h"
 
 /* packet defined in ./scapy/enterprise_privnet_pkt_defs.py */
@@ -142,6 +207,7 @@ int privnet_local_access_egress_from_lxc_v4_setup(struct __ctx_buff *ctx)
 				    NETDEV_IFINDEX);
 
 	policy_add_egress_allow_all_entry();
+	reset_mock_notify();
 	return pod_send_packet(ctx);
 }
 
@@ -153,6 +219,8 @@ int privnet_local_access_egress_from_lxc_v4_check(struct __ctx_buff *ctx)
 	/* packets are redirected to netdev device */
 	assert_status_code(ctx, TC_ACT_REDIRECT);
 	ASSERT_REDIRECT_NEIGH_V4(V4_NET_IP_2, NETDEV_IFINDEX);
+	ASSERT_TRACE(TRACE_TO_NETWORK, SECLABEL_IPV4, WORLD_IPV4_ID, NETDEV_IFINDEX,
+		     bpf_htons(ETH_P_IP));
 
 	/* check inner packet headers, src & dst should remain untranslated */
 	ASSERT_CTX_BUF_OFF("privnet_local_access_egress_from_lxc_v4", "IP", ctx,
@@ -169,6 +237,7 @@ int privnet_local_access_egress_from_lxc_v4_check(struct __ctx_buff *ctx)
 	privnet_del_device_entry(LXC_IFINDEX);
 
 	reset_redirect_recorder();
+	reset_mock_notify();
 
 	test_finish();
 }
@@ -194,6 +263,7 @@ int privnet_local_access_egress_from_lxc_v6_setup(struct __ctx_buff *ctx)
 				    (union v6addr *)V6_EXT_IP,
 				    NETDEV_IFINDEX);
 
+	reset_mock_notify();
 	return pod_send_packet(ctx);
 }
 
@@ -205,6 +275,8 @@ int privnet_local_access_egress_from_lxc_v6_check(struct __ctx_buff *ctx)
 	/* packets are redirected to netdev device */
 	assert_status_code(ctx, TC_ACT_REDIRECT);
 	ASSERT_REDIRECT_NEIGH_V6((union v6addr *)V6_NET_IP_2, NETDEV_IFINDEX);
+	ASSERT_TRACE(TRACE_TO_NETWORK, SECLABEL_IPV6, WORLD_IPV6_ID, NETDEV_IFINDEX,
+		     bpf_htons(ETH_P_IPV6));
 
 	/* check inner packet headers, src & dst should remain untranslated */
 	ASSERT_CTX_BUF_OFF("privnet_local_access_egress_from_lxc_v6", "IPv6", ctx,
@@ -223,6 +295,7 @@ int privnet_local_access_egress_from_lxc_v6_check(struct __ctx_buff *ctx)
 	privnet_del_device_entry(LXC_IFINDEX);
 
 	reset_redirect_recorder();
+	reset_mock_notify();
 
 	test_finish();
 }

@@ -432,6 +432,23 @@ hubble:
     labels: {}
     # -- Annotations to add to all Hubble Timescape resources.
     annotations: {}
+    # -- Optional ConfigMap with Grafana dashboards for Hubble Timescape.
+    # Grafana can import dashboards based on the labels.
+    # ref: https://github.com/grafana/helm-charts/tree/main/charts/grafana#sidecar-for-dashboards
+    grafana:
+      dashboards:
+        enabled: false
+        # -- Namespace to create the ConfigMap in. Defaults to namespace of the helm release.
+        # @schema
+        # type: [null, string]
+        # @schema
+        namespace: ~
+        # -- Labels to add to the ConfigMap. If using the dashboards sidecar, they
+        # must include the label used to discover dashboards.
+        labels:
+          grafana_dashboard: "1"
+        # -- Annotations to add to the ConfigMap.
+        annotations: {}
     # -- Experimental support for using Hubble Timescape with clustermesh.
     # If enabled, all flow log will be sent to the `primary` Timescape instance.
     clustermesh:

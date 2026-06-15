@@ -256,7 +256,11 @@ func (operatorManager *OperatorManager) processEvents(ctx context.Context) {
 		case <-ctx.Done():
 			return
 
-		case event := <-policyEvents:
+		case event, ok := <-policyEvents:
+			if !ok {
+				policyEvents = nil
+				continue
+			}
 			if event.Kind == resource.Sync {
 				policySync = true
 				maybeTriggerReconcile()
@@ -265,7 +269,11 @@ func (operatorManager *OperatorManager) processEvents(ctx context.Context) {
 				operatorManager.handlePolicyEvent(event)
 			}
 
-		case event := <-ciliumNodeEvents:
+		case event, ok := <-ciliumNodeEvents:
+			if !ok {
+				ciliumNodeEvents = nil
+				continue
+			}
 			if event.Kind == resource.Sync {
 				nodeSync = true
 				maybeTriggerReconcile()
@@ -274,7 +282,11 @@ func (operatorManager *OperatorManager) processEvents(ctx context.Context) {
 				operatorManager.handleCiliumNodeEvent(event)
 			}
 
-		case event := <-nodeEvents:
+		case event, ok := <-nodeEvents:
+			if !ok {
+				nodeEvents = nil
+				continue
+			}
 			if event.Kind == resource.Sync {
 				nodeSync = true
 				maybeTriggerReconcile()

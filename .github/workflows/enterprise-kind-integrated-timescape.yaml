@@ -222,6 +222,7 @@ jobs:
 
       - name: Run tests
         env:
+          ENABLE_ENTERPRISE_INTEGRATED_TIMESCAPE_E2E: "true"
           TEST_HUBBLE_OBSERVE_TLS: true
           TEST_PUSH_API_CLIENT_CRT: ${{ github.workspace }}/client.crt
           TEST_PUSH_API_CLIENT_KEY: ${{ github.workspace }}/client.key
@@ -230,7 +231,6 @@ jobs:
         run: |
           cd enterprise/hubble-timescape
           go test -count=1 \
-              -tags enterprise_integrated_timescape_e2e \
               -json \
               ./tests/... \
           | tee >(go-junit-report \

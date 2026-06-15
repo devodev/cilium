@@ -24,6 +24,7 @@ struct {
 	__uint(max_entries, 1);
 	__type(key, __u32);		      /* only one key */
 	__type(value, struct privnet_net_id);
+	__uint(pinning, LIBBPF_PIN_BY_NAME);
 } cilium_percpu_privnet_net_id __section_maps_btf;
 
 static __always_inline void get_privnet_net_ids(__u16 *src_id, __u16 *dst_id)

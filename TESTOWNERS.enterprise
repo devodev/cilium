@@ -604,15 +604,15 @@
 /install/kubernetes/cilium/templates/*enterprise* @isovalent/sig-k8s @isovalent/helm
 /install/kubernetes/cilium/templates/_extensions.tpl @isovalent/sig-k8s @isovalent/helm
 /install/kubernetes/cilium/templates/cilium-agent/*enterprise* @isovalent/sig-k8s @isovalent/helm
-/install/kubernetes/cilium/templates/cilium-envoy/*enterprise* @isovalent/sig-k8s @isovalent/helm
 /install/kubernetes/cilium/templates/cilium-operator/*enterprise* @isovalent/sig-k8s @isovalent/helm
 /install/kubernetes/cilium/templates/cilium-preflight/*enterprise* @isovalent/sig-k8s @isovalent/helm
 /install/kubernetes/cilium/templates/clustermesh-apiserver/*enterprise* @isovalent/clustermesh @isovalent/sig-k8s @isovalent/helm
 /install/kubernetes/cilium/templates/_rbac_helpers.tpl @isovalent/sig-k8s @isovalent/helm @isovalent/hubble-rbac
 /install/kubernetes/cilium/templates/hubble-relay/rbac @isovalent/sig-k8s @isovalent/helm @isovalent/hubble-rbac
 /install/kubernetes/cilium/templates/*enterprise* @isovalent/sig-k8s @isovalent/helm
-/install/kubernetes/cilium/templates/hubble-timescape/ @isovalent/sig-k8s @isovalent/helm @isovalent/timescape
 /install/kubernetes/cilium/templates/private-networks/ @isovalent/sig-k8s @isovalent/helm @isovalent/private-networking
+/install/kubernetes/cilium/files/hubble-timescape/ @isovalent/sig-k8s @isovalent/helm @isovalent/timescape
+/install/kubernetes/cilium/templates/hubble-timescape/ @isovalent/sig-k8s @isovalent/helm @isovalent/timescape
 /pkg/bgp/**/enterprise_* @isovalent/traffic-engineering
 /pkg/clustermesh/**/enterprise_* @isovalent/clustermesh
 /pkg/datapath/**/enterprise*.go @isovalent/cilium-datapath

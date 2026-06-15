@@ -374,6 +374,11 @@ func (t *TestRun) renderClusterVMs(vms []DesiredVM) ([]k8s.Object, error) {
 	var objs []k8s.Object
 
 	for _, vm := range vms {
+		if !vm.SupportsFamilies(t.families...) {
+			// Skip VMs that only have unsupported IPs
+			continue
+		}
+
 		type vmData struct {
 			DesiredVM
 			TestNamespace   string
@@ -715,6 +720,10 @@ func (t *TestRun) SetupAndValidate(ctx context.Context) (err error) {
 	for _, vms := range t.vms {
 		for vmName, vm := range vms {
 			if vm.Kind == VMKindSecondary {
+				continue
+			}
+			if !vm.SupportsFamilies(t.families...) {
+				// Skip VMs that only have unsupported IPs
 				continue
 			}
 

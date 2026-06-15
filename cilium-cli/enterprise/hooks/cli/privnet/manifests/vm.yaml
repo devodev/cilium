@@ -189,9 +189,18 @@ stringData:
         {{- /* The subnet is set only if DHCP is enabled. */}}
         {{- if $iface.Subnet }}
         dhcp4: true
-        addresses: [ {{ $iface.IPv6 }}/128 ]
+        {{- if $iface.IPv6.IsValid }}
+        addresses:
+          - {{ $iface.IPv6 }}/128
+        {{- end }}
         {{- else }}
-        addresses: [ {{ $iface.IPv4 }}/32, {{ $iface.IPv6 }}/128 ]
+        addresses:
+          {{- if $iface.IPv4.IsValid }}
+          - {{ $iface.IPv4 }}/32
+          {{- end }}
+          {{- if $iface.IPv6.IsValid }}
+          - {{ $iface.IPv6 }}/128
+          {{- end }}
         {{- if $iface.DNSServer.IsValid }}
         nameservers:
           addresses: [ {{ $iface.DNSServer }} ]

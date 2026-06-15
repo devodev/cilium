@@ -28,6 +28,7 @@ import (
 	"github.com/cilium/cilium/enterprise/pkg/privnet/types"
 	"github.com/cilium/cilium/pkg/endpoint"
 	"github.com/cilium/cilium/pkg/ipam"
+	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/mac"
 	"github.com/cilium/cilium/pkg/maps/policymap"
@@ -67,6 +68,7 @@ type Endpoint interface {
 	GetPropertyValue(key string) any
 	SetPropertyValue(key string, value any) any
 	IsProperty(key string) bool
+	GetPod() *slim_corev1.Pod
 
 	LXCMac() mac.MAC
 	IPv4Address() netip.Addr

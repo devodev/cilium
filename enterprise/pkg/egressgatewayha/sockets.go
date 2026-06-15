@@ -129,57 +129,71 @@ func (m *socketsManager) closeSockets(toClose sets.Set[tuple.TupleKey4]) (socket
 			logger = logger.With(logfields.Protocol, u8p)
 			logger.Debug("searching for protocol sockets to close")
 
-			nsFile.Do(func() error {
-				sockets.Iterate(proto, unix.AF_INET, stateFilter, func(sock *netlink.Socket, err error) error {
-					if err != nil {
-						logger.Error("failed to receive valid socket data, live socket may "+
-							"be missed for egwha socket termination resulting in hanging tcp connections.",
-							logfields.Error, err,
-						)
-						return nil // still continue iteration to attempt next.
-					}
-
-					logger := logger.With(
-						logfields.SourceIP, sock.ID.Source,
-						logfields.SourcePort, sock.ID.SourcePort,
-						logfields.DstIP, sock.ID.Destination,
-						logfields.DstPort, sock.ID.DestinationPort,
+			destroySocket := func(sock *netlink.Socket, err error) error {
+				if err != nil {
+					logger.Error("failed to receive valid socket data, live socket may "+
+						"be missed for egwha socket termination resulting in hanging tcp connections.",
+						logfields.Error, err,
 					)
-					sourceAddr := toAddr4(sock.ID.Source)
-					destAddr := toAddr4(sock.ID.Destination)
-					if sourceAddr == nil || destAddr == nil {
+					return nil // still continue iteration to attempt next.
+				}
+
+				logger := logger.With(
+					logfields.SourceIP, sock.ID.Source,
+					logfields.SourcePort, sock.ID.SourcePort,
+					logfields.DstIP, sock.ID.Destination,
+					logfields.DstPort, sock.ID.DestinationPort,
+					logfields.Family, sock.Family,
+				)
+				sourceAddr := toAddr4(sock.ID.Source)
+				destAddr := toAddr4(sock.ID.Destination)
+				if sourceAddr == nil || destAddr == nil {
+					if sock.Family == unix.AF_INET {
 						logger.Warn("unexpected nil address in socket data (will skip)")
-						return nil
-					}
-
-					if _, ok := toClose[tuple.TupleKey4{
-						SourceAddr: ciliumTypes.IPv4(sock.ID.Source.To4()[:]),
-						SourcePort: sock.ID.SourcePort,
-						DestAddr:   ciliumTypes.IPv4(sock.ID.Destination.To4()[:]),
-						DestPort:   sock.ID.DestinationPort,
-						NextHeader: u8p,
-					}]; !ok {
-						return nil
-					}
-
-					logger.Info("closing socket due to unavailable gatewayIP")
-					if err := sockets.DestroySocket(slog.Default(), *sock, netlink.Proto(proto), stateFilter); err != nil {
-						// Sockets that are already in the TCP_CLOSE state are expected to return ENOENT
-						// This does not count towards stats.
-						if errors.Is(err, unix.ENOENT) {
-							stats.skipped++
-							logger.Debug("failed to close socket as it was presumably already in TCP_CLOSE state", logfields.Error, err)
-						} else {
-							logger.Error("failed to destroy socket", logfields.Error, err)
-							stats.failed++
-							return nil
-						}
 					} else {
-						stats.deleted++
+						logger.Debug("skipping socket (not v4-in-v6)")
 					}
-
 					return nil
-				})
+				}
+
+				if _, ok := toClose[tuple.TupleKey4{
+					SourceAddr: ciliumTypes.IPv4(sourceAddr.AsSlice()),
+					SourcePort: sock.ID.SourcePort,
+					DestAddr:   ciliumTypes.IPv4(destAddr.AsSlice()),
+					DestPort:   sock.ID.DestinationPort,
+					NextHeader: u8p,
+				}]; !ok {
+					return nil
+				}
+
+				logger.Info("closing socket due to unavailable gatewayIP")
+				if err := sockets.DestroySocket(slog.Default(), *sock, netlink.Proto(proto), stateFilter); err != nil {
+					// Sockets that are already in the TCP_CLOSE state are expected to return ENOENT
+					// This does not count towards stats.
+					if errors.Is(err, unix.ENOENT) {
+						stats.skipped++
+						logger.Debug("failed to close socket as it was presumably already in TCP_CLOSE state", logfields.Error, err)
+					} else {
+						logger.Error("failed to destroy socket", logfields.Error, err)
+						stats.failed++
+						return nil
+					}
+				} else {
+					stats.deleted++
+				}
+
+				return nil
+			}
+
+			nsFile.Do(func() error {
+				families := []uint8{unix.AF_INET, unix.AF_INET6}
+
+				for _, family := range families {
+					logger.Debug("iterating over sockets",
+						logfields.Family, family)
+
+					sockets.Iterate(proto, family, stateFilter, destroySocket)
+				}
 				return nil
 			})
 		}

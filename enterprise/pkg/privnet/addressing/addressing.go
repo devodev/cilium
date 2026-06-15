@@ -178,24 +178,15 @@ func (n *PrivNetAPI) GetPrivateNetworkAddressing(p network.GetNetworkPrivateAddr
 
 	var ipv4, ipv6 netip.Addr
 
-	if n.cfg.enableIPv4 {
-		if attachment.IPv4.IsUnspecified() || !attachment.IPv4.IsValid() {
-			// If ipv4 is not given or is 0.0.0.0 then subnet must be provided.
-			if requestedSubnet == "" {
-				return nil, fmt.Errorf("subnet must be specified for DHCP")
-			}
-			// From here on use 0.0.0.0 to mark for DHCP
-			ipv4 = netip.IPv4Unspecified()
-		} else {
-			if !attachment.IPv4.Is4() {
-				return nil, fmt.Errorf("invalid IPv4 address %q in %q annotation on pod %s",
-					attachment.IPv4, annotationFor(nicidx), podNamespaceName)
-			}
-			ipv4 = attachment.IPv4
+	if n.cfg.enableIPv4 && attachment.IPv4.IsValid() {
+		if !attachment.IPv4.Is4() {
+			return nil, fmt.Errorf("invalid IPv4 address %q in %q annotation on pod %s",
+				attachment.IPv4, annotationFor(nicidx), podNamespaceName)
 		}
+		ipv4 = attachment.IPv4
 	}
 
-	if n.cfg.enableIPv6 {
+	if n.cfg.enableIPv6 && attachment.IPv6.IsValid() {
 		if !attachment.IPv6.Is6() {
 			return nil, fmt.Errorf("invalid IPv6 address %q in %q annotation on pod %s",
 				attachment.IPv6, annotationFor(nicidx), podNamespaceName)
@@ -203,9 +194,27 @@ func (n *PrivNetAPI) GetPrivateNetworkAddressing(p network.GetNetworkPrivateAddr
 		ipv6 = attachment.IPv6
 	}
 
+	switch {
+	case !ipv6.IsValid() && !ipv4.IsValid() && requestedSubnet == "":
+		// User did not provide any IP or subnet, or provided a IP of a family we don't support
+		return nil, fmt.Errorf("no valid IP address or subnet in %q annotation on pod %s",
+			annotationFor(nicidx), podNamespaceName)
+	case ipv4.IsUnspecified() && requestedSubnet == "":
+		// User explicitly requested to do DHCP with 0.0.0.0. Fail, regardless of IPv6.
+		return nil, fmt.Errorf("subnet must be specified for DHCP")
+	}
+
 	subnet, err := n.subnetForIPs(txn, privnet.Name, requestedSubnet, ipv4, ipv6)
 	if err != nil {
 		return nil, err
+	}
+
+	if n.cfg.enableIPv4 && !attachment.IPv4.IsValid() &&
+		subnet.DHCP.Mode != iso_v1alpha1.PrivateNetworkDHCPModeNone &&
+		subnet.CIDRv4.IsValid() {
+		// If the cluster supports IPv4, and the subnet support DHCP. If the user
+		// didn't provide an IPv4, just do DHCP.
+		ipv4 = netip.IPv4Unspecified()
 	}
 
 	activatedAt := time.Now().UTC()
@@ -222,15 +231,15 @@ func (n *PrivNetAPI) GetPrivateNetworkAddressing(p network.GetNetworkPrivateAddr
 		NicIndex:    new(int64(nicidx)),
 	}
 
-	if n.cfg.enableIPv4 {
+	if ipv4.IsValid() {
 		addressing.Address.IPv4 = ipv4.String()
 	}
 
-	if n.cfg.enableIPv6 {
+	if ipv6.IsValid() {
 		addressing.Address.IPv6 = ipv6.String()
 	}
 
-	addressing.Routes = n.routes(nicidx, subnet)
+	n.addRoutes(addressing, nicidx, subnet)
 	return addressing, nil
 }
 
@@ -374,16 +383,17 @@ func (n *PrivNetAPI) subnetForIPs(txn statedb.ReadTxn, privnet tables.NetworkNam
 	case sname != "" && (subnetv4 != "" && subnetv4 != sname || subnetv6 != "" && subnetv6 != sname):
 		return tables.Subnet{}, fmt.Errorf("requested IPs are not in range of the requested subnet (%q)", sname)
 
-	case ipv4.IsUnspecified() && subnet.DHCP.Mode == iso_v1alpha1.PrivateNetworkDHCPModeNone:
+	case ipv4.IsUnspecified() && (subnet.DHCP.Mode == iso_v1alpha1.PrivateNetworkDHCPModeNone || !subnet.CIDRv4.IsValid()):
+		// User explicitly requested to do DHCP with 0.0.0.0.
 		return tables.Subnet{}, fmt.Errorf("subnet %q does not support DHCP", subnet.Name)
-
 	}
 
 	return subnet, nil
 }
 
-// routes returns the list of routes to be configured for a private networks enabled endpoint.
-// Specifically, for each IP family that is enabled, we configure the following routes.
+// addRoutes adds the list of routes to be configured for a private networks enabled endpoint to the provided
+// addressing. Specifically, for each IP family that is enabled and used by the addressing, we configure the
+// following routes.
 //
 // * For the primary interface:
 //   - A route towards a link local address -- $link_local_address via $iface
@@ -398,7 +408,7 @@ func (n *PrivNetAPI) subnetForIPs(txn statedb.ReadTxn, privnet tables.NetworkNam
 //
 // We leverage a link local address as nexthop, rather than simply setting the default route
 // via the egress interface, to avoid the need for a neighbor lookup for every destination IP.
-func (n *PrivNetAPI) routes(idx vNICIndex, subnet tables.Subnet) (out []*models.NetworkAttachmentRoute) {
+func (n *PrivNetAPI) addRoutes(addressing *models.PrivateNetworkAddressing, idx vNICIndex, subnet tables.Subnet) {
 	var pfx = func(def string, subnet netip.Prefix) string {
 		if idx.Primary() {
 			return def
@@ -407,25 +417,23 @@ func (n *PrivNetAPI) routes(idx vNICIndex, subnet tables.Subnet) (out []*models.
 		return subnet.String()
 	}
 
-	if n.cfg.enableIPv4 && subnet.CIDRv4.IsValid() {
+	if addressing.Address.IPv4 != "" {
 		var gw = fmt.Sprintf("169.254.0.%d", idx+1)
 
-		out = append(out,
+		addressing.Routes = append(addressing.Routes,
 			&models.NetworkAttachmentRoute{Destination: gw + "/32"},
 			&models.NetworkAttachmentRoute{Destination: pfx("0.0.0.0/0", subnet.CIDRv4), Gateway: gw},
 		)
 	}
 
-	if n.cfg.enableIPv6 && subnet.CIDRv6.IsValid() {
+	if addressing.Address.IPv6 != "" {
 		var gw = fmt.Sprintf("fe80::%x", idx+1)
 
-		out = append(out,
+		addressing.Routes = append(addressing.Routes,
 			&models.NetworkAttachmentRoute{Destination: gw + "/128"},
 			&models.NetworkAttachmentRoute{Destination: pfx("::/0", subnet.CIDRv6), Gateway: gw},
 		)
 	}
-
-	return out
 }
 
 // newPrivNetAPIHandler returns a default handler for the /network/private/addressing API endpoint

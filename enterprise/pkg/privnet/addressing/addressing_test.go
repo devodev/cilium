@@ -227,6 +227,75 @@ func TestPrivNetAPI_GetPrivateNetworkAddressing(t *testing.T) {
 			},
 		},
 		{
+			name: "only requesting IPv4",
+			pod: newPod("default", "client", "uid",
+				map[string]string{
+					types.PrivateNetworkAnnotation: `{"network": "green-network", "ipv4": "192.168.11.11", "mac": "00:50:56:ad:11:02"}`,
+				},
+			),
+			wantAddressing: &models.PrivateNetworkAddressing{
+				ActivatedAt: strfmt.DateTime(activatedAtActive),
+				Network:     "green-network",
+				Subnet:      "subnet1",
+				Address: &models.AddressPair{
+					IPv4: "192.168.11.11",
+				},
+				Mac: "00:50:56:ad:11:02",
+				Routes: []*models.NetworkAttachmentRoute{
+					{Destination: "169.254.0.1/32"},
+					{Destination: "0.0.0.0/0", Gateway: "169.254.0.1"},
+				},
+				NicIndex: new(int64(0)),
+			},
+		},
+		{
+			name: "only requesting IPv6 w/ DHCPv4",
+			pod: newPod("default", "client", "uid",
+				map[string]string{
+					types.PrivateNetworkAnnotation: `{"network": "green-network", "ipv6": "fd10:0:150::11", "mac": "00:50:56:ad:11:02"}`,
+				},
+			),
+			wantAddressing: &models.PrivateNetworkAddressing{
+				ActivatedAt: strfmt.DateTime(activatedAtActive),
+				Network:     "green-network",
+				Subnet:      "subnet1",
+				Address: &models.AddressPair{
+					IPv4: "0.0.0.0",
+					IPv6: "fd10:0:150::11",
+				},
+				Mac: "00:50:56:ad:11:02",
+				Routes: []*models.NetworkAttachmentRoute{
+					{Destination: "169.254.0.1/32"},
+					{Destination: "0.0.0.0/0", Gateway: "169.254.0.1"},
+					{Destination: "fe80::1/128"},
+					{Destination: "::/0", Gateway: "fe80::1"},
+				},
+				NicIndex: new(int64(0)),
+			},
+		},
+		{
+			name: "only requesting IPv6 w/o DHCPv4",
+			pod: newPod("default", "client", "uid",
+				map[string]string{
+					types.PrivateNetworkAnnotation: `{"network": "green-network", "subnet": "subnet2", "ipv6": "fd10:0:152::11", "mac": "00:50:56:ad:11:02"}`,
+				},
+			),
+			wantAddressing: &models.PrivateNetworkAddressing{
+				ActivatedAt: strfmt.DateTime(activatedAtActive),
+				Network:     "green-network",
+				Subnet:      "subnet2",
+				Address: &models.AddressPair{
+					IPv6: "fd10:0:152::11",
+				},
+				Mac: "00:50:56:ad:11:02",
+				Routes: []*models.NetworkAttachmentRoute{
+					{Destination: "fe80::1/128"},
+					{Destination: "::/0", Gateway: "fe80::1"},
+				},
+				NicIndex: new(int64(0)),
+			},
+		},
+		{
 			name: "valid inactive pod",
 			pod: newPod("default", "client", "uid",
 				map[string]string{
@@ -361,7 +430,7 @@ func TestPrivNetAPI_GetPrivateNetworkAddressing(t *testing.T) {
 					types.PrivateNetworkAnnotation: `{"network": "green-network", "ipv4": "192.168.11.11", "mac": "00:50:56:ad:11:02"}`,
 				},
 			),
-			wantErr: fmt.Sprintf(`invalid IPv6 address "invalid IP" in %q annotation`, types.PrivateNetworkAnnotation),
+			wantErr: "no valid IP address or subnet",
 		},
 		{
 			name: "requesting IPv6 in IPv4-only configuration",
@@ -371,7 +440,7 @@ func TestPrivNetAPI_GetPrivateNetworkAddressing(t *testing.T) {
 					types.PrivateNetworkAnnotation: `{"network": "green-network", "ipv6": "fd10:0:150::11",  "mac": "00:50:56:ad:11:02"}`,
 				},
 			),
-			wantErr: "subnet must be specified for DHCP",
+			wantErr: "no valid IP address or subnet",
 		},
 		{
 			name: "requesting IPv4 and IPv6 in IPv6-only configuration",

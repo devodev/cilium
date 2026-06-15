@@ -11,6 +11,7 @@
 package tables
 
 import (
+	"slices"
 	"strconv"
 
 	"github.com/cilium/statedb"
@@ -21,15 +22,14 @@ import (
 
 // MigrationKey is the stable identity of a migration session.
 type MigrationKey struct {
-	Cluster   ClusterName
 	Namespace string
 	PodName   string
+	MAC       string
 }
 
 func (k MigrationKey) String() string {
-	return string(k.Cluster) + indexDelimiter +
-		k.Namespace + indexDelimiter +
-		k.PodName
+	return k.Namespace + indexDelimiter +
+		k.PodName + indexDelimiter + k.MAC
 }
 
 func (k MigrationKey) Key() index.Key {
@@ -43,17 +43,16 @@ const (
 	// from the local pod object.
 	MigrationStateNew MigrationState = "New"
 
-	// MigrationStateWaitDeps is set when dependencies (private networks, workloads)
-	// were not yet present and the reconciler is waiting for them to appear before
-	// proceeding.
-	MigrationStateWaitDeps MigrationState = "WaitDeps"
+	// MigrationStateStarting is set when the migration of the data is being
+	// started.
+	MigrationStateStarting MigrationState = "Starting"
 
 	// MigrationStateStarted is set when the migration of data has started.
 	MigrationStateStarted MigrationState = "Started"
 
-	// MigrationStateFinishing is set when the VM has been resumed on the target
+	// MigrationStateFinalizing is set when the VM has been resumed on the target
 	// node and the final state has been requested, but not yet processed.
-	MigrationStateFinishing MigrationState = "Finishing"
+	MigrationStateFinalizing MigrationState = "Finalizing"
 
 	// MigrationStateDone is set when the migration completed successfully.
 	// Terminal state.
@@ -64,11 +63,16 @@ const (
 	MigrationStateError MigrationState = "Error"
 )
 
+var terminalMigrationStates = []MigrationState{
+	MigrationStateDone,
+	MigrationStateError,
+}
+
 // IsTerminal returns true if the state is a terminal state. Migrations that reach
 // a terminal state are garbage collected after a wait period since last update is
 // exceeded.
 func (s MigrationState) IsTerminal() bool {
-	return s == MigrationStateDone || s == MigrationStateError
+	return slices.Contains(terminalMigrationStates, s)
 }
 
 // Migration tracks the state of a live migration of a KubeVirt virtual machine
@@ -79,15 +83,30 @@ func (s MigrationState) IsTerminal() bool {
 type Migration struct {
 	MigrationKey
 
-	VMIName    string
+	// LocalWorkload is the local workload associated with this migration. This
+	// is set when the migration object is created but it is not updated when it
+	// changes.
+	LocalWorkload *LocalWorkload
+
+	// SourceNode is the node on which the VM used to run.
 	SourceNode NodeName
-	TargetNode NodeName
 
+	// Resumed is set to true when the VM has been resumed on the target node
+	// and we can finalize the migration. This is derived from the KubeVirt node
+	// name label which is set to the target node when the VM has been resumed.
 	Resumed bool
-	State   MigrationState
-	Error   error
 
+	// State is the current state of the migration. If [Error] is set
+	// we failed in this state and may be retrying.
+	State MigrationState
+
+	// Error if non-nil captures any error occurred while in [State].
+	Error error
+
+	// CreatedAt is the time at which this object was created.
 	CreatedAt time.Time
+
+	// UpdatedAt is the time at which this object was last updated.
 	UpdatedAt time.Time
 }
 
@@ -95,11 +114,10 @@ var _ statedb.TableWritable = Migration{}
 
 func (s Migration) TableHeader() []string {
 	return []string{
-		"Cluster",
 		"Namespace",
 		"PodName",
+		"MAC",
 		"SourceNode",
-		"TargetNode",
 		"Resumed",
 		"State",
 		"Error",
@@ -114,11 +132,10 @@ func (s Migration) TableRow() []string {
 		error = s.Error.Error()
 	}
 	return []string{
-		string(s.Cluster),
 		s.Namespace,
 		s.PodName,
+		s.MAC,
 		string(s.SourceNode),
-		string(s.TargetNode),
 		strconv.FormatBool(s.Resumed),
 		string(s.State),
 		error,
@@ -137,7 +154,7 @@ func (s *Migration) BlocksActivation() bool {
 	// the process of finishing it.
 	return s != nil &&
 		!s.State.IsTerminal() &&
-		s.State != MigrationStateFinishing
+		s.State != MigrationStateFinalizing
 }
 
 var (
