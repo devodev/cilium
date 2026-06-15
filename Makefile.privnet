@@ -36,7 +36,7 @@ PRIVNET_CERT_MANAGER_VERSION ?= v1.20.2
 PRIVNET_KUBEVIRT_VERSION ?= v1.8.3
 
 # renovate: datasource=github-tags depName=kubev2v/forklift
-PRIVNET_FORKLIFT_VERSION ?= v2.11.7
+PRIVNET_FORKLIFT_VERSION ?= v2.12.0
 
 # renovate: datasource=github-releases depName=k8snetworkplumbingwg/multus-cni
 PRIVNET_MULTUS_VERSION ?= v4.3.0
