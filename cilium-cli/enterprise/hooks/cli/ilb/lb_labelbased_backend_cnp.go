@@ -15,6 +15,7 @@ import (
 	"fmt"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/util/retry"
 
 	ciliumiov2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	isovalentv1alpha1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
@@ -66,7 +67,7 @@ func testLabelBasedBackendCNP(t T, mode isovalentv1alpha1.LBTCPProxyForceDeploym
 
 	t.Log("Creating LB BackendPool resources...")
 	backends := []backendPoolOption{}
-	backends = append(backends, withK8sServiceBackend(testName, 8080))
+	backends = append(backends, withK8sServiceBackend(testName, 8080), withFastHealthCheck())
 	backendPool := lbBackendPool(testName, backends...)
 	scenario.createLBBackendPool(backendPool)
 
@@ -103,6 +104,11 @@ func testLabelBasedBackendCNP(t T, mode isovalentv1alpha1.LBTCPProxyForceDeploym
 		}
 	}
 
+	t2NodeList, err := k8sCli.CoreV1().Nodes().List(t.Context(), metav1.ListOptions{LabelSelector: "service.cilium.io/node in ( t2, t1-t2 )"})
+	if err != nil {
+		t.Failedf("failed to retrieve t2 k8s nodes: %s", err)
+	}
+
 	t.Log("Applying Ingress CNP...")
 	cnp := podIngressL7CNP(scenario.k8sNamespace)
 
@@ -113,6 +119,61 @@ func testLabelBasedBackendCNP(t T, mode isovalentv1alpha1.LBTCPProxyForceDeploym
 	t.RegisterCleanup(func(ctx context.Context) error {
 		return ciliumCli.CiliumV2().CiliumNetworkPolicies(scenario.k8sNamespace).Delete(ctx, cnp.Name, metav1.DeleteOptions{})
 	})
+
+	// T2 backend healthchecks do not use the Ingress IP. Instead, each T2 node
+	// healthchecks the backend Pods using its own cilium_host IP. See
+	// https://github.com/isovalent/cilium/issues/10242 for more details.
+	//
+	// The installed CNP allows traffic only from reserved:ingress. Hence, T2
+	// healthchecks are expected to fail on nodes which do not run the backend Pods.
+	//
+	// The healthchecks are expected to pass on T2 nodes which run the backend Pods.
+	// This is because those healthchecks get reserved:host identity, which is allowed by
+	// default.
+	//
+	// This is only observable with more than one T2 node. On a single T2 node
+	// all healthchecks are local (reserved:host) and thus always allowed.
+	if len(t2NodeList.Items) >= 2 {
+		t.Log("Checking that T2 healthchecks to remote backends are denied by the Ingress CNP...")
+		eventually(t, func() error {
+			active, inactive, err := scenario.t2BackendStates(t2NodeList)
+			if err != nil {
+				return err
+			}
+			if inactive == 0 {
+				return fmt.Errorf("expected some T2 healthchecks to be denied, but all %d are still passing", active)
+			}
+			return nil
+		}, shortTimeout, pollInterval)
+	}
+
+	t.Log("Extending the CNP to allow remote healthchecks...")
+	err = retry.RetryOnConflict(bgpUpdateBackoff, func() error {
+		latestCNP, err := ciliumCli.CiliumV2().CiliumNetworkPolicies(scenario.k8sNamespace).Get(t.Context(), cnp.Name, metav1.GetOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to retrieve CNP: %w", err)
+		}
+
+		latestCNP.Spec.Ingress = append(latestCNP.Spec.Ingress, remoteNodeHealthCheckIngressRule())
+		_, err = ciliumCli.CiliumV2().CiliumNetworkPolicies(scenario.k8sNamespace).Update(t.Context(), latestCNP, metav1.UpdateOptions{})
+
+		return err
+	})
+	if err != nil {
+		t.Failedf("failed to update CNP: %s", err)
+	}
+
+	t.Log("Checking that all T2 healthchecks pass with the extended Ingress CNP...")
+	eventually(t, func() error {
+		active, inactive, err := scenario.t2BackendStates(t2NodeList)
+		if err != nil {
+			return err
+		}
+		if inactive != 0 {
+			return fmt.Errorf("expected all T2 healthchecks to pass, but %d are still failing (%d passing)", inactive, active)
+		}
+		return nil
+	}, longTimeout, pollInterval)
 
 	t.Log("Checking that CNP matches Ingress identity and blocks path != / ...")
 	{
@@ -177,6 +238,34 @@ func podIngressL7CNP(namespace string) *ciliumiov2.CiliumNetworkPolicy {
 									},
 								},
 							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func remoteNodeHealthCheckIngressRule() policyapi.IngressRule {
+	return policyapi.IngressRule{
+		IngressCommonRule: policyapi.IngressCommonRule{
+			FromEntities: policyapi.EntitySlice{
+				policyapi.EntityRemoteNode,
+				policyapi.EntityHost,
+			},
+		},
+		ToPorts: policyapi.PortRules{
+			{
+				Ports: []policyapi.PortProtocol{
+					{
+						Protocol: policyapi.ProtoTCP,
+						Port:     "8080",
+					},
+				},
+				Rules: &policyapi.L7Rules{
+					HTTP: []policyapi.PortRuleHTTP{
+						{
+							Path: "/health",
 						},
 					},
 				},

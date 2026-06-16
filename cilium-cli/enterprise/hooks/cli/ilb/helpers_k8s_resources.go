@@ -1534,6 +1534,15 @@ func withHealthCheckTLS() backendPoolOption {
 	}
 }
 
+func withFastHealthCheck() backendPoolOption {
+	return func(o *isovalentv1alpha1.LBBackendPool) {
+		o.Spec.HealthCheck.IntervalSeconds = ptr.To[int32](1)
+		o.Spec.HealthCheck.TimeoutSeconds = ptr.To[int32](1)
+		o.Spec.HealthCheck.HealthyThreshold = ptr.To[int32](1)
+		o.Spec.HealthCheck.UnhealthyThreshold = ptr.To[int32](1)
+	}
+}
+
 func withTCPHealthCheck(sendPayload *string, receivePayload *string) backendPoolOption {
 	return func(o *isovalentv1alpha1.LBBackendPool) {
 		o.Spec.HealthCheck = isovalentv1alpha1.HealthCheck{
