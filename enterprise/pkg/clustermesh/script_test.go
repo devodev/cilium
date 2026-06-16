@@ -16,7 +16,7 @@ import (
 	"log/slog"
 	"maps"
 	"os"
-	"path"
+	"path/filepath"
 	"testing"
 
 	uhive "github.com/cilium/hive"
@@ -96,7 +96,7 @@ func TestScript(t *testing.T) {
 		storeFactory := store.NewFactory(hivetest.Logger(t), store.MetricsProvider())
 
 		// Store clustermesh configurations in the working directory of the test.
-		configDir := path.Join(path.Dir(t.TempDir()), "001")
+		configDir := filepath.Join(filepath.Dir(t.TempDir()), "001")
 
 		h := hive.New(
 			k8sfake.FakeClientCell(),
@@ -176,11 +176,11 @@ func TestScript(t *testing.T) {
 
 			cell.Invoke(func(client kvstore.Client) {
 				clusterConfig := []byte("endpoints:\n- in-memory\n")
-				config1 := path.Join(configDir, "cluster1")
+				config1 := filepath.Join(configDir, "cluster1")
 				require.NoError(t, os.WriteFile(config1, clusterConfig, 0644), "Failed to write config file for cluster1")
-				config2 := path.Join(configDir, "cluster2")
+				config2 := filepath.Join(configDir, "cluster2")
 				require.NoError(t, os.WriteFile(config2, clusterConfig, 0644), "Failed to write config file for cluster2")
-				config3 := path.Join(configDir, "cluster3")
+				config3 := filepath.Join(configDir, "cluster3")
 				require.NoError(t, os.WriteFile(config3, clusterConfig, 0644), "Failed to write config file for cluster3")
 
 				for i, name := range []string{"cluster1", "cluster2", "cluster3"} {
