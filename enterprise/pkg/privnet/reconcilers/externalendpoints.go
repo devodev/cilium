@@ -446,7 +446,7 @@ type externalEndpointReconcilerOps struct {
 	epCreate   endpoints.EndpointCreator
 	epRemove   endpoints.EndpointRemover
 	epLookup   endpoints.EndpointGetter
-	epActivate *EndpointActivationManager
+	epActivate *endpoints.EndpointPropertyManager
 }
 
 func (e *externalEndpointReconcilerOps) cepOwner(obj *tables.ExternalEndpoint) endpoints.CEPOwner {
@@ -752,7 +752,7 @@ func (e *ExternalEndpoints) registerEndpointCreationReconciler(in struct {
 	EPRemove endpoints.EndpointRemover
 	EPLookup endpoints.EndpointGetter
 
-	EPActivate *EndpointActivationManager
+	EPActivate *endpoints.EndpointPropertyManager
 }) {
 	if !(e.cfg.EnabledAsBridge() && e.cfg.ExternalEndpoints) {
 		return

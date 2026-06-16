@@ -18,9 +18,7 @@ import (
 	"github.com/cilium/statedb"
 	"github.com/cilium/statedb/reconciler"
 
-	"github.com/cilium/cilium/enterprise/pkg/privnet/endpoints"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/tables"
-	"github.com/cilium/cilium/enterprise/pkg/privnet/types"
 	"github.com/cilium/cilium/pkg/hive"
 	"github.com/cilium/cilium/pkg/time"
 )
@@ -28,38 +26,6 @@ import (
 // SettleTime is the time reconcilers wait before proceeding with the actual
 // reconciliation, to batch work.
 const SettleTime = 50 * time.Millisecond
-
-// EndpointActivationManager allows reconcilers to mark privnet-enabled
-// endpoints as active or inactive and subscribe to changes to the
-// active or inactive status of an endpoint
-type EndpointActivationManager struct {
-	subscribers []endpointActivationSubscriber
-}
-
-func newEndpointActivationManager() *EndpointActivationManager {
-	return &EndpointActivationManager{
-		subscribers: []endpointActivationSubscriber{},
-	}
-}
-
-type endpointActivationSubscriber interface {
-	EndpointActivationChanged(endpoints.Endpoint)
-}
-
-// Subscribe is used to subscribe to changes to endpoint activation done via this manager.
-// Must only be called at construction time.
-func (e *EndpointActivationManager) Subscribe(subscriber endpointActivationSubscriber) {
-	e.subscribers = append(e.subscribers, subscriber)
-}
-
-// SetActivatedAt sets the activatedAt timestamp of an endpoint and informs the subscribers
-func (e *EndpointActivationManager) SetActivatedAt(ep endpoints.Endpoint, time time.Time) {
-	ep.SetPropertyValue(types.PropertyPrivNetActivatedAt, endpoints.FormatActivatedAtProperty(time))
-	ep.SyncEndpointHeaderFile() // ensure the new activatedAt timestamp is persisted on disk
-	for _, subscriber := range e.subscribers {
-		subscriber.EndpointActivationChanged(ep)
-	}
-}
 
 // watchesTracker tracks the associations between each watch channel and the
 // associated list of objects. The same channel may be associated with multiple

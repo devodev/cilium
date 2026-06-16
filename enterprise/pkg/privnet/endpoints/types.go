@@ -227,6 +227,38 @@ func (p *EndpointProperties) NICIndex() (uint8, error) {
 	return uint8(idx), nil
 }
 
+// EndpointPropertyManager allows reconcilers to change dynamic privnet-specific
+// endpoint properties and allows them to subscribe to changes to said properties.
+type EndpointPropertyManager struct {
+	subscribers []endpointPropertySubscriber
+}
+
+// newEndpointPropertyManager creates a new EndpointPropertyManager
+func newEndpointPropertyManager() *EndpointPropertyManager {
+	return &EndpointPropertyManager{
+		subscribers: []endpointPropertySubscriber{},
+	}
+}
+
+type endpointPropertySubscriber interface {
+	EndpointPropertyChanged(string, Endpoint)
+}
+
+// Subscribe is used to subscribe to changes to endpoint activation done via this manager.
+// Must only be called at Hive construction time.
+func (e *EndpointPropertyManager) Subscribe(subscriber endpointPropertySubscriber) {
+	e.subscribers = append(e.subscribers, subscriber)
+}
+
+// SetActivatedAt sets the activatedAt timestamp of an endpoint and informs the subscribers
+func (e *EndpointPropertyManager) SetActivatedAt(ep Endpoint, time time.Time) {
+	ep.SetPropertyValue(types.PropertyPrivNetActivatedAt, FormatActivatedAtProperty(time))
+	ep.SyncEndpointHeaderFile() // ensure the new activatedAt timestamp is persisted on disk
+	for _, subscriber := range e.subscribers {
+		subscriber.EndpointPropertyChanged(types.PropertyPrivNetActivatedAt, ep)
+	}
+}
+
 // FormatActivatedAtProperty is a helper to be used to format the PropertyPrivNetActivatedAt property.
 func FormatActivatedAtProperty(t time.Time) string {
 	return t.UTC().Format(time.RFC3339Nano)

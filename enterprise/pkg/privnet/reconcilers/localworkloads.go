@@ -58,9 +58,9 @@ type LocalWorkloads struct {
 
 	cfg config.Config
 
-	endpointManager           endpoints.EndpointGetter
-	endpointActivationManager *EndpointActivationManager
-	restorerPromise           promise.Promise[endpointstate.Restorer]
+	endpointManager         endpoints.EndpointGetter
+	endpointPropertyManager *endpoints.EndpointPropertyManager
+	restorerPromise         promise.Promise[endpointstate.Restorer]
 
 	db         *statedb.DB
 	tbl        statedb.RWTable[*tables.LocalWorkload]
@@ -75,9 +75,9 @@ func newLocalWorkloads(in struct {
 
 	Config config.Config
 
-	EndpointManager           endpoints.EndpointGetter
-	EndpointActivationManager *EndpointActivationManager
-	RestorerPromise           promise.Promise[endpointstate.Restorer]
+	EndpointManager         endpoints.EndpointGetter
+	EndpointPropertyManager *endpoints.EndpointPropertyManager
+	RestorerPromise         promise.Promise[endpointstate.Restorer]
 
 	DB         *statedb.DB
 	Table      statedb.RWTable[*tables.LocalWorkload]
@@ -89,9 +89,9 @@ func newLocalWorkloads(in struct {
 
 		cfg: in.Config,
 
-		endpointManager:           in.EndpointManager,
-		endpointActivationManager: in.EndpointActivationManager,
-		restorerPromise:           in.RestorerPromise,
+		endpointManager:         in.EndpointManager,
+		endpointPropertyManager: in.EndpointPropertyManager,
+		restorerPromise:         in.RestorerPromise,
 
 		db:         in.DB,
 		tbl:        in.Table,
@@ -110,7 +110,7 @@ func (l *LocalWorkloads) registerReconciler() {
 
 	// Subscribe to endpoint creation/deletion/activation events
 	l.endpointManager.Subscribe(l)
-	l.endpointActivationManager.Subscribe(l)
+	l.endpointPropertyManager.Subscribe(l)
 
 	l.jg.Add(job.OneShot("privnet-ep-sync", func(ctx context.Context, health cell.Health) error {
 		// Block until all endpoints have been restored (i.e. received by EndpointRestored callback),
@@ -254,8 +254,8 @@ func (l *LocalWorkloads) deleteEndpoint(ep endpoints.Endpoint) {
 	}
 }
 
-// EndpointActivationChanged implements endpointActivationSubscriber
-func (l *LocalWorkloads) EndpointActivationChanged(ep endpoints.Endpoint) {
+// EndpointPropertyChanged implements endpointPropertySubscriber
+func (l *LocalWorkloads) EndpointPropertyChanged(property string, ep endpoints.Endpoint) {
 	l.upsertEndpoint(ep)
 }
 

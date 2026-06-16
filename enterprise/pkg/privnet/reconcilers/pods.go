@@ -47,8 +47,8 @@ type Pods struct {
 
 	cfg config.Config
 
-	endpointManager           endpoints.EndpointGetter
-	endpointActivationManager *EndpointActivationManager
+	endpointManager         endpoints.EndpointGetter
+	endpointPropertyManager *endpoints.EndpointPropertyManager
 
 	db         *statedb.DB
 	pods       statedb.Table[k8sTables.LocalPod]
@@ -63,8 +63,8 @@ func newPods(in struct {
 
 	Config config.Config
 
-	EndpointManager           endpoints.EndpointGetter
-	EndpointActivationManager *EndpointActivationManager
+	EndpointManager         endpoints.EndpointGetter
+	EndpointPropertyManager *endpoints.EndpointPropertyManager
 
 	DB         *statedb.DB
 	Pods       statedb.Table[k8sTables.LocalPod]
@@ -76,8 +76,8 @@ func newPods(in struct {
 
 		cfg: in.Config,
 
-		endpointManager:           in.EndpointManager,
-		endpointActivationManager: in.EndpointActivationManager,
+		endpointManager:         in.EndpointManager,
+		endpointPropertyManager: in.EndpointPropertyManager,
 
 		db:         in.DB,
 		pods:       in.Pods,
@@ -136,7 +136,7 @@ func (p *Pods) registerReconciler() {
 							newActivatedAt = time.Time{} // zero means inactive
 						}
 						// Update endpoint property and inform subscribers
-						p.endpointActivationManager.SetActivatedAt(ep, newActivatedAt)
+						p.endpointPropertyManager.SetActivatedAt(ep, newActivatedAt)
 					}
 				}
 
