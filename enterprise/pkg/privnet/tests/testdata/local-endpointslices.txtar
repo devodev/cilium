@@ -263,6 +263,10 @@ endpoints:
       ipv4: 10.244.5.114
       ipv6: fd00:10:244:5::114
     name: reverent-chicken
+    previousAddressing:
+    - ipv4: 10.244.4.200
+      ipv6: fd00:10:244:4::200
+      lastSeen: "2025-06-19T08:15:00.000000Z"
   flags: {}
   interface:
     addressing:
@@ -349,7 +353,8 @@ nodeName: foobar-worker-1
     "isovalent-privnet-network": "red-network",
     "isovalent-privnet-activated-at": "2025-06-20T16:14:50.200000Z",
     "isovalent-privnet-ipv4-addr": "10.0.100.14",
-    "isovalent-privnet-ipv6-addr": "fd00:10:100::14"
+    "isovalent-privnet-ipv6-addr": "fd00:10:100::14",
+    "isovalent-privnet-previous-addressing": "[{\"ipv4\":\"10.244.4.200\",\"ipv6\":\"fd00:10:244:4::200\",\"lastSeen\":\"2025-06-19T08:15:00.000000Z\"}]"
   }
 }
 

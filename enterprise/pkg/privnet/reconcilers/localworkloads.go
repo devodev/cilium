@@ -18,6 +18,7 @@ import (
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/hive/job"
 	"github.com/cilium/statedb"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kubevirtv1 "kubevirt.io/api/core/v1"
 
 	"github.com/cilium/cilium/enterprise/pkg/privnet/config"
@@ -179,7 +180,8 @@ func (l *LocalWorkloads) upsertEndpoint(ep endpoints.Endpoint) {
 				IPv4: ep.GetIPv4Address(),
 				IPv6: ep.GetIPv6Address(),
 			},
-			Name: k8sName,
+			Name:               k8sName,
+			PreviousAddressing: privNetAddr.previous,
 		},
 		Flags: iso_v1alpha1.PrivateNetworkEndpointSliceFlags{
 			External: ep.IsProperty(eptypes.PropertyWithouteBPFDatapath),
@@ -286,6 +288,7 @@ type privateNetworkAddressing struct {
 	nicIndex   uint8
 
 	activatedAt time.Time
+	previous    []iso_v1alpha1.PrivateNetworkEndpointSlicePreviousAddressing
 }
 
 // extractPrivateNetworkAddressing extracts private network properties from the endpoint.
@@ -320,10 +323,10 @@ func extractPrivateNetworkAddressing(ep endpoints.Endpoint) (*privateNetworkAddr
 	if err != nil {
 		return nil, err
 	}
-
 	if ipv4.IsValid() {
 		addr.ipv4 = ipv4.String()
 	}
+
 	ipv6, err := properties.NetworkIPv6()
 	if err != nil {
 		return nil, err
@@ -335,6 +338,23 @@ func extractPrivateNetworkAddressing(ep endpoints.Endpoint) (*privateNetworkAddr
 	// ignore endpoints without any valid addresses configured
 	if !(ipv4.IsValid() || ipv6.IsValid()) {
 		return nil, nil
+	}
+
+	prevAddrs, err := properties.PreviousAddressing()
+	if err != nil {
+		return nil, err
+	}
+	for _, prevAddr := range prevAddrs {
+		prev := iso_v1alpha1.PrivateNetworkEndpointSlicePreviousAddressing{
+			LastSeen: metav1.NewMicroTime(prevAddr.LastSeen.UTC()),
+		}
+		if prevAddr.IPv4.IsValid() {
+			prev.IPv4 = prevAddr.IPv4.String()
+		}
+		if prevAddr.IPv6.IsValid() {
+			prev.IPv6 = prevAddr.IPv6.String()
+		}
+		addr.previous = append(addr.previous, prev)
 	}
 
 	return addr, nil

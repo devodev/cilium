@@ -16,6 +16,7 @@ import (
 	"net/netip"
 
 	"github.com/cilium/cilium/pkg/mac"
+	"github.com/cilium/cilium/pkg/time"
 )
 
 const (
@@ -41,6 +42,10 @@ const (
 
 	// PropertyPrivNetNICIndex contains the index of the NIC of the workload.
 	PropertyPrivNetNICIndex = "isovalent-privnet-nic-index"
+
+	// PropertyPrivNetPrevAddressing contains previous endpoint addresses for migrated workloads
+	// Stored as a JSON array of the PreviousAddressing struct
+	PropertyPrivNetPrevAddressing = "isovalent-privnet-previous-addressing"
 )
 
 type EndpointProperties struct {
@@ -56,4 +61,11 @@ func (e *EndpointProperties) Equal(other *EndpointProperties) bool {
 		e.IPv6 == other.IPv6 &&
 		bytes.Equal(e.MAC, other.MAC) &&
 		maps.Equal(e.Labels, other.Labels)
+}
+
+// PreviousAddressing is used in the PropertyPrivNetPrevAddressing property value as the slice element
+type PreviousAddressing struct {
+	IPv4     netip.Addr `json:"ipv4,omitzero"`
+	IPv6     netip.Addr `json:"ipv6,omitzero"`
+	LastSeen time.Time  `json:"lastSeen"`
 }

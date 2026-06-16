@@ -12,6 +12,7 @@ package endpoints
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"iter"
 	"net/netip"
@@ -227,6 +228,20 @@ func (p *EndpointProperties) NICIndex() (uint8, error) {
 	return uint8(idx), nil
 }
 
+func (p *EndpointProperties) PreviousAddressing() ([]types.PreviousAddressing, error) {
+	str, ok := p.ep.GetPropertyValue(types.PropertyPrivNetPrevAddressing).(string)
+	if !ok {
+		return nil, nil
+	}
+
+	var prevAddrs []types.PreviousAddressing
+	err := json.Unmarshal([]byte(str), &prevAddrs)
+	if err != nil {
+		return nil, err
+	}
+	return prevAddrs, nil
+}
+
 // EndpointPropertyManager allows reconcilers to change dynamic privnet-specific
 // endpoint properties and allows them to subscribe to changes to said properties.
 type EndpointPropertyManager struct {
@@ -256,6 +271,16 @@ func (e *EndpointPropertyManager) SetActivatedAt(ep Endpoint, time time.Time) {
 	ep.SyncEndpointHeaderFile() // ensure the new activatedAt timestamp is persisted on disk
 	for _, subscriber := range e.subscribers {
 		subscriber.EndpointPropertyChanged(types.PropertyPrivNetActivatedAt, ep)
+	}
+}
+
+// SetPreviousAddressing sets the previous addressing for this endpoint
+func (e *EndpointPropertyManager) SetPreviousAddressing(ep Endpoint, prevAddr []types.PreviousAddressing) {
+	str, _ := json.Marshal(prevAddr)
+	ep.SetPropertyValue(types.PropertyPrivNetPrevAddressing, string(str))
+	ep.SyncEndpointHeaderFile()
+	for _, subscriber := range e.subscribers {
+		subscriber.EndpointPropertyChanged(types.PropertyPrivNetPrevAddressing, ep)
 	}
 }
 
