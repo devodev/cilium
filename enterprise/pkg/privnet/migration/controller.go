@@ -25,6 +25,7 @@ import (
 	"github.com/cilium/statedb"
 
 	pncfg "github.com/cilium/cilium/enterprise/pkg/privnet/config"
+	"github.com/cilium/cilium/enterprise/pkg/privnet/endpoints"
 	api "github.com/cilium/cilium/enterprise/pkg/privnet/grpc/api/v1"
 	grpcClient "github.com/cilium/cilium/enterprise/pkg/privnet/grpc/client"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/observers"
@@ -50,6 +51,9 @@ type controllerParams struct {
 	LeaseWriter *tables.DHCPLeaseWriter
 	Nodes       *observers.Nodes
 	ClusterInfo cmtypes.ClusterInfo
+
+	Endpoints          endpoints.EndpointGetter
+	EndpointProperties *endpoints.EndpointPropertyManager
 }
 
 func registerController(params controllerParams) {
@@ -310,13 +314,15 @@ func (m *migrator) run(ctx context.Context, health cell.Health) error {
 }
 
 func (m *migrator) processBatch(migration tables.Migration, batch *api.MigrationBatch) {
-	m.processLeases(migration, batch.GetDhcpLease())
+	if dhcp := batch.GetDhcpLease(); len(dhcp) != 0 {
+		m.processLeases(migration, dhcp)
+	}
+	if addr := batch.GetEndpointAddressing(); len(addr) != 0 {
+		m.processEndpointAddressing(migration, addr)
+	}
 }
 
 func (m *migrator) processLeases(migration tables.Migration, leases []*api.DHCPLease) {
-	if len(leases) == 0 {
-		return
-	}
 	now := time.Now()
 	network := tables.NetworkName(migration.LocalWorkload.Interface.Network)
 	mac := mac.MustParseMAC(migration.LocalWorkload.Interface.MAC)
@@ -358,6 +364,44 @@ func (m *migrator) processLeases(migration tables.Migration, leases []*api.DHCPL
 			m.LeaseWriter.Insert(wtxn, newLease)
 		}
 	}
+}
+
+func (m *migrator) processEndpointAddressing(migration tables.Migration, epAddrs []*api.EndpointAddressing) {
+	ep := m.Endpoints.LookupID(migration.LocalWorkload.EndpointID)
+	if ep == nil {
+		m.log.Warn("Unable to find endpoint")
+		return
+	}
+
+	prevAddressing := make([]types.PreviousAddressing, 0, len(epAddrs))
+	for _, epAddr := range epAddrs {
+		prevAddr := types.PreviousAddressing{
+			LastSeen: epAddr.LastSeen.AsTime().UTC(),
+		}
+
+		if ipv4 := epAddr.GetIpv4(); len(ipv4) != 0 {
+			addr, ok := netip.AddrFromSlice(ipv4)
+			if ok && addr.Is4() {
+				prevAddr.IPv4 = addr
+			} else {
+				m.log.Warn("Discarding previous IPv4 address as invalid",
+					logfields.IPAddr, ipv4)
+			}
+		}
+		if ipv6 := epAddr.GetIpv6(); len(ipv6) != 0 {
+			addr, ok := netip.AddrFromSlice(ipv6)
+			if ok && addr.Is6() {
+				prevAddr.IPv6 = addr
+			} else {
+				m.log.Warn("Discarding previous IPv6 address as invalid",
+					logfields.IPAddr, ipv6)
+			}
+		}
+
+		prevAddressing = append(prevAddressing, prevAddr)
+	}
+
+	m.EndpointProperties.SetPreviousAddressing(ep, prevAddressing)
 }
 
 type batch struct {
