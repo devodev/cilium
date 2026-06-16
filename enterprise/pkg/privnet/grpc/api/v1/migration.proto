@@ -63,6 +63,18 @@ message MigrationBatch {
 
   // DHCP leases.
   repeated DHCPLease dhcp_lease = 2;
+
+  // Endpoint addressing information
+  repeated EndpointAddressing endpoint_addressing = 3;
+}
+
+message EndpointAddressing {
+    // IPv4 address in the P-IP space
+    bytes ipv4 = 1;
+    // IPv6 address in the P-IP space
+    bytes ipv6 = 2;
+    // Timestamp when the above addresses were last seen active
+    google.protobuf.Timestamp last_seen = 3;
 }
 
 enum CTMapKind {

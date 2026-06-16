@@ -282,9 +282,11 @@ type MigrationBatch struct {
 	// Connection tracking records.
 	Records []*CTRecord `protobuf:"bytes,1,rep,name=records,proto3" json:"records,omitempty"`
 	// DHCP leases.
-	DhcpLease     []*DHCPLease `protobuf:"bytes,2,rep,name=dhcp_lease,json=dhcpLease,proto3" json:"dhcp_lease,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	DhcpLease []*DHCPLease `protobuf:"bytes,2,rep,name=dhcp_lease,json=dhcpLease,proto3" json:"dhcp_lease,omitempty"`
+	// Endpoint addressing information
+	EndpointAddressing []*EndpointAddressing `protobuf:"bytes,3,rep,name=endpoint_addressing,json=endpointAddressing,proto3" json:"endpoint_addressing,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *MigrationBatch) Reset() {
@@ -331,6 +333,76 @@ func (x *MigrationBatch) GetDhcpLease() []*DHCPLease {
 	return nil
 }
 
+func (x *MigrationBatch) GetEndpointAddressing() []*EndpointAddressing {
+	if x != nil {
+		return x.EndpointAddressing
+	}
+	return nil
+}
+
+type EndpointAddressing struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// IPv4 address in the P-IP space
+	Ipv4 []byte `protobuf:"bytes,1,opt,name=ipv4,proto3" json:"ipv4,omitempty"`
+	// IPv6 address in the P-IP space
+	Ipv6 []byte `protobuf:"bytes,2,opt,name=ipv6,proto3" json:"ipv6,omitempty"`
+	// Timestamp when the above addresses were last seen active
+	LastSeen      *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=last_seen,json=lastSeen,proto3" json:"last_seen,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EndpointAddressing) Reset() {
+	*x = EndpointAddressing{}
+	mi := &file_v1_migration_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EndpointAddressing) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EndpointAddressing) ProtoMessage() {}
+
+func (x *EndpointAddressing) ProtoReflect() protoreflect.Message {
+	mi := &file_v1_migration_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EndpointAddressing.ProtoReflect.Descriptor instead.
+func (*EndpointAddressing) Descriptor() ([]byte, []int) {
+	return file_v1_migration_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *EndpointAddressing) GetIpv4() []byte {
+	if x != nil {
+		return x.Ipv4
+	}
+	return nil
+}
+
+func (x *EndpointAddressing) GetIpv6() []byte {
+	if x != nil {
+		return x.Ipv6
+	}
+	return nil
+}
+
+func (x *EndpointAddressing) GetLastSeen() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LastSeen
+	}
+	return nil
+}
+
 type CTRecord struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Map kind
@@ -347,7 +419,7 @@ type CTRecord struct {
 
 func (x *CTRecord) Reset() {
 	*x = CTRecord{}
-	mi := &file_v1_migration_proto_msgTypes[4]
+	mi := &file_v1_migration_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -359,7 +431,7 @@ func (x *CTRecord) String() string {
 func (*CTRecord) ProtoMessage() {}
 
 func (x *CTRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_migration_proto_msgTypes[4]
+	mi := &file_v1_migration_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -372,7 +444,7 @@ func (x *CTRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CTRecord.ProtoReflect.Descriptor instead.
 func (*CTRecord) Descriptor() ([]byte, []int) {
-	return file_v1_migration_proto_rawDescGZIP(), []int{4}
+	return file_v1_migration_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *CTRecord) GetKind() CTMapKind {
@@ -426,7 +498,7 @@ type CTKey struct {
 
 func (x *CTKey) Reset() {
 	*x = CTKey{}
-	mi := &file_v1_migration_proto_msgTypes[5]
+	mi := &file_v1_migration_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -438,7 +510,7 @@ func (x *CTKey) String() string {
 func (*CTKey) ProtoMessage() {}
 
 func (x *CTKey) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_migration_proto_msgTypes[5]
+	mi := &file_v1_migration_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -451,7 +523,7 @@ func (x *CTKey) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CTKey.ProtoReflect.Descriptor instead.
 func (*CTKey) Descriptor() ([]byte, []int) {
-	return file_v1_migration_proto_rawDescGZIP(), []int{5}
+	return file_v1_migration_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *CTKey) GetSourceIp() []byte {
@@ -515,7 +587,7 @@ type CTValue struct {
 
 func (x *CTValue) Reset() {
 	*x = CTValue{}
-	mi := &file_v1_migration_proto_msgTypes[6]
+	mi := &file_v1_migration_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -527,7 +599,7 @@ func (x *CTValue) String() string {
 func (*CTValue) ProtoMessage() {}
 
 func (x *CTValue) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_migration_proto_msgTypes[6]
+	mi := &file_v1_migration_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -540,7 +612,7 @@ func (x *CTValue) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CTValue.ProtoReflect.Descriptor instead.
 func (*CTValue) Descriptor() ([]byte, []int) {
-	return file_v1_migration_proto_rawDescGZIP(), []int{6}
+	return file_v1_migration_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *CTValue) GetLifetime() *durationpb.Duration {
@@ -589,7 +661,7 @@ type DHCPLease struct {
 
 func (x *DHCPLease) Reset() {
 	*x = DHCPLease{}
-	mi := &file_v1_migration_proto_msgTypes[7]
+	mi := &file_v1_migration_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -601,7 +673,7 @@ func (x *DHCPLease) String() string {
 func (*DHCPLease) ProtoMessage() {}
 
 func (x *DHCPLease) ProtoReflect() protoreflect.Message {
-	mi := &file_v1_migration_proto_msgTypes[7]
+	mi := &file_v1_migration_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -614,7 +686,7 @@ func (x *DHCPLease) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DHCPLease.ProtoReflect.Descriptor instead.
 func (*DHCPLease) Descriptor() ([]byte, []int) {
-	return file_v1_migration_proto_rawDescGZIP(), []int{7}
+	return file_v1_migration_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *DHCPLease) GetIpv4() []byte {
@@ -664,11 +736,16 @@ const file_v1_migration_proto_rawDesc = "" +
 	"\x0eMigrationStart\x12\x18\n" +
 	"\anetwork\x18\x01 \x01(\tR\anetwork\x12\x10\n" +
 	"\x03mac\x18\x02 \x01(\tR\x03mac\"\x13\n" +
-	"\x11MigrationFinalize\"h\n" +
+	"\x11MigrationFinalize\"\xb2\x01\n" +
 	"\x0eMigrationBatch\x12'\n" +
 	"\arecords\x18\x01 \x03(\v2\r.api.CTRecordR\arecords\x12-\n" +
 	"\n" +
-	"dhcp_lease\x18\x02 \x03(\v2\x0e.api.DHCPLeaseR\tdhcpLease\"\x8a\x01\n" +
+	"dhcp_lease\x18\x02 \x03(\v2\x0e.api.DHCPLeaseR\tdhcpLease\x12H\n" +
+	"\x13endpoint_addressing\x18\x03 \x03(\v2\x17.api.EndpointAddressingR\x12endpointAddressing\"u\n" +
+	"\x12EndpointAddressing\x12\x12\n" +
+	"\x04ipv4\x18\x01 \x01(\fR\x04ipv4\x12\x12\n" +
+	"\x04ipv6\x18\x02 \x01(\fR\x04ipv6\x127\n" +
+	"\tlast_seen\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\blastSeen\"\x8a\x01\n" +
 	"\bCTRecord\x12\"\n" +
 	"\x04kind\x18\x01 \x01(\x0e2\x0e.api.CTMapKindR\x04kind\x12\x18\n" +
 	"\anetwork\x18\x02 \x01(\tR\anetwork\x12\x1c\n" +
@@ -722,39 +799,42 @@ func file_v1_migration_proto_rawDescGZIP() []byte {
 }
 
 var file_v1_migration_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_v1_migration_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_v1_migration_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_v1_migration_proto_goTypes = []any{
 	(CTMapKind)(0),                // 0: api.CTMapKind
 	(*MigrationRequest)(nil),      // 1: api.MigrationRequest
 	(*MigrationStart)(nil),        // 2: api.MigrationStart
 	(*MigrationFinalize)(nil),     // 3: api.MigrationFinalize
 	(*MigrationBatch)(nil),        // 4: api.MigrationBatch
-	(*CTRecord)(nil),              // 5: api.CTRecord
-	(*CTKey)(nil),                 // 6: api.CTKey
-	(*CTValue)(nil),               // 7: api.CTValue
-	(*DHCPLease)(nil),             // 8: api.DHCPLease
-	(*durationpb.Duration)(nil),   // 9: google.protobuf.Duration
+	(*EndpointAddressing)(nil),    // 5: api.EndpointAddressing
+	(*CTRecord)(nil),              // 6: api.CTRecord
+	(*CTKey)(nil),                 // 7: api.CTKey
+	(*CTValue)(nil),               // 8: api.CTValue
+	(*DHCPLease)(nil),             // 9: api.DHCPLease
 	(*timestamppb.Timestamp)(nil), // 10: google.protobuf.Timestamp
+	(*durationpb.Duration)(nil),   // 11: google.protobuf.Duration
 }
 var file_v1_migration_proto_depIdxs = []int32{
 	2,  // 0: api.MigrationRequest.start:type_name -> api.MigrationStart
 	3,  // 1: api.MigrationRequest.finalize:type_name -> api.MigrationFinalize
-	5,  // 2: api.MigrationBatch.records:type_name -> api.CTRecord
-	8,  // 3: api.MigrationBatch.dhcp_lease:type_name -> api.DHCPLease
-	0,  // 4: api.CTRecord.kind:type_name -> api.CTMapKind
-	6,  // 5: api.CTRecord.key:type_name -> api.CTKey
-	7,  // 6: api.CTRecord.value:type_name -> api.CTValue
-	9,  // 7: api.CTValue.lifetime:type_name -> google.protobuf.Duration
-	10, // 8: api.DHCPLease.obtained_at:type_name -> google.protobuf.Timestamp
-	10, // 9: api.DHCPLease.renew_at:type_name -> google.protobuf.Timestamp
-	10, // 10: api.DHCPLease.expire_at:type_name -> google.protobuf.Timestamp
-	1,  // 11: api.Migration.Migrate:input_type -> api.MigrationRequest
-	4,  // 12: api.Migration.Migrate:output_type -> api.MigrationBatch
-	12, // [12:13] is the sub-list for method output_type
-	11, // [11:12] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	6,  // 2: api.MigrationBatch.records:type_name -> api.CTRecord
+	9,  // 3: api.MigrationBatch.dhcp_lease:type_name -> api.DHCPLease
+	5,  // 4: api.MigrationBatch.endpoint_addressing:type_name -> api.EndpointAddressing
+	10, // 5: api.EndpointAddressing.last_seen:type_name -> google.protobuf.Timestamp
+	0,  // 6: api.CTRecord.kind:type_name -> api.CTMapKind
+	7,  // 7: api.CTRecord.key:type_name -> api.CTKey
+	8,  // 8: api.CTRecord.value:type_name -> api.CTValue
+	11, // 9: api.CTValue.lifetime:type_name -> google.protobuf.Duration
+	10, // 10: api.DHCPLease.obtained_at:type_name -> google.protobuf.Timestamp
+	10, // 11: api.DHCPLease.renew_at:type_name -> google.protobuf.Timestamp
+	10, // 12: api.DHCPLease.expire_at:type_name -> google.protobuf.Timestamp
+	1,  // 13: api.Migration.Migrate:input_type -> api.MigrationRequest
+	4,  // 14: api.Migration.Migrate:output_type -> api.MigrationBatch
+	14, // [14:15] is the sub-list for method output_type
+	13, // [13:14] is the sub-list for method input_type
+	13, // [13:13] is the sub-list for extension type_name
+	13, // [13:13] is the sub-list for extension extendee
+	0,  // [0:13] is the sub-list for field type_name
 }
 
 func init() { file_v1_migration_proto_init() }
@@ -772,7 +852,7 @@ func file_v1_migration_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_v1_migration_proto_rawDesc), len(file_v1_migration_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   8,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
