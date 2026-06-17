@@ -253,6 +253,8 @@ jobs:
         uses: ./.github/actions/helm-default
         with:
           image-tag: ${{ inputs.SHA || github.sha }}
+          registry_host: ${{ env.REGISTRY_DEV }}
+          registry_organization: ${{ env.ORGANIZATION_DEV }}
           chart-dir: ${{ env.helmChartPath }}
 
       - name: Set up job variables for GHA environment
