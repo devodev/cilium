@@ -80,6 +80,11 @@ func (c *controller) loop(ctx context.Context, health cell.Health) error {
 					&migrator{
 						controllerParams: c.controllerParams,
 						key:              migration.MigrationKey,
+						log: c.Log.With(
+							logfields.K8sNamespace, migration.MigrationKey.Namespace,
+							logfields.K8sPodName, migration.MigrationKey.PodName,
+							logfields.MACAddr, migration.MigrationKey.MAC,
+						),
 					})
 				migration.State = tables.MigrationStateStarting
 				migration.UpdatedAt = time.Now()
@@ -106,6 +111,7 @@ func (c *controller) loop(ctx context.Context, health cell.Health) error {
 type migrator struct {
 	controllerParams
 	key tables.MigrationKey
+	log *slog.Logger
 }
 
 func (m *migrator) run(ctx context.Context, health cell.Health) error {
@@ -322,17 +328,17 @@ func (m *migrator) processLeases(migration tables.Migration, leases []*api.DHCPL
 	for _, lease := range leases {
 		ipv4, ok := netip.AddrFromSlice(lease.GetIpv4())
 		if !ok {
-			m.Log.Warn("Discarding DHCP lease with invalid IP")
+			m.log.Warn("Discarding DHCP lease with invalid IP")
 			continue
 		}
 		serverID, err := netip.ParseAddr(lease.GetServerId())
 		if err != nil {
-			m.Log.Warn("Discarding DHCP lease with invalid server ID")
+			m.log.Warn("Discarding DHCP lease with invalid server ID")
 			continue
 		}
 		expireAt := lease.GetExpireAt().AsTime()
 		if now.After(expireAt) {
-			m.Log.Warn("Discarding expired DHCP lease", logfields.IPAddr, ipv4)
+			m.log.Warn("Discarding expired DHCP lease", logfields.IPAddr, ipv4)
 			continue
 		}
 
@@ -348,7 +354,7 @@ func (m *migrator) processLeases(migration tables.Migration, leases []*api.DHCPL
 		}
 		old, _, found := leaseTable.Get(wtxn, tables.DHCPLeaseByNetworkMAC(network, mac))
 		if !found || newLease.ObtainedAt.After(old.ObtainedAt) {
-			m.Log.Debug("Migrated DHCP lease", logfields.IPAddr, newLease.IPv4)
+			m.log.Debug("Migrated DHCP lease", logfields.IPAddr, newLease.IPv4)
 			m.LeaseWriter.Insert(wtxn, newLease)
 		}
 	}
