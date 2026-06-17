@@ -103,7 +103,7 @@ func (l *EnterpriseLoader) registerEndpointConfig(pd *privnetDHCPDevice) {
 
 		if l.evpnConfig.Enabled {
 			cfg.EVPNEnable = true
-			dev, _, found := l.deviceTable.Get(l.db.ReadTxn(), tables.DeviceNameIndex.Query(l.evpnConfig.VxlanDevice))
+			dev, _, found := l.deviceTable.Get(l.db.ReadTxn(), tables.DeviceByName(l.evpnConfig.VxlanDevice))
 			if found {
 				cfg.EVPNDeviceIfIndex = uint32(dev.Index)
 				cfg.EVPNDeviceMAC.Addr = mac.MAC(dev.HardwareAddr).As6()
@@ -111,7 +111,7 @@ func (l *EnterpriseLoader) registerEndpointConfig(pd *privnetDHCPDevice) {
 		}
 
 		if l.inspectionFilter.EnabledForEndpoint(ep) {
-			dev, _, found := l.deviceTable.Get(l.db.ReadTxn(), tables.DeviceNameIndex.Query(inspectionConfig.InterfaceName))
+			dev, _, found := l.deviceTable.Get(l.db.ReadTxn(), tables.DeviceByName(inspectionConfig.InterfaceName))
 			if found {
 				cfg.PassiveInspectionEnable = true
 				cfg.PassiveInspectionIfIndex = uint32(dev.Index)

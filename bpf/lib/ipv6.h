@@ -161,10 +161,12 @@ static __always_inline int ipv6_hdrlen_offset(const struct __ctx_buff *ctx, int 
 	return DROP_INVALID_EXTHDR;
 }
 
-static __always_inline int ipv6_hdrlen_with_fraginfo(const struct __ctx_buff *ctx,
-						     __u8 *nexthdr,
-						     fraginfo_t *fraginfo)
+__noinline __weak
+int ipv6_hdrlen_with_fraginfo(const struct __ctx_buff *ctx, __u8 *nexthdr, fraginfo_t *fraginfo)
 {
+	if (!nexthdr)
+		return DROP_INVALID;
+
 	return ipv6_hdrlen_offset(ctx, ETH_HLEN, nexthdr, fraginfo);
 }
 
@@ -431,7 +433,7 @@ out:
 }
 
 static __always_inline int
-ipv6_load_l4_ports(const struct __ctx_buff *ctx, struct ipv6hdr *ip6 __maybe_unused,
+ipv6_load_l4_ports(const struct __ctx_buff *ctx, const struct ipv6hdr *ip6 __maybe_unused,
 		   fraginfo_t fraginfo, int l4_off, enum ct_dir dir __maybe_unused,
 		   __be16 *ports)
 {

@@ -495,8 +495,16 @@ data:
 {{- if hasKey .Values.bpf "lbSourceRangeAllTypes" }}
   bpf-lb-source-range-all-types: {{ .Values.bpf.lbSourceRangeAllTypes | quote }}
 {{- end }}
-{{- if hasKey .Values.bpf "lbAlgorithmAnnotation" }}
+{{- if or (hasKey .Values.bpf "lbAlgorithmAnnotation") .Values.gatewayAPI.enabled }}
+# When Gateway API is enabled this is forced to "true" so per-backend weights
+# on TCPRoute/UDPRoute take effect (Maglev honors the LB algorithm annotation only
+# when enabled). Paired with `bpf-lb-sock-hostns-only`, which is forced "true"
+# for the same reason.
+{{- if .Values.gatewayAPI.enabled }}
+  bpf-lb-algorithm-annotation: "true"
+{{- else }}
   bpf-lb-algorithm-annotation: {{ .Values.bpf.lbAlgorithmAnnotation | quote }}
+{{- end }}
 {{- end }}
 {{- if hasKey .Values.bpf "lbModeAnnotation" }}
   bpf-lb-mode-annotation: {{ .Values.bpf.lbModeAnnotation | quote }}
@@ -555,13 +563,13 @@ data:
 {{- if eq .Values.routingMode "native" }}
   {{- if and .Values.ipv4.enabled .Values.enableIPv4Masquerade (not .Values.ipMasqAgent.enabled) }}
     {{- if and (ne $ipam "eni") (ne $ipam "alibabacloud") }}
-      {{- if not .Values.ipv4NativeRoutingCIDR }}
+      {{- if and (not .Values.ipv4NativeRoutingCIDR) (not (and (eq $ipam "cluster-pool") .Values.nativeRoutingCIDRFromClusterPool)) }}
         {{- fail " ipv4NativeRoutingCIDR must be set when routingMode is native"}}
       {{- end }}
     {{- end }}
   {{- end }}
   {{- if and .Values.ipv6.enabled .Values.enableIPv6Masquerade (not .Values.ipMasqAgent.enabled) }}
-    {{- if not .Values.ipv6NativeRoutingCIDR }}
+    {{- if and (not .Values.ipv6NativeRoutingCIDR) (not (and (eq $ipam "cluster-pool") .Values.nativeRoutingCIDRFromClusterPool)) }}
       {{- fail "ipv6NativeRoutingCIDR must be set when routingMode is native"  }}
     {{- end }}
   {{- end }}
@@ -858,8 +866,16 @@ data:
 {{- if hasKey $socketLB "enabled" }}
   bpf-lb-sock: {{ $socketLB.enabled | quote }}
 {{- end }}
-{{- if hasKey $socketLB "hostNamespaceOnly" }}
+{{- if or (hasKey $socketLB "hostNamespaceOnly") .Values.gatewayAPI.enabled }}
+# When Gateway API is enabled this is forced to "true" so per-backend weights
+# on TCPRoute/UDPRoute take effect (socket LB stays in the host namespace,
+# letting the Maglev LB mode apply). Paired with `bpf-lb-mode-annotation`,
+# which is forced "true" for the same reason.
+{{- if .Values.gatewayAPI.enabled }}
+  bpf-lb-sock-hostns-only: "true"
+{{- else }}
   bpf-lb-sock-hostns-only: {{ $socketLB.hostNamespaceOnly | quote }}
+{{- end }}
 {{- end }}
 {{- if hasKey $socketLB "terminatePodConnections" }}
   bpf-lb-sock-terminate-pod-connections: {{ $socketLB.terminatePodConnections | quote }}
@@ -1200,10 +1216,26 @@ data:
 {{- if .Values.ipv4.enabled }}
   cluster-pool-ipv4-cidr: {{ .Values.ipam.operator.clusterPoolIPv4PodCIDRList | join " " | quote }}
   cluster-pool-ipv4-mask-size: {{ .Values.ipam.operator.clusterPoolIPv4MaskSize | quote }}
+{{- if and .Values.nativeRoutingCIDRFromClusterPool (not .Values.ipv4NativeRoutingCIDR) }}
+{{- $v4Pools := .Values.ipam.operator.clusterPoolIPv4PodCIDRList }}
+{{- if kindIs "string" $v4Pools }}{{- $v4Pools = splitList " " $v4Pools }}{{- end }}
+{{- if ne (len $v4Pools) 1 }}
+{{- fail "nativeRoutingCIDRFromClusterPool requires exactly one CIDR in ipam.operator.clusterPoolIPv4PodCIDRList; set ipv4NativeRoutingCIDR explicitly instead" }}
+{{- end }}
+  ipv4-native-routing-cidr: {{ first $v4Pools | quote }}
+{{- end }}
 {{- end }}
 {{- if .Values.ipv6.enabled }}
   cluster-pool-ipv6-cidr: {{ .Values.ipam.operator.clusterPoolIPv6PodCIDRList | join " " | quote }}
   cluster-pool-ipv6-mask-size: {{ .Values.ipam.operator.clusterPoolIPv6MaskSize | quote }}
+{{- if and .Values.nativeRoutingCIDRFromClusterPool (not .Values.ipv6NativeRoutingCIDR) }}
+{{- $v6Pools := .Values.ipam.operator.clusterPoolIPv6PodCIDRList }}
+{{- if kindIs "string" $v6Pools }}{{- $v6Pools = splitList " " $v6Pools }}{{- end }}
+{{- if ne (len $v6Pools) 1 }}
+{{- fail "nativeRoutingCIDRFromClusterPool requires exactly one CIDR in ipam.operator.clusterPoolIPv6PodCIDRList; set ipv6NativeRoutingCIDR explicitly instead" }}
+{{- end }}
+  ipv6-native-routing-cidr: {{ first $v6Pools | quote }}
+{{- end }}
 {{- end }}
 {{- end }}
 {{- if (eq $ipam "multi-pool") }}
@@ -1217,6 +1249,12 @@ data:
     {{- if hasKey $spec "ipv6" }}
     {{- $attrs = append $attrs (printf "ipv6-cidrs:%s" (join "," $spec.ipv6.cidrs)) }}
     {{- $attrs = append $attrs (printf "ipv6-mask-size:%s" (toString $spec.ipv6.maskSize)) }}
+    {{- end }}
+    {{- if hasKey $spec "allowFirstIP" }}
+    {{- $attrs = append $attrs (printf "allow-first-ip:%s" (toString $spec.allowFirstIP)) }}
+    {{- end }}
+    {{- if hasKey $spec "allowLastIP" }}
+    {{- $attrs = append $attrs (printf "allow-last-ip:%s" (toString $spec.allowLastIP)) }}
     {{- end }}
     {{- $pools = append $pools (printf "%s=%s" $pool (join ";" $attrs)) }}
   {{- end }}

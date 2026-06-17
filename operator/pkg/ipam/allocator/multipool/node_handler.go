@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -73,7 +74,7 @@ func (n *NodeHandler) Delete(resource *v2.CiliumNode) {
 	err := n.poolManager.ReleaseNode(resource.Name)
 	if err != nil {
 		n.logger.Warn(
-			"Errors while release node and its CIDRs",
+			"Errors while releasing node and its CIDRs",
 			logfields.Error, err,
 			logfields.NodeName, resource.Name,
 		)
@@ -181,5 +182,5 @@ func (n *NodeHandler) createUpsertController(resource *v2.CiliumNode) {
 }
 
 func controllerName(prefix string, nodeName string) string {
-	return prefix + nodeName
+	return strings.Join([]string{prefix, nodeName}, "-")
 }

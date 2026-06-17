@@ -14,7 +14,6 @@ import (
 	"context"
 	"fmt"
 	"iter"
-	"net"
 	"net/netip"
 	"strconv"
 
@@ -256,8 +255,8 @@ type EndpointEvents = observers.Events[EndpointID, EndpointEventKind]
 
 // IPAM provides a subset of the IPAM allocator
 type IPAM interface {
-	ReleaseIP(ip net.IP, poolDefault ipam.Pool) error
-	AllocateIPWithoutSyncUpstream(ip net.IP, owner string, pool ipam.Pool) (*ipam.AllocationResult, error)
+	ReleaseIP(ip netip.Addr, poolDefault ipam.Pool) error
+	AllocateIPWithoutSyncUpstream(ip netip.Addr, owner string, pool ipam.Pool) (*ipam.AllocationResult, error)
 	AllocateNext(family, owner string, poolDefault ipam.Pool) (ipv4Result, ipv6Result *ipam.AllocationResult, err error)
 }
 

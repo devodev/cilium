@@ -11,7 +11,7 @@
 package srv6manager
 
 import (
-	"net"
+	"net/netip"
 
 	"github.com/cilium/hive/cell"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -98,13 +98,13 @@ func (s *sidIPAMWrapper) AllocateNext() (*ipam.AllocationResult, error) {
 }
 
 // Release implements sidIPAllocator.
-func (s *sidIPAMWrapper) Release(ip net.IP) error {
+func (s *sidIPAMWrapper) Release(ip netip.Addr) error {
 	return s.ipam.ReleaseIP(ip, "")
 }
 
 type sidIPAllocator interface {
 	// Release releases a previously allocated IP or fails
-	Release(ip net.IP) error
+	Release(ip netip.Addr) error
 
 	// AllocateNext allocates the next available IP or fails if no more IPs
 	// are available

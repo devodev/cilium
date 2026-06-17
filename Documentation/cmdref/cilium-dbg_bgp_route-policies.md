@@ -33,5 +33,5 @@ cilium-dbg bgp route-policies [flags]
 
 ### SEE ALSO
 
-* [cilium-dbg bgp](cilium-dbg_bgp.md)	 - Access to BGP control plane
+* [cilium-dbg bgp](cilium-dbg_bgp.md)	 - Access to BGP control plane (deprecated)
 

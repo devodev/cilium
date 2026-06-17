@@ -12,14 +12,12 @@ package tests
 
 import (
 	"fmt"
-	"net"
 	"net/netip"
 	"testing"
 
 	uhive "github.com/cilium/hive"
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/hive/script"
-	"go4.org/netipx"
 
 	"github.com/cilium/cilium/enterprise/pkg/privnet/endpoints"
 	"github.com/cilium/cilium/pkg/ipam"
@@ -90,14 +88,9 @@ func (f *fakeIPAMAllocator) AllocateNext(family, owner string, pool ipam.Pool) (
 }
 
 // AllocateIPWithoutSyncUpstream implements endpoints.IPAM
-func (f *fakeIPAMAllocator) AllocateIPWithoutSyncUpstream(ip net.IP, owner string, pool ipam.Pool) (*ipam.AllocationResult, error) {
+func (f *fakeIPAMAllocator) AllocateIPWithoutSyncUpstream(addr netip.Addr, owner string, pool ipam.Pool) (*ipam.AllocationResult, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-
-	addr, ok := netipx.FromStdIP(ip)
-	if !ok || !addr.IsValid() {
-		return nil, fmt.Errorf("invalid IP address: %s", ip)
-	}
 
 	pair, ok := f.reservedIPs[owner]
 	if !ok {
@@ -123,15 +116,9 @@ func (f *fakeIPAMAllocator) AllocateIPWithoutSyncUpstream(ip net.IP, owner strin
 }
 
 // ReleaseIP implements endpoints.IPAM
-func (f *fakeIPAMAllocator) ReleaseIP(ip net.IP, pool ipam.Pool) error {
+func (f *fakeIPAMAllocator) ReleaseIP(addr netip.Addr, pool ipam.Pool) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-
-	addr, _ := netipx.FromStdIP(ip)
-	_, ok := f.allocatedIPs[addr]
-	if !ok {
-		return fmt.Errorf("IP %s is not allocated", addr)
-	}
 
 	delete(f.allocatedIPs, addr)
 	return nil

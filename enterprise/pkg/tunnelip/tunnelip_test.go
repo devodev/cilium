@@ -252,7 +252,7 @@ func TestTunnelIPReconcileTunnelEndpointsRefreshesChangedHosts(t *testing.T) {
 
 	ipc.refreshed = nil
 	preferSecond = true
-	mgr.reconcileTunnelEndpoints(statedb.ToSeq(mgr.devices.List(mgr.db.ReadTxn(), dptables.DeviceSelectedIndex.Query(true))))
+	mgr.reconcileTunnelEndpoints(statedb.ToSeq(mgr.devices.List(mgr.db.ReadTxn(), dptables.DevicesBySelected(true))))
 
 	require.Equal(t, netip.MustParseAddr("172.16.0.20").Unmap(), mgr.nodeToTunnelEndpoint[mustAddrFromIP(t, node.GetNodeIP(false))].Unmap())
 	require.Equal(t, netip.MustParseAddr("172.16.0.20").Unmap(), mgr.nodeToTunnelEndpoint[mustAddrFromIP(t, node.GetNodeIP(true))].Unmap())
@@ -337,7 +337,7 @@ func TestSyncLocalNodeTunnelIPs(t *testing.T) {
 	lni.initFunc(t.Context(), ln)
 	require.Equal(t, []string{"192.0.2.1", "10.0.0.2", "10.0.0.8", "198.51.100.10"}, addressStrings(ln.IPAddresses))
 
-	syncLocalNodeTunnelIPs(mgr.devFilter, statedb.ToSeq(mgr.devices.List(mgr.db.ReadTxn(), dptables.DeviceSelectedIndex.Query(true))), ln)
+	syncLocalNodeTunnelIPs(mgr.devFilter, statedb.ToSeq(mgr.devices.List(mgr.db.ReadTxn(), dptables.DevicesBySelected(true))), ln)
 	require.Equal(t, []string{"192.0.2.1", "10.0.0.2", "10.0.0.8", "198.51.100.10"}, addressStrings(ln.IPAddresses))
 
 	insertTestDevice(t, mgr.db, devices, &dptables.Device{
@@ -350,7 +350,7 @@ func TestSyncLocalNodeTunnelIPs(t *testing.T) {
 		},
 	})
 
-	syncLocalNodeTunnelIPs(mgr.devFilter, statedb.ToSeq(mgr.devices.List(mgr.db.ReadTxn(), dptables.DeviceSelectedIndex.Query(true))), ln)
+	syncLocalNodeTunnelIPs(mgr.devFilter, statedb.ToSeq(mgr.devices.List(mgr.db.ReadTxn(), dptables.DevicesBySelected(true))), ln)
 	require.Equal(t, []string{"192.0.2.1", "10.0.0.4", "10.0.0.9"}, addressStrings(ln.IPAddresses))
 }
 

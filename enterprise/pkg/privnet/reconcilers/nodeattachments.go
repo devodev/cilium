@@ -499,7 +499,7 @@ func (na *nodeAttachments) newNodeAttachmentInterface(
 	name tables.DeviceName,
 ) tables.NodeAttachmentInterface {
 	iface := tables.NodeAttachmentInterface{Name: name}
-	dev, _, _ := na.devices.Get(txn, dptables.DeviceNameIndex.Query(string(name)))
+	dev, _, _ := na.devices.Get(txn, dptables.DeviceByName(string(name)))
 
 	switch {
 	case dev == nil:

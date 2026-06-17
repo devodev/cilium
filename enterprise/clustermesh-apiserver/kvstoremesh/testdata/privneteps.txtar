@@ -103,8 +103,6 @@ endpoints:
   },
   "nodeName": "cobra"
 }
-
-
 # cilium/cache/privneteps/v1/green/blue-network/10.244.5.109
 {
   "ip": "10.244.5.109",
@@ -115,8 +113,6 @@ endpoints:
   },
   "nodeName": "cobra"
 }
-
-
 -- entries-2.expected --
 # cilium/cache/privneteps/v1/green/blue-network/10.244.5.109
 {
@@ -128,6 +124,4 @@ endpoints:
   },
   "nodeName": "cobra"
 }
-
-
 -- EOF --

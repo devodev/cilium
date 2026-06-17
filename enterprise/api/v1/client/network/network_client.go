@@ -13,7 +13,9 @@
 package network
 
 import (
+	"context"
 	"fmt"
+	"time"
 
 	"github.com/go-openapi/runtime"
 	httptransport "github.com/go-openapi/runtime/client"
@@ -21,11 +23,12 @@ import (
 )
 
 // New creates a new network API client.
-func New(transport runtime.ClientTransport, formats strfmt.Registry) ClientService {
+func New(transport runtime.ContextualTransport, formats strfmt.Registry) ClientService {
 	return &Client{transport: transport, formats: formats}
 }
 
 // New creates a new network API client with basic auth credentials.
+//
 // It takes the following parameters:
 // - host: http host (github.com).
 // - basePath: any base path for the API client ("/v1", "/v3").
@@ -39,6 +42,7 @@ func NewClientWithBasicAuth(host, basePath, scheme, user, password string) Clien
 }
 
 // New creates a new network API client with a bearer token for authentication.
+//
 // It takes the following parameters:
 // - host: http host (github.com).
 // - basePath: any base path for the API client ("/v1", "/v3").
@@ -51,33 +55,64 @@ func NewClientWithBearerToken(host, basePath, scheme, bearerToken string) Client
 }
 
 /*
-Client for network API
+Client for network API.
 */
 type Client struct {
-	transport runtime.ClientTransport
+	transport runtime.ContextualTransport
 	formats   strfmt.Registry
 }
 
 // ClientOption may be used to customize the behavior of Client methods.
 type ClientOption func(*runtime.ClientOperation)
 
-// ClientService is the interface for Client methods
+// ClientService is the interface for Client methods.
 type ClientService interface {
+
+	// GetNetworkAttachment retrieve the network attachment for a pod.
 	GetNetworkAttachment(params *GetNetworkAttachmentParams, opts ...ClientOption) (*GetNetworkAttachmentOK, error)
 
+	// GetNetworkAttachmentContext retrieve the network attachment for a pod.
+	GetNetworkAttachmentContext(ctx context.Context, params *GetNetworkAttachmentParams, opts ...ClientOption) (*GetNetworkAttachmentOK, error)
+
+	// GetNetworkPrivateAddressing retrieve the private network for the pod.
 	GetNetworkPrivateAddressing(params *GetNetworkPrivateAddressingParams, opts ...ClientOption) (*GetNetworkPrivateAddressingOK, error)
 
-	SetTransport(transport runtime.ClientTransport)
+	// GetNetworkPrivateAddressingContext retrieve the private network for the pod.
+	GetNetworkPrivateAddressingContext(ctx context.Context, params *GetNetworkPrivateAddressingParams, opts ...ClientOption) (*GetNetworkPrivateAddressingOK, error)
+
+	SetTransport(transport runtime.ContextualTransport)
 }
 
 /*
-GetNetworkAttachment retrieves the network attachment for a pod
+GetNetworkAttachmentretrieves the network attachment for a pod.
+
+This method does not support injected context.
+However, timeout and opentracing contexts are honored whenever enabled.
+
+If you need to pass a specific context, use [Client.GetNetworkAttachmentContext] instead.
 */
 func (a *Client) GetNetworkAttachment(params *GetNetworkAttachmentParams, opts ...ClientOption) (*GetNetworkAttachmentOK, error) {
+	var ctx context.Context
+	if params.inner.ctx != nil {
+		ctx = params.inner.ctx
+	} else {
+		ctx = context.Background()
+	}
+
+	return a.GetNetworkAttachmentContext(ctx, params, opts...)
+}
+
+/*
+GetNetworkAttachmentContextretrieves the network attachment for a pod.
+
+Do not use the deprecated [GetNetworkAttachmentParams.Context] with this method: it would be ignored.
+*/
+func (a *Client) GetNetworkAttachmentContext(ctx context.Context, params *GetNetworkAttachmentParams, opts ...ClientOption) (*GetNetworkAttachmentOK, error) {
 	// NOTE: parameters are not validated before sending
 	if params == nil {
 		params = NewGetNetworkAttachmentParams()
 	}
+
 	op := &runtime.ClientOperation{
 		ID:                 "GetNetworkAttachment",
 		Method:             "GET",
@@ -87,13 +122,14 @@ func (a *Client) GetNetworkAttachment(params *GetNetworkAttachmentParams, opts .
 		Schemes:            []string{"http"},
 		Params:             params,
 		Reader:             &GetNetworkAttachmentReader{formats: a.formats},
-		Context:            params.Context,
 		Client:             params.HTTPClient,
 	}
+
 	for _, opt := range opts {
 		opt(op)
 	}
-	result, err := a.transport.Submit(op)
+
+	result, err := a.transport.SubmitContext(ctx, op)
 	if err != nil {
 		return nil, err
 	}
@@ -114,13 +150,35 @@ func (a *Client) GetNetworkAttachment(params *GetNetworkAttachmentParams, opts .
 }
 
 /*
-GetNetworkPrivateAddressing retrieves the private network for the pod
+GetNetworkPrivateAddressingretrieves the private network for the pod.
+
+This method does not support injected context.
+However, timeout and opentracing contexts are honored whenever enabled.
+
+If you need to pass a specific context, use [Client.GetNetworkPrivateAddressingContext] instead.
 */
 func (a *Client) GetNetworkPrivateAddressing(params *GetNetworkPrivateAddressingParams, opts ...ClientOption) (*GetNetworkPrivateAddressingOK, error) {
+	var ctx context.Context
+	if params.inner.ctx != nil {
+		ctx = params.inner.ctx
+	} else {
+		ctx = context.Background()
+	}
+
+	return a.GetNetworkPrivateAddressingContext(ctx, params, opts...)
+}
+
+/*
+GetNetworkPrivateAddressingContextretrieves the private network for the pod.
+
+Do not use the deprecated [GetNetworkPrivateAddressingParams.Context] with this method: it would be ignored.
+*/
+func (a *Client) GetNetworkPrivateAddressingContext(ctx context.Context, params *GetNetworkPrivateAddressingParams, opts ...ClientOption) (*GetNetworkPrivateAddressingOK, error) {
 	// NOTE: parameters are not validated before sending
 	if params == nil {
 		params = NewGetNetworkPrivateAddressingParams()
 	}
+
 	op := &runtime.ClientOperation{
 		ID:                 "GetNetworkPrivateAddressing",
 		Method:             "GET",
@@ -130,13 +188,14 @@ func (a *Client) GetNetworkPrivateAddressing(params *GetNetworkPrivateAddressing
 		Schemes:            []string{"http"},
 		Params:             params,
 		Reader:             &GetNetworkPrivateAddressingReader{formats: a.formats},
-		Context:            params.Context,
 		Client:             params.HTTPClient,
 	}
+
 	for _, opt := range opts {
 		opt(op)
 	}
-	result, err := a.transport.Submit(op)
+
+	result, err := a.transport.SubmitContext(ctx, op)
 	if err != nil {
 		return nil, err
 	}
@@ -157,6 +216,14 @@ func (a *Client) GetNetworkPrivateAddressing(params *GetNetworkPrivateAddressing
 }
 
 // SetTransport changes the transport on the client
-func (a *Client) SetTransport(transport runtime.ClientTransport) {
+func (a *Client) SetTransport(transport runtime.ContextualTransport) {
 	a.transport = transport
+}
+
+// innerParams captures internal fields so they don't conflict with user-supplied parameters.
+type innerParams struct {
+	timeout time.Duration
+
+	// Deprecated: use the operation call with context to pass the context instead of [NetworkParams].
+	ctx context.Context
 }

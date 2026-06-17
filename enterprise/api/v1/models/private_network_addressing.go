@@ -19,7 +19,8 @@ import (
 
 	"github.com/go-openapi/errors"
 	"github.com/go-openapi/strfmt"
-	"github.com/go-openapi/swag"
+	"github.com/go-openapi/swag/jsonutils"
+	"github.com/go-openapi/swag/typeutils"
 	"github.com/go-openapi/validate"
 )
 
@@ -81,7 +82,7 @@ func (m *PrivateNetworkAddressing) Validate(formats strfmt.Registry) error {
 }
 
 func (m *PrivateNetworkAddressing) validateActivatedAt(formats strfmt.Registry) error {
-	if swag.IsZero(m.ActivatedAt) { // not required
+	if typeutils.IsZero(m.ActivatedAt) { // not required
 		return nil
 	}
 
@@ -93,7 +94,7 @@ func (m *PrivateNetworkAddressing) validateActivatedAt(formats strfmt.Registry) 
 }
 
 func (m *PrivateNetworkAddressing) validateAddress(formats strfmt.Registry) error {
-	if swag.IsZero(m.Address) { // not required
+	if typeutils.IsZero(m.Address) { // not required
 		return nil
 	}
 
@@ -116,7 +117,7 @@ func (m *PrivateNetworkAddressing) validateAddress(formats strfmt.Registry) erro
 }
 
 func (m *PrivateNetworkAddressing) validateNicIndex(formats strfmt.Registry) error {
-	if swag.IsZero(m.NicIndex) { // not required
+	if typeutils.IsZero(m.NicIndex) { // not required
 		return nil
 	}
 
@@ -132,12 +133,12 @@ func (m *PrivateNetworkAddressing) validateNicIndex(formats strfmt.Registry) err
 }
 
 func (m *PrivateNetworkAddressing) validateRoutes(formats strfmt.Registry) error {
-	if swag.IsZero(m.Routes) { // not required
+	if typeutils.IsZero(m.Routes) { // not required
 		return nil
 	}
 
 	for i := 0; i < len(m.Routes); i++ {
-		if swag.IsZero(m.Routes[i]) { // not required
+		if typeutils.IsZero(m.Routes[i]) { // not required
 			continue
 		}
 
@@ -183,7 +184,7 @@ func (m *PrivateNetworkAddressing) contextValidateAddress(ctx context.Context, f
 
 	if m.Address != nil {
 
-		if swag.IsZero(m.Address) { // not required
+		if typeutils.IsZero(m.Address) { // not required
 			return nil
 		}
 
@@ -210,7 +211,7 @@ func (m *PrivateNetworkAddressing) contextValidateRoutes(ctx context.Context, fo
 
 		if m.Routes[i] != nil {
 
-			if swag.IsZero(m.Routes[i]) { // not required
+			if typeutils.IsZero(m.Routes[i]) { // not required
 				return nil
 			}
 
@@ -238,13 +239,13 @@ func (m *PrivateNetworkAddressing) MarshalBinary() ([]byte, error) {
 	if m == nil {
 		return nil, nil
 	}
-	return swag.WriteJSON(m)
+	return jsonutils.WriteJSON(m)
 }
 
 // UnmarshalBinary interface implementation
 func (m *PrivateNetworkAddressing) UnmarshalBinary(b []byte) error {
 	var res PrivateNetworkAddressing
-	if err := swag.ReadJSON(b, &res); err != nil {
+	if err := jsonutils.ReadJSON(b, &res); err != nil {
 		return err
 	}
 	*m = res

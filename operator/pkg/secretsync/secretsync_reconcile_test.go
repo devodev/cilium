@@ -32,6 +32,8 @@ import (
 
 var secretsNamespace = "cilium-secrets-test"
 
+const testSecretSyncControllerName = "example.com/test-gateway-controller"
+
 var secretFixture = []client.Object{
 	&corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -80,7 +82,7 @@ var secretFixture = []client.Object{
 			Name: "cilium",
 		},
 		Spec: gatewayv1.GatewayClassSpec{
-			ControllerName: "io.cilium/gateway-controller",
+			ControllerName: testSecretSyncControllerName,
 		},
 	},
 	&gatewayv1.Gateway{
@@ -203,11 +205,13 @@ func Test_SecretSync_Reconcile(t *testing.T) {
 		WithObjects(secretFixture...).
 		Build()
 
+	gatewayHandler := gateway_api.NewSecretSyncHandler(c, logger, testSecretSyncControllerName)
+
 	r := secretsync.NewSecretSyncReconciler(c, logger, []*secretsync.SecretSyncRegistration{
 		{
 			RefObject:            &gatewayv1.Gateway{},
-			RefObjectEnqueueFunc: gateway_api.EnqueueTLSSecrets(c, logger),
-			RefObjectCheckFunc:   gateway_api.IsReferencedByCiliumGateway,
+			RefObjectEnqueueFunc: gatewayHandler.EnqueueTLSSecrets(),
+			RefObjectCheckFunc:   gatewayHandler.IsReferencedByGateway,
 			SecretsNamespace:     secretsNamespace,
 		},
 		{
@@ -381,7 +385,7 @@ var secretFixtureTypeChange = []client.Object{
 			Name: "cilium",
 		},
 		Spec: gatewayv1.GatewayClassSpec{
-			ControllerName: "io.cilium/gateway-controller",
+			ControllerName: testSecretSyncControllerName,
 		},
 	},
 	&gatewayv1.Gateway{
@@ -416,11 +420,13 @@ func Test_SecretSync_Reconcile_TypeChange(t *testing.T) {
 		WithObjects(secretFixtureTypeChange...).
 		Build()
 
+	gatewayHandler := gateway_api.NewSecretSyncHandler(c, logger, testSecretSyncControllerName)
+
 	r := secretsync.NewSecretSyncReconciler(c, logger, []*secretsync.SecretSyncRegistration{
 		{
 			RefObject:            &gatewayv1.Gateway{},
-			RefObjectEnqueueFunc: gateway_api.EnqueueTLSSecrets(c, logger),
-			RefObjectCheckFunc:   gateway_api.IsReferencedByCiliumGateway,
+			RefObjectEnqueueFunc: gatewayHandler.EnqueueTLSSecrets(),
+			RefObjectCheckFunc:   gatewayHandler.IsReferencedByGateway,
 			SecretsNamespace:     secretsNamespace,
 		},
 	},
@@ -469,11 +475,12 @@ func Test_SecretSync_Reconcile_WithDefaultSecret(t *testing.T) {
 		WithScheme(testScheme()).
 		WithObjects(secretFixtureDefaultSecret...).
 		Build()
+	gatewayHandler := gateway_api.NewSecretSyncHandler(c, logger, testSecretSyncControllerName)
 	r := secretsync.NewSecretSyncReconciler(c, logger, []*secretsync.SecretSyncRegistration{
 		{
 			RefObject:            &gatewayv1.Gateway{},
-			RefObjectEnqueueFunc: gateway_api.EnqueueTLSSecrets(c, logger),
-			RefObjectCheckFunc:   gateway_api.IsReferencedByCiliumGateway,
+			RefObjectEnqueueFunc: gatewayHandler.EnqueueTLSSecrets(),
+			RefObjectCheckFunc:   gatewayHandler.IsReferencedByGateway,
 			SecretsNamespace:     secretsNamespace,
 			DefaultSecret: &secretsync.DefaultSecret{
 				Namespace: "test",

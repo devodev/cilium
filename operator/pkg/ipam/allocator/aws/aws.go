@@ -14,8 +14,8 @@ import (
 	operatorOption "github.com/cilium/cilium/operator/option"
 	"github.com/cilium/cilium/operator/pkg/ipam/allocator"
 	"github.com/cilium/cilium/operator/pkg/ipam/nodemanager"
-	ec2shim "github.com/cilium/cilium/pkg/aws/ec2"
-	"github.com/cilium/cilium/pkg/aws/eni"
+	"github.com/cilium/cilium/pkg/aws/api"
+	"github.com/cilium/cilium/pkg/aws/ipam"
 	"github.com/cilium/cilium/pkg/aws/metadata"
 	"github.com/cilium/cilium/pkg/defaults"
 	"github.com/cilium/cilium/pkg/logging/logfields"
@@ -41,11 +41,11 @@ type AllocatorAWS struct {
 	ParallelAllocWorkers         int64
 	LimitIPAMAPIBurst            int
 	LimitIPAMAPIQPS              float64
-	AWSMetrics                   ec2shim.MetricsAPI
+	AWSMetrics                   api.MetricsAPI
 
 	rootLogger *slog.Logger
 	logger     *slog.Logger
-	client     *ec2shim.Client
+	client     *api.Client
 	eniGCTags  map[string]string
 }
 
@@ -67,7 +67,7 @@ func (a *AllocatorAWS) initENIGarbageCollectionTags(ctx context.Context, cfg aws
 	}
 
 	// Try to auto-detect EKS cluster name
-	clusterName, err := ec2shim.DetectEKSClusterName(ctx, cfg)
+	clusterName, err := api.DetectEKSClusterName(ctx, cfg)
 	if err != nil {
 		a.logger.Debug("Auto-detection of EKS cluster name failed", logfields.Error, err)
 	} else {
@@ -90,18 +90,18 @@ func (a *AllocatorAWS) Init(ctx context.Context, logger *slog.Logger) error {
 	a.rootLogger = logger
 	a.logger = logger.With(subsysLogAttr...)
 
-	cfg, err := ec2shim.NewConfig(ctx)
+	cfg, err := api.NewConfig(ctx)
 	if err != nil {
 		return err
 	}
-	subnetsFilters := ec2shim.NewSubnetsFilters(a.SubnetsTags, a.SubnetsIDs)
-	instancesFilters := ec2shim.NewTagsFilter(operatorOption.Config.IPAMInstanceTags)
+	subnetsFilters := api.NewSubnetsFilters(a.SubnetsTags, a.SubnetsIDs)
+	instancesFilters := api.NewTagsFilter(operatorOption.Config.IPAMInstanceTags)
 
 	eniCreationTags := a.ENITags
 	if a.ENIGarbageCollectionInterval > 0 {
 		a.eniGCTags = a.initENIGarbageCollectionTags(ctx, cfg)
 		// Make sure GC tags are also used for ENI creation
-		eniCreationTags = ec2shim.MergeTags(eniCreationTags, a.eniGCTags)
+		eniCreationTags = api.MergeTags(eniCreationTags, a.eniGCTags)
 	}
 
 	optionsFunc := func(options *ec2.Options) {}
@@ -116,15 +116,15 @@ func (a *AllocatorAWS) Init(ctx context.Context, logger *slog.Logger) error {
 		}
 	}
 
-	a.client = ec2shim.NewClient(a.rootLogger, ec2.NewFromConfig(cfg, optionsFunc), a.AWSMetrics, a.LimitIPAMAPIQPS,
+	a.client = api.NewClient(a.rootLogger, ec2.NewFromConfig(cfg, optionsFunc), a.AWSMetrics, a.LimitIPAMAPIQPS,
 		a.LimitIPAMAPIBurst, subnetsFilters, instancesFilters, eniCreationTags,
 		a.AWSUsePrimaryAddress, a.AWSMaxResultsPerCall)
 
 	return nil
 }
 
-// Start kicks of ENI allocation, the initial connection to AWS
-// APIs is done in a blocking manner, given that is successful, a controller is
+// Start kicks off ENI allocation, the initial connection to AWS
+// APIs is done in a blocking manner, given that this is successful, a controller is
 // started to manage allocation based on CiliumNode custom resources
 func (a *AllocatorAWS) Start(ctx context.Context, getterUpdater allocator.CiliumNodeGetterUpdater, iMetrics nodemanager.MetricsAPI) (allocator.NodeEventHandler, error) {
 	a.logger.Info("Starting ENI allocator...")
@@ -133,7 +133,7 @@ func (a *AllocatorAWS) Start(ctx context.Context, getterUpdater allocator.Cilium
 	if err != nil {
 		return nil, fmt.Errorf("unable to initialize metadata client: %w", err)
 	}
-	instances, err := eni.NewInstancesManager(ctx, a.rootLogger, a.client, imds)
+	instances, err := ipam.NewInstancesManager(ctx, a.rootLogger, a.client, imds)
 	if err != nil {
 		return nil, fmt.Errorf("unable to initialize ENI instances manager: %w", err)
 	}
@@ -149,7 +149,7 @@ func (a *AllocatorAWS) Start(ctx context.Context, getterUpdater allocator.Cilium
 	}
 
 	if a.ENIGarbageCollectionInterval > 0 {
-		eni.StartENIGarbageCollector(ctx, a.rootLogger, a.client, eni.GarbageCollectionParams{
+		ipam.StartENIGarbageCollector(ctx, a.rootLogger, a.client, ipam.GarbageCollectionParams{
 			RunInterval:    a.ENIGarbageCollectionInterval,
 			MaxPerInterval: defaults.ENIGarbageCollectionMaxPerInterval,
 			ENITags:        a.eniGCTags,

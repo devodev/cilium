@@ -95,6 +95,7 @@ Multihop
 Multiprotocol
 Mythbusters
 NDP
+NativeRoutingCIDR
 Neovim
 Netlify
 Netronome
@@ -109,6 +110,7 @@ Pepelnjak
 Perfdash
 Pfaff
 PodCIDR
+PodCIDRList
 Polytechnique
 Portworx
 QCon
@@ -256,6 +258,7 @@ clientAssertionType
 clientsets
 cls
 clusterIP
+clusterPoolIPv
 clustermesh
 clustermeshcertgen
 clustermeshes

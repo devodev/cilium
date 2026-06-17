@@ -22,10 +22,10 @@ var (
 	BgpPeersCmd = &cobra.Command{
 		Use:     "peers",
 		Aliases: []string{"neighbors"},
-		Short:   "List current state of all peers",
-		Long:    "List state of all peers defined in Cilium BGP configuration",
+		Short:   "List current state of all peers (deprecated)",
+		Long:    "List state of all peers defined in Cilium BGP configuration (deprecated)",
 		Run: func(cmd *cobra.Command, args []string) {
-			res, err := client.Bgp.GetBgpPeers(nil)
+			res, err := client.Bgp.GetBgpPeers(bgp.NewGetBgpPeersParams())
 			if err != nil {
 				disabledErr := bgp.NewGetBgpPeersDisabled()
 				if errors.As(err, &disabledErr) {
@@ -40,6 +40,7 @@ var (
 					Fatalf("error getting output in JSON: %s\n", err)
 				}
 			} else {
+				fmt.Fprint(cmd.OutOrStderr(), "Command \"peers\" is deprecated, Use the subcommand: \"shell bgp/peers\"\n")
 				w := NewTabWriter()
 				payload := res.GetPayload()
 				if showCaps {

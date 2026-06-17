@@ -1997,8 +1997,8 @@ privnet_lxc_unknown_ingress_ipv6(struct __ctx_buff *ctx, __u32 sec_label, __u16 
 				 __u32 *src_sec_identity, struct trace_ctx *trace)
 {
 	const struct privnet_pip_val *dip_val = NULL;
+	union v6addr orig_dip __align_stack_8;
 	void *data, *data_end;
-	union v6addr orig_dip;
 	int ret = CTX_ACT_OK;
 	struct ipv6hdr *ip6;
 

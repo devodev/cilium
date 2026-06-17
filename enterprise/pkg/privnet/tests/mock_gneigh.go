@@ -182,7 +182,7 @@ func (fgs *fakeGneighSender) NewNdSender(iface gneigh.Interface) (gneigh.NdSende
 }
 
 func (fgs *fakeGneighSender) InterfaceByIndex(idx int) (gneigh.Interface, error) {
-	iface, _, found := fgs.devs.Get(fgs.db.ReadTxn(), dptables.DeviceIDIndex.Query(idx))
+	iface, _, found := fgs.devs.Get(fgs.db.ReadTxn(), dptables.DeviceByIndex(idx))
 	if !found {
 		return gneigh.Interface{}, fmt.Errorf("no interface for index %d", idx)
 	}

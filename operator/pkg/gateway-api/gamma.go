@@ -26,10 +26,11 @@ type gammaReconciler struct {
 	Scheme     *runtime.Scheme
 	translator translation.Translator
 
-	logger *slog.Logger
+	logger         *slog.Logger
+	controllerName string
 }
 
-func newGammaReconciler(mgr ctrl.Manager, translator translation.Translator, logger *slog.Logger) *gammaReconciler {
+func newGammaReconciler(mgr ctrl.Manager, translator translation.Translator, logger *slog.Logger, controllerName string) *gammaReconciler {
 	return &gammaReconciler{
 		Client:     mgr.GetClient(),
 		Scheme:     mgr.GetScheme(),
@@ -37,6 +38,7 @@ func newGammaReconciler(mgr ctrl.Manager, translator translation.Translator, log
 		logger: logger.With(
 			logfields.Controller, gamma,
 		),
+		controllerName: controllerName,
 	}
 }
 

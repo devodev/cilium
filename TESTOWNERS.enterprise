@@ -378,7 +378,6 @@
 /test/k8s/chaos.go @isovalent/policy-identity-networking
 /test/k8s/net_policies.go @isovalent/policy-identity-networking
 /test/k8s/hubble.go @isovalent/hubble
-/test/runtime/monitor.go @isovalent/hubble
 /test/k8s/fqdn.go @isovalent/dns-proxy
 /test/bigtcp @isovalent/cni
 /test/k8s/config.go @isovalent/sig-k8s

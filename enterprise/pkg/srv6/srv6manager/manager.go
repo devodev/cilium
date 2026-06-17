@@ -15,7 +15,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net"
 	"net/netip"
 
 	"github.com/cilium/hive/cell"
@@ -997,7 +996,7 @@ func (m *Manager) allocateSID(pool, metadata string) (*sidmanager.SIDInfo, error
 
 		sid, err := srv6Types.NewSID(res.IP)
 		if err != nil {
-			m.sidAlloc.Release(res.IP.AsSlice())
+			m.sidAlloc.Release(res.IP)
 			return nil, fmt.Errorf("failed to create SID: %w", err)
 		}
 
@@ -1036,7 +1035,7 @@ func (m *Manager) allocateSID(pool, metadata string) (*sidmanager.SIDInfo, error
 // otherwise, it releases SID with SIDManager.
 func (m *Manager) releaseSID(pool string, sid srv6Types.SID) error {
 	if pool == "" {
-		if err := m.sidAlloc.Release(net.IP(sid.Addr.AsSlice())); err != nil {
+		if err := m.sidAlloc.Release(sid.Addr); err != nil {
 			return err
 		}
 		return nil
