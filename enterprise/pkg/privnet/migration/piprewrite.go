@@ -176,15 +176,7 @@ func (p *pipRewrite) watchPIPChanges(ctx context.Context, health cell.Health) er
 					continue
 				}
 
-				p.Log.Info("Migrated endpoint detected. Rewriting endpoint IP",
-					logfields.ClusterName, endpoint.Source.Cluster,
-					logfields.K8sNamespace, endpoint.Source.Namespace,
-					logfields.Endpoint, endpoint.Name,
-					logfields.OldIP, oldPIP,
-					logfields.NewIP, newPIP,
-				)
-
-				p.Rewrites.Modify(wtxn, tables.MigrationPIPRewrite{
+				_, hadOld, _ := p.Rewrites.Modify(wtxn, tables.MigrationPIPRewrite{
 					MapEntry: mapentryKey,
 
 					Endpoint: tables.Source{
@@ -201,6 +193,16 @@ func (p *pipRewrite) watchPIPChanges(ctx context.Context, health cell.Health) er
 					new.Status = old.Status // retain current status
 					return new
 				})
+
+				if !hadOld {
+					p.Log.Info("Migrated endpoint detected. Rewriting endpoint IP",
+						logfields.ClusterName, endpoint.Source.Cluster,
+						logfields.K8sNamespace, endpoint.Source.Namespace,
+						logfields.Endpoint, endpoint.Name,
+						logfields.OldIP, oldPIP,
+						logfields.NewIP, newPIP,
+					)
+				}
 			}
 		}
 
