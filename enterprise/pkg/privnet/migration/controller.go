@@ -24,6 +24,7 @@ import (
 	"github.com/cilium/hive/job"
 	"github.com/cilium/statedb"
 
+	pncfg "github.com/cilium/cilium/enterprise/pkg/privnet/config"
 	api "github.com/cilium/cilium/enterprise/pkg/privnet/grpc/api/v1"
 	grpcClient "github.com/cilium/cilium/enterprise/pkg/privnet/grpc/client"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/observers"
@@ -38,6 +39,8 @@ import (
 type controllerParams struct {
 	cell.In
 
+	Config pncfg.Config
+
 	Log         *slog.Logger
 	DB          *statedb.DB
 	Migrations  statedb.RWTable[tables.Migration]
@@ -50,6 +53,10 @@ type controllerParams struct {
 }
 
 func registerController(params controllerParams) {
+	if !params.Config.EnabledWithLiveMigration() {
+		return
+	}
+
 	r := &controller{controllerParams: params}
 	params.JobGroup.Add(job.OneShot("controller", r.loop))
 }

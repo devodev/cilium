@@ -61,7 +61,7 @@ type pipRewrite struct {
 //     StateDB row, representing the pending rewrite task.
 //  2. A reconciler that executes the pending rewrite tasks sequentially.
 func registerPIPRewriteReconciler(params pipRewriteParams) error {
-	if !params.Config.Enabled {
+	if !params.Config.EnabledWithLiveMigration() {
 		return nil
 	}
 

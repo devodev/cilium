@@ -59,6 +59,9 @@ const (
 	// to SNAT host traffic destined to PrivNet workloads.
 	FlagHostSNATIPv6 = "private-networks-host-snat-ipv6"
 
+	// FlagLiveMigration is the flag to enable support for KubeVirt live migration
+	FlagLiveMigration = "private-networks-live-migration-enabled"
+
 	// ModeDefault configures private networks to operate in default mode.
 	ModeDefault = "default"
 
@@ -96,6 +99,7 @@ var (
 		HostReachability:     true,
 		HostSNATIPv4:         "169.254.7.1",
 		HostSNATIPv6:         "fe80::a9fe:701",
+		LiveMigration:        true,
 	}
 )
 
@@ -120,6 +124,7 @@ type Flags struct {
 	HostReachability     bool          `mapstructure:"private-networks-host-reachability"`
 	HostSNATIPv4         string        `mapstructure:"private-networks-host-snat-ipv4"`
 	HostSNATIPv6         string        `mapstructure:"private-networks-host-snat-ipv6"`
+	LiveMigration        bool          `mapstructure:"private-networks-live-migration-enabled"`
 }
 
 func (def Flags) Flags(flags *pflag.FlagSet) {
@@ -139,6 +144,9 @@ func (def Flags) Flags(flags *pflag.FlagSet) {
 	flags.MarkHidden(FlagHostSNATIPv4)
 	flags.String(FlagHostSNATIPv6, def.HostSNATIPv6, "Link-local IPv6 address used to SNAT host traffic to private networks")
 	flags.MarkHidden(FlagHostSNATIPv6)
+
+	flags.Bool(FlagLiveMigration, def.LiveMigration, "Enable support for private network endpoint live migration")
+	flags.MarkHidden(FlagLiveMigration)
 }
 
 // Config is the parsed private networking configuration.
@@ -150,6 +158,7 @@ type Config struct {
 	HostReachability     bool
 	HostSNATIPv4         netip.Addr
 	HostSNATIPv6         netip.Addr
+	LiveMigration        bool
 }
 
 // NewConfig creates a Config from the parsed Flags.
@@ -184,6 +193,7 @@ func NewConfig(f Flags) (Config, error) {
 		HostReachability:     f.HostReachability,
 		HostSNATIPv4:         snatIPv4,
 		HostSNATIPv6:         snatIPv6,
+		LiveMigration:        f.LiveMigration,
 	}, nil
 }
 
@@ -288,6 +298,10 @@ func (cfg Config) EnabledAsBridge() bool {
 // EnabledAsLocalAccess returns whether private networking is enabled, and configured in local access mode.
 func (cfg Config) EnabledAsLocalAccess() bool {
 	return cfg.Enabled && cfg.Mode == ModeLocalAccess
+}
+
+func (cfg Config) EnabledWithLiveMigration() bool {
+	return cfg.Enabled && cfg.LiveMigration
 }
 
 // IsLocallyConnected returns whether private networking is enabled, and configured in local access or

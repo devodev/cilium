@@ -39,7 +39,7 @@ var Cell = cell.Module(
 		statedb.RWTable[tables.MigrationPIPRewrite].ToTable,
 
 		func(cfg pncfg.Config, svc *service) grpcserver.RegistrarOut {
-			if !cfg.Enabled {
+			if !cfg.EnabledWithLiveMigration() {
 				return grpcserver.RegistrarOut{}
 			}
 			return grpcserver.RegistrarOut{Registrar: func(gsrv *grpc.Server) {
