@@ -30,13 +30,14 @@ import (
 //
 // The shared server will invoke all registrars during startup.
 var Cell = cell.Group(
+	cell.ProvidePrivate(newServerConfig),
 	// Provides the connection factory via hive, so that it can be
 	// overridden for testing purposes.
 	cell.Provide(
-		func(cfg config.Config, grpcCfg grpcConfig.Config, lns *node.LocalNodeStore) ListenerFactory {
+		func(cfg config.Config, grpcCfg grpcConfig.Config, srvCfg ServerConfig, lns *node.LocalNodeStore) ListenerFactory {
 			return NewListenerFactory(ListenerConfig{
 				Port:          grpcCfg.Port,
-				Enabled:       cfg.EnabledAsBridge(),
+				Enabled:       srvCfg.Enabled,
 				AnnotationKey: types.PrivateNetworkINBAPIServerPortAnnotation,
 			}, lns)
 		},

@@ -32,6 +32,12 @@ type ListenerConfig struct {
 
 // NewListenerFactory returns a ListenerFactory configured for the given port.
 func NewListenerFactory(cfg ListenerConfig, lns *node.LocalNodeStore) ListenerFactory {
+	if !cfg.Enabled {
+		return func(ctx context.Context) ([]net.Listener, error) {
+			return nil, nil
+		}
+	}
+
 	port := strconv.FormatUint(uint64(cfg.Port), 10)
 
 	if cfg.AnnotationKey != "" {
@@ -46,10 +52,6 @@ func NewListenerFactory(cfg ListenerConfig, lns *node.LocalNodeStore) ListenerFa
 	}
 
 	return func(ctx context.Context) ([]net.Listener, error) {
-		if !cfg.Enabled {
-			return nil, nil
-		}
-
 		ln, err := lns.Get(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("retrieving local node: %w", err)

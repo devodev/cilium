@@ -73,7 +73,7 @@ var serviceCell = cell.Group(
 	),
 	cell.Provide(
 		func(cfg pncfg.Config, svc *service) grpcserver.RegistrarOut {
-			if !cfg.Enabled {
+			if !cfg.EnabledAsBridge() {
 				return grpcserver.RegistrarOut{}
 			}
 			return grpcserver.RegistrarOut{Registrar: func(gsrv *grpc.Server) {

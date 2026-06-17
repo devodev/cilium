@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"slices"
 
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/hive/job"
@@ -38,6 +39,23 @@ type (
 	Registrar func(*grpc.Server)
 )
 
+// ServerConfig contains the configuration for the shared gRPC server.
+type ServerConfig struct {
+	Enabled bool
+}
+
+func newServerConfig(in struct {
+	cell.In
+
+	Config     pncfg.Config
+	Registrars []Registrar `group:"privnet-grpc-registrars"`
+}) ServerConfig {
+	return ServerConfig{
+		Enabled: in.Config.Enabled &&
+			slices.ContainsFunc(in.Registrars, func(r Registrar) bool { return r != nil }),
+	}
+}
+
 type serverParams struct {
 	cell.In
 
@@ -45,8 +63,9 @@ type serverParams struct {
 	JobGroup   job.Group
 	Shutdowner hive.Shutdowner
 
-	Config  pncfg.Config
-	Factory ListenerFactory
+	ServerConfig ServerConfig
+	Config       pncfg.Config
+	Factory      ListenerFactory
 
 	TLSConfigPromise config.ServerConfigPromise
 
@@ -54,7 +73,7 @@ type serverParams struct {
 }
 
 func registerServer(in serverParams) {
-	if !in.Config.EnabledAsBridge() || len(in.Registrars) == 0 {
+	if !in.ServerConfig.Enabled {
 		return
 	}
 

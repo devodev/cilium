@@ -15,6 +15,7 @@ import (
 	"github.com/cilium/statedb"
 	"google.golang.org/grpc"
 
+	pncfg "github.com/cilium/cilium/enterprise/pkg/privnet/config"
 	api "github.com/cilium/cilium/enterprise/pkg/privnet/grpc/api/v1"
 	grpcserver "github.com/cilium/cilium/enterprise/pkg/privnet/grpc/server"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/tables"
@@ -34,11 +35,16 @@ var Cell = cell.Group(
 		statedb.RWTable[tables.ActiveNetwork].ToTable,
 
 		// Registers the health service on the shared gRPC server.
-		func(svc *health) grpcserver.RegistrarOut {
-			return grpcserver.RegistrarOut{Registrar: func(gsrv *grpc.Server) {
-				api.RegisterHealthServer(gsrv, svc)
-				api.RegisterNetworksServer(gsrv, svc)
-			},
+		func(svc *health, cfg pncfg.Config) grpcserver.RegistrarOut {
+			if !cfg.EnabledAsBridge() {
+				return grpcserver.RegistrarOut{}
+			}
+
+			return grpcserver.RegistrarOut{
+				Registrar: func(gsrv *grpc.Server) {
+					api.RegisterHealthServer(gsrv, svc)
+					api.RegisterNetworksServer(gsrv, svc)
+				},
 			}
 		},
 	),
