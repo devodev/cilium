@@ -24,8 +24,10 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/cilium/cilium/api/v1/models"
 	api "github.com/cilium/cilium/enterprise/pkg/privnet/grpc/api/v1"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/tables"
+	testTypes "github.com/cilium/cilium/enterprise/pkg/privnet/tests/types"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/types"
 	"github.com/cilium/cilium/pkg/mac"
 )
@@ -38,6 +40,27 @@ func TestClientServer(t *testing.T) {
 
 	network := tables.NetworkName("blue")
 	mac := mac.MustParseMAC("02:00:01:e6:bb:ff")
+
+	epm := testTypes.NewFakeEPM(testTypes.NewFakeEndpointEventObserver())
+	_, err = epm.RestoreEndpoint(t.Context(), &models.EndpointChangeRequest{
+		ID:  123,
+		Mac: mac.String(),
+		Addressing: &models.AddressPair{
+			IPv4: "10.244.0.20",
+			IPv6: "fd00:10:244::20",
+		},
+		K8sNamespace: "cilium-test",
+		K8sPodName:   "client-red",
+		Properties: map[string]any{
+			types.PropertyPrivNetNetwork: "red",
+			types.PropertyPrivNetSubnet:  "red-1",
+			types.PropertyPrivNetPrevAddressing: `[
+						{"ipv4":"10.244.0.40","ipv6":"fd00:10:244::40","lastSeen":"` + time.Now().Format(time.RFC3339) + `"},
+						{"ipv4":"10.244.0.50","ipv6":"fd00:10:244::50","lastSeen":"2000-01-01T01:00:00.000000Z"}
+					]`,
+		},
+	})
+	require.NoError(t, err)
 
 	// Insert a lease that we can migrate
 	wtxn := db.WriteTxn(leases)
@@ -55,9 +78,10 @@ func TestClientServer(t *testing.T) {
 	wtxn.Commit()
 
 	apiService := &service{
-		log:    hivetest.Logger(t),
-		db:     db,
-		leases: leases,
+		log:       hivetest.Logger(t),
+		db:        db,
+		leases:    leases,
+		endpoints: epm,
 	}
 	api.RegisterMigrationServer(srv, apiService)
 	t.Cleanup(srv.Stop)
@@ -87,8 +111,18 @@ func TestClientServer(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	// Should receive the DHCP lease
+	// Should receive the endpoint addressing first
 	batch, err := stream.Recv()
+	require.NoError(t, err)
+	require.NotNil(t, batch)
+	require.Len(t, batch.GetEndpointAddressing(), 2)
+	require.Equal(t, netip.MustParseAddr("10.244.0.20").AsSlice(), batch.GetEndpointAddressing()[0].GetIpv4())
+	require.Equal(t, netip.MustParseAddr("fd00:10:244::20").AsSlice(), batch.GetEndpointAddressing()[0].GetIpv6())
+	require.Equal(t, netip.MustParseAddr("10.244.0.40").AsSlice(), batch.GetEndpointAddressing()[1].GetIpv4())
+	require.Equal(t, netip.MustParseAddr("fd00:10:244::40").AsSlice(), batch.GetEndpointAddressing()[1].GetIpv6())
+
+	// Should receive the DHCP lease
+	batch, err = stream.Recv()
 	require.NoError(t, err)
 	require.NotNil(t, batch)
 	require.NotEmpty(t, batch.GetDhcpLease())
