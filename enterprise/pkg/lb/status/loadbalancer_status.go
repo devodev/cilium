@@ -106,6 +106,8 @@ func (s *LoadbalancerClient) GetLoadbalancerStatusModel(ctx context.Context) (*L
 
 	}
 
+	lsm.sort()
+
 	return lsm, nil
 }
 

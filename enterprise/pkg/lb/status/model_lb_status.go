@@ -4,9 +4,11 @@
 package status
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"text/tabwriter"
 )
@@ -70,6 +72,8 @@ func newANSIPalette(enabled bool) ansiPalette {
 }
 
 func (lsm *LoadbalancerStatusModel) Output(out io.Writer, params Parameters) error {
+	lsm.sort()
+
 	if params.Output == "json" {
 		jsonOutput, err := json.Marshal(lsm)
 		if err != nil {
@@ -143,7 +147,8 @@ func (lsm *LoadbalancerStatusModel) Output(out io.Writer, params Parameters) err
 	fmt.Fprintln(verboseTabWriter, colors.Bold+"HC T1->[T2|B]"+colors.Reset)
 	fmt.Fprintln(verboseTabWriter, colors.Bold+"-------------"+colors.Reset)
 	hcByFrom := hcsByFrom(lsm.Services[0].T1T2HCStatus.HealthChecks)
-	for from, hc := range hcByFrom {
+	for _, from := range sortedHCFroms(hcByFrom) {
+		hc := hcByFrom[from]
 		fmt.Fprintf(verboseTabWriter, "%s:", from)
 		for _, h := range hc {
 			fmt.Fprintf(verboseTabWriter, "\t%s(%s)\n", h.Endpoint, statusTextFromBool(h.IsHealthy, colors))
@@ -154,7 +159,8 @@ func (lsm *LoadbalancerStatusModel) Output(out io.Writer, params Parameters) err
 	fmt.Fprintln(verboseTabWriter, colors.Bold+"HC T2->B"+colors.Reset)
 	fmt.Fprintln(verboseTabWriter, colors.Bold+"--------"+colors.Reset)
 	hcByFrom = hcsByFrom(lsm.Services[0].T2BackendHCStatus.HealthChecks)
-	for from, hc := range hcByFrom {
+	for _, from := range sortedHCFroms(hcByFrom) {
+		hc := hcByFrom[from]
 		fmt.Fprintf(verboseTabWriter, "%s:", from)
 		for _, h := range hc {
 			fmt.Fprintf(verboseTabWriter, "\t%s(%s)\n", h.Endpoint, statusTextFromBool(h.IsHealthy, colors))
@@ -223,6 +229,56 @@ type HealthChecksStatus struct {
 	LoadbalancerStatusModelSimpleStatus
 
 	HealthChecks []HCStatus `json:"endpoints"`
+}
+
+func (lsm *LoadbalancerStatusModel) sort() {
+	slices.SortFunc(lsm.Services, func(a, b LoadbalancerStatusModelService) int {
+		return cmp.Or(
+			cmp.Compare(a.Namespace, b.Namespace),
+			cmp.Compare(a.Name, b.Name),
+			cmp.Compare(a.VIP, b.VIP),
+			cmp.Compare(a.Port, b.Port),
+		)
+	})
+
+	for i := range lsm.Services {
+		svc := &lsm.Services[i]
+
+		slices.SortFunc(svc.BGPPeerStatus.Peers, func(a, b BGPPeer) int {
+			return cmp.Or(
+				cmp.Compare(a.Name, b.Name),
+				compareBool(a.IsHealthy, b.IsHealthy),
+			)
+		})
+		slices.SortFunc(svc.T1T2HCStatus.HealthChecks, compareHCStatuses)
+		slices.SortFunc(svc.T2BackendHCStatus.HealthChecks, compareHCStatuses)
+		slices.SortFunc(svc.BackendpoolStatus.Groups, func(a, b LoadbalancerStatusModelSimpleStatus) int {
+			return cmp.Or(
+				cmp.Compare(a.Status, b.Status),
+				cmp.Compare(a.OK, b.OK),
+				cmp.Compare(a.Total, b.Total),
+			)
+		})
+	}
+}
+
+func compareHCStatuses(a, b HCStatus) int {
+	return cmp.Or(
+		cmp.Compare(a.From, b.From),
+		cmp.Compare(a.Endpoint, b.Endpoint),
+		compareBool(a.IsHealthy, b.IsHealthy),
+	)
+}
+
+func compareBool(a, b bool) int {
+	switch {
+	case a == b:
+		return 0
+	case !a:
+		return -1
+	default:
+		return 1
+	}
 }
 
 func printSimpleStatusCell(status LoadbalancerStatusModelSimpleStatus, rel string, colors ansiPalette) string {
@@ -297,4 +353,13 @@ func hcsByFrom(hcs []HCStatus) map[string][]HCStatus {
 	}
 
 	return hcByFrom
+}
+
+func sortedHCFroms(hcByFrom map[string][]HCStatus) []string {
+	froms := make([]string, 0, len(hcByFrom))
+	for from := range hcByFrom {
+		froms = append(froms, from)
+	}
+	slices.Sort(froms)
+	return froms
 }

@@ -149,6 +149,137 @@ func TestRelationText(t *testing.T) {
 	}
 }
 
+func TestOutputSortsModelDeterministically(t *testing.T) {
+	testCases := []struct {
+		name     string
+		model    *LoadbalancerStatusModel
+		params   Parameters
+		expected string
+	}{
+		{
+			name: "json output",
+			model: &LoadbalancerStatusModel{
+				Services: []LoadbalancerStatusModelService{
+					{
+						Namespace: "default",
+						Name:      "svc-b",
+						VIP:       "100.64.0.20",
+						Port:      81,
+						BGPPeerStatus: BGPPeerStatus{
+							Peers: []BGPPeer{
+								{Name: "10.0.0.2-65002", IsHealthy: true},
+								{Name: "10.0.0.1-65001", IsHealthy: false},
+							},
+						},
+						T1T2HCStatus: HealthChecksStatus{
+							HealthChecks: []HCStatus{
+								{From: "node-b", Endpoint: "10.0.1.20:8080", IsHealthy: true},
+								{From: "node-a", Endpoint: "10.0.1.10:8080", IsHealthy: false},
+							},
+						},
+						T2BackendHCStatus: HealthChecksStatus{
+							HealthChecks: []HCStatus{
+								{From: "node-b", Endpoint: "10.0.2.20:8080", IsHealthy: true},
+								{From: "node-a", Endpoint: "10.0.2.10:8080", IsHealthy: false},
+							},
+						},
+						BackendpoolStatus: LoadbalancerStatusModelGroupedStatus{
+							Groups: []LoadbalancerStatusModelSimpleStatus{
+								{Status: "OK", OK: 2, Total: 2},
+								{Status: "DEG", OK: 1, Total: 2},
+							},
+						},
+					},
+					{
+						Namespace: "default",
+						Name:      "svc-a",
+						VIP:       "100.64.0.10",
+						Port:      80,
+					},
+				},
+			},
+			params: Parameters{
+				Output: "json",
+			},
+			expected: `{"summary":{"nrOfT1Nodes":0,"nrOfT2Nodes":0,"nrOfServices":0,"nrOfVips":0},"services":[{"namespace":"default","name":"svc-a","vip":"100.64.0.10","port":80,"type":"","deploymentMode":"","bgpPeerStatus":{"status":"","ok":0,"total":0,"peers":null},"bgpRouteStatus":{"status":"","ok":0,"total":0},"t1NodeStatus":{"status":"","ok":0,"total":0},"t1t2HealthcheckStatus":{"status":"","ok":0,"total":0,"endpoints":null},"t2NodeStatus":{"status":"","ok":0,"total":0},"t2BackendHealthcheckStatus":{"status":"","ok":0,"total":0,"endpoints":null},"backendpoolStatus":{"status":"","groups":null},"status":""},{"namespace":"default","name":"svc-b","vip":"100.64.0.20","port":81,"type":"","deploymentMode":"","bgpPeerStatus":{"status":"","ok":0,"total":0,"peers":[{"name":"10.0.0.1-65001","healthy":false},{"name":"10.0.0.2-65002","healthy":true}]},"bgpRouteStatus":{"status":"","ok":0,"total":0},"t1NodeStatus":{"status":"","ok":0,"total":0},"t1t2HealthcheckStatus":{"status":"","ok":0,"total":0,"endpoints":[{"from":"node-a","endpoint":"10.0.1.10:8080","healthy":false},{"from":"node-b","endpoint":"10.0.1.20:8080","healthy":true}]},"t2NodeStatus":{"status":"","ok":0,"total":0},"t2BackendHealthcheckStatus":{"status":"","ok":0,"total":0,"endpoints":[{"from":"node-a","endpoint":"10.0.2.10:8080","healthy":false},{"from":"node-b","endpoint":"10.0.2.20:8080","healthy":true}]},"backendpoolStatus":{"status":"","groups":[{"status":"DEG","ok":1,"total":2},{"status":"OK","ok":2,"total":2}]},"status":""}]}
+`,
+		},
+		{
+			name: "summary output",
+			model: &LoadbalancerStatusModel{
+				Services: []LoadbalancerStatusModelService{
+					{
+						Namespace: "default",
+						Name:      "svc-b",
+						VIP:       "100.64.0.20",
+						Port:      81,
+						BGPPeerStatus: BGPPeerStatus{
+							Peers: []BGPPeer{
+								{Name: "10.0.0.2-65002", IsHealthy: true},
+								{Name: "10.0.0.1-65001", IsHealthy: false},
+							},
+						},
+						T1T2HCStatus: HealthChecksStatus{
+							HealthChecks: []HCStatus{
+								{From: "node-b", Endpoint: "10.0.1.20:8080", IsHealthy: true},
+								{From: "node-a", Endpoint: "10.0.1.10:8080", IsHealthy: false},
+							},
+						},
+						T2BackendHCStatus: HealthChecksStatus{
+							HealthChecks: []HCStatus{
+								{From: "node-b", Endpoint: "10.0.2.20:8080", IsHealthy: true},
+								{From: "node-a", Endpoint: "10.0.2.10:8080", IsHealthy: false},
+							},
+						},
+						BackendpoolStatus: LoadbalancerStatusModelGroupedStatus{
+							Groups: []LoadbalancerStatusModelSimpleStatus{
+								{Status: "OK", OK: 2, Total: 2},
+								{Status: "DEG", OK: 1, Total: 2},
+							},
+						},
+					},
+					{
+						Namespace: "default",
+						Name:      "svc-a",
+						VIP:       "100.64.0.10",
+						Port:      80,
+					},
+				},
+			},
+			params: Parameters{
+				Output:         "summary",
+				RelationOutput: RelationOutputNumbers,
+			},
+			expected: `=========
+Summary
+=========
+
+T1 Nodes:   0
+T2 Nodes:   0
+Services:   0
+VIPs:       0
+
+=========
+Services
+=========
+
+Namespace   Name    VIP           Port   Type   D-Mode   BGP Peers   BGP Routes   T1   HC T1->[T2|B]   T2   HC T2->B   Backendpools   Status
+---------   ----    ---           ----   ----   ------   ---------   ----------   --   -------------   --   --------   ------------   ------
+default     svc-a   100.64.0.10   80                                                                                                  
+default     svc-b   100.64.0.20   81                                                                                                  
+`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var actual bytes.Buffer
+			require.NoError(t, tc.model.Output(&actual, tc.params))
+			require.Equal(t, tc.expected, actual.String())
+		})
+	}
+}
+
 func TestOutputColorsDoNotLeakAcrossCalls(t *testing.T) {
 	lsm := &LoadbalancerStatusModel{
 		Services: []LoadbalancerStatusModelService{
