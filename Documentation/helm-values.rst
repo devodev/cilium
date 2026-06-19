@@ -2519,7 +2519,7 @@
    * - :spelling:ignore:`hubble.export`
      - Hubble flows export.
      - object
-     - ``{"connectionlog":{"enabled":false,"exportInterval":"10s","fileCompress":true,"fileMaxBackups":5,"fileMaxSizeMb":10,"filePath":"/var/run/cilium/hubble/connectionlog.log"},"dynamic":{"config":{"configMapName":"cilium-flowlog-config","content":[{"aggregation":[],"aggregationIgnoreSourcePort":true,"aggregationRenewTTL":true,"aggregationStateFilter":["new","error","closed"],"aggregationTTL":"30s","excludeFilters":[],"fieldMask":[],"fileCompress":false,"fileMaxBackups":5,"fileMaxSizeMb":10,"filePath":"/var/run/cilium/hubble/events.log","fileRotationInterval":"0s","formatVersion":"v1","includeFilters":[],"name":"all","nodeName":null,"rateLimit":-1}],"createConfigMap":true},"enabled":false},"static":{"aggregation":null,"aggregationIgnoreSourcePort":null,"aggregationInterval":"0s","aggregationRenewTTL":null,"aggregationStateFilter":null,"aggregationTTL":null,"allowList":[],"denyList":[],"enabled":false,"fieldAggregate":[],"fieldMask":[],"fileCompress":false,"fileMaxBackups":5,"fileMaxSizeMb":10,"filePath":"/var/run/cilium/hubble/events.log","fileRotationInterval":null,"formatVersion":"v1","overrideNodeName":null,"rateLimit":null},"timescape":{"aggregation":null,"aggregationIgnoreSourcePort":null,"aggregationRenewTTL":null,"aggregationStateFilter":null,"aggregationTTL":null,"allowList":null,"batchFlushInterval":null,"batchSize":null,"denyList":null,"enabled":null,"fieldMask":null,"ingestMode":null,"maxBufferSize":null,"nodeName":null,"reportDroppedFlowsInterval":null,"target":null,"tls":{"ca":{"configMap":{"key":null,"name":null}},"enabled":null,"mtls":{"enabled":null,"secretName":null}},"useCiliumServiceResolver":null}}``
+     - ``{"connectionlog":{"enabled":false,"exportInterval":"10s","fileCompress":true,"fileMaxBackups":5,"fileMaxSizeMb":10,"filePath":"/var/run/cilium/hubble/connectionlog.log"},"dynamic":{"config":{"configMapName":"cilium-flowlog-config","content":[{"aggregation":[],"aggregationIgnoreSourcePort":true,"aggregationRenewTTL":true,"aggregationStateFilter":["new","error","closed"],"aggregationTTL":"30s","excludeFilters":[],"fieldMask":[],"fileCompress":false,"fileMaxBackups":5,"fileMaxSizeMb":10,"filePath":"/var/run/cilium/hubble/events.log","fileRotationInterval":"0s","formatVersion":"v1","includeFilters":[],"name":"all","nodeName":null,"rateLimit":-1}],"createConfigMap":true},"enabled":false},"static":{"aggregation":null,"aggregationIgnoreSourcePort":null,"aggregationInterval":"0s","aggregationRenewTTL":null,"aggregationStateFilter":null,"aggregationTTL":null,"allowList":[],"denyList":[],"enabled":false,"fieldAggregate":[],"fieldMask":[],"fileCompress":false,"fileMaxBackups":5,"fileMaxSizeMb":10,"filePath":"/var/run/cilium/hubble/events.log","fileRotationInterval":null,"formatVersion":"v1","overrideNodeName":null,"rateLimit":null},"timescape":{"aggregation":null,"aggregationIgnoreSourcePort":null,"aggregationRenewTTL":null,"aggregationStateFilter":null,"aggregationTTL":null,"allowList":null,"batchFlushInterval":null,"batchSize":null,"denyList":null,"enabled":null,"fieldMask":null,"ingestMode":null,"maxBufferSize":null,"nodeName":null,"reportDroppedFlowsInterval":null,"target":null,"targets":null,"tls":{"ca":{"configMap":{"key":null,"name":null}},"enabled":null,"mtls":{"enabled":null,"secretName":null}},"useCiliumServiceResolver":null}}``
    * - :spelling:ignore:`hubble.export.connectionlog.enabled`
      - Enables experimental support for ConnectionLog export. @schema type: [boolean] @schema
      - bool
@@ -2677,9 +2677,13 @@
      - string
      - ``1m``
    * - :spelling:ignore:`hubble.export.timescape.target`
-     - The target server to connect to for exporting flows. @schema type: [null, string] @schema
-     - string
+     - The target server to connect to for exporting flows. This field is deprecated in favor of ``targets`` (plural) which supports multiple Timescape endpoints. If set, this value is merged into ``targets`` (appended and deduplicated). @schema type: [null, string] @schema
+     - Deprecated
      - ``hubble-timescape-export.hubble-timescape.svc.cluster.local:4261``
+   * - :spelling:ignore:`hubble.export.timescape.targets`
+     - The target servers to connect to for exporting flows. Supports sending Hubble flow data to multiple Timescape endpoints. The deprecated singular ``target`` field, if set, is merged into this list (appended and deduplicated). Example: ``["timescape1.example.com:4261", "timescape2.example.com:4261"]`` @schema type: [null, array] @schema
+     - string
+     - ``["hubble-timescape-export.hubble-timescape.svc.cluster.local:4261"]``
    * - :spelling:ignore:`hubble.export.timescape.tls.ca.configMap`
      - The configmap containing the CA to validate the server certificate.
      - object

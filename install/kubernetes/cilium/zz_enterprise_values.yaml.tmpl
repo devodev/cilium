@@ -1026,12 +1026,25 @@ hubble:
       # type: [null, boolean]
       # @schema
       enabled: ~
-      # -- The target server to connect to for exporting flows.
+      # -- (Deprecated) The target server to connect to for exporting flows.
+      # This field is deprecated in favor of `targets` (plural) which supports
+      # multiple Timescape endpoints. If set, this value is merged into `targets`
+      # (appended and deduplicated).
       # @schema
       # type: [null, string]
       # @schema
       # @default -- `hubble-timescape-export.hubble-timescape.svc.cluster.local:4261`
       target: ~
+      # -- The target servers to connect to for exporting flows.
+      # Supports sending Hubble flow data to multiple Timescape endpoints.
+      # The deprecated singular `target` field, if set, is merged into this list
+      # (appended and deduplicated).
+      # Example: `["timescape1.example.com:4261", "timescape2.example.com:4261"]`
+      # @schema
+      # type: [null, array]
+      # @schema
+      # @default -- `["hubble-timescape-export.hubble-timescape.svc.cluster.local:4261"]`
+      targets: ~
       # -- Whether to enable the Cilium service resolver to resolve the IP
       # address of the Hubble Timescape service.
       # This is enabled by default and is required when Timescape is running in

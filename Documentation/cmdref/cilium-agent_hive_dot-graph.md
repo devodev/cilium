@@ -245,7 +245,8 @@ cilium-agent hive dot-graph [flags]
       --hubble-export-timescape-max-buffer-size int                      The maximum number of flows to buffer before dropping them (default 4096)
       --hubble-export-timescape-node-name string                         Override the node_name field in exported flows
       --hubble-export-timescape-report-dropped-flows-interval duration   The interval at which to report dropped flows in logs. Set to 0s to disable reporting (default 1m0s)
-      --hubble-export-timescape-target string                            Target server to connect to for exporting flows (default "hubble-timescape-export.hubble-timescape.svc.cluster.local:4261")
+      --hubble-export-timescape-target string                            (Deprecated) Target server to connect to for exporting flows. Use --hubble-export-timescape-targets instead
+      --hubble-export-timescape-targets strings                          Target servers to connect to for exporting flows (default [hubble-timescape-export.hubble-timescape.svc.cluster.local:4261])
       --hubble-export-timescape-tls-ca-files strings                     Paths to one or more public CA files which sign certificates for the remote server
       --hubble-export-timescape-tls-cert-file string                     Path to the public cert file for the client certificate to connect to the remote server using mTLS (the file must contain PEM encoded data)
       --hubble-export-timescape-tls-enabled                              Whether to enable TLS for the Hubble timescape exporter

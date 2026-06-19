@@ -4085,6 +4085,12 @@
                     "string"
                   ]
                 },
+                "targets": {
+                  "type": [
+                    "null",
+                    "array"
+                  ]
+                },
                 "tls": {
                   "properties": {
                     "ca": {

@@ -124,7 +124,7 @@ hubble-export-aggregation-ttl: {{ . | quote }}
 {{- end }}
 
 {{- $defaultExportTimescapeEnabled := .Values.hubble.export.timescape.enabled }}
-{{- $defaultExportTimescapeTarget := .Values.hubble.export.timescape.target }}
+{{- $defaultExportTimescapeTargets := .Values.hubble.export.timescape.targets }}
 {{- $defaultExportTimescapeAggregation := .Values.hubble.export.timescape.aggregation }}
 {{- $defaultExportTimescapeAggregationStateFilter := .Values.hubble.export.timescape.aggregationStateFilter }}
 {{- $defaultExportTimescapeAggregationRenewTTL := .Values.hubble.export.timescape.aggregationRenewTTL }}
@@ -141,7 +141,7 @@ hubble-export-aggregation-ttl: {{ . | quote }}
 {{- $targetNamespace = .Values.hubble.timescape.clustermesh.primary.namespace }}
 {{- end }}
 {{- $defaultExportTimescapeEnabled = true }}
-{{- $defaultExportTimescapeTarget = printf "hubble-timescape.%s.svc.cluster.local:4261" $targetNamespace }}
+{{- $defaultExportTimescapeTargets = list (printf "hubble-timescape.%s.svc.cluster.local:4261" $targetNamespace) }}
 {{- $defaultExportTimescapeAggregation = list "connection" }}
 {{- $defaultExportTimescapeAggregationStateFilter = list "new" "error" }}
 {{- $defaultExportTimescapeAggregationRenewTTL = "false" }}
@@ -153,10 +153,21 @@ hubble-export-aggregation-ttl: {{ . | quote }}
 {{- end }}
 {{- end }}
 
+{{/*
+Backward compatibility: unfold the deprecated singular `target` into the
+`targets` list, deduplicating.
+*/}}
+{{- with .Values.hubble.export.timescape.target }}
+{{- $defaultExportTimescapeTargets = $defaultExportTimescapeTargets | default (list) }}
+{{- if not (has . $defaultExportTimescapeTargets) }}
+{{- $defaultExportTimescapeTargets = append $defaultExportTimescapeTargets . }}
+{{- end }}
+{{- end }}
+
 {{- if $defaultExportTimescapeEnabled }}
 hubble-export-timescape-enabled: "true"
-{{- with $defaultExportTimescapeTarget }}
-hubble-export-timescape-target: {{ . | quote }}
+{{- with $defaultExportTimescapeTargets }}
+hubble-export-timescape-targets: {{ . | join " " | quote }}
 {{- end }}
 {{- with .Values.hubble.export.timescape.allowList }}
 hubble-export-timescape-allowlist: {{ . | join " " | quote }}
