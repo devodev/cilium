@@ -42,9 +42,11 @@ enterprise:
     - PrivateNetworkExternalEndpoints
     - PrivateNetworkBridge
     - PrivateNetworkLocalAccess
-    - ClusterMeshMixedRoutingMode
     - EVPN
     - BFD # for ILB
+
+  preferredTunnelEndpointDevices:
+    - dp0
 
   privateNetworks:
     enabled: true
@@ -128,4 +130,5 @@ socketLB:
   enabled: true
   hostNamespaceOnly: true
 
+routingMode: tunnel
 tunnelProtocol: vxlan
