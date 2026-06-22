@@ -19,7 +19,6 @@ gobgp/add-peer fe80::a800:ff:fe00:2%centbgptest1 65001
 
 # Configure BGP on Cilium
 k8s/add cilium-node.yaml bgp-node-config.yaml bgp-peer-config.yaml bgp-advertisement.yaml
-* bgptest/sync-oss-resources
 
 # Wait for peering to be established
 gobgp/wait-state fe80::a800:ff:fe00:2%centbgptest1 ESTABLISHED

@@ -11,12 +11,10 @@ gobgp/add-peer 11.99.2.2 65001
 
 # Configure BGP on Cilium
 k8s/add bgp-node-config.yaml bgp-peer-config.yaml
-* bgptest/sync-oss-resources
 
 # Configure red pool advertisement and cilium node with partial allocation
 k8s/add bgp-advertisement-red.yaml
 k8s/add cilium-node-partial.yaml
-* bgptest/sync-oss-resources
 
 # Add pools
 k8s/add pod-pool-red.yaml pod-pool-green.yaml
@@ -34,7 +32,6 @@ gobgp/routes -o routes.actual ipv6 unicast
 
 # Configure green pool advertisement
 k8s/update bgp-advertisement-green.yaml
-* bgptest/sync-oss-resources
 
 # Validate partial green pool IPv4 routes
 gobgp/routes -o routes.actual ipv4 unicast

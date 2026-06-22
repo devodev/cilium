@@ -16,7 +16,6 @@ bgptest/upsert-egw-policy policy1 bgp=advertise 10.99.99.100
 
 # Configure BGP on Cilium
 k8s/add cilium-node.yaml bgp-node-config.yaml bgp-peer-config.yaml bgp-advertisement.yaml
-* bgptest/sync-oss-resources
 
 # Wait for peering to be established
 gobgp/wait-state 11.99.100.2 ESTABLISHED

@@ -27,7 +27,6 @@ gobgp/advertise-route -s server3 fd00:10:2::/64
 
 # Configure BGP on Cilium
 k8s/add cilium-node.yaml bgp-node-config.yaml bgp-peer-config.yaml bgp-advertisement.yaml bgp-policy.yaml
-* bgptest/sync-oss-resources
 
 # Wait for peerings to be established
 gobgp/wait-state -s server0 fc00:10:99:8::5 ESTABLISHED

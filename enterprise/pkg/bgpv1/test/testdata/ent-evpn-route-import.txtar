@@ -9,7 +9,6 @@ gobgp/add-peer -s server0 11.100.96.1 65001 --families=l2vpn/evpn
 
 # Configure BGP on Cilium
 k8s/add cilium-node.yaml bgp-node-config.yaml bgp-peer-config.yaml
-* bgptest/sync-oss-resources
 
 # Add private networks used by the VRFs
 db/insert private-networks private-networks.yaml

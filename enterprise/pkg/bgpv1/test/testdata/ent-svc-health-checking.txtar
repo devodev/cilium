@@ -11,7 +11,6 @@ gobgp/add-peer fc00::aa:aa:aa:102 65001
 
 # Configure BGP on Cilium
 k8s/add cilium-node.yaml bgp-node-config.yaml bgp-peer-config.yaml bgp-advertisement.yaml
-* bgptest/sync-oss-resources
 
 # Configure a service and endpoints
 k8s/add service.yaml endpoints.yaml endpoints-ipv6.yaml

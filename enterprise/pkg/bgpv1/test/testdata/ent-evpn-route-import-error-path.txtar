@@ -11,7 +11,6 @@ gobgp/add-peer -s server1 11.100.98.1 65001 --families=l2vpn/evpn
 
 # Configure BGP on Cilium
 k8s/add cilium-node.yaml bgp-node-config.yaml bgp-peer-config.yaml
-* bgptest/sync-oss-resources
 
 # Add private network used by the VRF
 db/insert private-networks private-networks.yaml
@@ -35,7 +34,6 @@ rib/list
 
 # Delete the instance to clear imported routes and error paths
 k8s/delete bgp-node-config.yaml
-* bgptest/sync-oss-resources
 
 # Ensure deleting the instance removes the routes
 bgp/routes --no-age loc l2vpn evpn
@@ -49,7 +47,6 @@ gobgp/add-route -s server0 -c rt:65001:100,rtrmac:de:ad:be:ef:00:01,encap:vxlan 
 
 # Restore the instance and ensure the stale error path is gone
 k8s/add bgp-node-config.yaml
-* bgptest/sync-oss-resources
 gobgp/wait-state -s server0 11.100.98.1 ESTABLISHED
 gobgp/wait-state -s server1 11.100.98.1 ESTABLISHED
 

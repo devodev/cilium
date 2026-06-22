@@ -11,7 +11,6 @@ gobgp/add-peer -s v6 fc00:10:100:101::1 65001
 
 # Configure BGP on Cilium
 k8s/add cilium-node.yaml bgp-node-config.yaml bgp-peer-config-v4.yaml bgp-peer-config-v6.yaml bgp-policy.yaml
-* bgptest/sync-oss-resources
 
 # Check that the policy is applied as expected
 bgp/route-policies -o bgp-policy.actual

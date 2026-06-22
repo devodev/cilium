@@ -17,7 +17,6 @@ k8s/add service-1.yaml service-2.yaml service-3.yaml endpoints-ipv4.yaml endpoin
 
 # Configure BGP on Cilium
 k8s/add cilium-node.yaml bgp-node-config.yaml bgp-peer-config.yaml bgp-advertisement-1.yaml
-* bgptest/sync-oss-resources
 
 # Wait for peering to be established
 gobgp/wait-state 11.99.4.212 ESTABLISHED
@@ -32,7 +31,6 @@ gobgp/routes -o routes.actual ipv6 unicast
 
 # Change aggregation prefix
 k8s/update bgp-advertisement-2.yaml
-* bgptest/sync-oss-resources
 
 # Validate that IPv4 aggregated routes are advertised
 gobgp/routes -o routes.actual ipv4 unicast
@@ -44,7 +42,6 @@ gobgp/routes -o routes.actual ipv6 unicast
 
 # Disable aggregation
 k8s/update bgp-advertisement-3.yaml
-* bgptest/sync-oss-resources
 
 # Validate that IPv4 non-aggregated routes are advertised
 gobgp/routes -o routes.actual ipv4 unicast

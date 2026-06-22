@@ -13,7 +13,6 @@ gobgp/add-peer 11.99.101.2 65001
 
 # Configure BGP on Cilium
 k8s/add cilium-node.yaml k8s-node.yaml bgp-node-config.yaml bgp-peer-config.yaml bgp-advertisement.yaml service1.yaml
-* bgptest/sync-oss-resources
 
 # Wait for peering to be established
 gobgp/wait-state 11.99.101.2 ESTABLISHED

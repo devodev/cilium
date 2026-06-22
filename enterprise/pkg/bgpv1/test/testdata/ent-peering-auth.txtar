@@ -11,7 +11,6 @@ gobgp/add-peer --password=Cilium123 fc00::aa:bb:cc:102 65001
 
 # Configure BGP on Cilium
 k8s/add cilium-node.yaml bgp-node-config.yaml bgp-peer-config.yaml bgp-advertisement.yaml auth-secret.yaml
-* bgptest/sync-oss-resources
 
 # Wait for peering to be established
 gobgp/wait-state fc00::aa:bb:cc:102 ESTABLISHED

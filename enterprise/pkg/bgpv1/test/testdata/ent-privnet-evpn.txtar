@@ -18,7 +18,6 @@ gobgp/add-peer -s evpn-v6   fc00:10:99:103::1 65001 --families=l2vpn/evpn
 
 # Configure BGP on Cilium
 k8s/add cilium-node.yaml bgp-node-config.yaml bgp-peer-config-evpn.yaml bgp-peer-config-non-evpn.yaml bgp-vrf-config.yaml bgp-advertisement.yaml
-* bgptest/sync-oss-resources
 
 # Wait for peerings to be established
 gobgp/wait-state -s evpn-v4  11.99.103.1       ESTABLISHED

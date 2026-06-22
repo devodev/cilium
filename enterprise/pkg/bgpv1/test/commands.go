@@ -11,7 +11,6 @@
 package test
 
 import (
-	"context"
 	"fmt"
 	"net/netip"
 	"sort"
@@ -25,9 +24,6 @@ import (
 	"github.com/osrg/gobgp/v4/pkg/apiutil"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
 	"github.com/spf13/pflag"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 
 	ceeCommands "github.com/cilium/cilium/enterprise/pkg/bgpv1/commands"
@@ -35,7 +31,6 @@ import (
 	"github.com/cilium/cilium/pkg/bgp/gobgp"
 	"github.com/cilium/cilium/pkg/bgp/test/commands"
 	"github.com/cilium/cilium/pkg/bgp/types"
-	v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	client "github.com/cilium/cilium/pkg/k8s/client/testutils"
 	lb "github.com/cilium/cilium/pkg/loadbalancer"
 	"github.com/cilium/cilium/pkg/loadbalancer/writer"
@@ -49,7 +44,6 @@ const (
 // BGPTestScriptCmds are special purpose script commands for BGP Control Plane tests.
 func BGPTestScriptCmds(clientSet *client.FakeClientset, writer *writer.Writer, egwMgr *egwManagerMock) hive.ScriptCmdsOut {
 	return hive.NewScriptCmds(map[string]script.Cmd{
-		"bgptest/sync-oss-resources": SyncOSSResourcesCommand(clientSet),
 		"bgptest/upsert-egw-policy":  UpsertEGWPolicyCommand(egwMgr),
 		"bgptest/set-backend-health": SetBackendHealthCommand(writer),
 	})
@@ -144,189 +138,6 @@ func SetBackendHealthCommand(writer *writer.Writer) script.Cmd {
 			return nil, nil
 		},
 	)
-}
-
-// SyncOSSResourcesCommand syncs existing CEE BGP CRD resources to the respective OSS BGP CRD resources.
-// For each IsovalentBGP* resource, respective CiliumBGP* resource with the same name is created.
-func SyncOSSResourcesCommand(clientSet *client.FakeClientset) script.Cmd {
-	return script.Command(
-		script.CmdUsage{
-			Summary: "Syncs enterprise BGP CRD resources to the respective OSS BGP CRD resources",
-			Detail: []string{
-				"For each IsovalentBGPNodeConfigs, IsovalentBGPNodeConfigs, IsovalentBGPPeerConfigs and IsovalentBGPAdvertisements",
-				"resource, respective CiliumBGP* resource with the same name is created/updated/deleted to maintain 1:1 mapping.",
-			},
-		},
-		func(s *script.State, args ...string) (script.WaitFunc, error) {
-			var err error
-			// NOTE: unfortunately, could not make the dynamic client-go client work with the FakeClientset,
-			// so we need to work with the typed clients here, which results in a bit of code duplication.
-
-			// IsovalentBGPNodeConfigs -> CiliumBGPNodeConfigs
-			ossMap := make(map[string]struct{})
-			ceeMap := make(map[string]any)
-			ossNodeConfigs, err := clientSet.CiliumV2().CiliumBGPNodeConfigs().List(s.Context(), metav1.ListOptions{})
-			if err != nil {
-				return nil, err
-			}
-			for _, nc := range ossNodeConfigs.Items {
-				ossMap[nc.Name] = struct{}{}
-			}
-			ceeNodeConfigs, err := clientSet.IsovalentV1().IsovalentBGPNodeConfigs().List(s.Context(), metav1.ListOptions{})
-			if err != nil {
-				return nil, err
-			}
-			for _, nc := range ceeNodeConfigs.Items {
-				ceeMap[nc.Name] = nc
-			}
-			err = syncResources[v2.CiliumBGPNodeConfig](s.Context(), ceeMap, ossMap, clientSet.CiliumV2().CiliumBGPNodeConfigs())
-			if err != nil {
-				return nil, err
-			}
-
-			// IsovalentPeerConfigs -> CiliumBGPPeerConfigs
-			ossMap = make(map[string]struct{})
-			ceeMap = make(map[string]any)
-			ossPeerConfigs, err := clientSet.CiliumV2().CiliumBGPPeerConfigs().List(s.Context(), metav1.ListOptions{})
-			if err != nil {
-				return nil, err
-			}
-			for _, nc := range ossPeerConfigs.Items {
-				ossMap[nc.Name] = struct{}{}
-			}
-			ceePeerConfigs, err := clientSet.IsovalentV1().IsovalentBGPPeerConfigs().List(s.Context(), metav1.ListOptions{})
-			if err != nil {
-				return nil, err
-			}
-			for _, pc := range ceePeerConfigs.Items {
-				ceeMap[pc.Name] = pc
-			}
-			err = syncResources[v2.CiliumBGPPeerConfig](s.Context(), ceeMap, ossMap, clientSet.CiliumV2().CiliumBGPPeerConfigs())
-			if err != nil {
-				return nil, err
-			}
-
-			// IsovalentBGPAdvertisements -> CiliumBGPAdvertisements
-			ossMap = make(map[string]struct{})
-			ceeMap = make(map[string]any)
-			ossAdverts, err := clientSet.CiliumV2().CiliumBGPAdvertisements().List(s.Context(), metav1.ListOptions{})
-			if err != nil {
-				return nil, err
-			}
-			for _, nc := range ossAdverts.Items {
-				ossMap[nc.Name] = struct{}{}
-			}
-			ceeAdverts, err := clientSet.IsovalentV1().IsovalentBGPAdvertisements().List(s.Context(), metav1.ListOptions{})
-			if err != nil {
-				return nil, err
-			}
-			for _, a := range ceeAdverts.Items {
-				ceeMap[a.Name] = a
-			}
-			err = syncResources[v2.CiliumBGPAdvertisement](s.Context(), ceeMap, ossMap, clientSet.CiliumV2().CiliumBGPAdvertisements())
-			if err != nil {
-				return nil, err
-			}
-
-			return nil, nil
-		},
-	)
-}
-
-// resourceClient is a common interface of typed k8s resource clients.
-type resourceClient[T any] interface {
-	Create(ctx context.Context, r *T, opts metav1.CreateOptions) (*T, error)
-	Get(ctx context.Context, name string, opts metav1.GetOptions) (*T, error)
-	Update(ctx context.Context, r *T, opts metav1.UpdateOptions) (*T, error)
-	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
-}
-
-// syncResources syncs resources from the srcResources map with resources in the dstResources map
-// and applies the delta using the provided dstClient. Content os the srcResources is mapped 1:1 to the destination resources,
-// with non-existent fields silently dropped.
-func syncResources[T any](ctx context.Context, srcResources map[string]any, dstResources map[string]struct{}, dstClient resourceClient[T]) error {
-	for name, src := range srcResources {
-		var dst T
-		err := copyResourceContent(&src, &dst)
-		if err != nil {
-			return err
-		}
-		if _, exists := dstResources[name]; !exists {
-			_, err = dstClient.Create(ctx, &dst, metav1.CreateOptions{FieldValidation: "Ignore"})
-		} else {
-			current, err := dstClient.Get(ctx, name, metav1.GetOptions{})
-			if err != nil {
-				return err
-			}
-			rv, err := getResourceVersion(current)
-			if err != nil {
-				return err
-			}
-			err = setResourceVersion(&dst, rv)
-			if err != nil {
-				return err
-			}
-			_, err = dstClient.Update(ctx, &dst, metav1.UpdateOptions{FieldValidation: "Ignore"})
-			return err
-		}
-		if err != nil {
-			return err
-		}
-		delete(dstResources, name)
-	}
-	for name := range dstResources {
-		err := dstClient.Delete(ctx, name, metav1.DeleteOptions{})
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func copyResourceContent(src, dst any) error {
-	srcUnstructured, err := convertToUnstructured(src)
-	if err != nil {
-		return err
-	}
-	dstUnstructured, err := convertToUnstructured(dst)
-	if err != nil {
-		return err
-	}
-	dstUnstructured.SetUnstructuredContent(srcUnstructured.UnstructuredContent())
-	return convertFromUnstructured(dstUnstructured, dst)
-}
-
-func getResourceVersion(obj any) (string, error) {
-	unstructuredObj, err := convertToUnstructured(obj)
-	if err != nil {
-		return "", err
-	}
-	return unstructuredObj.GetResourceVersion(), nil
-}
-
-func setResourceVersion(obj any, rv string) error {
-	unstructuredObj, err := convertToUnstructured(obj)
-	if err != nil {
-		return err
-	}
-	unstructuredObj.SetResourceVersion(rv)
-	return convertFromUnstructured(unstructuredObj, obj)
-}
-
-func convertToUnstructured(obj any) (*unstructured.Unstructured, error) {
-	unstructuredMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(obj)
-	if err != nil {
-		return nil, err
-	}
-	return &unstructured.Unstructured{Object: unstructuredMap}, nil
-}
-
-func convertFromUnstructured(unstructuredObj *unstructured.Unstructured, obj any) error {
-	err := runtime.DefaultUnstructuredConverter.FromUnstructured(unstructuredObj.Object, obj)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 // CEEGoBGPScriptCmds are cee-specific GoBGP commands

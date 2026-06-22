@@ -16,7 +16,6 @@ gobgp/add-peer -s v6 fc00::aa:bb:cc:136 65001
 # Configure BGP on Cilium
 k8s/add cilium-node.yaml bgp-advertisement.yaml
 k8s/add bgp-node-config.yaml bgp-peer-config.yaml
-* bgptest/sync-oss-resources
 
 # Add a LoadBalancer service
 k8s/add service-lb.yaml

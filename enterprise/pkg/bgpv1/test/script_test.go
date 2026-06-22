@@ -12,13 +12,11 @@ package test
 
 import (
 	"context"
-	"flag"
 	"log/slog"
 	"maps"
 	"net"
 	"net/netip"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
@@ -40,6 +38,8 @@ import (
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
 	bfdtypes "github.com/cilium/cilium/enterprise/pkg/bfd/types"
 	enterprisebgpv1 "github.com/cilium/cilium/enterprise/pkg/bgpv1"
+	enterpriseAgent "github.com/cilium/cilium/enterprise/pkg/bgpv1/agent"
+	enterpriseManager "github.com/cilium/cilium/enterprise/pkg/bgpv1/manager"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/manager/reconcilerv2"
 	"github.com/cilium/cilium/enterprise/pkg/egressgatewayha"
 	evpnConfig "github.com/cilium/cilium/enterprise/pkg/evpn/config"
@@ -50,9 +50,7 @@ import (
 	"github.com/cilium/cilium/enterprise/pkg/srv6/sidmanager"
 	"github.com/cilium/cilium/enterprise/pkg/srv6/srv6manager"
 	"github.com/cilium/cilium/pkg/bgp"
-	"github.com/cilium/cilium/pkg/bgp/agent"
 	"github.com/cilium/cilium/pkg/bgp/agent/signaler"
-	"github.com/cilium/cilium/pkg/bgp/manager"
 	osstest "github.com/cilium/cilium/pkg/bgp/test"
 	"github.com/cilium/cilium/pkg/bgp/test/commands"
 	cmtypes "github.com/cilium/cilium/pkg/clustermesh/types"
@@ -107,9 +105,6 @@ const (
 	defaultEVPNSecurityGroupIDFlag   = "evpn-default-security-group-id"
 	kubeProxyReplacementFlag         = "kube-proxy-replacement"
 )
-
-// Global flag for disabling OSS BGP CPlane.
-var disableOSSBGPControlPlane = flag.Bool("disable-oss-bgp-control-plane", false, "Disable OSS BGP Control Plane")
 
 func TestPrivilegedScript(t *testing.T) {
 	testutils.PrivilegedTest(t)
@@ -228,7 +223,6 @@ func TestPrivilegedScript(t *testing.T) {
 			cell.Provide(func() *option.DaemonConfig {
 				// BGP Manager uses the global variable option.Config so we need to set it there as well
 				option.Config = &option.DaemonConfig{
-					EnableBGPControlPlane:     !*disableOSSBGPControlPlane,
 					BGPSecretsNamespace:       testSecretsNamespace,
 					BGPRouterIDAllocationMode: option.BGPRouterIDAllocationModeDefault,
 					IPAM:                      *useIPAM,
@@ -272,8 +266,8 @@ func TestPrivilegedScript(t *testing.T) {
 				},
 				BGPTestScriptCmds,
 			),
-			cell.Invoke(func(m agent.BGPRouterManager) {
-				m.(*manager.BGPRouterManager).DestroyRouterOnStop(true) // fully destroy GoBGP server on Stop()
+			cell.Invoke(func(m enterpriseAgent.EnterpriseBGPRouterManager) {
+				m.(*enterpriseManager.BGPRouterManager).DestroyRouterOnStop(true) // fully destroy GoBGP server on Stop()
 			}),
 			cell.Invoke(func(w *writer.Writer) {
 				lbWriter = w
@@ -288,17 +282,7 @@ func TestPrivilegedScript(t *testing.T) {
 			}
 		})
 		hive.AddConfigOverride(h, func(cfg *config.Config) {
-			// Disable enterprise BGP Control Plane when we are
-			// testing OSS scripts.
-			if strings.HasPrefix(t.Name(), "TestPrivilegedScript/ent-") {
-				cfg.Enabled = true
-			}
-			// Skip OSS test when -disable-oss-bgp-control-plane is
-			// set, since the OSS BGP Control Plane is required for
-			// the test.
-			if !strings.HasPrefix(t.Name(), "TestPrivilegedScript/ent-") && *disableOSSBGPControlPlane {
-				t.SkipNow()
-			}
+			cfg.Enabled = true
 		})
 		hive.AddConfigOverride(h, func(cfg *svcrouteconfig.RoutesConfig) {
 			cfg.EnableNoServiceEndpointsRoutable = *enableNoEndpointsRoutable

@@ -20,7 +20,6 @@ k8s/add service-lb.yaml service-cluster.yaml
 
 # Configure BGP on Cilium
 k8s/add cilium-node.yaml bgp-node-config.yaml bgp-peer-config.yaml bgp-advertisement.yaml
-* bgptest/sync-oss-resources
 
 # Wait for peering to be established
 gobgp/wait-state 11.99.4.102 ESTABLISHED
