@@ -50,4 +50,4 @@ runs:
     - shell: bash
       name: enterprise overrides
       run: |
-        ./.github/actions/set-env-variables/enterprise-overrides.sh
+        "$GITHUB_ACTION_PATH/enterprise-overrides.sh"
