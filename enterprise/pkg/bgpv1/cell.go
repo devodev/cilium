@@ -15,12 +15,16 @@ import (
 
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/agent"
+	"github.com/cilium/cilium/enterprise/pkg/bgpv1/api"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/commands"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/manager"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/manager/reconcilerv2"
+	"github.com/cilium/cilium/enterprise/pkg/bgpv1/metrics"
 	"github.com/cilium/cilium/pkg/bgp/gobgp"
+	ossManager "github.com/cilium/cilium/pkg/bgp/manager"
 	"github.com/cilium/cilium/pkg/bgp/types"
 	"github.com/cilium/cilium/pkg/k8s"
+	"github.com/cilium/cilium/pkg/option"
 )
 
 // Cell is module with Enterprise BGP Control Plane components
@@ -35,7 +39,6 @@ var Cell = cell.Module(
 		k8s.IsovalentBGPNodeConfigResource,
 		k8s.IsovalentBGPPolicyResource,
 		k8s.IsovalentBGPVRFConfigResource,
-		k8s.CiliumBGPPeerConfigResource,
 	),
 
 	// enterprise-only reconcilers
@@ -46,6 +49,9 @@ var Cell = cell.Module(
 
 	// enterprise-specific commands
 	commands.Cell,
+
+	// enterprise-specific API handlers
+	api.Cell,
 
 	// enterprise BGP agent components
 	cell.Provide(
@@ -67,5 +73,33 @@ var Cell = cell.Module(
 	cell.Invoke(
 		// Invoke enterprise bgp controller to trigger the constructor.
 		func(*agent.Controller) {},
+
+		// Register metrics collector
+		metrics.RegisterCollector,
+	),
+
+	// FIXME: Provide OSS RouterManager as stateNotifier. This is only
+	// needed for the OSS-CEE separation transition period.
+	cell.ProvidePrivate(
+		func(
+			dc *option.DaemonConfig,
+			config config.Config,
+			m agent.EnterpriseBGPRouterManager,
+		) reconcilerv2.StateChangeNotifier {
+			switch {
+			case dc.BGPControlPlaneEnabled():
+				// In OSS-only or OSS-CEE hybrid mode, the OSS
+				// RouterManager is provided as a
+				// EnterpriseBGPRouterManager.
+				return m.(*ossManager.BGPRouterManager)
+			case config.Enabled:
+				// In Enterprise-only mode, the enterprise
+				// RouterManager is provided as a
+				// EnterpriseBGPRouterManager.
+				return m.(*manager.BGPRouterManager)
+			default:
+				return nil
+			}
+		},
 	),
 )

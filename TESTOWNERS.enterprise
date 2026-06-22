@@ -441,14 +441,13 @@
 /bpf/tests/enterprise_tc_encryption_policy_fallback_plaintext.c @isovalent/encryption
 /bpf/tests/enterprise_tc_privnet*.c @isovalent/private-networking
 /bpf/tests/enterprise_tc_lxc_inspection.c @isovalent/sig-defence
-/bpf/tests/enterprise_tc_evpn_ingress_tests.c @isovalent/traffic-engineering
+/bpf/tests/enterprise_tc_evpn_* @isovalent/traffic-engineering
 /bpf/tests/lib/enterprise_bpf_evpn.h @isovalent/traffic-engineering
 /bpf/tests/lib/enterprise_vni.h @isovalent/traffic-engineering
 /bpf/tests/lib/enterprise_vrf.h @isovalent/cilium-datapath
 /bpf/tests/enterprise_evpn_common.h @isovalent/traffic-engineering
 /bpf/tests/enterprise_evpn_fib_tests.c @isovalent/traffic-engineering
 /bpf/tests/lib/enterprise_evpn.h @isovalent/traffic-engineering
-/bpf/tests/enterprise_tc_evpn_egress_tests.c @isovalent/traffic-engineering
 /bpf/tests/scapy/enterprise_evpn_pkt_defs.py @isovalent/traffic-engineering
 /bpf/tests/scapy/enterprise_inspection_pkt_defs.py @isovalent/sig-defence
 /bpf/tests/lib/egressgw_ha.h @isovalent/egress-gateway

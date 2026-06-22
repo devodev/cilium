@@ -31,6 +31,7 @@ const (
 	FlagEvpnEnabled              = "enable-evpn"
 	FlagEvpnTunnelDevice         = "evpn-vxlan-device"
 	FlagEvpnTunnelPort           = "evpn-vxlan-port"
+	FlagEvpnSourceInterface      = "evpn-source-interface"
 	FlagSecurityGroupTagsEnabled = "enable-evpn-security-group-tags"
 	FlagDefaultSecurityGroupID   = "evpn-default-security-group-id"
 )
@@ -48,8 +49,9 @@ func (c CommonConfig) Flags(flags *pflag.FlagSet) {
 type Config struct {
 	CommonConfig `mapstructure:",squash"`
 
-	VxlanDevice string `mapstructure:"evpn-vxlan-device"`
-	VxlanPort   uint16 `mapstructure:"evpn-vxlan-port"`
+	VxlanDevice     string `mapstructure:"evpn-vxlan-device"`
+	VxlanPort       uint16 `mapstructure:"evpn-vxlan-port"`
+	SourceInterface string `mapstructure:"evpn-source-interface"`
 
 	SecurityGroupTagsEnabled bool   `mapstructure:"enable-evpn-security-group-tags"`
 	DefaultSecurityGroupID   uint16 `mapstructure:"evpn-default-security-group-id"`
@@ -60,6 +62,7 @@ func (c Config) Flags(flags *pflag.FlagSet) {
 
 	flags.String(FlagEvpnTunnelDevice, c.VxlanDevice, "VXLAN device setup and used for EVPN")
 	flags.Uint16(FlagEvpnTunnelPort, c.VxlanPort, "UDP port used for EVPN VXLAN tunnel")
+	flags.String(FlagEvpnSourceInterface, c.SourceInterface, "Interface to use as EVPN VXLAN packet source")
 
 	flags.Bool(FlagSecurityGroupTagsEnabled, c.SecurityGroupTagsEnabled, "Enable Security Group Tags in EVPN advertisements")
 	flags.Uint16(FlagDefaultSecurityGroupID, c.DefaultSecurityGroupID, "Default Security Group ID used in EVPN advertisements")

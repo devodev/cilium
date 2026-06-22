@@ -14,6 +14,7 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"sync"
@@ -108,10 +109,12 @@ func (n nopSysctl) ReadInt(name []string) (int64, error)    { return 0, nil }
 type fakeEndpointManager struct {
 	endpointmanager.EndpointManager
 	regenCalls atomic.Int32
+	lastRegen  atomic.Pointer[regeneration.ExternalRegenerationMetadata]
 }
 
-func (f *fakeEndpointManager) RegenerateAllEndpoints(_ *regeneration.ExternalRegenerationMetadata) *sync.WaitGroup {
+func (f *fakeEndpointManager) RegenerateAllEndpoints(meta *regeneration.ExternalRegenerationMetadata) *sync.WaitGroup {
 	f.regenCalls.Add(1)
+	f.lastRegen.Store(meta)
 	return &sync.WaitGroup{}
 }
 
@@ -131,6 +134,7 @@ func newTestManager(t *testing.T, cfg evpnConfig.Config) (*manager, *statedb.DB,
 		evpnConfig:            cfg,
 		nodeConfigTrigger:     make(chan struct{}, 1),
 		vxlanDeviceConfigured: make(chan struct{}),
+		sourceIPsInitialized:  make(chan struct{}),
 		endpointManager:       &fakeEndpointManager{},
 		orchestrator:          orch,
 	}
@@ -363,4 +367,72 @@ func TestPrivilegedManagerDeviceRecreateAndCleanup(t *testing.T) {
 		require.NoError(t, os.RemoveAll(bpffsDeviceDir))
 		return nil
 	})
+}
+
+func TestReconcileSourceIPsRegeneratesOnEffectiveSourceIPChange(t *testing.T) {
+	const sourceInterface = "lo"
+
+	health := &fakeHealth{}
+	m, db, devices := newTestManager(t, evpnConfig.Config{
+		CommonConfig:    evpnConfig.CommonConfig{Enabled: true},
+		VxlanDevice:     testDeviceName,
+		VxlanPort:       testVXLANPort,
+		SourceInterface: sourceInterface,
+	})
+	epMgr, ok := m.endpointManager.(*fakeEndpointManager)
+	require.True(t, ok)
+
+	// upsert initial state, initial reconcile, should not cause regeneration
+	upsertTestDevice(t, db, devices, &tables.Device{
+		Index: 10,
+		Name:  sourceInterface,
+		MTU:   1500,
+		Addrs: []tables.DeviceAddress{
+			{Addr: netip.MustParseAddr("10.0.0.1")},
+			{Addr: netip.MustParseAddr("2001:db8::1")},
+		},
+	})
+	m.reconcileSourceIPs(t.Context(), health)
+	require.Equal(t, int32(0), epMgr.regenCalls.Load())
+	require.Equal(t, int32(1), health.okCount.Load())
+
+	// upsert MTU change only - no effective change, no regeneration
+	upsertTestDevice(t, db, devices, &tables.Device{
+		Index: 10,
+		Name:  sourceInterface,
+		MTU:   1400,
+		Addrs: []tables.DeviceAddress{
+			{Addr: netip.MustParseAddr("10.0.0.1")},
+			{Addr: netip.MustParseAddr("2001:db8::1")},
+		},
+	})
+	m.reconcileSourceIPs(t.Context(), health)
+	require.Equal(t, int32(0), epMgr.regenCalls.Load())
+	require.Equal(t, int32(2), health.okCount.Load())
+
+	// upsert IP change, assert regeneration
+	upsertTestDevice(t, db, devices, &tables.Device{
+		Index: 10,
+		Name:  sourceInterface,
+		MTU:   1400,
+		Addrs: []tables.DeviceAddress{
+			{Addr: netip.MustParseAddr("10.0.0.2")},
+			{Addr: netip.MustParseAddr("2001:db8::1")},
+		},
+	})
+	m.reconcileSourceIPs(t.Context(), health)
+	require.Equal(t, int32(1), epMgr.regenCalls.Load())
+	meta := epMgr.lastRegen.Load()
+	require.NotNil(t, meta)
+	require.Equal(t, regeneration.ReasonDeviceConfigurationChanged, meta.Reason)
+	require.Equal(t, regeneration.RegenerateWithDatapath, meta.RegenerationLevel)
+}
+
+func upsertTestDevice(t *testing.T, db *statedb.DB, devices statedb.RWTable[*tables.Device], dev *tables.Device) {
+	t.Helper()
+
+	txn := db.WriteTxn(devices)
+	_, _, err := devices.Insert(txn, dev)
+	require.NoError(t, err)
+	txn.Commit()
 }

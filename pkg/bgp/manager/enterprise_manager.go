@@ -111,3 +111,18 @@ func (m *BGPRouterManager) GetRoutePoliciesExtended(ctx context.Context, instanc
 func (m *BGPRouterManager) ReconcileEnterpriseInstances(context.Context, *v1.IsovalentBGPNodeConfig, *v2.CiliumNode) error {
 	return nil
 }
+
+// NotifyStateChange notifies all BGP instances of a state change in the
+// underlying router. This is used as a k8s-driven state notification trigger.
+func (m *BGPRouterManager) NotifyStateChange() {
+	m.Lock()
+	defer m.Unlock()
+
+	if !m.running {
+		return
+	}
+
+	for _, instance := range m.BGPInstances {
+		instance.NotifyStateChange()
+	}
+}

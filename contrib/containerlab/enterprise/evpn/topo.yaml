@@ -11,6 +11,8 @@ topology:
       image: quay.io/frrouting/frr:10.4.1
       labels:
         router: frr
+      env:
+        EVPN_SOURCE_INTERFACE_FILTER: ${EVPN_SOURCE_INTERFACE_FILTER:-true}
       binds:
         - ./frr:/etc/frr
       exec:
@@ -20,6 +22,22 @@ topology:
         - ip addr add 169.254.0.1/29 dev net0
         - ip addr add 169.254.0.9/29 dev net1
         - ip addr add 169.254.0.17/29 dev net2
+        # only accept VXLAN packets from the expected VTEP IPs to verify evpn.sourceInterface config works
+        # (using tc as iptables / nftables is not available in the frr image)
+        - |
+          sh -ec '
+            if [ "$$EVPN_SOURCE_INTERFACE_FILTER" = "true" ]; then
+              tc qdisc add dev net0 clsact
+              tc filter add dev net0 ingress protocol ip pref 1 flower ip_proto udp dst_port 4789 src_ip 100.64.1.11/32 action pass
+              tc filter add dev net0 ingress protocol ip pref 2 flower ip_proto udp dst_port 4789 action drop
+              tc qdisc add dev net1 clsact
+              tc filter add dev net1 ingress protocol ip pref 1 flower ip_proto udp dst_port 4789 src_ip 100.64.1.12/32 action pass
+              tc filter add dev net1 ingress protocol ip pref 2 flower ip_proto udp dst_port 4789 action drop
+              tc qdisc add dev net2 clsact
+              tc filter add dev net2 ingress protocol ip pref 1 flower ip_proto udp dst_port 4789 src_ip 100.64.1.13/32 action pass
+              tc filter add dev net2 ingress protocol ip pref 2 flower ip_proto udp dst_port 4789 action drop
+            fi
+          '
     cilium1:
       kind: linux
       image: quay.io/cilium/alpine-curl:v1.10.0

@@ -20,6 +20,12 @@ type BPFLXCEnterprise struct {
 	EVPNDeviceMAC types.MACAddr `config:"evpn_device_mac"`
 	// True if evpn feature is enabled.
 	EVPNEnable bool `config:"evpn_enable"`
+	// The IPv4 source address used for evpn vxlan packets.
+	EVPNSourceIPv4 types.V4Addr `config:"evpn_source_ipv4"`
+	// The IPv6 source address used for evpn vxlan packets.
+	EVPNSourceIPv6 types.V6Addr `config:"evpn_source_ipv6"`
+	// True if an evpn source interface is configured.
+	EVPNSourceInterfaceConfigured bool `config:"evpn_source_interface_configured"`
 	// True if passive inspection is enabled for pod traffic.
 	PassiveInspectionEnable bool `config:"passive_inspection_enable"`
 	// Ifindex receiving mirrored pod traffic for passive inspection.
@@ -43,6 +49,8 @@ type BPFLXCEnterprise struct {
 func NewBPFLXCEnterprise() *BPFLXCEnterprise {
 	return &BPFLXCEnterprise{0x0, 0x0,
 		cast[types.MACAddr]([]byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}),
+		false, cast[types.V4Addr]([]byte{0x0, 0x0, 0x0, 0x0}),
+		cast[types.V6Addr]([]byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}),
 		false, false, 0x0, false, false, false, cast[types.V4Addr]([]byte{0x0, 0x0, 0x0, 0x0}),
 		cast[types.V6Addr]([]byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}),
 		false, 0x0}

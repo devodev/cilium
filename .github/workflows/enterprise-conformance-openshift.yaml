@@ -180,10 +180,28 @@ jobs:
         run: |
           make docker-buildx VERSION=${{ steps.vars.outputs.sha }}
 
+  changes:
+    name: Detect workflow file changes
+    runs-on: ubuntu-24.04
+    outputs:
+      destroy-workflow: ${{ steps.changes.outputs.destroy-workflow }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Check for destroy workflow changes
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        id: changes
+        with:
+          filters: |
+            destroy-workflow:
+              - .github/workflows/enterprise-conformance-openshift-destroy.yaml
+
   installation-and-connectivity:
     name: Installation and Connectivity Test
     runs-on: ubuntu-24.04
-    needs: [images]
+    needs: [changes, images]
     timeout-minutes: 360
     steps:
       - name: Collect Workflow Telemetry
@@ -788,14 +806,20 @@ jobs:
           echo "destroying hosted cluster ..."
           ./hcp/scripts/destroy-cluster.sh
 
+      # github.ref is refs/pull/N/merge on pull_request events — a synthetic
+      # runner-local ref that workflow_dispatch rejects (HTTP 422).
+      # When the PR modifies the destroy workflow itself, use head_ref so the
+      # dispatch runs the updated definition; otherwise use base_ref (PR target
+      # branch) or ref_name (push/schedule/manual events).
       - name: Trigger the destroy of the OpenShift Cluster
         if: ${{ always() && steps.provisioning.outcome != 'skipped' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DISPATCH_REF: ${{ (github.event_name == 'pull_request' && needs.changes.outputs.destroy-workflow == 'true' && github.head_ref) || github.base_ref || github.ref_name }}
         run: |
           gh workflow run enterprise-conformance-openshift-destroy.yaml \
             --repo ${{ github.repository }} \
-            --ref ${{ github.ref }} \
+            --ref "${DISPATCH_REF}" \
             --field provisioning-run-id=${{ github.run_id }}
 
       - name: Run common post steps

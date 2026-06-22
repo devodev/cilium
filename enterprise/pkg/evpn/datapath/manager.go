@@ -68,6 +68,10 @@ type manager struct {
 	nodeConfigTrigger     chan struct{}
 	vxlanDeviceConfigured chan struct{}
 	vxlanIfIndex          int
+
+	sourceIPs            evpnConfig.SourceIPs
+	sourceIPsInitialized chan struct{}
+	sourceIPsObserved    bool
 }
 
 type managerIn struct {
@@ -101,6 +105,7 @@ func registerManager(in managerIn) error {
 		devices:               in.Devices,
 		nodeConfigTrigger:     make(chan struct{}, 1),
 		vxlanDeviceConfigured: make(chan struct{}),
+		sourceIPsInitialized:  make(chan struct{}),
 	}
 
 	if in.EVPNConfig.Enabled && in.PrivnetConfig.Enabled {
@@ -108,6 +113,11 @@ func registerManager(in managerIn) error {
 		// NodeConfigurationChanged() is called whenever loader (re-)configures
 		// the base datapath configuration - at the end of loader.Reinitialize().
 		in.NodeConfigNotifier.Subscribe(m)
+		// If SourceInterface is configured, watch it end trigger endpoint regeneration upon effective
+		// source IP change to ensure source IPs in LXC config are up-to-date.
+		if in.EVPNConfig.SourceInterface != "" {
+			in.JobGroup.Add(job.OneShot("source-interface-watcher", m.runSourceInterfaceWatcher, job.WithShutdown()))
+		}
 		// Run the manager.
 		in.JobGroup.Add(job.OneShot("datapath-manager", m.run))
 	} else {
@@ -155,6 +165,15 @@ func (m *manager) run(ctx context.Context, health cell.Health) error {
 	case <-m.nodeConfigTrigger:
 	case <-ctx.Done():
 		return nil
+	}
+
+	// Wait for source IP initialization as we only trigger endpoint regeneration upon follow-up source IP changes.
+	if m.evpnConfig.SourceInterface != "" {
+		select {
+		case <-m.sourceIPsInitialized:
+		case <-ctx.Done():
+			return nil
+		}
 	}
 
 	limiter := rate.NewLimiter(minReconfigureInterval, 1)
@@ -258,4 +277,74 @@ func (m *manager) waitForDevice(ctx context.Context, deviceIndex int) (<-chan st
 		case <-watch:
 		}
 	}
+}
+
+func (m *manager) runSourceInterfaceWatcher(ctx context.Context, health cell.Health) error {
+	select {
+	case <-m.orchestrator.DatapathInitialized():
+	case <-ctx.Done():
+		return nil
+	}
+	_, devicesInitialized := m.devices.Initialized(m.db.ReadTxn())
+	select {
+	case <-devicesInitialized:
+	case <-ctx.Done():
+		return nil
+	}
+	for {
+		sourceWatch := m.reconcileSourceIPs(ctx, health)
+		select {
+		case <-sourceWatch:
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func (m *manager) reconcileSourceIPs(ctx context.Context, health cell.Health) <-chan struct{} {
+	sourceIPs, watch := m.resolveSourceIPs(health)
+	if !m.sourceIPsObserved {
+		m.sourceIPs = sourceIPs
+		m.sourceIPsObserved = true
+		close(m.sourceIPsInitialized)
+		return watch
+	}
+	if m.sourceIPs != sourceIPs {
+		m.log.Info(
+			"EVPN source IP changed, regenerating endpoints",
+			logfields.Interface, m.evpnConfig.SourceInterface,
+			logfields.Old, m.sourceIPs,
+			logfields.New, sourceIPs,
+		)
+		m.sourceIPs = sourceIPs
+		m.endpointManager.RegenerateAllEndpoints(&regeneration.ExternalRegenerationMetadata{
+			Reason:            regeneration.ReasonDeviceConfigurationChanged,
+			Message:           fmt.Sprintf("EVPN source IP on interface %s changed", m.evpnConfig.SourceInterface),
+			RegenerationLevel: regeneration.RegenerateWithDatapath,
+			ParentContext:     ctx,
+		}).Wait()
+	}
+	return watch
+}
+
+func (m *manager) resolveSourceIPs(health cell.Health) (evpnConfig.SourceIPs, <-chan struct{}) {
+	dev, _, watch, found := m.devices.GetWatch(m.db.ReadTxn(), tables.DeviceByName(m.evpnConfig.SourceInterface))
+	if !found {
+		m.log.Warn("EVPN source interface not found",
+			logfields.Interface, m.evpnConfig.SourceInterface,
+		)
+		health.Degraded(fmt.Sprintf("EVPN source interface %s not found", m.evpnConfig.SourceInterface), errors.New("interface not found"))
+		return evpnConfig.SourceIPs{}, watch
+	}
+	sourceIPs, err := evpnConfig.SourceIPsFromDevice(dev)
+	if err != nil {
+		m.log.Warn("Failed to resolve EVPN source IPs from source interface",
+			logfields.Interface, m.evpnConfig.SourceInterface,
+			logfields.Error, err,
+		)
+		health.Degraded(fmt.Sprintf("Failed to resolve EVPN source IPs on interface %s", m.evpnConfig.SourceInterface), err)
+		return evpnConfig.SourceIPs{}, watch
+	}
+	health.OK("EVPN source IPs resolved successfully")
+	return sourceIPs, watch
 }

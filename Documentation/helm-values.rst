@@ -1712,12 +1712,16 @@
      - Enables Security Group Tags in EVPN advertisements.
      - bool
      - ``false``
+   * - :spelling:ignore:`enterprise.evpn.sourceInterface`
+     - Interface to use as EVPN VXLAN packet source
+     - string
+     - ``""``
    * - :spelling:ignore:`enterprise.evpn.vxlanDevice`
-     - EVPN Vxlan device name
+     - EVPN VXLAN device name
      - string
      - ``"cilium_evpn"``
    * - :spelling:ignore:`enterprise.evpn.vxlanPort`
-     - EVPN Vxlan port number
+     - EVPN VXLAN port number
      - int
      - ``4789``
    * - :spelling:ignore:`enterprise.featureGate.approved`

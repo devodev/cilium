@@ -175,6 +175,7 @@ cilium-agent hive dot-graph [flags]
       --envoy-policy-restore-timeout duration                            Maximum time to wait for endpoint policy restoration before starting serving resources to Envoy (default 3m0s)
       --envoy-secrets-namespace string                                   EnvoySecretsNamespace is the namespace having secrets used by CEC
       --evpn-default-security-group-id uint16                            Default Security Group ID used in EVPN advertisements
+      --evpn-source-interface string                                     Interface to use as EVPN VXLAN packet source
       --evpn-vxlan-device string                                         VXLAN device setup and used for EVPN (default "cilium_evpn")
       --evpn-vxlan-port uint16                                           UDP port used for EVPN VXLAN tunnel (default 4789)
       --export-aggregation strings                                       Perform aggregation pre-storage ('connection', 'identity')

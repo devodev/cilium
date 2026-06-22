@@ -20,6 +20,12 @@ type BPFHostEnterprise struct {
 	EVPNDeviceMAC types.MACAddr `config:"evpn_device_mac"`
 	// True if evpn feature is enabled.
 	EVPNEnable bool `config:"evpn_enable"`
+	// The IPv4 source address used for evpn vxlan packets.
+	EVPNSourceIPv4 types.V4Addr `config:"evpn_source_ipv4"`
+	// The IPv6 source address used for evpn vxlan packets.
+	EVPNSourceIPv6 types.V6Addr `config:"evpn_source_ipv6"`
+	// True if an evpn source interface is configured.
+	EVPNSourceInterfaceConfigured bool `config:"evpn_source_interface_configured"`
 	// True if encryption policy default action is encrypt.
 	EncryptionPolicyFallbackEncrypt bool `config:"encryption_policy_fallback_encrypt"`
 	// True if running on network bridge.
@@ -41,6 +47,8 @@ type BPFHostEnterprise struct {
 func NewBPFHostEnterprise() *BPFHostEnterprise {
 	return &BPFHostEnterprise{0x0, 0x0,
 		cast[types.MACAddr]([]byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}),
+		false, cast[types.V4Addr]([]byte{0x0, 0x0, 0x0, 0x0}),
+		cast[types.V6Addr]([]byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}),
 		false, false, false, false, false, cast[types.V4Addr]([]byte{0x0, 0x0, 0x0, 0x0}),
 		cast[types.V6Addr]([]byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}),
 		false, 0x0}

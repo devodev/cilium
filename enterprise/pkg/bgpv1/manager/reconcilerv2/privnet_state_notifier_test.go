@@ -69,6 +69,13 @@ func TestPrivnetStateNotifier(t *testing.T) {
 						EnableBGPControlPlane: true,
 					}
 				},
+				func(m agent.BGPRouterManager) StateChangeNotifier {
+					// We only test OSS RouterManager here
+					// as we soon delete this
+					// StateChangeNotifier logic. Avoid
+					// getting rid of the import cycle.
+					return m.(*manager.BGPRouterManager)
+				},
 			),
 			cell.Invoke(
 				registerPrivnetStatusNotifier,
