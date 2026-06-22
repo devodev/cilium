@@ -407,12 +407,10 @@ type CTRecord struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Map kind
 	Kind CTMapKind `protobuf:"varint,1,opt,name=kind,proto3,enum=api.CTMapKind" json:"kind,omitempty"`
-	// Private network name or empty if kind is a global map
-	Network string `protobuf:"bytes,2,opt,name=network,proto3" json:"network,omitempty"`
 	// Connection tracking key
-	Key *CTKey `protobuf:"bytes,3,opt,name=key,proto3" json:"key,omitempty"`
+	Key *CTKey `protobuf:"bytes,2,opt,name=key,proto3" json:"key,omitempty"`
 	// Connection tracking value
-	Value         *CTValue `protobuf:"bytes,4,opt,name=value,proto3" json:"value,omitempty"`
+	Value         *CTValue `protobuf:"bytes,3,opt,name=value,proto3" json:"value,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -452,13 +450,6 @@ func (x *CTRecord) GetKind() CTMapKind {
 		return x.Kind
 	}
 	return CTMapKind_CT_MAP_KIND_UNSPECIFIED
-}
-
-func (x *CTRecord) GetNetwork() string {
-	if x != nil {
-		return x.Network
-	}
-	return ""
 }
 
 func (x *CTRecord) GetKey() *CTKey {
@@ -745,13 +736,12 @@ const file_v1_migration_proto_rawDesc = "" +
 	"\x12EndpointAddressing\x12\x12\n" +
 	"\x04ipv4\x18\x01 \x01(\fR\x04ipv4\x12\x12\n" +
 	"\x04ipv6\x18\x02 \x01(\fR\x04ipv6\x127\n" +
-	"\tlast_seen\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\blastSeen\"\x8a\x01\n" +
+	"\tlast_seen\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\blastSeen\"p\n" +
 	"\bCTRecord\x12\"\n" +
-	"\x04kind\x18\x01 \x01(\x0e2\x0e.api.CTMapKindR\x04kind\x12\x18\n" +
-	"\anetwork\x18\x02 \x01(\tR\anetwork\x12\x1c\n" +
-	"\x03key\x18\x03 \x01(\v2\n" +
+	"\x04kind\x18\x01 \x01(\x0e2\x0e.api.CTMapKindR\x04kind\x12\x1c\n" +
+	"\x03key\x18\x02 \x01(\v2\n" +
 	".api.CTKeyR\x03key\x12\"\n" +
-	"\x05value\x18\x04 \x01(\v2\f.api.CTValueR\x05value\"\xb2\x01\n" +
+	"\x05value\x18\x03 \x01(\v2\f.api.CTValueR\x05value\"\xb2\x01\n" +
 	"\x05CTKey\x12\x1b\n" +
 	"\tsource_ip\x18\x01 \x01(\fR\bsourceIp\x12\x17\n" +
 	"\adest_ip\x18\x02 \x01(\fR\x06destIp\x12\x1f\n" +
