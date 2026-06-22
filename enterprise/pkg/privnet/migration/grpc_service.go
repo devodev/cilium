@@ -77,16 +77,28 @@ func (s *service) Migrate(stream api.Migration_MigrateServer) error {
 		return status.Error(codes.InvalidArgument, err.Error())
 	}
 
+	// Extract source endpoint (identified by MAC address)
+	var ep endpoints.Endpoint
+	for e := range s.endpoints.GetEndpoints() {
+		if bytes.Equal(mac, e.LXCMac()) {
+			ep = e
+			break
+		}
+	}
+	if ep == nil {
+		return status.Errorf(codes.NotFound, "no endpoint found for MAC %s", mac)
+	}
+
 	// Send old endpoint addressing first. This is static information that
 	// doesn't have to be updated later, and the target endpoint needs to
 	// have it before it is activated.
-	err = s.sendEndpointAddresses(mac, stream)
+	err = s.sendEndpointAddresses(ep, stream)
 	if err != nil {
 		return err
 	}
 
 	// Send DHCP leases if any.
-	leaseWatch, err := s.sendLease(network, mac, stream)
+	leaseWatch, err := s.sendLease(network, ep, stream)
 	if err != nil {
 		return err
 	}
@@ -107,7 +119,7 @@ func (s *service) Migrate(stream api.Migration_MigrateServer) error {
 	case <-leaseWatch:
 		// Lease has changed while we waited for the target node to finalize.
 		// Send the latest version.
-		_, err = s.sendLease(network, mac, stream)
+		_, err = s.sendLease(network, ep, stream)
 		if err != nil {
 			return err
 		}
@@ -117,19 +129,7 @@ func (s *service) Migrate(stream api.Migration_MigrateServer) error {
 	return nil
 }
 
-func (s *service) sendEndpointAddresses(mac mac.MAC, stream api.Migration_MigrateServer) error {
-	// Extract source endpoint (identified by MAC address)
-	var ep endpoints.Endpoint
-	for e := range s.endpoints.GetEndpoints() {
-		if bytes.Equal(mac, e.LXCMac()) {
-			ep = e
-			break
-		}
-	}
-	if ep == nil {
-		return status.Errorf(codes.NotFound, "no endpoint found for MAC %s", mac)
-	}
-
+func (s *service) sendEndpointAddresses(ep endpoints.Endpoint, stream api.Migration_MigrateServer) error {
 	// If the source endpoint was already migrated recently, we want to preserve
 	// the previous addressing for the target endpoint.
 	prop, ok := endpoints.ExtractEndpointProperties(ep)
@@ -168,8 +168,8 @@ func (s *service) sendEndpointAddresses(mac mac.MAC, stream api.Migration_Migrat
 	})
 }
 
-func (s *service) sendLease(network tables.NetworkName, mac mac.MAC, stream api.Migration_MigrateServer) (<-chan struct{}, error) {
-	lease, _, watch, found := s.leases.GetWatch(s.db.ReadTxn(), tables.DHCPLeaseByNetworkMAC(network, mac))
+func (s *service) sendLease(network tables.NetworkName, ep endpoints.Endpoint, stream api.Migration_MigrateServer) (<-chan struct{}, error) {
+	lease, _, watch, found := s.leases.GetWatch(s.db.ReadTxn(), tables.DHCPLeaseByNetworkMAC(network, ep.LXCMac()))
 	if found {
 		return watch, stream.Send(&api.MigrationBatch{
 			DhcpLease: []*api.DHCPLease{
