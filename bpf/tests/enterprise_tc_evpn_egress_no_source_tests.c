@@ -54,7 +54,9 @@ int evpn_encap_and_redirect_no_source_ip_check(struct __ctx_buff *ctx)
 	});
 
 	TEST("evpn_encap_and_redirect IPv6 no source", {
-		ret = evpn_encap_and_redirect6(ctx, 1, 1, EVPN_V6_ADDR0, &trace);
+		union v6addr dst_ip = EVPN_V6_ADDR0;
+
+		ret = evpn_encap_and_redirect6(ctx, 1, 1, &dst_ip, &trace);
 		if (ret != TC_ACT_REDIRECT)
 			test_error("Expect TC_ACT_REDIRECT, but got %d", ret);
 

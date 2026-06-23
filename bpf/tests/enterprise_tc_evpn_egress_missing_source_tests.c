@@ -52,7 +52,9 @@ int evpn_encap_and_redirect_missing_source_ip_check(struct __ctx_buff *ctx)
 	});
 
 	TEST("evpn_encap_and_redirect IPv6 missing source", {
-		ret = evpn_encap_and_redirect6(ctx, 1, 1, EVPN_V6_ADDR0, &trace);
+		union v6addr dst_ip = EVPN_V6_ADDR0;
+
+		ret = evpn_encap_and_redirect6(ctx, 1, 1, &dst_ip, &trace);
 		if (ret != DROP_INVALID_SIP)
 			test_error("Expect DROP_INVALID_SIP, but got %d", ret);
 

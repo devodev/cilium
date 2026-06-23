@@ -187,9 +187,9 @@ evpn_encap_and_redirect4(struct __ctx_buff *ctx, __u16 net_id, __u32 sec_label,
 	return ctx_redirect(ctx, CONFIG(evpn_device_ifindex), 0);
 }
 
-static __always_inline __maybe_unused int
+__noinline __weak int
 evpn_encap_and_redirect6(struct __ctx_buff *ctx, __u16 net_id, __u32 sec_label,
-			 union v6addr dst_ip, struct trace_ctx *trace)
+			 const union v6addr *dst_ip, struct trace_ctx *trace)
 {
 	union macaddr evpn_mac = CONFIG(evpn_device_mac);
 	const struct evpn_fib_val *fib_val;
@@ -198,7 +198,10 @@ evpn_encap_and_redirect6(struct __ctx_buff *ctx, __u16 net_id, __u32 sec_label,
 	struct ethhdr *eth;
 	int ret;
 
-	fib_val = evpn_fib_lookup6(net_id, &dst_ip);
+	if (!dst_ip || !trace)
+		return DROP_INVALID;
+
+	fib_val = evpn_fib_lookup6(net_id, dst_ip);
 	if (!fib_val)
 		return DROP_UNROUTABLE;
 

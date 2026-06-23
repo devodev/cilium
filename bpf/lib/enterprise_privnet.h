@@ -1309,7 +1309,7 @@ privnet_local_access_egress_ipv6(struct __ctx_buff *ctx, __u32 sec_label,
 static __always_inline int
 privnet_evpn_egress_ipv6(struct __ctx_buff *ctx, __u16 net_id, __u32 sec_label,
 			 const struct privnet_fib_val *dip_val,
-			 union v6addr daddr, struct trace_ctx *trace)
+			 const union v6addr *daddr, struct trace_ctx *trace)
 {
 	if (CONFIG(evpn_enable) && dip_val->type == PRIVNET_FIB_VAL_TYPE_VXLAN_ROUTE)
 		return evpn_encap_and_redirect6(ctx, net_id, sec_label, daddr, trace);
@@ -1372,7 +1372,7 @@ static __always_inline int privnet_egress_ipv6(struct __ctx_buff *ctx,
 
 			/* We can return on redirect here as Privnet <=> EVPN communication doesn't require NAT */
 			ret = privnet_evpn_egress_ipv6(ctx, net_id, sec_label, dip_val,
-						       orig_dip, trace);
+						       &orig_dip, trace);
 			if (IS_ERR(ret) || ret == CTX_ACT_REDIRECT)
 				return ret;
 		}
