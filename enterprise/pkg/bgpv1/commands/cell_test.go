@@ -24,19 +24,16 @@ import (
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/manager/reconcilerv2"
 	ossCommands "github.com/cilium/cilium/pkg/bgp/commands"
 	ciliumHive "github.com/cilium/cilium/pkg/hive"
-	"github.com/cilium/cilium/pkg/option"
 )
 
 func TestBGPCommandOverride(t *testing.T) {
 	tests := []struct {
 		name              string
-		ossEnabled        bool
 		enterpriseEnabled bool
 		check             func(t *testing.T, bgpCommands ossCommands.BGPCommands, commands map[string]script.Cmd)
 	}{
 		{
-			name:              "OSS enabled Enterprise enabled",
-			ossEnabled:        true,
+			name:              "Enterprise enabled",
 			enterpriseEnabled: true,
 			check: func(t *testing.T, bgpCommands ossCommands.BGPCommands, commands map[string]script.Cmd) {
 				// Override should occur
@@ -45,28 +42,7 @@ func TestBGPCommandOverride(t *testing.T) {
 			},
 		},
 		{
-			name:              "OSS enabled Enterprise disabled",
-			ossEnabled:        true,
-			enterpriseEnabled: false,
-			check: func(t *testing.T, bgpCommands ossCommands.BGPCommands, commands map[string]script.Cmd) {
-				// No override should occur
-				require.Nil(t, bgpCommands["bgp/routes"])
-				require.Nil(t, bgpCommands["bgp/route-policies"])
-			},
-		},
-		{
-			name:              "OSS disabled Enterprise enabled",
-			ossEnabled:        false,
-			enterpriseEnabled: true,
-			check: func(t *testing.T, bgpCommands ossCommands.BGPCommands, commands map[string]script.Cmd) {
-				// Override should occur
-				require.NotNil(t, bgpCommands["bgp/routes"])
-				require.NotNil(t, bgpCommands["bgp/route-policies"])
-			},
-		},
-		{
-			name:              "OSS disabled Enterprise disabled",
-			ossEnabled:        false,
+			name:              "Enterprise disabled",
 			enterpriseEnabled: false,
 			check: func(t *testing.T, bgpCommands ossCommands.BGPCommands, commands map[string]script.Cmd) {
 				// No override should occur
@@ -86,11 +62,6 @@ func TestBGPCommandOverride(t *testing.T) {
 			h := ciliumHive.New(
 				Cell,
 				cell.Provide(
-					func() *option.DaemonConfig {
-						return &option.DaemonConfig{
-							EnableBGPControlPlane: tt.ossEnabled,
-						}
-					},
 					func() config.Config {
 						return config.Config{
 							Enabled: tt.enterpriseEnabled,

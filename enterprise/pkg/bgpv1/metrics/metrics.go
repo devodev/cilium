@@ -56,11 +56,6 @@ type collectorIn struct {
 // multiple times for each metric. Thus, we provide a raw Collector through
 // MustRegister interface. We may want to revisit this in the future.
 func RegisterCollector(in collectorIn) {
-	if in.DaemonConfig.EnableBGPControlPlane {
-		// Don't provide the collector if OSS BGP control plane is enabled. The
-		// same metrics are provided by the OSS.
-		return
-	}
 	if !in.Config.Enabled {
 		// Don't provide the collector if enterprise BGP control plane
 		// is disabled.

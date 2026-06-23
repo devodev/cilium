@@ -29,7 +29,6 @@ import (
 	v1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
 	"github.com/cilium/cilium/pkg/k8s/resource"
 	"github.com/cilium/cilium/pkg/logging/logfields"
-	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/time"
 )
 
@@ -75,7 +74,6 @@ type ControllerParams struct {
 	RouteMgr                EnterpriseBGPRouterManager
 	BGPNodeConfigStore      store.BGPCPResourceStore[*v1.IsovalentBGPNodeConfig]
 	BGPConfig               config.Config
-	DaemonConfig            *option.DaemonConfig
 	LocalCiliumNodeResource daemon_k8s.LocalCiliumNodeResource
 }
 
@@ -84,10 +82,7 @@ type ControllerParams struct {
 // When the constructor returns the Controller will be actively watching for
 // events and configuring BGP related sub-systems.
 func NewController(params ControllerParams) (*Controller, error) {
-	// If the Enterprise BGP control plane is disabled, or if the OSS BGP control plane is still enabled,
-	// just return nil. This way the hive dependency graph is always static regardless of config.
-	// The lifecycle has not been appended so no work will be done.
-	if !params.BGPConfig.Enabled || params.DaemonConfig.BGPControlPlaneEnabled() {
+	if !params.BGPConfig.Enabled {
 		return nil, nil
 	}
 

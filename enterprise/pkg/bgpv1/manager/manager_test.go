@@ -19,91 +19,66 @@ import (
 
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/agent"
-	ossAgent "github.com/cilium/cilium/pkg/bgp/agent"
+	"github.com/cilium/cilium/enterprise/pkg/bgpv1/manager/reconcilerv2"
 	"github.com/cilium/cilium/pkg/bgp/gobgp"
-	"github.com/cilium/cilium/pkg/bgp/manager"
+	ossManager "github.com/cilium/cilium/pkg/bgp/manager"
 	"github.com/cilium/cilium/pkg/bgp/manager/tables"
 	"github.com/cilium/cilium/pkg/hive"
 	"github.com/cilium/cilium/pkg/metrics"
-	"github.com/cilium/cilium/pkg/option"
 )
 
 func TestNewBGPRouterManager(t *testing.T) {
-	ossRouterManager := &manager.BGPRouterManager{}
-
 	tests := []struct {
 		name              string
-		ossEnabled        bool
 		enterpriseEnabled bool
-		check             func(t *testing.T, m agent.EnterpriseBGPRouterManager)
+		check             func(t *testing.T, m agent.EnterpriseBGPRouterManager, notifier reconcilerv2.StateChangeNotifier)
 	}{
 		{
-			name:              "OSS enabled Enterprise enabled",
-			ossEnabled:        true,
+			name:              "Enterprise enabled",
 			enterpriseEnabled: true,
-			check: func(t *testing.T, m agent.EnterpriseBGPRouterManager) {
+			check: func(t *testing.T, m agent.EnterpriseBGPRouterManager, notifier reconcilerv2.StateChangeNotifier) {
 				require.NotNil(t, m)
-				require.IsType(t, ossRouterManager, m)
-			},
-		},
-		{
-			name:              "OSS enabled Enterprise disabled",
-			ossEnabled:        true,
-			enterpriseEnabled: false,
-			check: func(t *testing.T, m agent.EnterpriseBGPRouterManager) {
-				require.NotNil(t, m)
-				require.IsType(t, ossRouterManager, m)
-			},
-		},
-		{
-			name:              "OSS disabled Enterprise enabled",
-			ossEnabled:        false,
-			enterpriseEnabled: true,
-			check: func(t *testing.T, m agent.EnterpriseBGPRouterManager) {
-				require.NotNil(t, m)
+				require.NotNil(t, notifier)
 				require.IsType(t, &BGPRouterManager{}, m)
+				require.Same(t, m, notifier)
 			},
 		},
 		{
-			name:              "OSS disabled Enterprise disabled",
-			ossEnabled:        false,
+			name:              "Enterprise disabled",
 			enterpriseEnabled: false,
-			check: func(t *testing.T, m agent.EnterpriseBGPRouterManager) {
+			check: func(t *testing.T, m agent.EnterpriseBGPRouterManager, notifier reconcilerv2.StateChangeNotifier) {
 				require.Nil(t, m)
+				require.Nil(t, notifier)
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var enterpriseRouterManager agent.EnterpriseBGPRouterManager
+			var (
+				enterpriseRouterManager agent.EnterpriseBGPRouterManager
+				notifier                reconcilerv2.StateChangeNotifier
+			)
 
 			h := hive.New(
-				metrics.Metric(manager.NewBGPManagerMetrics),
+				metrics.Metric(ossManager.NewBGPManagerMetrics),
 				cell.Provide(
 					gobgp.NewEnterpriseRouterProvider,
 					tables.NewBGPReconcileErrorTable,
-					func() *option.DaemonConfig {
-						return &option.DaemonConfig{
-							EnableBGPControlPlane: tt.ossEnabled,
-						}
-					},
 					func() config.Config {
 						return config.Config{
 							Enabled: tt.enterpriseEnabled,
 						}
 					},
-					func() ossAgent.BGPRouterManager {
-						return ossRouterManager
-					},
 					NewBGPRouterManager,
 				),
-				cell.Invoke(func(m agent.EnterpriseBGPRouterManager) {
+				cell.Invoke(func(m agent.EnterpriseBGPRouterManager, n reconcilerv2.StateChangeNotifier) {
 					enterpriseRouterManager = m
+					notifier = n
 				}),
 			)
 			require.NoError(t, h.Populate(hivetest.Logger(t)))
 
-			tt.check(t, enterpriseRouterManager)
+			tt.check(t, enterpriseRouterManager, notifier)
 		})
 	}
 }

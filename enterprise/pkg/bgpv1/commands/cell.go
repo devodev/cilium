@@ -17,14 +17,12 @@ import (
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/agent"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/manager/reconcilerv2"
 	ossCommands "github.com/cilium/cilium/pkg/bgp/commands"
-	"github.com/cilium/cilium/pkg/option"
 )
 
 // Override the OSS BGP commands with the enterprise-extended versions
 var Cell = cell.Group(
 	cell.DecorateAll(
 		func(
-			dc *option.DaemonConfig,
 			config config.Config,
 			bgpMgr agent.EnterpriseBGPRouterManager,
 			errorPathStore *reconcilerv2.ErrorPathStore,
@@ -32,8 +30,8 @@ var Cell = cell.Group(
 		) ossCommands.BGPCommands {
 			if config.Enabled {
 				// Override the OSS BGP commands with the
-				// enterprise-extended versions when both OSS
-				// enterprise BGP Control Plane is enabled.
+				// enterprise-extended versions when the enterprise
+				// BGP Control Plane is enabled.
 				ossCmds["bgp/peers"] = ossCommands.BGPPeersCmd(bgpMgr)
 				ossCmds["bgp/routes"] = BGPRoutesCmd(bgpMgr, errorPathStore)
 				ossCmds["bgp/route-policies"] = BGPPRoutePolicies(bgpMgr)

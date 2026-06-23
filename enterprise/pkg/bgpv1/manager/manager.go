@@ -57,7 +57,6 @@ type enterpriseBGPRouterManagerParams struct {
 	Logger              *slog.Logger
 	Lifecycle           cell.Lifecycle
 	JobGroup            job.Group
-	DaemonConfig        *option.DaemonConfig
 	BGPConfig           config.Config
 	Metrics             *ossManager.BGPManagerMetrics
 	DB                  *statedb.DB
@@ -65,7 +64,6 @@ type enterpriseBGPRouterManagerParams struct {
 	RouterProvider      entTypes.EnterpriseRouterProvider
 	Reconcilers         []reconcilerv2.EnterpriseConfigReconciler `group:"enterprise-bgp-config-reconciler"`
 	StateReconcilers    []reconcilerv2.EnterpriseStateReconciler  `group:"enterprise-bgp-state-reconciler"`
-	OSSRouterManager    ossAgent.BGPRouterManager
 }
 
 type State struct {
@@ -151,15 +149,9 @@ type BGPRouterManager struct {
 }
 
 // NewBGPRouterManager constructs a new BGPRouterManager.
-func NewBGPRouterManager(params enterpriseBGPRouterManagerParams) agent.EnterpriseBGPRouterManager {
-	// Whenever the OSS BGP Control Plane is enabled, keep using the OSS
-	// manager as EnterpriseBGPRouterManager.
-	if params.DaemonConfig.BGPControlPlaneEnabled() {
-		return params.OSSRouterManager.(agent.EnterpriseBGPRouterManager)
-	}
-
+func NewBGPRouterManager(params enterpriseBGPRouterManagerParams) (agent.EnterpriseBGPRouterManager, reconcilerv2.StateChangeNotifier) {
 	if !params.BGPConfig.Enabled {
-		return nil
+		return nil, nil
 	}
 
 	activeReconcilers := reconcilerv2.GetActiveEnterpriseReconcilers(params.Logger, params.Reconcilers)
@@ -213,7 +205,7 @@ func NewBGPRouterManager(params enterpriseBGPRouterManagerParams) agent.Enterpri
 		}),
 	)
 
-	return m
+	return m, m
 }
 
 func (m *BGPRouterManager) reconcileStateWithRetry(ctx context.Context) error {

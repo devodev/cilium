@@ -16,7 +16,6 @@ import (
 	restapi "github.com/cilium/cilium/api/v1/server/restapi/bgp"
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/agent"
-	"github.com/cilium/cilium/pkg/option"
 )
 
 var Cell = cell.Group(
@@ -28,11 +27,11 @@ var Cell = cell.Group(
 // Replace all OSS API handlers with the enterprise equivalent backed by the
 // enterprise Controller when only enterprise BGP Control Plane is enabled.
 // Otherwise, return the provided handler as is.
-func replaceHandler[T any](newHandler func(*agent.Controller) T) func(config.Config, *option.DaemonConfig, *agent.Controller, T) T {
-	return func(conf config.Config, dc *option.DaemonConfig, c *agent.Controller, h T) T {
-		if conf.Enabled && !dc.BGPControlPlaneEnabled() {
-			return newHandler(c)
+func replaceHandler[T any](newHandler func(*agent.Controller) T) func(config.Config, *agent.Controller, T) T {
+	return func(conf config.Config, c *agent.Controller, h T) T {
+		if !conf.Enabled {
+			return h
 		}
-		return h
+		return newHandler(c)
 	}
 }
