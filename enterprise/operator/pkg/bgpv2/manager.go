@@ -12,7 +12,6 @@ package bgpv2
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 
@@ -51,7 +50,6 @@ type BGPResourceMapper struct {
 	// BGPv2 Resources
 	clusterConfig      store.BGPCPResourceStore[*v1.IsovalentBGPClusterConfig]
 	peerConfig         store.BGPCPResourceStore[*v1.IsovalentBGPPeerConfig]
-	advertisements     store.BGPCPResourceStore[*v1.IsovalentBGPAdvertisement]
 	nodeConfigOverride store.BGPCPResourceStore[*v1.IsovalentBGPNodeConfigOverride]
 	vrf                store.BGPCPResourceStore[*v1alpha1.IsovalentVRF]
 	vrfConfig          store.BGPCPResourceStore[*v1alpha1.IsovalentBGPVRFConfig]
@@ -59,12 +57,6 @@ type BGPResourceMapper struct {
 	// for BGP node config, we do not need to trigger reconciliation on changes. So,
 	// we use store.Resource instead of store.BGPCPResourceStore.
 	nodeConfigStore resource.Store[*v1.IsovalentBGPNodeConfig]
-
-	// BGPv2 OSS resources
-	ossClusterConfigStore      resource.Store[*v2.CiliumBGPClusterConfig]
-	ossPeerConfigStore         resource.Store[*v2.CiliumBGPPeerConfig]
-	ossAdvertStore             resource.Store[*v2.CiliumBGPAdvertisement]
-	ossNodeConfigOverrideStore resource.Store[*v2.CiliumBGPNodeConfigOverride]
 
 	// Cilium node resource
 	ciliumNode store.BGPCPResourceStore[*v2.CiliumNode]
@@ -74,9 +66,6 @@ type BGPResourceMapper struct {
 
 	// Default RR peering mode
 	defaultRRPeeringAddressFamily v1.RouteReflectorPeeringAddressFamily
-
-	// toggle cee-oss resource mapping
-	enableOSSResourceMapping bool
 }
 
 type BGPResourceManagerParams struct {
@@ -93,17 +82,10 @@ type BGPResourceManagerParams struct {
 	// BGPv2 Resources
 	ClusterConfig      store.BGPCPResourceStore[*v1.IsovalentBGPClusterConfig]
 	PeerConfig         store.BGPCPResourceStore[*v1.IsovalentBGPPeerConfig]
-	Advertisements     store.BGPCPResourceStore[*v1.IsovalentBGPAdvertisement]
 	NodeConfigOverride store.BGPCPResourceStore[*v1.IsovalentBGPNodeConfigOverride]
 	VRF                store.BGPCPResourceStore[*v1alpha1.IsovalentVRF]
 	VRFConfig          store.BGPCPResourceStore[*v1alpha1.IsovalentBGPVRFConfig]
 	NodeConfig         resource.Resource[*v1.IsovalentBGPNodeConfig]
-
-	// BGPv2 OSS Resources
-	OSSClusterConfig      resource.Resource[*v2.CiliumBGPClusterConfig]
-	OSSPeerConfig         resource.Resource[*v2.CiliumBGPPeerConfig]
-	OSSAdvert             resource.Resource[*v2.CiliumBGPAdvertisement]
-	OSSNodeConfigOverride resource.Resource[*v2.CiliumBGPNodeConfigOverride]
 
 	// Cilium node resource
 	CiliumNode store.BGPCPResourceStore[*v2.CiliumNode]
@@ -115,21 +97,19 @@ func RegisterBGPResourceMapper(in BGPResourceManagerParams) error {
 	}
 
 	m := &BGPResourceMapper{
-		logger:                   in.Logger,
-		jobs:                     in.Jobs,
-		signal:                   in.Signal,
-		clientSet:                in.ClientSet,
-		dc:                       in.DaemonCfg,
-		metrics:                  in.Metrics,
-		clusterConfig:            in.ClusterConfig,
-		peerConfig:               in.PeerConfig,
-		advertisements:           in.Advertisements,
-		nodeConfigOverride:       in.NodeConfigOverride,
-		ciliumNode:               in.CiliumNode,
-		vrf:                      in.VRF,
-		vrfConfig:                in.VRFConfig,
-		enableStatusReporting:    in.Config.StatusReportEnabled,
-		enableOSSResourceMapping: in.DaemonCfg.BGPControlPlaneEnabled(),
+		logger:                in.Logger,
+		jobs:                  in.Jobs,
+		signal:                in.Signal,
+		clientSet:             in.ClientSet,
+		dc:                    in.DaemonCfg,
+		metrics:               in.Metrics,
+		clusterConfig:         in.ClusterConfig,
+		peerConfig:            in.PeerConfig,
+		nodeConfigOverride:    in.NodeConfigOverride,
+		ciliumNode:            in.CiliumNode,
+		vrf:                   in.VRF,
+		vrfConfig:             in.VRFConfig,
+		enableStatusReporting: in.Config.StatusReportEnabled,
 	}
 
 	switch {
@@ -147,26 +127,6 @@ func RegisterBGPResourceMapper(in BGPResourceManagerParams) error {
 			m.nodeConfigStore, err = in.NodeConfig.Store(ctx)
 			if err != nil {
 				return err
-			}
-
-			// initialize oss stores
-			if m.enableOSSResourceMapping {
-				m.ossClusterConfigStore, err = in.OSSClusterConfig.Store(ctx)
-				if err != nil {
-					return err
-				}
-				m.ossPeerConfigStore, err = in.OSSPeerConfig.Store(ctx)
-				if err != nil {
-					return err
-				}
-				m.ossAdvertStore, err = in.OSSAdvert.Store(ctx)
-				if err != nil {
-					return err
-				}
-				m.ossNodeConfigOverrideStore, err = in.OSSNodeConfigOverride.Store(ctx)
-				if err != nil {
-					return err
-				}
 			}
 
 			m.logger.Info("Enterprise BGPv2 control plane operator started")
@@ -233,17 +193,10 @@ func (m *BGPResourceMapper) reconcileWithRetry(ctx context.Context) error {
 }
 
 func (m *BGPResourceMapper) reconcile(ctx context.Context) error {
-	var err error
-
 	reconcileStart := time.Now()
 
-	if m.enableOSSResourceMapping {
-		err = m.reconcileMappings(ctx)
-	}
-
-	rErr := m.reconcileClusterConfigs(ctx)
-	if rErr != nil {
-		err = errors.Join(err, rErr)
+	err := m.reconcileClusterConfigs(ctx)
+	if err != nil {
 		m.metrics.ReconcileErrorsTotal.WithLabelValues(v1.IsovalentBGPClusterConfigKindDefinition).Inc()
 	}
 

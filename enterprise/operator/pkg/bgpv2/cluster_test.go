@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	k8sErrors "k8s.io/apimachinery/pkg/api/errors"
+	k8s_errors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -1682,6 +1683,91 @@ func upsertNode(req *require.Assertions, ctx context.Context, f *fixture, node *
 	} else {
 		node.SetResourceVersion(prev.GetResourceVersion())
 		_, err = f.nodeClient.Update(ctx, node, meta_v1.UpdateOptions{})
+	}
+	req.NoError(err)
+}
+
+func upsertIsoBGPCC(req *require.Assertions, ctx context.Context, f *fixture, bgpcc *v1.IsovalentBGPClusterConfig) {
+	if bgpcc == nil {
+		return
+	}
+
+	prev, err := f.isoClusterClient.Get(ctx, bgpcc.Name, meta_v1.GetOptions{})
+	if err != nil && k8sErrors.IsNotFound(err) {
+		_, err = f.isoClusterClient.Create(ctx, bgpcc, meta_v1.CreateOptions{})
+	} else if err != nil {
+		req.Fail(err.Error())
+	} else {
+		bgpcc.SetResourceVersion(prev.GetResourceVersion())
+		_, err = f.isoClusterClient.Update(ctx, bgpcc, meta_v1.UpdateOptions{})
+	}
+	req.NoError(err)
+}
+
+func upsertIsoBGPPC(req *require.Assertions, ctx context.Context, f *fixture, bgppc *v1.IsovalentBGPPeerConfig) {
+	if bgppc == nil {
+		return
+	}
+
+	prev, err := f.isoPeerConfClient.Get(ctx, bgppc.Name, meta_v1.GetOptions{})
+	if err != nil && k8sErrors.IsNotFound(err) {
+		_, err = f.isoPeerConfClient.Create(ctx, bgppc, meta_v1.CreateOptions{})
+	} else if err != nil {
+		req.Fail(err.Error())
+	} else {
+		bgppc.SetResourceVersion(prev.GetResourceVersion())
+		_, err = f.isoPeerConfClient.Update(ctx, bgppc, meta_v1.UpdateOptions{})
+	}
+	req.NoError(err)
+}
+
+func upsertIsoBGPNodeConfigOR(req *require.Assertions, ctx context.Context, f *fixture, bgpNodeConfigOR *v1.IsovalentBGPNodeConfigOverride) {
+	if bgpNodeConfigOR == nil {
+		return
+	}
+
+	prev, err := f.isoBGPNodeConfORClient.Get(ctx, bgpNodeConfigOR.Name, meta_v1.GetOptions{})
+	if err != nil && k8sErrors.IsNotFound(err) {
+		_, err = f.isoBGPNodeConfORClient.Create(ctx, bgpNodeConfigOR, meta_v1.CreateOptions{})
+	} else if err != nil {
+		req.Fail(err.Error())
+	} else {
+		bgpNodeConfigOR.SetResourceVersion(prev.GetResourceVersion())
+		_, err = f.isoBGPNodeConfORClient.Update(ctx, bgpNodeConfigOR, meta_v1.UpdateOptions{})
+	}
+	req.NoError(err)
+}
+
+func upsertIsoVrf(req *require.Assertions, ctx context.Context, f *fixture, vrf *v1alpha1.IsovalentVRF) {
+	if vrf == nil {
+		return
+	}
+
+	prev, err := f.isoVrfClient.Get(ctx, vrf.Name, meta_v1.GetOptions{})
+	if err != nil && k8s_errors.IsNotFound(err) {
+		_, err = f.isoVrfClient.Create(ctx, vrf, meta_v1.CreateOptions{})
+	} else if err != nil {
+		req.Fail(err.Error())
+	} else {
+		vrf.SetResourceVersion(prev.GetResourceVersion())
+		_, err = f.isoVrfClient.Update(ctx, vrf, meta_v1.UpdateOptions{})
+	}
+	req.NoError(err)
+}
+
+func upsertIsoBGPVrfConfig(req *require.Assertions, ctx context.Context, f *fixture, vrfConfig *v1alpha1.IsovalentBGPVRFConfig) {
+	if vrfConfig == nil {
+		return
+	}
+
+	prev, err := f.isoBGPVrfClient.Get(ctx, vrfConfig.Name, meta_v1.GetOptions{})
+	if err != nil && k8sErrors.IsNotFound(err) {
+		_, err = f.isoBGPVrfClient.Create(ctx, vrfConfig, meta_v1.CreateOptions{})
+	} else if err != nil {
+		req.Fail(err.Error())
+	} else {
+		vrfConfig.SetResourceVersion(prev.GetResourceVersion())
+		_, err = f.isoBGPVrfClient.Update(ctx, vrfConfig, meta_v1.UpdateOptions{})
 	}
 	req.NoError(err)
 }

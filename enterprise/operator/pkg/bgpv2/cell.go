@@ -11,6 +11,8 @@
 package bgpv2
 
 import (
+	"fmt"
+
 	"github.com/cilium/hive/cell"
 	"k8s.io/client-go/util/workqueue"
 
@@ -36,7 +38,6 @@ var Cell = cell.Module(
 	cell.Provide(
 		k8s.IsovalentBGPClusterConfigResource,
 		k8s.IsovalentBGPPeerConfigResource,
-		k8s.IsovalentBGPAdvertisementResource,
 		k8s.IsovalentBGPNodeConfigResource,
 		k8s.IsovalentBGPNodeConfigOverrideResource,
 		k8s.IsovalentVRFResource,
@@ -48,7 +49,6 @@ var Cell = cell.Module(
 		k8s.IsovalentBFDProfileResource,
 		store.NewBGPCPResourceStore[*v1.IsovalentBGPClusterConfig],
 		store.NewBGPCPResourceStore[*v1.IsovalentBGPPeerConfig],
-		store.NewBGPCPResourceStore[*v1.IsovalentBGPAdvertisement],
 		store.NewBGPCPResourceStore[*v1.IsovalentBGPNodeConfigOverride],
 		store.NewBGPCPResourceStore[*v1alpha1.IsovalentVRF],
 		store.NewBGPCPResourceStore[*v1alpha1.IsovalentBGPVRFConfig],
@@ -63,6 +63,14 @@ var Cell = cell.Module(
 	cell.Invoke(
 		RegisterBGPResourceMapper,
 		registerPeerConfigStatusReconciler,
+
+		// Raise error when OSS and enterprise BGP CPlane are both enabled
+		func(cfg config.Config, dc *option.DaemonConfig) error {
+			if cfg.Enabled && dc.BGPControlPlaneEnabled() {
+				return fmt.Errorf("OSS and Enterprise BGP Control Plane cannot be enabled at the same time")
+			}
+			return nil
+		},
 	),
 )
 
