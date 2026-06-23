@@ -1,8 +1,8 @@
 # Copyright (C) Isovalent, Inc. - All Rights Reserved.
 
 ARG TESTER_IMAGE=quay.io/cilium/image-tester:1755027438-ef4e849@sha256:ff0eb08901053e72afcfadc58e9d1736c6d1b257ffdf0779966d44e4872bfae5
-ARG UBI_MINI_IMAGE=registry.redhat.io/ubi9/ubi-minimal:9.8@sha256:5b74fce9d6e629942a0c6dc0f546c193e70d7f974d999a48c948c53dd3d36362
-ARG GOLANG_IMAGE=docker.io/library/golang:1.26.3@sha256:2d6c80227255c3112a4d08e67ba98e58efd3846daf15d9d7d4c389565d881b1a
+ARG UBI_MINI_IMAGE=registry.redhat.io/ubi9/ubi-minimal:9.8@sha256:ae09ecc3d754bc1726cbda3e2599cc7839e09fe1cc547ce173cf669b645be3cc
+ARG GOLANG_IMAGE=docker.io/library/golang:1.26.4@sha256:68cb6d68bed024785b69195b89af7ac7a444f27791435f98647edff595aa0479
 ARG CILIUM_LLVM_IMAGE=quay.io/isovalent-dev/cilium-llvm-ubi:1773727319-1c694cf@sha256:04f1764c41706e9a285f90d2ab1eb85242333ca2d966ed0d1885607d84a2544d
 ARG CILIUM_BPFTOOL_IMAGE=quay.io/isovalent-dev/cilium-bpftool-ubi:1773727319-1c694cf@sha256:c08fae92a12088b73d769d83246d68ce30d0e6a53810e39c6b132fce65beeb39
 ARG COMPILERS_IMAGE=quay.io/isovalent-dev/image-compilers-ubi:1773656974-2c62f04@sha256:5f74cfe5e037ba86cf50c5c570009bab11ceb608cc0096ca6e0a1d806130ec52
