@@ -21,6 +21,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	clientset "k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/util/retry"
 
 	isovalentv1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
 	isovalentv1alpha1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
@@ -235,53 +236,65 @@ func getK8sNodeWithIP(t T, k8sCli *clientset.Clientset, nodeIP string) *corev1.N
 }
 
 func markNodeAsUnschedulable(t T, k8sCli *clientset.Clientset, nodeName string) {
-	n, err := k8sCli.CoreV1().Nodes().Get(t.Context(), nodeName, metav1.GetOptions{})
-	if err != nil {
-		t.Failedf("failed to get node %s: %s", nodeName, err)
-	}
-
-	if n.Spec.Unschedulable {
-		t.Failedf("Node %s is already marked as unschedulable", n.Name)
-	}
-
-	for _, nt := range n.Spec.Taints {
-		if nt.Key == corev1.TaintNodeUnschedulable {
-			t.Failedf("Node %s is already tainted as unschedulable", n.Name)
+	err := retry.RetryOnConflict(bgpUpdateBackoff, func() error {
+		n, err := k8sCli.CoreV1().Nodes().Get(t.Context(), nodeName, metav1.GetOptions{})
+		if err != nil {
+			t.Failedf("failed to get node %s: %s", nodeName, err)
+			return nil
 		}
-	}
 
-	n.Spec.Taints = append(n.Spec.Taints, corev1.Taint{
-		Key:    corev1.TaintNodeUnschedulable,
-		Effect: corev1.TaintEffectNoSchedule,
-		TimeAdded: &metav1.Time{
-			Time: time.Now(),
-		},
+		if n.Spec.Unschedulable {
+			t.Failedf("Node %s is already marked as unschedulable", n.Name)
+			return nil
+		}
+
+		for _, nt := range n.Spec.Taints {
+			if nt.Key == corev1.TaintNodeUnschedulable {
+				t.Failedf("Node %s is already tainted as unschedulable", n.Name)
+				return nil
+			}
+		}
+
+		n.Spec.Taints = append(n.Spec.Taints, corev1.Taint{
+			Key:    corev1.TaintNodeUnschedulable,
+			Effect: corev1.TaintEffectNoSchedule,
+			TimeAdded: &metav1.Time{
+				Time: time.Now(),
+			},
+		})
+
+		n.Spec.Unschedulable = true
+
+		_, err = k8sCli.CoreV1().Nodes().Update(t.Context(), n, metav1.UpdateOptions{})
+		return err
 	})
-
-	n.Spec.Unschedulable = true
-
-	if _, err := k8sCli.CoreV1().Nodes().Update(t.Context(), n, metav1.UpdateOptions{}); err != nil {
+	if err != nil {
 		t.Failedf("failed to mark node as unschedulable: %s", err)
 	}
 }
 
 func markNodeAsSchedulable(t T, k8sCli *clientset.Clientset, nodeName string) {
-	n, err := k8sCli.CoreV1().Nodes().Get(t.Context(), nodeName, metav1.GetOptions{})
-	if err != nil {
-		t.Failedf("failed to get node %s: %s", nodeName, err)
-	}
-
-	newTaints := []corev1.Taint{}
-	for _, nt := range n.Spec.Taints {
-		if nt.Key != corev1.TaintNodeUnschedulable {
-			newTaints = append(newTaints, nt)
+	err := retry.RetryOnConflict(bgpUpdateBackoff, func() error {
+		n, err := k8sCli.CoreV1().Nodes().Get(t.Context(), nodeName, metav1.GetOptions{})
+		if err != nil {
+			t.Failedf("failed to get node %s: %s", nodeName, err)
+			return nil
 		}
-	}
-	n.Spec.Taints = newTaints
 
-	n.Spec.Unschedulable = false
+		newTaints := []corev1.Taint{}
+		for _, nt := range n.Spec.Taints {
+			if nt.Key != corev1.TaintNodeUnschedulable {
+				newTaints = append(newTaints, nt)
+			}
+		}
+		n.Spec.Taints = newTaints
 
-	if _, err := k8sCli.CoreV1().Nodes().Update(t.Context(), n, metav1.UpdateOptions{}); err != nil {
+		n.Spec.Unschedulable = false
+
+		_, err = k8sCli.CoreV1().Nodes().Update(t.Context(), n, metav1.UpdateOptions{})
+		return err
+	})
+	if err != nil {
 		t.Failedf("failed to mark node as schedulable: %s", err)
 	}
 }
