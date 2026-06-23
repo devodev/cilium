@@ -33,12 +33,10 @@ import (
 	"github.com/cilium/cilium/enterprise/pkg/rib"
 	"github.com/cilium/cilium/enterprise/pkg/vni"
 	"github.com/cilium/cilium/pkg/bgp/gobgp"
-	"github.com/cilium/cilium/pkg/bgp/manager/instance"
 	"github.com/cilium/cilium/pkg/bgp/types"
 	"github.com/cilium/cilium/pkg/container/bitlpm"
 	"github.com/cilium/cilium/pkg/datapath/tunnel"
 	"github.com/cilium/cilium/pkg/hive"
-	v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	v1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
 	"github.com/cilium/cilium/pkg/time"
 )
@@ -411,7 +409,7 @@ func TestEVPNParseExtendedCommunity(t *testing.T) {
 func TestEVPNRouteImport(t *testing.T) {
 	var (
 		RIB    *rib.RIB
-		router types.Router
+		router entTypes.EnterpriseRouter
 	)
 
 	h := hive.New(cell.Module(
@@ -443,8 +441,8 @@ func TestEVPNRouteImport(t *testing.T) {
 				logger *slog.Logger,
 				global types.BGPGlobal,
 				stateCh types.StateNotificationCh,
-			) (types.Router, error) {
-				return gobgp.NewGoBGPServer(
+			) (entTypes.EnterpriseRouter, error) {
+				return gobgp.NewEnterpriseGoBGPServer(
 					t.Context(),
 					logger,
 					types.ServerParameters{
@@ -453,36 +451,30 @@ func TestEVPNRouteImport(t *testing.T) {
 					},
 				)
 			},
-			func(router types.Router, global types.BGPGlobal) *instance.BGPInstance {
-				return &instance.BGPInstance{
+			func(router entTypes.EnterpriseRouter, global types.BGPGlobal) *EnterpriseBGPInstance {
+				return &EnterpriseBGPInstance{
 					Name:   "test",
 					Global: global,
 					Router: router,
-					Config: &v2.CiliumBGPNodeInstance{
+					Config: &v1.IsovalentBGPNodeInstance{
 						Name:     "test",
 						LocalASN: ptr.To[int64](65000),
+						VRFs: []v1.IsovalentBGPNodeVRF{
+							{
+								PrivateNetworkRef: &v1.BGPPrivateNetworkReference{
+									Name: "privnet0",
+								},
+								ImportRTs: []string{"65000:100"},
+							},
+							{
+								PrivateNetworkRef: &v1.BGPPrivateNetworkReference{
+									Name: "privnet1",
+								},
+								ImportRTs: []string{"65000:200"},
+							},
+						},
 					},
 				}
-			},
-			func(inst *instance.BGPInstance) paramUpgrader {
-				return newUpgraderMock(&v1.IsovalentBGPNodeInstance{
-					Name:     inst.Name,
-					LocalASN: inst.Config.LocalASN,
-					VRFs: []v1.IsovalentBGPNodeVRF{
-						{
-							PrivateNetworkRef: &v1.BGPPrivateNetworkReference{
-								Name: "privnet0",
-							},
-							ImportRTs: []string{"65000:100"},
-						},
-						{
-							PrivateNetworkRef: &v1.BGPPrivateNetworkReference{
-								Name: "privnet1",
-							},
-							ImportRTs: []string{"65000:200"},
-						},
-					},
-				})
 			},
 			tunnel.NewTestConfig,
 			func() tunnel.EncapProtocol {
@@ -495,7 +487,7 @@ func TestEVPNRouteImport(t *testing.T) {
 				db *statedb.DB,
 				table statedb.RWTable[tables.PrivateNetwork],
 				r *rib.RIB,
-				rtr types.Router,
+				rtr entTypes.EnterpriseRouter,
 			) {
 				RIB = r
 				router = rtr
@@ -562,7 +554,7 @@ func TestEVPNRouteImport(t *testing.T) {
 			},
 		},
 	}
-	err = router.(entTypes.EnterpriseRouter).AddRoutePolicyExtended(t.Context(), policy)
+	err = router.AddRoutePolicyExtended(t.Context(), policy)
 	require.NoError(t, err)
 
 	// Peering locally

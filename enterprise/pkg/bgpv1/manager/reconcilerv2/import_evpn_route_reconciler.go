@@ -29,7 +29,6 @@ import (
 	"github.com/cilium/cilium/enterprise/pkg/privnet/tables"
 	"github.com/cilium/cilium/enterprise/pkg/rib"
 	"github.com/cilium/cilium/enterprise/pkg/vni"
-	ossReconciler "github.com/cilium/cilium/pkg/bgp/manager/reconciler"
 	ossTypes "github.com/cilium/cilium/pkg/bgp/types"
 	"github.com/cilium/cilium/pkg/container/bitlpm"
 	v1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
@@ -42,9 +41,8 @@ type importEVPNRouteReconcilerIn struct {
 	EVPNConfig    evpnConfig.Config
 	PrivnetConfig privnetConfig.Config
 
-	Logger   *slog.Logger
-	RIB      *rib.RIB
-	Upgrader paramUpgrader
+	Logger *slog.Logger
+	RIB    *rib.RIB
 
 	DB             *statedb.DB
 	PrivnetTable   statedb.Table[tables.PrivateNetwork]
@@ -54,8 +52,7 @@ type importEVPNRouteReconcilerIn struct {
 type importEVPNRouteReconcilerOut struct {
 	cell.Out
 
-	EnterpriseReconciler EnterpriseStateReconciler     `group:"enterprise-bgp-state-reconciler"`
-	Reconciler           ossReconciler.StateReconciler `group:"bgp-state-reconciler"`
+	EnterpriseReconciler EnterpriseStateReconciler `group:"enterprise-bgp-state-reconciler"`
 }
 
 type importEVPNRouteReconciler struct {
@@ -82,7 +79,6 @@ func newImportEVPNRouteReconciler(in importEVPNRouteReconcilerIn) importEVPNRout
 
 	return importEVPNRouteReconcilerOut{
 		EnterpriseReconciler: r,
-		Reconciler:           newOSSStateReconcilerAdapter(r, in.Upgrader),
 	}
 }
 

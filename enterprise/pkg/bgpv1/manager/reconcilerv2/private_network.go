@@ -52,7 +52,6 @@ type PrivateNetworkReconcilerIn struct {
 	PrivnetConfig privnetConfig.Config
 
 	Signaler  *signaler.BGPCPSignaler
-	Upgrader  paramUpgrader
 	Adverts   *IsovalentAdvertisement
 	EVPNPaths *evpnPaths
 
@@ -65,8 +64,7 @@ type PrivateNetworkReconcilerIn struct {
 type PrivateNetworkReconcilerOut struct {
 	cell.Out
 
-	EnterpriseReconciler EnterpriseConfigReconciler     `group:"enterprise-bgp-config-reconciler"`
-	Reconciler           ossReconciler.ConfigReconciler `group:"bgp-config-reconciler"`
+	EnterpriseReconciler EnterpriseConfigReconciler `group:"enterprise-bgp-config-reconciler"`
 }
 
 type PrivateNetworkReconciler struct {
@@ -161,7 +159,6 @@ func NewPrivateNetworkReconciler(in PrivateNetworkReconcilerIn) PrivateNetworkRe
 
 	return PrivateNetworkReconcilerOut{
 		EnterpriseReconciler: r,
-		Reconciler:           newOSSConfigReconcilerAdapter(r, in.Upgrader),
 	}
 }
 

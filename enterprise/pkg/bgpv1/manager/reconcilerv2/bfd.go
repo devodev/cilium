@@ -28,7 +28,6 @@ import (
 	"github.com/cilium/cilium/enterprise/pkg/bfd/types"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/manager/instance"
 	"github.com/cilium/cilium/pkg/bgp/agent/signaler"
-	ossReconciler "github.com/cilium/cilium/pkg/bgp/manager/reconciler"
 	bgptypes "github.com/cilium/cilium/pkg/bgp/types"
 	v1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
 	"github.com/cilium/cilium/pkg/k8s/resource"
@@ -44,7 +43,6 @@ type BFDStateReconcilerIn struct {
 	BGPConfig config.Config
 	BFDCfg    types.BFDConfig
 	Signaler  *signaler.BGPCPSignaler
-	Upgrader  paramUpgrader
 
 	DB                    *statedb.DB
 	BFDPeersTable         statedb.Table[*types.BFDPeerStatus]
@@ -54,8 +52,7 @@ type BFDStateReconcilerIn struct {
 type BFDStateReconcilerOut struct {
 	cell.Out
 
-	EnterpriseReconciler EnterpriseConfigReconciler     `group:"enterprise-bgp-config-reconciler"`
-	Reconciler           ossReconciler.ConfigReconciler `group:"bgp-config-reconciler"`
+	EnterpriseReconciler EnterpriseConfigReconciler `group:"enterprise-bgp-config-reconciler"`
 }
 
 // BFDStateReconciler reconciles BFD peers' state into BGP router state - if a BFD peer
@@ -103,7 +100,6 @@ func NewBFDStateReconciler(p BFDStateReconcilerIn) BFDStateReconcilerOut {
 
 	return BFDStateReconcilerOut{
 		EnterpriseReconciler: r,
-		Reconciler:           newOSSConfigReconcilerAdapter(r, p.Upgrader),
 	}
 }
 

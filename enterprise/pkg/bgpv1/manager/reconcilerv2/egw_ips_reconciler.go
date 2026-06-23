@@ -38,15 +38,13 @@ type EGWIPsReconcilerIn struct {
 	BGPConfig      config.Config
 	DaemonConfig   *option.DaemonConfig
 	EGWIPsProvider egressgatewayha.EgressIPsProvider
-	Upgrader       paramUpgrader
 	PeerAdvert     *IsovalentAdvertisement
 }
 
 type EGWIPsReconcilerOut struct {
 	cell.Out
 
-	EnterpriseReconciler EnterpriseConfigReconciler     `group:"enterprise-bgp-config-reconciler"`
-	Reconciler           ossReconciler.ConfigReconciler `group:"bgp-config-reconciler"`
+	EnterpriseReconciler EnterpriseConfigReconciler `group:"enterprise-bgp-config-reconciler"`
 }
 
 func NewEgressGatewayIPsReconciler(params EGWIPsReconcilerIn) EGWIPsReconcilerOut {
@@ -62,7 +60,6 @@ func NewEgressGatewayIPsReconciler(params EGWIPsReconcilerIn) EGWIPsReconcilerOu
 	}
 	return EGWIPsReconcilerOut{
 		EnterpriseReconciler: r,
-		Reconciler:           newOSSConfigReconcilerAdapter(r, params.Upgrader),
 	}
 }
 

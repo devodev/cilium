@@ -84,9 +84,6 @@ func newBFDTestFixture(t *testing.T, ctx context.Context, nodeInstance *v1.Isova
 				NewBFDStateReconciler,
 
 				signaler.NewBGPCPSignaler,
-				func() paramUpgrader {
-					return newUpgraderMock(nodeInstance)
-				},
 
 				types.NewBFDPeersTable,
 				statedb.RWTable[*types.BFDPeerStatus].ToTable,

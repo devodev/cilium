@@ -38,8 +38,7 @@ var (
 type InterfaceReconcilerOut struct {
 	cell.Out
 
-	EnterpriseReconciler EnterpriseConfigReconciler     `group:"enterprise-bgp-config-reconciler"`
-	Reconciler           ossReconciler.ConfigReconciler `group:"bgp-config-reconciler"`
+	EnterpriseReconciler EnterpriseConfigReconciler `group:"enterprise-bgp-config-reconciler"`
 }
 
 type InterfaceReconcilerIn struct {
@@ -51,7 +50,6 @@ type InterfaceReconcilerIn struct {
 
 	DB          *statedb.DB
 	DeviceTable statedb.Table[*tables.Device]
-	Upgrader    paramUpgrader
 }
 
 type InterfaceReconciler struct {
@@ -81,7 +79,6 @@ func NewInterfaceReconciler(params InterfaceReconcilerIn) InterfaceReconcilerOut
 	}
 	return InterfaceReconcilerOut{
 		EnterpriseReconciler: r,
-		Reconciler:           newOSSConfigReconcilerAdapter(r, params.Upgrader),
 	}
 	// NOTE: there is no need to trigger reconciliation upon Device table changes,
 	// this is already done by the DefaultGatewayReconciler.

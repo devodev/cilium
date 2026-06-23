@@ -28,7 +28,6 @@ import (
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/utils"
 	"github.com/cilium/cilium/pkg/bgp/agent/signaler"
-	ossreconcilerv2 "github.com/cilium/cilium/pkg/bgp/manager/reconciler"
 	osstypes "github.com/cilium/cilium/pkg/bgp/types"
 	"github.com/cilium/cilium/pkg/datapath/tables"
 	v1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
@@ -44,7 +43,6 @@ type LinkLocalReconcilerIn struct {
 	Config    Config
 	BGPConfig config.Config
 	Signaler  *signaler.BGPCPSignaler
-	Upgrader  paramUpgrader
 	RADaemon  RADaemon
 
 	DB            *statedb.DB
@@ -55,8 +53,7 @@ type LinkLocalReconcilerIn struct {
 type LinkLocalReconcilerOut struct {
 	cell.Out
 
-	EnterpriseReconciler EnterpriseConfigReconciler       `group:"enterprise-bgp-config-reconciler"`
-	Reconciler           ossreconcilerv2.ConfigReconciler `group:"bgp-config-reconciler"`
+	EnterpriseReconciler EnterpriseConfigReconciler `group:"enterprise-bgp-config-reconciler"`
 }
 
 type LinkLocalReconciler struct {
@@ -113,7 +110,6 @@ func NewLinkLocalReconciler(params LinkLocalReconcilerIn) LinkLocalReconcilerOut
 
 	return LinkLocalReconcilerOut{
 		EnterpriseReconciler: r,
-		Reconciler:           newOSSConfigReconcilerAdapter(r, params.Upgrader),
 	}
 }
 

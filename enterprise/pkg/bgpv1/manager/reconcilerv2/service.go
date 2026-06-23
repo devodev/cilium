@@ -39,7 +39,6 @@ import (
 	"github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/labels"
 	slimmetav1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
 	"github.com/cilium/cilium/pkg/loadbalancer"
-	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/rate"
 	"github.com/cilium/cilium/pkg/svcrouteconfig"
 	"github.com/cilium/cilium/pkg/time"
@@ -78,26 +77,23 @@ type ServiceReconciler struct {
 type ServiceReconcilerOut struct {
 	cell.Out
 
-	EnterpriseReconciler EnterpriseConfigReconciler       `group:"enterprise-bgp-config-reconciler"`
-	Reconciler           ossreconcilerv2.ConfigReconciler `group:"bgp-config-reconciler"`
+	EnterpriseReconciler EnterpriseConfigReconciler `group:"enterprise-bgp-config-reconciler"`
 }
 
 type ServiceReconcilerIn struct {
 	cell.In
 	Lifecycle cell.Lifecycle
 
-	JobGroup     job.Group
-	DB           *statedb.DB
-	Frontends    statedb.Table[*loadbalancer.Frontend]
-	Cfg          Config
-	RoutesCfg    svcrouteconfig.RoutesConfig
-	BGPConfig    config.Config
-	DaemonConfig *option.DaemonConfig
-	Logger       *slog.Logger
-	Signaler     *signaler.BGPCPSignaler
-	Upgrader     paramUpgrader
-	PeerAdvert   *IsovalentAdvertisement
-	NSProvider   NodeStatusProvider
+	JobGroup   job.Group
+	DB         *statedb.DB
+	Frontends  statedb.Table[*loadbalancer.Frontend]
+	Cfg        Config
+	RoutesCfg  svcrouteconfig.RoutesConfig
+	BGPConfig  config.Config
+	Logger     *slog.Logger
+	Signaler   *signaler.BGPCPSignaler
+	PeerAdvert *IsovalentAdvertisement
+	NSProvider NodeStatusProvider
 }
 
 // ServiceReconcilerMetadata holds any announced service CIDRs per address family.
@@ -131,17 +127,11 @@ func NewServiceReconciler(in ServiceReconcilerIn) ServiceReconcilerOut {
 		peerAdvert:         in.PeerAdvert,
 		metadata:           make(map[string]ServiceReconcilerMetadata),
 	}
-	if !in.DaemonConfig.BGPControlPlaneEnabled() {
-		// Only register Service Frontend trigger when OSS is disabled.
-		// When both OSS and enterprise BGP CPlane are enabled, the OSS
-		// ServiceReconciler registers the same trigger.
-		in.JobGroup.Add(
-			job.OneShot("enterprise-frontend-events", r.processFrontendEvents),
-		)
-	}
+	in.JobGroup.Add(
+		job.OneShot("enterprise-frontend-events", r.processFrontendEvents),
+	)
 	return ServiceReconcilerOut{
 		EnterpriseReconciler: r,
-		Reconciler:           newOSSConfigReconcilerAdapter(r, in.Upgrader),
 	}
 }
 

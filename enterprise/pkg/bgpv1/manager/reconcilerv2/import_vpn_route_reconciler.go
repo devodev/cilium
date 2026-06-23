@@ -25,7 +25,6 @@ import (
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
 	"github.com/cilium/cilium/enterprise/pkg/rib"
 	srv6Types "github.com/cilium/cilium/enterprise/pkg/srv6/types"
-	ossReconciler "github.com/cilium/cilium/pkg/bgp/manager/reconciler"
 	"github.com/cilium/cilium/pkg/bgp/types"
 	"github.com/cilium/cilium/pkg/container/bitlpm"
 	v1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
@@ -38,8 +37,7 @@ import (
 type importVPNRouteReconcilerOut struct {
 	cell.Out
 
-	EnterpriseReconciler EnterpriseStateReconciler     `group:"enterprise-bgp-state-reconciler"`
-	Reconciler           ossReconciler.StateReconciler `group:"bgp-state-reconciler"`
+	EnterpriseReconciler EnterpriseStateReconciler `group:"enterprise-bgp-state-reconciler"`
 }
 
 func newImportVPNRouteStateReconciler(
@@ -49,7 +47,6 @@ func newImportVPNRouteStateReconciler(
 	daemonConfig *option.DaemonConfig,
 	reconciler *importVPNRouteReconciler,
 	legacyReconciler *legacyImportVPNRouteReconciler,
-	upgrader paramUpgrader,
 ) importVPNRouteReconcilerOut {
 	if !config.Enabled || !daemonConfig.EnableSRv6 {
 		return importVPNRouteReconcilerOut{}
@@ -58,12 +55,10 @@ func newImportVPNRouteStateReconciler(
 		logger.Info("Using legacy SRv6 Import VPN Route Reconciler")
 		return importVPNRouteReconcilerOut{
 			EnterpriseReconciler: legacyReconciler,
-			Reconciler:           newOSSStateReconcilerAdapter(legacyReconciler, upgrader),
 		}
 	}
 	return importVPNRouteReconcilerOut{
 		EnterpriseReconciler: reconciler,
-		Reconciler:           newOSSStateReconcilerAdapter(reconciler, upgrader),
 	}
 }
 

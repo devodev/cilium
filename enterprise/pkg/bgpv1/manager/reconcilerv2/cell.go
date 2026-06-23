@@ -24,7 +24,6 @@ import (
 // ConfigReconcilers contains cells of enterprise-only reconcilers
 var ConfigReconcilers = cell.Group(
 	cell.ProvidePrivate(
-		newReconcileParamsUpgrader,
 		newIsovalentAdvertisement,
 		newSRv6Paths,
 		newEVPNPaths,

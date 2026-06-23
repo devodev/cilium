@@ -48,7 +48,6 @@ type srv6LocatorPoolReconcilerIn struct {
 	DaemonConfig *option.DaemonConfig
 	BGPConfig    config.Config
 
-	Upgrader   paramUpgrader
 	PeerAdvert *IsovalentAdvertisement
 
 	SIDManagerPromise   promise.Promise[sidmanager.SIDManager]
@@ -58,8 +57,7 @@ type srv6LocatorPoolReconcilerIn struct {
 type srv6LocatorPoolReconcilerOut struct {
 	cell.Out
 
-	EnterpriseReconciler EnterpriseConfigReconciler  `group:"enterprise-bgp-config-reconciler"`
-	Reconciler           reconciler.ConfigReconciler `group:"bgp-config-reconciler"`
+	EnterpriseReconciler EnterpriseConfigReconciler `group:"enterprise-bgp-config-reconciler"`
 }
 
 type LocatorPoolReconciler struct {
@@ -141,7 +139,6 @@ func NewSRv6LocatorPoolReconciler(params srv6LocatorPoolReconcilerIn) srv6Locato
 
 	return srv6LocatorPoolReconcilerOut{
 		EnterpriseReconciler: r,
-		Reconciler:           newOSSConfigReconcilerAdapter(r, params.Upgrader),
 	}
 }
 

@@ -29,8 +29,7 @@ import (
 type PodCIDRReconcilerOut struct {
 	cell.Out
 
-	EnterpriseReconciler EnterpriseConfigReconciler     `group:"enterprise-bgp-config-reconciler"`
-	Reconciler           ossReconciler.ConfigReconciler `group:"bgp-config-reconciler"`
+	EnterpriseReconciler EnterpriseConfigReconciler `group:"enterprise-bgp-config-reconciler"`
 }
 
 type PodCIDRReconcilerIn struct {
@@ -40,7 +39,6 @@ type PodCIDRReconcilerIn struct {
 	Logger       *slog.Logger
 	PeerAdvert   *IsovalentAdvertisement
 	DaemonConfig *option.DaemonConfig
-	Upgrader     paramUpgrader
 }
 
 type PodCIDRReconciler struct {
@@ -72,7 +70,6 @@ func NewPodCIDRReconciler(params PodCIDRReconcilerIn) PodCIDRReconcilerOut {
 	}
 	return PodCIDRReconcilerOut{
 		EnterpriseReconciler: r,
-		Reconciler:           newOSSConfigReconcilerAdapter(r, params.Upgrader),
 	}
 }
 

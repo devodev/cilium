@@ -26,8 +26,6 @@ import (
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/fake"
 	"github.com/cilium/cilium/pkg/bgp/agent/signaler"
-	"github.com/cilium/cilium/pkg/bgp/manager/instance"
-	"github.com/cilium/cilium/pkg/bgp/manager/reconciler"
 	"github.com/cilium/cilium/pkg/datapath/tables"
 	"github.com/cilium/cilium/pkg/hive"
 	v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
@@ -41,11 +39,9 @@ const (
 type linkLocalTestFixture struct {
 	hive *hive.Hive
 
-	reconciler    *LinkLocalReconciler
-	ossReconciler reconciler.ConfigReconciler
-	bgpSignaler   *signaler.BGPCPSignaler
-	upgrader      *upgraderMock
-	raDaemon      *mockRADaemon
+	reconciler  *LinkLocalReconciler
+	bgpSignaler *signaler.BGPCPSignaler
+	raDaemon    *mockRADaemon
 
 	db            *statedb.DB
 	deviceTable   statedb.RWTable[*tables.Device]
@@ -69,11 +65,6 @@ func newLinkLocalTestFixture() *linkLocalTestFixture {
 				statedb.RWTable[*tables.Neighbor].ToTable,
 
 				signaler.NewBGPCPSignaler,
-				func() paramUpgrader {
-					out := newUpgraderMock(nil)
-					f.upgrader = out.(*upgraderMock)
-					return out
-				},
 				func() RADaemon {
 					f.raDaemon = &mockRADaemon{}
 					return f.raDaemon
@@ -83,7 +74,6 @@ func newLinkLocalTestFixture() *linkLocalTestFixture {
 			cell.Invoke(func(p LinkLocalReconcilerIn) {
 				out := NewLinkLocalReconciler(p)
 				f.reconciler = out.EnterpriseReconciler.(*LinkLocalReconciler)
-				f.ossReconciler = out.Reconciler
 			}),
 			cell.Invoke(func(sig *signaler.BGPCPSignaler) {
 				f.bgpSignaler = sig
@@ -102,17 +92,13 @@ func newLinkLocalTestFixture() *linkLocalTestFixture {
 }
 
 func TestLinkLocalReconciler(t *testing.T) {
-	instance := &instance.BGPInstance{
+	instance := &EnterpriseBGPInstance{
 		Name:   "test-instance",
 		Router: fake.NewEnterpriseFakeRouter(),
 	}
 	iNodeInstance := &v1.IsovalentBGPNodeInstance{
 		Name:     instance.Name,
 		LocalASN: ptr.To[int64](65001),
-	}
-	ossNodeInstance := &v2.CiliumBGPNodeInstance{
-		Name:     iNodeInstance.Name,
-		LocalASN: iNodeInstance.LocalASN,
 	}
 	ciliumNode := &v2.CiliumNode{}
 
@@ -335,8 +321,7 @@ func TestLinkLocalReconciler(t *testing.T) {
 	t.Cleanup(func() {
 		f.hive.Stop(log, context.Background())
 	})
-	f.ossReconciler.Init(instance)
-	f.upgrader.setNodeInstance(iNodeInstance)
+	f.reconciler.Init(instance)
 
 	// write devices to statedb
 	txn := f.db.WriteTxn(f.deviceTable)
@@ -352,13 +337,6 @@ func TestLinkLocalReconciler(t *testing.T) {
 
 			// set initial peers
 			iNodeInstance.Peers = tt.initPeers
-			ossNodeInstance.Peers = nil
-			for _, peer := range tt.initPeers {
-				ossNodeInstance.Peers = append(ossNodeInstance.Peers, v2.CiliumBGPNodePeer{
-					Name:        peer.Name,
-					PeerAddress: peer.PeerAddress,
-				})
-			}
 
 			// drain signaller channel
 			for i := 0; i < len(f.bgpSignaler.Sig); i++ {
@@ -387,19 +365,16 @@ func TestLinkLocalReconciler(t *testing.T) {
 			}
 
 			// run reconciliation
-			reconcileParams := reconciler.ReconcileParams{
+			reconcileParams := EnterpriseReconcileParams{
 				BGPInstance:   instance,
-				DesiredConfig: ossNodeInstance,
+				DesiredConfig: iNodeInstance,
 				CiliumNode:    ciliumNode,
 			}
-			err = f.ossReconciler.Reconcile(testCtx, reconcileParams)
+			err = f.reconciler.Reconcile(testCtx, reconcileParams)
 			require.NoError(t, err)
 
-			// verify expected peers in CEE and OSS instances
+			// verify expected peers in CEE instance
 			require.Equal(t, tt.expectedPeers, iNodeInstance.Peers)
-			for i := range tt.expectedPeers {
-				require.Equal(t, tt.expectedPeers[i].PeerAddress, ossNodeInstance.Peers[i].PeerAddress)
-			}
 
 			verifyRAInterfaces(t, f, tt.expectedRAInterfaces)
 		})
@@ -578,34 +553,23 @@ func TestLinkLocalReconcilerMultipleInstances(t *testing.T) {
 			var err error
 
 			// configure instances
-			instance := &instance.BGPInstance{
+			instance := &EnterpriseBGPInstance{
 				Name:   tt.nodeInstance.Name,
 				Router: fake.NewEnterpriseFakeRouter(),
 			}
-			ossNodeInstance := &v2.CiliumBGPNodeInstance{
-				Name:     tt.nodeInstance.Name,
-				LocalASN: tt.nodeInstance.LocalASN,
-			}
-			for _, peer := range tt.nodeInstance.Peers {
-				ossNodeInstance.Peers = append(ossNodeInstance.Peers, v2.CiliumBGPNodePeer{
-					Name:        peer.Name,
-					PeerAddress: peer.PeerAddress,
-				})
-			}
 			if tt.deleteInstance {
-				f.ossReconciler.Cleanup(instance)
+				f.reconciler.Cleanup(instance)
 				return
 			}
-			f.ossReconciler.Init(instance)
-			f.upgrader.setNodeInstance(tt.nodeInstance)
+			f.reconciler.Init(instance)
 
 			// run reconciliation
-			reconcileParams := reconciler.ReconcileParams{
+			reconcileParams := EnterpriseReconcileParams{
 				BGPInstance:   instance,
-				DesiredConfig: ossNodeInstance,
+				DesiredConfig: tt.nodeInstance,
 				CiliumNode:    &v2.CiliumNode{},
 			}
-			err = f.ossReconciler.Reconcile(testCtx, reconcileParams)
+			err = f.reconciler.Reconcile(testCtx, reconcileParams)
 			require.NoError(t, err)
 
 			verifyRAInterfaces(t, f, tt.expectedRAInterfaces)

@@ -30,12 +30,10 @@ import (
 	"github.com/cilium/cilium/enterprise/pkg/rib"
 	srv6Types "github.com/cilium/cilium/enterprise/pkg/srv6/types"
 	"github.com/cilium/cilium/pkg/bgp/gobgp"
-	"github.com/cilium/cilium/pkg/bgp/manager/instance"
 	"github.com/cilium/cilium/pkg/bgp/types"
 	"github.com/cilium/cilium/pkg/container/bitlpm"
 	"github.com/cilium/cilium/pkg/hive"
 	"github.com/cilium/cilium/pkg/k8s"
-	v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	v1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
 	"github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
 	k8sfake "github.com/cilium/cilium/pkg/k8s/client/testutils"
@@ -171,7 +169,7 @@ func TestParseMPReachNLRI(t *testing.T) {
 func TestSRv6RouteImport(t *testing.T) {
 	var (
 		RIB    *rib.RIB
-		router types.Router
+		router entTypes.EnterpriseRouter
 	)
 
 	hive := hive.New(cell.Module(
@@ -221,8 +219,8 @@ func TestSRv6RouteImport(t *testing.T) {
 				logger *slog.Logger,
 				global types.BGPGlobal,
 				stateCh types.StateNotificationCh,
-			) (types.Router, error) {
-				return gobgp.NewGoBGPServer(
+			) (entTypes.EnterpriseRouter, error) {
+				return gobgp.NewEnterpriseGoBGPServer(
 					t.Context(),
 					logger,
 					types.ServerParameters{
@@ -231,39 +229,33 @@ func TestSRv6RouteImport(t *testing.T) {
 					},
 				)
 			},
-			func(router types.Router, global types.BGPGlobal) *instance.BGPInstance {
-				return &instance.BGPInstance{
+			func(router entTypes.EnterpriseRouter, global types.BGPGlobal) *EnterpriseBGPInstance {
+				return &EnterpriseBGPInstance{
 					Name:   "test",
 					Global: global,
 					Router: router,
-					Config: &v2.CiliumBGPNodeInstance{
+					Config: &v1.IsovalentBGPNodeInstance{
 						Name:     "test",
 						LocalASN: ptr.To[int64](65000),
+						VRFs: []v1.IsovalentBGPNodeVRF{
+							{
+								VRFRef:    ptr.To("vrf0"),
+								ImportRTs: []string{"65000:1"},
+							},
+							{
+								VRFRef:    ptr.To("vrf1"),
+								ImportRTs: []string{"65000:2"},
+							},
+						},
 					},
 				}
-			},
-			func(inst *instance.BGPInstance) paramUpgrader {
-				return newUpgraderMock(&v1.IsovalentBGPNodeInstance{
-					Name:     inst.Name,
-					LocalASN: inst.Config.LocalASN,
-					VRFs: []v1.IsovalentBGPNodeVRF{
-						{
-							VRFRef:    ptr.To("vrf0"),
-							ImportRTs: []string{"65000:1"},
-						},
-						{
-							VRFRef:    ptr.To("vrf1"),
-							ImportRTs: []string{"65000:2"},
-						},
-					},
-				})
 			},
 		),
 		cell.Invoke(
 			registerMockStateReconciler,
 			func(
 				r *rib.RIB,
-				rtr types.Router,
+				rtr entTypes.EnterpriseRouter,
 			) {
 				RIB = r
 				router = rtr
@@ -337,7 +329,7 @@ func TestSRv6RouteImport(t *testing.T) {
 			},
 		},
 	}
-	err = router.(entTypes.EnterpriseRouter).AddRoutePolicyExtended(t.Context(), policy)
+	err = router.AddRoutePolicyExtended(t.Context(), policy)
 	require.NoError(t, err)
 
 	// Peering locally

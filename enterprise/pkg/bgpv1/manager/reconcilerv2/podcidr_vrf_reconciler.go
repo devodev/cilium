@@ -41,7 +41,6 @@ type PodCIDRVRFReconcilerIn struct {
 	DaemonConfig *option.DaemonConfig
 	Config       config.Config
 	Adverts      *IsovalentAdvertisement
-	Upgrader     paramUpgrader
 	SRv6Paths    *srv6Paths
 	SRv6Manager  *srv6.Manager
 }
@@ -49,8 +48,7 @@ type PodCIDRVRFReconcilerIn struct {
 type PodCIDRVRFReconcilerOut struct {
 	cell.Out
 
-	EnterpriseReconciler EnterpriseConfigReconciler     `group:"enterprise-bgp-config-reconciler"`
-	Reconciler           ossReconciler.ConfigReconciler `group:"bgp-config-reconciler"`
+	EnterpriseReconciler EnterpriseConfigReconciler `group:"enterprise-bgp-config-reconciler"`
 }
 
 type PodCIDRVRFReconciler struct {
@@ -87,7 +85,6 @@ func NewPodCIDRVRFReconciler(in PodCIDRVRFReconcilerIn) PodCIDRVRFReconcilerOut 
 
 	return PodCIDRVRFReconcilerOut{
 		EnterpriseReconciler: pr,
-		Reconciler:           newOSSConfigReconcilerAdapter(pr, in.Upgrader),
 	}
 }
 

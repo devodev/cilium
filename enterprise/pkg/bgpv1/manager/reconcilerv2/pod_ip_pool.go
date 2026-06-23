@@ -41,8 +41,7 @@ const (
 type PodIPPoolReconcilerOut struct {
 	cell.Out
 
-	EnterpriseReconciler EnterpriseConfigReconciler     `group:"enterprise-bgp-config-reconciler"`
-	Reconciler           ossReconciler.ConfigReconciler `group:"bgp-config-reconciler"`
+	EnterpriseReconciler EnterpriseConfigReconciler `group:"enterprise-bgp-config-reconciler"`
 }
 
 type PodIPPoolReconcilerIn struct {
@@ -51,7 +50,6 @@ type PodIPPoolReconcilerIn struct {
 	Logger     *slog.Logger
 	PeerAdvert *IsovalentAdvertisement
 	PoolStore  store.BGPCPResourceStore[*v2alpha1.CiliumPodIPPool]
-	Upgrader   paramUpgrader
 }
 
 type PodIPPoolReconciler struct {
@@ -80,7 +78,6 @@ func NewPodIPPoolReconciler(in PodIPPoolReconcilerIn) PodIPPoolReconcilerOut {
 	}
 	return PodIPPoolReconcilerOut{
 		EnterpriseReconciler: r,
-		Reconciler:           newOSSConfigReconcilerAdapter(r, in.Upgrader),
 	}
 }
 

@@ -68,10 +68,6 @@ func newCRDStatusFixture(l *slog.Logger) *crdStatusFixture {
 			f.bgpncMockStore = store.NewMockBGPCPResourceStore[*v1.IsovalentBGPNodeConfig]()
 			return f.bgpncMockStore
 		}),
-		cell.Provide(func() paramUpgrader {
-			// Status reconciler does not use the upgrader
-			return newUpgraderMock(nil)
-		}),
 		cell.Provide(func() *node.LocalNodeStore {
 			return node.NewTestLocalNodeStore(node.LocalNode{
 				Node: nodetypes.Node{

@@ -24,7 +24,6 @@ import (
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/manager/instance"
 	entTypes "github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
 	evpnConfig "github.com/cilium/cilium/enterprise/pkg/evpn/config"
-	ossReconciler "github.com/cilium/cilium/pkg/bgp/manager/reconciler"
 	"github.com/cilium/cilium/pkg/bgp/types"
 	v1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
 	"github.com/cilium/cilium/pkg/k8s/resource"
@@ -34,8 +33,7 @@ import (
 type VPNRoutePolicyReconcilerOut struct {
 	cell.Out
 
-	EnterpriseReconciler EnterpriseConfigReconciler     `group:"enterprise-bgp-config-reconciler"`
-	Reconciler           ossReconciler.ConfigReconciler `group:"bgp-config-reconciler"`
+	EnterpriseReconciler EnterpriseConfigReconciler `group:"enterprise-bgp-config-reconciler"`
 }
 
 type VPNRoutePolicyReconcilerIn struct {
@@ -46,7 +44,6 @@ type VPNRoutePolicyReconcilerIn struct {
 	DaemonConfig *option.DaemonConfig
 
 	Logger          *slog.Logger
-	Upgrader        paramUpgrader
 	PeerConfigStore resource.Resource[*v1.IsovalentBGPPeerConfig]
 	Group           job.Group
 }
@@ -88,7 +85,6 @@ func NewVPNRoutePolicyReconciler(in VPNRoutePolicyReconcilerIn) VPNRoutePolicyRe
 
 	return VPNRoutePolicyReconcilerOut{
 		EnterpriseReconciler: rp,
-		Reconciler:           newOSSConfigReconcilerAdapter(rp, in.Upgrader),
 	}
 }
 

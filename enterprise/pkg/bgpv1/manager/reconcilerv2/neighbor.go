@@ -24,7 +24,6 @@ import (
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/manager/instance"
 	enterpriseTypes "github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
-	ossReconciler "github.com/cilium/cilium/pkg/bgp/manager/reconciler"
 	"github.com/cilium/cilium/pkg/bgp/manager/store"
 	"github.com/cilium/cilium/pkg/bgp/types"
 	"github.com/cilium/cilium/pkg/datapath/tables"
@@ -54,8 +53,7 @@ var _ EnterpriseConfigReconciler = (*NeighborReconciler)(nil)
 type NeighborReconcilerOut struct {
 	cell.Out
 
-	Reconciler    EnterpriseConfigReconciler     `group:"enterprise-bgp-config-reconciler"`
-	OSSReconciler ossReconciler.ConfigReconciler `group:"bgp-config-reconciler"`
+	Reconciler EnterpriseConfigReconciler `group:"enterprise-bgp-config-reconciler"`
 }
 
 type NeighborReconcilerIn struct {
@@ -69,7 +67,6 @@ type NeighborReconcilerIn struct {
 	DaemonConfig     *option.DaemonConfig
 	DB               *statedb.DB
 	DeviceTable      statedb.Table[*tables.Device]
-	Upgrader         paramUpgrader
 }
 
 func NewNeighborReconciler(params NeighborReconcilerIn) NeighborReconcilerOut {
@@ -89,8 +86,7 @@ func NewNeighborReconciler(params NeighborReconcilerIn) NeighborReconcilerOut {
 		metadata:         make(map[string]*NeighborReconcilerMetadata),
 	}
 	return NeighborReconcilerOut{
-		Reconciler:    r,
-		OSSReconciler: newOSSConfigReconcilerAdapter(r, params.Upgrader),
+		Reconciler: r,
 	}
 	// NOTE: there is no need to trigger reconciliation upon Device table changes,
 	// this is already done by the DefaultGatewayReconciler.

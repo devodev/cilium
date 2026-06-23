@@ -79,14 +79,12 @@ type StatusReconcilerIn struct {
 	DB                  *statedb.DB
 	ReconcileErrorTable statedb.RWTable[*tables.BGPReconcileError]
 	BGPNodeConfig       store.BGPCPResourceStore[*v1.IsovalentBGPNodeConfig]
-	Upgrader            paramUpgrader
 }
 
 type StatusReconcilerOut struct {
 	cell.Out
 
-	EnterpriseReconciler EnterpriseStateReconciler     `group:"enterprise-bgp-state-reconciler"`
-	Reconciler           ossReconciler.StateReconciler `group:"bgp-state-reconciler"`
+	EnterpriseReconciler EnterpriseStateReconciler `group:"enterprise-bgp-state-reconciler"`
 }
 
 func NewStatusReconciler(in StatusReconcilerIn) StatusReconcilerOut {
@@ -182,7 +180,6 @@ func NewStatusReconciler(in StatusReconcilerIn) StatusReconcilerOut {
 
 	return StatusReconcilerOut{
 		EnterpriseReconciler: r,
-		Reconciler:           newOSSStateReconcilerAdapter(r, in.Upgrader),
 	}
 }
 

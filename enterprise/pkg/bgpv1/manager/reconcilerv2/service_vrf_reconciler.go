@@ -47,7 +47,6 @@ type ServiceVRFReconcilerIn struct {
 	DB           *statedb.DB
 	Frontends    statedb.Table[*loadbalancer.Frontend]
 	Adverts      *IsovalentAdvertisement
-	Upgrader     paramUpgrader
 	SRv6Paths    *srv6Paths
 	SRv6Manager  *srv6.Manager
 }
@@ -55,8 +54,7 @@ type ServiceVRFReconcilerIn struct {
 type ServiceVRFReconcilerOut struct {
 	cell.Out
 
-	EnterpriseReconciler EnterpriseConfigReconciler     `group:"enterprise-bgp-config-reconciler"`
-	Reconciler           ossReconciler.ConfigReconciler `group:"bgp-config-reconciler"`
+	EnterpriseReconciler EnterpriseConfigReconciler `group:"enterprise-bgp-config-reconciler"`
 }
 
 type ServiceVRFReconciler struct {
@@ -86,7 +84,6 @@ func NewServiceVRFReconciler(in ServiceVRFReconcilerIn) ServiceVRFReconcilerOut 
 
 	return ServiceVRFReconcilerOut{
 		EnterpriseReconciler: r,
-		Reconciler:           newOSSConfigReconcilerAdapter(r, in.Upgrader),
 	}
 }
 

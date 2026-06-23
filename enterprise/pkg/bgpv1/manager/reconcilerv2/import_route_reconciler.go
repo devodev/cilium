@@ -25,7 +25,6 @@ import (
 
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
-	ossReconciler "github.com/cilium/cilium/pkg/bgp/manager/reconciler"
 	ossTypes "github.com/cilium/cilium/pkg/bgp/types"
 	routeReconciler "github.com/cilium/cilium/pkg/datapath/linux/route/reconciler"
 	"github.com/cilium/cilium/pkg/datapath/tables"
@@ -43,8 +42,7 @@ const (
 type importRouteReconcilerOut struct {
 	cell.Out
 
-	EnterpriseReconciler EnterpriseStateReconciler     `group:"enterprise-bgp-state-reconciler"`
-	Reconciler           ossReconciler.StateReconciler `group:"bgp-state-reconciler"`
+	EnterpriseReconciler EnterpriseStateReconciler `group:"enterprise-bgp-state-reconciler"`
 }
 
 type importRouteReconcilerIn struct {
@@ -53,7 +51,6 @@ type importRouteReconcilerIn struct {
 	Logger              *slog.Logger
 	Config              config.Config
 	EnterpriseConfig    Config
-	Upgrader            paramUpgrader
 	DB                  *statedb.DB
 	DesiredRouteManager *routeReconciler.DesiredRouteManager
 	DesiredRouteTable   statedb.Table[*routeReconciler.DesiredRoute]
@@ -86,7 +83,6 @@ func newImportRouteReconciler(in importRouteReconcilerIn) importRouteReconcilerO
 
 	return importRouteReconcilerOut{
 		EnterpriseReconciler: r,
-		Reconciler:           newOSSStateReconcilerAdapter(r, in.Upgrader),
 	}
 }
 

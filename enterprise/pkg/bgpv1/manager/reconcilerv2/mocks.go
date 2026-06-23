@@ -24,12 +24,10 @@ import (
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/cache"
 
+	enterpriseInstance "github.com/cilium/cilium/enterprise/pkg/bgpv1/manager/instance"
 	"github.com/cilium/cilium/enterprise/pkg/egressgatewayha"
 	srv6 "github.com/cilium/cilium/enterprise/pkg/srv6/srv6manager"
-	"github.com/cilium/cilium/pkg/bgp/manager/instance"
-	"github.com/cilium/cilium/pkg/bgp/manager/reconciler"
 	"github.com/cilium/cilium/pkg/bgp/types"
-	v1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
 	"github.com/cilium/cilium/pkg/k8s/resource"
 	k8sLabels "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/labels"
 	slimv1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
@@ -71,44 +69,6 @@ func (e *egwManagerMock) AdvertisedEgressIPs(policySelector *slimv1.LabelSelecto
 	}
 
 	return result, nil
-}
-
-// upgraderMock is a mock implementation of paramUpgrader. This is used to provide the IsovalentBGPNodeInstance
-// configuration for the tests.
-type upgraderMock struct {
-	bgpNodeInstance *v1.IsovalentBGPNodeInstance
-}
-
-func newUpgraderMock(n *v1.IsovalentBGPNodeInstance) paramUpgrader {
-	return &upgraderMock{
-		bgpNodeInstance: n,
-	}
-}
-
-func (u *upgraderMock) setNodeInstance(n *v1.IsovalentBGPNodeInstance) {
-	u.bgpNodeInstance = n
-}
-
-func (u *upgraderMock) upgrade(params reconciler.ReconcileParams) (EnterpriseReconcileParams, error) {
-	return EnterpriseReconcileParams{
-		BGPInstance: &EnterpriseBGPInstance{
-			Name:   params.BGPInstance.Name,
-			Router: upgradeRouter(params.BGPInstance.Router),
-			Global: params.BGPInstance.Global,
-		},
-		DesiredConfig: u.bgpNodeInstance, // put provided isovalentBGPNodeInstance into the desired config
-		CiliumNode:    params.CiliumNode,
-	}, nil
-}
-
-func (u *upgraderMock) upgradeState(params reconciler.StateReconcileParams) (EnterpriseStateReconcileParams, error) {
-	return EnterpriseStateReconcileParams{
-		UpdatedInstance: &EnterpriseBGPInstance{
-			Name:   params.UpdatedInstance.Name,
-			Config: u.bgpNodeInstance, // put provided isovalentBGPNodeInstance into the config
-			Router: upgradeRouter(params.UpdatedInstance.Router),
-		},
-	}, nil
 }
 
 var _ resource.Store[runtime.Object] = (*mockResourceStore[runtime.Object])(nil)
@@ -247,22 +207,22 @@ type mockStateReconcilerIn struct {
 
 	JG               job.Group
 	Logger           *slog.Logger
-	Instance         *instance.BGPInstance
+	Instance         *enterpriseInstance.EnterpriseBGPInstance
 	StateCh          types.StateNotificationCh
-	StateReconcilers []reconciler.StateReconciler `group:"bgp-state-reconciler"`
+	StateReconcilers []EnterpriseStateReconciler `group:"enterprise-bgp-state-reconciler"`
 }
 
 // Mocked state reconciler. It only supports pre-configured, single instance.
 // It only supports Update event.
 type mockStateReconciler struct {
 	in          mockStateReconcilerIn
-	reconcilers []reconciler.StateReconciler
+	reconcilers []EnterpriseStateReconciler
 }
 
 func registerMockStateReconciler(in mockStateReconcilerIn) *mockStateReconciler {
 	r := &mockStateReconciler{
 		in: in,
-		reconcilers: reconciler.GetActiveStateReconcilers(
+		reconcilers: GetActiveEnterpriseStateReconcilers(
 			in.Logger,
 			in.StateReconcilers,
 		),
@@ -272,8 +232,8 @@ func registerMockStateReconciler(in mockStateReconcilerIn) *mockStateReconciler 
 }
 
 func (m *mockStateReconciler) reconcile(ctx context.Context, retries int) (bool, error) {
-	params := reconciler.StateReconcileParams{
-		UpdatedInstance: &instance.BGPInstance{
+	params := EnterpriseStateReconcileParams{
+		UpdatedInstance: &EnterpriseBGPInstance{
 			Name:   m.in.Instance.Name,
 			Config: m.in.Instance.Config,
 			Router: m.in.Instance.Router,
@@ -327,54 +287,4 @@ func (m *mockNodeStatusProvider) SetNodeStatus(status NodeStatus) {
 
 func (m *mockNodeStatusProvider) GetNodeStatus() NodeStatus {
 	return m.nodeStatus
-}
-
-type mockStatusReconciler struct {
-	lock.RWMutex
-
-	// How many times Reconcile was called per instance
-	countPerInstance map[string]int
-}
-
-type mockStatusReconcilerOut struct {
-	cell.Out
-
-	Reconciler reconciler.StateReconciler `group:"bgp-state-reconciler"`
-}
-
-func newMockStatusReconciler() (*mockStatusReconciler, mockStatusReconcilerOut) {
-	sr := &mockStatusReconciler{
-		countPerInstance: map[string]int{},
-	}
-	return sr, mockStatusReconcilerOut{
-		Reconciler: sr,
-	}
-}
-
-func (m *mockStatusReconciler) Name() string {
-	return "mock-status-reconciler"
-}
-
-func (m *mockStatusReconciler) Priority() int {
-	return 100
-}
-
-func (m *mockStatusReconciler) Reconcile(ctx context.Context, params reconciler.StateReconcileParams) error {
-	m.Lock()
-	defer m.Unlock()
-
-	if params.DeletedInstance != "" {
-		delete(m.countPerInstance, params.DeletedInstance)
-		return nil
-	}
-
-	if params.UpdatedInstance != nil {
-		if count, found := m.countPerInstance[params.UpdatedInstance.Name]; !found {
-			m.countPerInstance[params.UpdatedInstance.Name] = 1
-		} else {
-			m.countPerInstance[params.UpdatedInstance.Name] = count + 1
-		}
-	}
-
-	return nil
 }

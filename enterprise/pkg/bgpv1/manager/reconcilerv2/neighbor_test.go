@@ -574,9 +574,6 @@ func setupNeighbors(logger *slog.Logger, peers []PeerData) (NeighborReconcilerIn
 			},
 			BGPSecretsNamespace: "bgp-secrets",
 		},
-
-		// Enterprise-specific logic. Provide a mock upgrader.
-		Upgrader: newUpgraderMock(nodeConfig),
 	}, nodeConfig
 }
 
@@ -1626,11 +1623,10 @@ func TestImportPolicyNotMutatedByDefaulting(t *testing.T) {
 			},
 			func() *option.DaemonConfig {
 				return &option.DaemonConfig{
-					EnableBGPControlPlane: true,
+					EnterpriseDaemonConfig: option.EnterpriseDaemonConfig{
+						EnableEnterpriseBGPControlPlane: true,
+					},
 				}
-			},
-			func() paramUpgrader {
-				return newUpgraderMock(instance0)
 			},
 		),
 		cell.Config(config.DefaultConfig),

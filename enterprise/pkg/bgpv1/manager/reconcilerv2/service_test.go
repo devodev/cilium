@@ -45,7 +45,6 @@ import (
 	slim_metav1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/loadbalancer"
-	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/source"
 	"github.com/cilium/cilium/pkg/svcrouteconfig"
 )
@@ -3525,13 +3524,14 @@ func runServiceTests(t *testing.T, steps []svcTestStep) {
 	})
 
 	// init BGP instance
+	router := fake.NewEnterpriseFakeRouter()
 	testBGPInstance := &ossInstance.BGPInstance{
 		Name:   "fake-instance",
-		Router: fake.NewEnterpriseFakeRouter(),
+		Router: router,
 	}
 	ceeBGPInstance := &EnterpriseBGPInstance{
 		Name:   testBGPInstance.Name,
-		Router: upgradeRouter(testBGPInstance.Router),
+		Router: router,
 	}
 	f.svcReconciler.Init(ceeBGPInstance)
 	t.Cleanup(func() {
@@ -3631,14 +3631,6 @@ func newServiceTestFixture(t *testing.T) *svcTestFixture {
 				},
 				func() NodeStatusProvider {
 					return f.nodeStatusProvider
-				},
-				func() paramUpgrader {
-					return newUpgraderMock(testBGPInstanceConfig)
-				},
-				func() *option.DaemonConfig {
-					return &option.DaemonConfig{
-						EnableBGPControlPlane: true,
-					}
 				},
 				func() Config {
 					return Config{
