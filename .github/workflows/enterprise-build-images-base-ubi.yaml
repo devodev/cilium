@@ -110,11 +110,11 @@ jobs:
             ${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}/cilium-runtime-ubi:${{ steps.runtime-tag.outputs.tag }}
           build-args: |
             # renovate: datasource=docker
-            CILIUM_LLVM_IMAGE=${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}/cilium-llvm-ubi:1779976356-aae733b@sha256:dc113aa42b9bf842c2a3498b0de74617c1ad72d76acd2b1700c5487d7108593b
+            CILIUM_LLVM_IMAGE=${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}/cilium-llvm-ubi:1782199947-07a03f9@sha256:e44d0f71c3b7d200a374059ea42e726d67240507dec7260c3a2cec0e8e280047
             # renovate: datasource=docker
-            CILIUM_BPFTOOL_IMAGE=${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}/cilium-bpftool-ubi:1779976356-aae733b@sha256:103864a80fcd8f5be698864efcb1bd68e27f71e786398585ecf199f1b5f98430
+            CILIUM_BPFTOOL_IMAGE=${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}/cilium-bpftool-ubi:1782199947-07a03f9@sha256:07a75813555b1e3922fc9d90fcf64a1dbe15dba3460927548b50b22466273942
             # renovate: datasource=docker
-            COMPILERS_IMAGE=${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}/image-compilers-ubi:1779976356-aae733b@sha256:2581c0a26170c8f0fa76f3c045aa0b2b52e32d819fde06e3f72e47e07c23c269
+            COMPILERS_IMAGE=${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}/image-compilers-ubi:1782199947-07a03f9@sha256:fb9d3e0106977928c0d1f7f9399ab520f28c7961542c3943ffac754624f96b90
 
       - name: Image Release Digest Runtime
         if: ${{ steps.cilium-runtime-tag-in-repositories.outputs.exists == 'false' }}

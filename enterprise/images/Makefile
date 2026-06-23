@@ -15,11 +15,11 @@ endif
 # renovate: datasource=docker
 RUNTIME_IMAGE ?= quay.io/isovalent-dev/cilium-runtime-ubi:cd74ebc98d21b15e6fa66d02e7b73cccb75f5566
 # renovate: datasource=docker
-LLVM_IMAGE ?= quay.io/isovalent-dev/cilium-llvm-ubi:1754712783-48bbfc6@sha256:b673ca26acfc574d815c231814707ffa6e39e039450ce95bf296a436f4ff22e9
+LLVM_IMAGE ?= artifactory.devhub-cloud.cisco.com/isovalent-eng-docker/cilium-llvm-ubi:1782199947-07a03f9@sha256:e44d0f71c3b7d200a374059ea42e726d67240507dec7260c3a2cec0e8e280047
 ifeq ($(UBI_IMAGE),)
 include ../olm/ubi-versions.env
 endif
-UBI_IMAGE ?= registry.redhat.io/ubi9/ubi-minimal:9.7@sha256:c7d44146f826037f6873d99da479299b889473492d3c1ab8af86f08af04ec8a0
+UBI_IMAGE ?= registry.redhat.io/ubi9/ubi-minimal:9.8@sha256:850143255ee0d1915f09aaa09f6ed31f24086ba605c323badfbefa95b8c52b0e
 # renovate: datasource=docker
 ENVOY_IMAGE ?= quay.io/isovalent-dev/cilium-envoy-ubi:v1.36.6-1776083692-8fb1248202fd04d910b7d53b5269d0320e795f62@sha256:960b2f9efb6b283bb6475ce2737d63f8a882013e8fec4c4a5f70812118eea641
 IMAGE_TAG ?= $$(../../images/scripts/make-image-tag.sh)
