@@ -293,6 +293,7 @@ static __always_inline int check_filters(struct __ctx_buff *ctx)
 __section_entry
 int cil_xdp_entry(struct __ctx_buff *ctx)
 {
+	bpf_clear_meta(ctx);
 	check_and_store_ip_trace_id(ctx);
 
 	/* Set privnet netID info. Needs to happen before any possible notify */
