@@ -57,6 +57,7 @@ var Tests = []func(t T){
 	TestTCPProxyRatelimiting,
 	TestTCPProxyRatelimiting_Fail_T1Only,
 	TestTCPProxyT1Only,
+	TestTCPProxyT1OnlyDSR,
 	TestTCPProxyT1OnlyHealthCheckCustomPort,
 	TestTCPProxyT1OnlyHTTPSHealthCheck,
 	TestTCPProxyT1T2,

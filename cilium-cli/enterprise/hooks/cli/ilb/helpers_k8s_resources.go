@@ -1328,6 +1328,12 @@ func withTCPForceDeploymentMode(forceDeploymentMode isovalentv1alpha1.LBTCPProxy
 	}
 }
 
+func withTCPForceForwardingMode(forceForwardingMode isovalentv1alpha1.LBTCPProxyForceForwardingModeType) tcpProxyApplicationOption {
+	return func(o *isovalentv1alpha1.LBServiceApplicationTCPProxy) {
+		o.ForceForwardingMode = &forceForwardingMode
+	}
+}
+
 func withTCPProxyRoute(backendRef string, opts ...tcpRouteOption) tcpProxyApplicationOption {
 	return func(o *isovalentv1alpha1.LBServiceApplicationTCPProxy) {
 		route := &isovalentv1alpha1.LBServiceTCPRoute{
