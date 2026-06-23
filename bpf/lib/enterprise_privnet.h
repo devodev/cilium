@@ -4,6 +4,7 @@
 #pragma once
 
 #include "arp.h"
+#include "auxvars.h"
 #include "conntrack.h"
 #include "conntrack_map.h"
 #include "drop_reasons.h"
@@ -17,6 +18,8 @@
 #include "enterprise_privnet_conntrack.h"
 #include "enterprise_ext_eps_policy.h"
 #include "enterprise_evpn.h"
+
+DEFINE_AUX(struct ipv6_ct_tuple, privnet_unknown_egress6_tuple);
 
 /*
  * Privnet datapath for communication between kubernetes cluster and Isovalent Network Bridge.
@@ -1165,11 +1168,11 @@ privnet_unknown_policy_egress6(struct __ctx_buff *ctx,
 			       __u32 *dst_sec_identity,
 			       struct trace_ctx *trace)
 {
+	struct ipv6_ct_tuple *tuple = AUX(privnet_unknown_egress6_tuple);
 	const struct privnet_cidr_identity *info = NULL;
 	__u8 policy_match_type = POLICY_MATCH_NONE;
 	fraginfo_t fraginfo __maybe_unused;
 	bool is_untracked_fragment = false;
-	struct ipv6_ct_tuple tuple = {};
 	struct ct_state ct_state = {};
 	__u32 local_dst_sec_identity;
 	void *ct_map, *ct_map_any;
@@ -1194,21 +1197,22 @@ privnet_unknown_policy_egress6(struct __ctx_buff *ctx,
 	if (!revalidate_data(ctx, &data, &data_end, &ip6))
 		return DROP_INVALID;
 
-	tuple.nexthdr = ip6->nexthdr;
-	hdrlen = ipv6_hdrlen_with_fraginfo(ctx, &tuple.nexthdr, &fraginfo);
+	memset(tuple, 0, sizeof(*tuple));
+	tuple->nexthdr = ip6->nexthdr;
+	hdrlen = ipv6_hdrlen_with_fraginfo(ctx, &tuple->nexthdr, &fraginfo);
 	if (hdrlen < 0)
 		return hdrlen;
 
 	l4_off = ETH_HLEN + hdrlen;
-	ipv6_addr_copy(&tuple.saddr, (union v6addr *)&ip6->saddr);
-	ipv6_addr_copy(&tuple.daddr, (union v6addr *)&ip6->daddr);
+	ipv6_addr_copy(&tuple->saddr, (union v6addr *)&ip6->saddr);
+	ipv6_addr_copy(&tuple->daddr, (union v6addr *)&ip6->daddr);
 
-	ct_map = privnet_get_ct_map6(&tuple, net_id);
+	ct_map = privnet_get_ct_map6(tuple, net_id);
 	ct_map_any = privnet_get_ct_any_map6(net_id);
 	if (unlikely(!ct_map || !ct_map_any))
 		return DROP_EP_NOT_READY;
 
-	ct_ret = ct_lookup6(ct_map, &tuple, ctx, ip6, fraginfo, l4_off,
+	ct_ret = ct_lookup6(ct_map, tuple, ctx, ip6, fraginfo, l4_off,
 			    CT_EGRESS, SCOPE_BIDIR, &ct_state, &monitor);
 	if (trace) {
 		trace->monitor = monitor;
@@ -1225,7 +1229,7 @@ privnet_unknown_policy_egress6(struct __ctx_buff *ctx,
 		return CTX_ACT_OK;
 
 	verdict = privnet_unknown_policy_can_access(ctx, sec_label, *dst_sec_identity, ETH_P_IPV6,
-						    tuple.dport, tuple.nexthdr, l4_off, CT_EGRESS,
+						    tuple->dport, tuple->nexthdr, l4_off, CT_EGRESS,
 						    is_untracked_fragment, &policy_match_type,
 						    ext_err, &proxy_port, &cookie, &audited);
 
@@ -1234,7 +1238,7 @@ privnet_unknown_policy_egress6(struct __ctx_buff *ctx,
 		/* Unknown flow doesn't support proxy port, so no need to set any of the ct_state fields */
 		struct ct_state ct_state_new = {};
 
-		ret = ct_create6(ct_map, ct_map_any, &tuple,
+		ret = ct_create6(ct_map, ct_map_any, tuple,
 				 ctx, CT_EGRESS, &ct_state_new, ext_err);
 		if (IS_ERR(ret))
 			return ret;
@@ -1242,8 +1246,8 @@ privnet_unknown_policy_egress6(struct __ctx_buff *ctx,
 
 	/* Emit verdict if drop or if allow for CT_NEW. */
 	if (verdict != CTX_ACT_OK || ct_ret != CT_ESTABLISHED) {
-		send_policy_verdict_notify(ctx, *dst_sec_identity, tuple.dport,
-					   tuple.nexthdr, POLICY_EGRESS, false,
+		send_policy_verdict_notify(ctx, *dst_sec_identity, tuple->dport,
+					   tuple->nexthdr, POLICY_EGRESS, false,
 					   verdict, proxy_port, policy_match_type, audited,
 					   0, cookie);
 	}
