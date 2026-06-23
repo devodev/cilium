@@ -26,11 +26,8 @@ bpf-evpn-fib-map-max: {{ .Values.enterprise.evpn.fibMapMax | quote }}
 
 {{- if .Values.enterprise.bgpControlPlane.enabled }}
 enable-enterprise-bgp-control-plane: "true"
-enable-bgp-control-plane: "true"
 bgp-secrets-namespace: {{ .Values.enterprise.bgpControlPlane.secretsNamespace.name | quote }}
-# Status reporting for OSS BGP control plane is disabled when enterprise BGP control plane is enabled.
 # Enterprise BGP control plane status reporting is enabled by default, but can be disabled by the user.
-enable-bgp-control-plane-status-report: "false"
 enable-enterprise-bgp-control-plane-status-report: {{ .Values.enterprise.bgpControlPlane.statusReport.enabled | quote }}
 # Service health-checking integration in BGP control plane
 enable-bgp-svc-health-checking: {{ .Values.enterprise.bgpControlPlane.enableServiceHealthChecking | default "false" | quote }}
