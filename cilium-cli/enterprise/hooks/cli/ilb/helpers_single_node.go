@@ -80,6 +80,21 @@ func skipIfWAFDisabled(t T, k8sCli *k8s.Clientset, msg string) bool {
 	return true
 }
 
+func skipIfTunnelRouting(t T, k8sCli *k8s.Clientset, msg string) bool {
+	configmap, err := k8sCli.CoreV1().ConfigMaps(t.CiliumNamespace()).Get(t.Context(), "cilium-config", metav1.GetOptions{})
+	if err != nil {
+		t.Failedf("failed to get cilium-config: %s", err)
+		return true
+	}
+
+	if strings.EqualFold(configmap.Data["routing-mode"], "tunnel") {
+		fmt.Printf("skipping due to tunnel routing mode: %s\n", msg)
+		return true
+	}
+
+	return false
+}
+
 func SetupSingleNodeMode(ctx context.Context, dockerCli *dockerCli, k8sCli *k8s.Clientset) error {
 	if FlagSingleNodeIPAddr != "" {
 		return nil

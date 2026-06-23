@@ -17,9 +17,18 @@ import (
 	"github.com/cilium/cilium/pkg/versioncheck"
 )
 
-// TestTCPProxyT1OnlyDSR exercises a "forceDeploymentMode: t1-only" TCPProxy
+func TestTCPProxyT1OnlyDSR(t T) {
+	testTCPProxyT1OnlyDSR(t, false)
+}
+
+func TestTCPProxyIPv6VIPIPv6BackendT1OnlyDSR(t T) {
+	testTCPProxyT1OnlyDSR(t, true)
+}
+
+// testTCPProxyT1OnlyDSR exercises a "forceDeploymentMode: t1-only" TCPProxy
 // LBService configured with "forceForwardingMode: dsr" against in-cluster
-// Kubernetes Pod backends spread across nodes.
+// Kubernetes Pod backends spread across nodes. The ipv6 variant uses an IPv6 VIP
+// and IPv6 Pod backends, exercising IP6IP6 dispatch and termination.
 //
 // With DSR the load balancer encapsulates the original request in an IPIP tunnel
 // towards the selected backend; the backend node terminates the tunnel, DNATs
@@ -33,13 +42,14 @@ import (
 // Two requirements are baked into the setup:
 //
 //   - DSR reverse-NAT relies on the service being programmed on the backend node
-//     (it looks up the rev_nat_index there). This holds here because all T1 nodes
-//     run the LB by default; the test deliberately does not pin the deployment to
-//     a subset of nodes, which would starve some backend node of the service.
+//     (it looks up the rev_nat_index there to translate the reply back to the
+//     VIP). The test therefore does not pin the LB to a subset of nodes, which
+//     would starve some backend node of the service; all T1 nodes run the LB by
+//     default.
 //   - Under DSR IPIP the inner packet is shipped to remote backends unchanged, so
 //     there is no L4 port translation: the frontend port must equal the backend
-//     port (8080).
-func TestTCPProxyT1OnlyDSR(t T) {
+//     port, so the test uses 8080 for both.
+func testTCPProxyT1OnlyDSR(t T, ipv6 bool) {
 	// With DSR the backend replies directly to the client. In single-node mode the
 	// client only has connectivity with the single ingress node, so a backend
 	// scheduled on any other node would be unreachable.
@@ -58,9 +68,22 @@ func TestTCPProxyT1OnlyDSR(t T) {
 		return
 	}
 
+	// DSR with IPIP dispatch requires direct routing; restrict the test to it.
+	if skipIfTunnelRouting(t, k8sCli, "DSR IPIP dispatch requires direct routing") {
+		return
+	}
+
+	if ipv6 && !t.IPv6Enabled() {
+		fmt.Println("skipping because IPv6 isn't enabled")
+		return
+	}
+
 	mode := isovalentv1alpha1.LBTCPProxyForceDeploymentModeT1
 
 	testName := "tcp-proxy-t1only-dsr"
+	if ipv6 {
+		testName = "tcp-proxy-t1only-dsr-ipv6"
+	}
 
 	// 0. Setup test scenario (backends, clients & LB resources)
 	scenario := newLBTestScenario(t, testName, ciliumCli, k8sCli, dockerCli)
@@ -74,6 +97,7 @@ func TestTCPProxyT1OnlyDSR(t T) {
 		name:         testName,
 		replicas:     2,
 		nodeSelector: nodeSelector,
+		ipv6:         ipv6,
 	}
 	t.Log("Creating in-cluster Pod backend apps with nodeSelector: %s ...", nodeSelector["service.cilium.io/node"])
 	scenario.AddAndWaitForK8sBackendApplications(backendApp)
@@ -82,7 +106,11 @@ func TestTCPProxyT1OnlyDSR(t T) {
 	client := scenario.addFRRClients(1, frrClientConfig{})[0]
 
 	t.Log("Creating LB VIP resources...")
-	vip := lbVIP(testName)
+	vipOptions := []vipOption{}
+	if ipv6 {
+		vipOptions = append(vipOptions, withAddressFamily(isovalentv1alpha1.AddressFamilyIPv6))
+	}
+	vip := lbVIP(testName, vipOptions...)
 	scenario.createLBVIP(vip)
 
 	t.Log("Creating LB BackendPool resources...")
@@ -101,13 +129,19 @@ func TestTCPProxyT1OnlyDSR(t T) {
 	scenario.createLBService(service)
 
 	t.Log("Waiting for full VIP connectivity...")
-	vipIP := scenario.waitForFullVIPConnectivity(testName)
+	v := scenario.waitForFullVIPConnectivityInclIPv6(testName)
+	vipString := v.IPv4Formatted()
+	curlIPFamilyFlag := "-4"
+	if ipv6 {
+		vipString = v.IPv6Formatted()
+		curlIPFamilyFlag = "-6"
+	}
 
 	// Send a series of requests, each from a fresh connection so they spread across
 	// the T1 nodes via ECMP and thus across both the local and remote (IPIP-
 	// terminated) DSR paths. All of them must succeed.
 	const numRequests = 20
-	testCmd := curlCmd(fmt.Sprintf("--max-time 10 -H 'Content-Type: application/json' http://%s:8080/", vipIP))
+	testCmd := curlCmd(fmt.Sprintf("--max-time 10 %s -H 'Content-Type: application/json' http://%s:8080/", curlIPFamilyFlag, vipString))
 	t.Log("Sending %d requests, all of which must succeed: %q...", numRequests, testCmd)
 	for i := range numRequests {
 		stdout, stderr, err := client.Exec(t.Context(), testCmd)

@@ -486,8 +486,8 @@ func (r *lbTestScenario) desiredBackendK8sDeployment(t T, app backendApplication
 	}
 }
 
-func (r *lbTestScenario) desiredBackendK8sService(name string, port int32, targetPort int32) *corev1.Service {
-	return &corev1.Service{
+func (r *lbTestScenario) desiredBackendK8sService(name string, port int32, targetPort int32, ipv6 bool) *corev1.Service {
+	svc := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: name,
 		},
@@ -505,6 +505,16 @@ func (r *lbTestScenario) desiredBackendK8sService(name string, port int32, targe
 			},
 		},
 	}
+
+	// Pin the Service to IPv6 so the backend pool resolves IPv6 Pod endpoints even
+	// on dual-stack clusters (where the default would otherwise be IPv4).
+	if ipv6 {
+		policy := corev1.IPFamilyPolicySingleStack
+		svc.Spec.IPFamilyPolicy = &policy
+		svc.Spec.IPFamilies = []corev1.IPFamily{corev1.IPv6Protocol}
+	}
+
+	return svc
 }
 
 type backendApplication struct {
@@ -512,6 +522,7 @@ type backendApplication struct {
 	replicas        int32
 	tlsCertHostname string
 	nodeSelector    map[string]string
+	ipv6            bool
 }
 
 func (b backendApplication) Config() backendApplicationConfig {
@@ -531,7 +542,7 @@ func (r *lbTestScenario) AddAndWaitForK8sBackendApplications(app backendApplicat
 		return r.k8sCli.AppsV1().Deployments(r.k8sNamespace).Delete(ctx, deployment.Name, metav1.DeleteOptions{})
 	})
 
-	service := r.desiredBackendK8sService(app.name, 8080, 8080)
+	service := r.desiredBackendK8sService(app.name, 8080, 8080, app.ipv6)
 	if _, err := r.k8sCli.CoreV1().Services(r.k8sNamespace).Create(r.t.Context(), service, metav1.CreateOptions{}); err != nil {
 		r.t.Failedf("failed to create service (%s): %s", service.Name, err)
 	}

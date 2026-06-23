@@ -63,6 +63,7 @@ var Tests = []func(t T){
 	TestTCPProxyT1T2,
 	TestTCPProxyAuto,
 	TestTCPProxyIPv6VIPIPv6BackendT1Only,
+	TestTCPProxyIPv6VIPIPv6BackendT1OnlyDSR,
 	TestTCPProxyIPv6VIPIPv6BackendT1T2,
 	TestTCPProxyIPv6VIPIPv6BackendAuto,
 	TestTCPProxyIPv6VIPIPv4BackendT1T2,
