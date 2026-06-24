@@ -2960,8 +2960,8 @@ hubble:
       # @schema
       override: ~
       repository: quay.io/isovalent/hubble-rbac
-      tag: v1.10.10
-      digest: sha256:8e23e9d743948d2423c5a2b9a7dc0c681178d188b5b320e6a1c8838b6bc2f806
+      tag: v1.10.11
+      digest: sha256:743a789d406b5e30be0573511d3f42570dffcbcc948e3ddf069fdb6816e8b6ca
       useDigest: true
       pullPolicy: "Always"
     extraArgs: {}
