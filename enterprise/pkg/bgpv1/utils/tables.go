@@ -60,7 +60,7 @@ func SignalBGPUponTableEvents[T any](ctx context.Context, db *statedb.DB, table 
 // in the provided device and neighbor tables. If found, returns its link-local address with zone.
 // Expects single link-local IPv6 neighbor on the given interface - in case of multiple link-local neighbors, found returns false.
 func GetIPv6LinkLocalNeighborAddress(deviceTable statedb.Table[*tables.Device], neighborTable statedb.Table[*tables.Neighbor], txn statedb.ReadTxn, ifName string) (neighborAddr string, found bool, err error) {
-	device, _, found := deviceTable.Get(txn, tables.DeviceNameIndex.Query(ifName))
+	device, _, found := deviceTable.Get(txn, tables.DeviceByName(ifName))
 	if !found {
 		// configured device not found on the node - return an error
 		return "", false, fmt.Errorf("device %s not found", ifName)

@@ -19,7 +19,8 @@ import (
 
 	"github.com/go-openapi/errors"
 	"github.com/go-openapi/strfmt"
-	"github.com/go-openapi/swag"
+	"github.com/go-openapi/swag/jsonutils"
+	"github.com/go-openapi/swag/typeutils"
 )
 
 // NetworkAttachmentList List of network attachments
@@ -52,12 +53,12 @@ func (m *NetworkAttachmentList) Validate(formats strfmt.Registry) error {
 }
 
 func (m *NetworkAttachmentList) validateAttachments(formats strfmt.Registry) error {
-	if swag.IsZero(m.Attachments) { // not required
+	if typeutils.IsZero(m.Attachments) { // not required
 		return nil
 	}
 
 	for i := 0; i < len(m.Attachments); i++ {
-		if swag.IsZero(m.Attachments[i]) { // not required
+		if typeutils.IsZero(m.Attachments[i]) { // not required
 			continue
 		}
 
@@ -101,7 +102,7 @@ func (m *NetworkAttachmentList) contextValidateAttachments(ctx context.Context, 
 
 		if m.Attachments[i] != nil {
 
-			if swag.IsZero(m.Attachments[i]) { // not required
+			if typeutils.IsZero(m.Attachments[i]) { // not required
 				return nil
 			}
 
@@ -129,13 +130,13 @@ func (m *NetworkAttachmentList) MarshalBinary() ([]byte, error) {
 	if m == nil {
 		return nil, nil
 	}
-	return swag.WriteJSON(m)
+	return jsonutils.WriteJSON(m)
 }
 
 // UnmarshalBinary interface implementation
 func (m *NetworkAttachmentList) UnmarshalBinary(b []byte) error {
 	var res NetworkAttachmentList
-	if err := swag.ReadJSON(b, &res); err != nil {
+	if err := jsonutils.ReadJSON(b, &res); err != nil {
 		return err
 	}
 	*m = res

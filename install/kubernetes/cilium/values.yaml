@@ -1406,6 +1406,12 @@ socketLB:
 certgen:
   # -- When set to true the certificate authority secret is created.
   generateCA: true
+  # -- When set to true, certgen enforces that the certification authority chain
+  # remains valid for the entire duration of the leaf certificates to be generated,
+  # and fails with a hard error if that is not the case. This allows to flag early
+  # situations in which the CA certificates need to be manually regenerated, before
+  # they actually expire.
+  enforceCAValidityThroughoutLeavesDuration: true
   image:
     # @schema
     # type: [null, string]
@@ -3064,6 +3070,8 @@ ipam:
     #       cidrs:
     #         - 10.10.0.0/8
     #       maskSize: 24
+    #     allowFirstIP: true
+    #     allowLastIP: true
     #   other:
     #     ipv6:
     #       cidrs:
@@ -3278,6 +3286,12 @@ ipv4NativeRoutingCIDR: ""
 # the user must configure the routes to reach pods, either manually or by
 # setting the auto-direct-node-routes flag.
 ipv6NativeRoutingCIDR: ""
+# -- Derive the native routing CIDRs from the cluster-pool IPAM CIDRs when
+# ipv4NativeRoutingCIDR / ipv6NativeRoutingCIDR are not explicitly set.
+# Only effective with ipam.mode=cluster-pool and requires exactly one CIDR
+# per enabled IP family in clusterPoolIPv4PodCIDRList /
+# clusterPoolIPv6PodCIDRList.
+nativeRoutingCIDRFromClusterPool: false
 # -- cilium-monitor sidecar.
 monitor:
   # -- Enable the cilium-monitor sidecar.
@@ -3552,9 +3566,9 @@ envoy:
     # @schema
     override: ~
     repository: "quay.io/cilium/cilium-envoy"
-    tag: "v1.37.2-1778236003-7c2f6580d32e50f1a6866c12122662856f54eec2"
+    tag: "v1.37.4-1781154076-332f6c5e06ed996f5b6ea43d57f8bba4d103ecec"
     pullPolicy: "Always"
-    digest: "sha256:c5fd228f5f6f72c21341384ac7ba9654db73b0931f5c6ac0c505960975f56f48"
+    digest: "sha256:533d4cb6c28ea9334051f036e130115b1f02d9c0fa6560f1308ec9b54bf0bb0c"
     useDigest: true
   # -- Init containers added to the cilium Envoy DaemonSet.
   initContainers: []
@@ -4344,9 +4358,9 @@ preflight:
       # @schema
       override: ~
       repository: "quay.io/cilium/cilium-envoy"
-      tag: "v1.37.2-1778236003-7c2f6580d32e50f1a6866c12122662856f54eec2"
+      tag: "v1.37.4-1781154076-332f6c5e06ed996f5b6ea43d57f8bba4d103ecec"
       pullPolicy: "Always"
-      digest: "sha256:c5fd228f5f6f72c21341384ac7ba9654db73b0931f5c6ac0c505960975f56f48"
+      digest: "sha256:533d4cb6c28ea9334051f036e130115b1f02d9c0fa6560f1308ec9b54bf0bb0c"
       useDigest: true
   # -- The priority class to use for the preflight pod.
   priorityClassName: ""
@@ -4879,15 +4893,6 @@ clustermesh:
       #               if provided manually. Cluster mode is meaningful only when the same
       #               CA is shared across all clusters part of the mesh.
       authMode: migration
-      # -- (deprecated) Allow users to provide their own certificates
-      # Users may need to provide their certificates using
-      # a mechanism that requires they provide their own secrets.
-      # This setting does not apply to any of the auto-generated
-      # mechanisms below, it only restricts the creation of secrets
-      # via the `tls-provided` templates.
-      # This option is deprecated as secrets are expected to be created
-      # externally when 'auto' is not enabled.
-      enableSecrets: true
       # -- Configure automatic TLS certificates generation.
       # A Kubernetes CronJob is used the generate any
       # certificates not provided by the user at installation
@@ -4912,7 +4917,7 @@ clustermesh:
         # - certmanager:  This method use cert-manager to generate & rotate certificates.
         method: helm
         # -- Generated certificates validity duration in days.
-        certValidityDuration: 1095
+        certValidityDuration: 365
         # -- Schedule for certificates regeneration (regardless of their expiration date).
         # Only used if method is "cronJob". If nil, then no recurring job will be created.
         # Instead, only the one-shot job is deployed to generate the certificates at
@@ -4922,11 +4927,9 @@ clustermesh:
         # CA is (re)regenerated only if it is not provided as a helm value and the k8s
         # secret is manually deleted.
         #
-        # Defaults to none. Commented syntax gives midnight of the first day of every
-        # fourth month. For syntax, see
+        # Defaults to midnight of the first day of every fourth month. For syntax, see
         # https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/#schedule-syntax
-        # schedule: "0 0 1 */4 *"
-
+        schedule: "0 0 1 */4 *"
         # [Example]
         # certManagerIssuerRef:
         #   group: cert-manager.io
@@ -4949,31 +4952,12 @@ clustermesh:
         # -- Private key options. These include the key algorithm and size, the used encoding and the rotation policy used when clustermesh.apiserver.tls.auto.method=certmanager.
         # https://cert-manager.io/docs/reference/api-docs/#cert-manager.io/v1.CertificatePrivateKey
         privateKey: {}
-      # -- base64 encoded PEM values for the clustermesh-apiserver server certificate and private key.
-      # Used if 'auto' is not enabled.
-      server:
-        # -- Deprecated, as secrets will always need to be created externally if `auto` is disabled.
-        cert: ""
-        # -- Deprecated, as secrets will always need to be created externally if `auto` is disabled.
-        key: ""
-        # -- Extra DNS names added to certificate when it's auto generated
-        extraDnsNames: []
-        # -- Extra IP addresses added to certificate when it's auto generated
-        extraIpAddresses: []
-      # -- base64 encoded PEM values for the clustermesh-apiserver admin certificate and private key.
-      # Used if 'auto' is not enabled.
-      admin:
-        # -- Deprecated, as secrets will always need to be created externally if `auto` is disabled.
-        cert: ""
-        # -- Deprecated, as secrets will always need to be created externally if `auto` is disabled.
-        key: ""
-      # -- base64 encoded PEM values for the clustermesh-apiserver remote cluster certificate and private key.
-      # Used if 'auto' is not enabled.
-      remote:
-        # -- Deprecated, as secrets will always need to be created externally if `auto` is disabled.
-        cert: ""
-        # -- Deprecated, as secrets will always need to be created externally if `auto` is disabled.
-        key: ""
+        # Extra configurations for the auto generated server certificate.
+        server:
+          # -- Extra DNS names added to certificate when it's auto generated
+          extraDnsNames: []
+          # -- Extra IP addresses added to certificate when it's auto generated
+          extraIpAddresses: []
     # clustermesh-apiserver Prometheus metrics configuration
     metrics:
       # -- Enables exporting apiserver metrics in OpenMetrics format.

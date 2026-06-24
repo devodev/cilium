@@ -16,7 +16,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
-	"path"
+	"path/filepath"
 	"testing"
 
 	uhive "github.com/cilium/hive"
@@ -104,7 +104,7 @@ func TestScript(t *testing.T) {
 		h.RegisterFlags(flags)
 
 		// Point clustermesh-config to the working directory of the test.
-		flags.Set("clustermesh-config", path.Join(path.Dir(t.TempDir()), "001"))
+		flags.Set("clustermesh-config", filepath.Join(filepath.Dir(t.TempDir()), "001"))
 
 		// Parse the shebang arguments in the script.
 		require.NoError(t, flags.Parse(args), "flags.Parse")

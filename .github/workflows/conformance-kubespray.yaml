@@ -23,9 +23,6 @@ on:
   push:
     branches:
       - main-ce
-  pull_request:
-    paths:
-      - '.github/workflows/conformance-kubespray.yaml'
   schedule:
     - cron: '0 0 * * 0'
 
@@ -82,7 +79,7 @@ jobs:
       - name: Set initial commit status
         uses: cilium/cilium/.github/actions/set-commit-status@main # main
         with:
-          sha: ${{ inputs.SHA || github.event.pull_request.head.sha || github.sha }}
+          sha: ${{ inputs.SHA || github.sha }}
 
   wait-for-images:
     name: Wait for images
@@ -92,14 +89,17 @@ jobs:
       - name: Checkout context ref (trusted)
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          ref: ${{ inputs.context-ref || github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ inputs.context-ref || github.sha }}
           persist-credentials: false
 
       - name: Wait for images
         uses: ./.github/actions/wait-for-images
         with:
-          SHA: ${{ inputs.SHA || github.event.pull_request.head.sha || github.sha }}
+          SHA: ${{ inputs.SHA || github.sha }}
           images: cilium-ci operator-generic-ci
+          login-host: ${{ vars.DOCKER_READ_HOST }}
+          login-username: ${{ vars.DOCKER_READ_USERNAME }}
+          login-password: ${{ secrets.DOCKER_READ_PASSWORD }}
 
   installation-and-connectivity:
     name: Installation and Connectivity Test
@@ -112,12 +112,12 @@ jobs:
       - name: Set commit status to pending
         uses: cilium/cilium/.github/actions/set-commit-status@main # main
         with:
-          sha: ${{ inputs.SHA || github.event.pull_request.head.sha || github.sha }}
+          sha: ${{ inputs.SHA || github.sha }}
 
       - name: Checkout context ref (trusted)
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          ref: ${{ inputs.context-ref || github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ inputs.context-ref  || github.sha }}
           persist-credentials: false
 
       - name: Set Environment Variables
@@ -127,8 +127,11 @@ jobs:
         id: default_vars
         uses: ./.github/actions/helm-default
         with:
-          image-tag: ${{ inputs.SHA || github.event.pull_request.head.sha || github.sha }}
+          image-tag: ${{ inputs.SHA || github.sha }}
+          registry_host: ${{ vars.DOCKER_READ_HOST }}
+          registry_organization: ${{ vars.DOCKER_READ_ORG }}
           chart-dir: ./untrusted/install/kubernetes/cilium
+          image-pull-secret: "cilium-registry"
 
       - name: Set up Python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
@@ -187,6 +190,14 @@ jobs:
           sudo chown "$(id -u)":"$(id -g)" $HOME/.kube/config
 
           kubectl wait --for=condition=Ready pods --all -n kube-system --timeout=300s
+
+      - name: Create imagePullSecret
+        run: |
+          kubectl create secret docker-registry cilium-registry \
+            --namespace kube-system \
+            --docker-server=${{ vars.DOCKER_READ_HOST }} \
+            --docker-username="${{ vars.DOCKER_READ_USERNAME }}" \
+            --docker-password="${{ secrets.DOCKER_READ_PASSWORD }}"
 
       - name: Get connectivity test flags
         id: e2e_config
@@ -262,6 +273,6 @@ jobs:
     uses: ./.github/workflows/common-post-jobs.yaml
     secrets: inherit
     with:
-      context-ref: ${{ inputs.context-ref || github.event.pull_request.head.sha || github.sha }}
-      sha: ${{ inputs.SHA || github.event.pull_request.head.sha || github.sha }}
+      context-ref: ${{ inputs.context-ref || github.sha }}
+      sha: ${{ inputs.SHA || github.sha }}
       success: ${{ needs.installation-and-connectivity.result == 'success' }}

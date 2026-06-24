@@ -64,6 +64,16 @@ type IPAMPoolAllocation struct {
 	// +kubebuilder:validation:MinLength=1
 	Pool string `json:"pool"`
 
+	// AllowFirstIP allows the first IP of each allocated CIDR to be used.
+	//
+	// +optional
+	AllowFirstIP bool `json:"allowFirstIP,omitempty"`
+
+	// AllowLastIP allows the last IP of each allocated CIDR to be used.
+	//
+	// +optional
+	AllowLastIP bool `json:"allowLastIP,omitempty"`
+
 	// CIDRs contains a list of pod CIDRs currently allocated from this pool
 	//
 	// +optional
@@ -148,7 +158,7 @@ type IPAMSpec struct {
 	MaxAllocate int `json:"max-allocate,omitempty"`
 
 	// PreAllocate defines the number of IP addresses that must be
-	// available for allocation in the IPAMspec. It defines the buffer of
+	// available for allocation in the IPAMSpec. It defines the buffer of
 	// addresses available immediately without requiring cilium-operator to
 	// get involved.
 	//
@@ -230,8 +240,8 @@ type IPAMStatus struct {
 	AssignedStaticIP string `json:"assigned-static-ip,omitempty"`
 }
 
-// IPAMPoolRequest is a request from the agent to the operator, indicating how
-// may IPs it requires from a given pool
+// IPAMPoolDemand is a request from the agent to the operator, indicating how
+// many IPs it requires from a given pool
 type IPAMPoolDemand struct {
 	// IPv4Addrs contains the number of requested IPv4 addresses out of a given
 	// pool

@@ -242,7 +242,7 @@ static __always_inline int __per_packet_lb_svc_xlate_4(void *ctx, struct iphdr *
 
 		ret = lb4_local(get_ct_map4(&tuple), ctx, fraginfo,
 				l4_off, &key, &tuple, svc, &ct_state_new,
-				&backend, ext_err);
+				&backend, ext_err, NULL);
 
 		if (IS_ERR(ret)) {
 			if (ret == DROP_NO_SERVICE) {
@@ -333,8 +333,8 @@ static __always_inline int __per_packet_lb_svc_xlate_6(void *ctx, struct ipv6hdr
 {
 	struct ipv6_ct_tuple tuple __align_stack_8 = {};
 	struct ct_state ct_state_new = {};
-	fraginfo_t fraginfo;
 	const struct lb6_service *svc;
+	fraginfo_t fraginfo = 0;
 	struct lb6_key key = {};
 	__u16 proxy_port = 0;
 	int l4_off;
@@ -412,7 +412,7 @@ static __always_inline int __per_packet_lb_svc_xlate_6(void *ctx, struct ipv6hdr
 
 		ret = lb6_local(get_ct_map6(&tuple), ctx, fraginfo,
 				l4_off, &key, &tuple, svc, &ct_state_new,
-				&backend, ext_err);
+				&backend, ext_err, NULL);
 
 		if (IS_ERR(ret)) {
 			if (ret == DROP_NO_SERVICE) {
@@ -2063,6 +2063,12 @@ int tail_ipv6_policy(struct __ctx_buff *ctx)
 	if (delivery_flags & CB_DELIVERY_FLAGS_FROM_HOST)
 		from_host = true;
 
+	if (delivery_flags & CB_DELIVERY_FLAGS_FROM_INGRESS_PROXY)
+		ctx->tc_index |= TC_INDEX_F_FROM_INGRESS_PROXY;
+
+	if (delivery_flags & CB_DELIVERY_FLAGS_FROM_EGRESS_PROXY)
+		ctx->tc_index |= TC_INDEX_F_FROM_EGRESS_PROXY;
+
 #ifdef HAVE_ENCAP
 	from_tunnel = ctx_load_and_clear_meta(ctx, CB_FROM_TUNNEL);
 	if (delivery_flags & CB_DELIVERY_FLAGS_FROM_TUNNEL)
@@ -2388,6 +2394,12 @@ int tail_ipv4_policy(struct __ctx_buff *ctx)
 
 	if (delivery_flags & CB_DELIVERY_FLAGS_FROM_HOST)
 		from_host = true;
+
+	if (delivery_flags & CB_DELIVERY_FLAGS_FROM_INGRESS_PROXY)
+		ctx->tc_index |= TC_INDEX_F_FROM_INGRESS_PROXY;
+
+	if (delivery_flags & CB_DELIVERY_FLAGS_FROM_EGRESS_PROXY)
+		ctx->tc_index |= TC_INDEX_F_FROM_EGRESS_PROXY;
 
 	ctx_store_meta(ctx, CB_CLUSTER_ID_INGRESS, 0);
 

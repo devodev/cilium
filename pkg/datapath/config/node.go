@@ -41,6 +41,16 @@ func NodeConfig(lnc *Config) Node {
 	node.SupportsFIBLookupSkipNeigh = probes.HaveFibLookupSkipNeigh() == nil
 	node.SupportsFIBLookupSrc = probes.HaveFibLookupSrc() == nil
 
+	// Terminate inbound IPIP in BPF on netdev ingress for any outer dst that
+	// resolves to a local endpoint - pod IP (DSR-IPIP) or host IP (hostNetwork
+	// backend, --enable-ipip-termination Envoy target). With this in place,
+	// cilium_ipip{4,6} are TX-only (egress encap on the LB side) and bpf_host
+	// is not attached to them on RX. The inner packet is delivered with
+	// skb->dev set to the physical netdev rather than cilium_ipip{4,6}, so any
+	// host-side listener that depended on SO_BINDTODEVICE against
+	// cilium_ipip{4,6} will no longer match decapped traffic.
+	node.EnableIPIPTermination = option.Config.EnableIPIPTermination
+
 	node.EnableNodeportSourceLookup = lnc.LBConfig.NodePortEnableDynamicSourceLookup
 
 	node.TracingIPOptionType = uint8(option.Config.IPTracingOptionType)

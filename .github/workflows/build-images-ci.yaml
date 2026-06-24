@@ -39,25 +39,27 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  wait-for-base-images:
-    name: Wait for lint checks
-    uses: ./.github/workflows/wait-for-status-check.yaml
-    with:
-      # Only run this job if the event is pull_request and if the PR
-      # is not opened from a fork.
-      # This is to avoid waiting for base images on push to main or merge_group
-      # events as the lint-images-base does not run on those events.
-      if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.event.pull_request.base.repo.full_name }}
-      sha: ${{ github.event.pull_request.head.sha || github.sha }}
-      lint-workflows: "lint-images-base.yaml"
-      timeout-minutes: 2
-      poll-interval: 15
+  # GH-46482: Lint checks action is broken, skip dependency for now.
+  #wait-for-base-images:
+  #  name: Wait for lint checks
+  #  uses: ./.github/workflows/wait-for-status-check.yaml
+  #  with:
+  #    # Only run this job if the event is pull_request and if the PR
+  #    # is not opened from a fork.
+  #    # This is to avoid waiting for base images on push to main or merge_group
+  #    # events as the lint-images-base does not run on those events.
+  #    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.event.pull_request.base.repo.full_name }}
+  #    sha: ${{ github.event.pull_request.head.sha || github.sha }}
+  #    lint-workflows: "lint-images-base.yaml"
+  #    timeout-minutes: 2
+  #    poll-interval: 15
 
   build-and-push-prs:
     timeout-minutes: 45
     name: Build and Push Images
     runs-on: ${{ vars.GH_RUNNER_EXTRA_POWER_UBUNTU_LATEST || 'ubuntu-24.04' }}
-    needs: wait-for-base-images
+    # GH-46482: Lint checks action is broken, skip dependency for now.
+    #needs: wait-for-base-images
     outputs:
       sha: ${{ steps.tag.outputs.sha }}
     strategy:
@@ -97,10 +99,6 @@ jobs:
 
           - name: clustermesh-apiserver
             dockerfile: ./images/clustermesh-apiserver/Dockerfile
-            platforms: linux/amd64,linux/arm64
-
-          - name: docker-plugin
-            dockerfile: ./images/cilium-docker-plugin/Dockerfile
             platforms: linux/amd64,linux/arm64
 
           - name: cilium-dnsproxy
@@ -439,7 +437,9 @@ jobs:
     name: Post test comment for Renovate PRs after images built
     runs-on: ubuntu-24.04
     needs: pre-comment
-    environment: "Trigger CI from renovate PRs"
+    environment:
+      name: "Trigger CI from renovate PRs"
+      deployment: false
     if: ${{
          github.event_name == 'pull_request' &&
          github.event.pull_request.user.login == vars.RENOVATE_BOT_USERNAME

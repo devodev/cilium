@@ -56,11 +56,11 @@ Listed below are the actively maintained release branches along with their lates
 patch release, corresponding image pull tags and their release notes:
 
 +---------------------------------------------------------+------------+------------------------------------+----------------------------------------------------------------------------+
-| `v1.19 <https://github.com/cilium/cilium/tree/v1.19>`__ | 2026-05-13 | ``quay.io/cilium/cilium:v1.19.4``  | `Release Notes <https://github.com/cilium/cilium/releases/tag/v1.19.4>`__  |
+| `v1.19 <https://github.com/cilium/cilium/tree/v1.19>`__ | 2026-06-16 | ``quay.io/cilium/cilium:v1.19.5``  | `Release Notes <https://github.com/cilium/cilium/releases/tag/v1.19.5>`__  |
 +---------------------------------------------------------+------------+------------------------------------+----------------------------------------------------------------------------+
-| `v1.18 <https://github.com/cilium/cilium/tree/v1.18>`__ | 2026-05-13 | ``quay.io/cilium/cilium:v1.18.10`` | `Release Notes <https://github.com/cilium/cilium/releases/tag/v1.18.10>`__ |
+| `v1.18 <https://github.com/cilium/cilium/tree/v1.18>`__ | 2026-06-16 | ``quay.io/cilium/cilium:v1.18.11`` | `Release Notes <https://github.com/cilium/cilium/releases/tag/v1.18.11>`__ |
 +---------------------------------------------------------+------------+------------------------------------+----------------------------------------------------------------------------+
-| `v1.17 <https://github.com/cilium/cilium/tree/v1.17>`__ | 2026-05-13 | ``quay.io/cilium/cilium:v1.17.16`` | `Release Notes <https://github.com/cilium/cilium/releases/tag/v1.17.16>`__ |
+| `v1.17 <https://github.com/cilium/cilium/tree/v1.17>`__ | 2026-06-16 | ``quay.io/cilium/cilium:v1.17.17`` | `Release Notes <https://github.com/cilium/cilium/releases/tag/v1.17.17>`__ |
 +---------------------------------------------------------+------------+------------------------------------+----------------------------------------------------------------------------+
 
 Architectures
@@ -86,7 +86,7 @@ early release candidates (RC) and CI container images built from the `main
 branch <https://github.com/cilium/cilium/commits/main>`_. These images are
 not for use in production.
 
-For testing upgrades to new development releases please consult the latest
+For testing upgrades to new development releases, please consult the latest
 development build of the `Cilium Upgrade Guide`_.
 
 Listed below are branches for testing along with their snapshots or RC releases,
@@ -173,7 +173,7 @@ manipulated whenever a container is started anywhere in the cluster.
 In order to avoid this situation which limits scale, Cilium assigns a
 security identity to groups of application containers which share identical
 security policies. The identity is then associated with all network packets
-emitted by the application containers, allowing the identity to be validated 
+emitted by the application containers, allowing the identity to be validated
 at the receiving node.
 
 * **Identity-based security** removes reliance on brittle IP addresses.
@@ -200,7 +200,7 @@ Service Mesh
 
 With Cilium `Service Mesh <https://cilium.io/use-cases/service-mesh/>`_,
 operators gain the benefits of fine-grained traffic control, encryption, observability,
-access control, without the cost and complexity of traditional proxy-based
+and access control without the cost and complexity of traditional proxy-based
 designs. Key features include:
 
 * **Mutual authentication** with automatic identity-based encryption between

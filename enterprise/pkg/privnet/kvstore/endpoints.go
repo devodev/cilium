@@ -17,7 +17,6 @@ import (
 	"iter"
 	"log/slog"
 	"net/netip"
-	"path"
 	"slices"
 
 	iso_v1alpha1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1alpha1"
@@ -32,7 +31,7 @@ import (
 //
 // WARNING - STABLE API: Changing the structure or values of this will
 // break backwards compatibility
-var EndpointsPrefix = path.Join(kvstore.BaseKeyPrefix, "state", "privneteps", "v1")
+var EndpointsPrefix = kvstore.JoinKey(kvstore.BaseKeyPrefix, "state", "privneteps", "v1")
 
 // Endpoint represents a single private network endpoint, for either IPv4 or IPv6.
 type Endpoint struct {
@@ -113,7 +112,7 @@ type Flags struct {
 func (e *Endpoint) GetKeyName() string {
 	// WARNING - STABLE API: Changing the structure of the key may break
 	// backwards compatibility
-	return path.Join(e.Source.Cluster, e.Network.Name, e.IP.String())
+	return kvstore.JoinKey(e.Source.Cluster, e.Network.Name, e.IP.String())
 }
 
 // Marshal returns the global service object as JSON byte slice
@@ -155,7 +154,7 @@ func (e *Endpoint) validate(key string) error {
 		return err
 	}
 
-	expected := path.Join(e.Network.Name, e.IP.String())
+	expected := kvstore.JoinKey(e.Network.Name, e.IP.String())
 	if expected != key {
 		return fmt.Errorf("endpoint does not match provided key: got %q, expected %q", key, expected)
 	}

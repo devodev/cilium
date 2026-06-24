@@ -317,6 +317,24 @@ Informational Notes
   upgrade should be fully transparent. You are still encouraged to update
   your ``ServiceExport`` resources to ``v1beta1`` to benefit from future
   improvements and prepare for the eventual deprecation of ``v1alpha1``.
+* Listing BGP peers, routes and route-policies via the local REST API and ``cilium-dbg bgp`` commands is deprecated.
+  Use the BGP hive shell commands instead: ``cilium shell -- bgp/*``.
+* The default duration of automatically generated Cluster Mesh certificates is
+  reduced to one year, and matches the default duration of Hubble certificates.
+  Note that certificates generated through the ``helm`` method (default) are
+  only renewed when the Helm chart is re-rendered (typically during a Cilium
+  upgrade). Make sure to upgrade Cilium at least once per year to prevent the
+  certificates from expiring, or explicitly configure a longer validity through
+  the ``clustermesh.apiserver.tls.auto.certValidityDuration`` option. The same
+  limitation does not apply to the other generation methods (``cronJob`` and
+  ``certmanager``), which support automatic certificate renewal.
+* The certgen tool, which is used to automatically generate Hubble and Cluster
+  Mesh certificates in ``cronJob`` mode, now defaults to enforcing that the CA
+  chain remains valid for the entire duration of the leaf certificates to be
+  generated, and fails with a hard error if that is not the case. This allows
+  to flag early situations in which the CA certificates need to be manually
+  regenerated, before they actually expire. This validation can be disabled
+  setting ``certgen.enforceCAValidityThroughoutLeavesDuration=false``.
 
 Changes to Features
 ~~~~~~~~~~~~~~~~~~~
@@ -355,6 +373,12 @@ differently than in prior releases:
 * ``bpf.tproxy=true`` is incompatible with netkit datapath mode. If netkit is also enabled,
   Cilium will fail to start. If auto-detect datapath mode is used, Cilium will revert to
   veth mode, even if netkit support is present.
+* The ``clustermesh.apiserver.tls.server.{extraDnsNames,extraIpAddresses}`` options are
+  replaced by ``clustermesh.apiserver.tls.auto.server.{extraDnsNames,extraIpAddresses}``.
+  The previous values, if set, are still used as a fallback for backwards compatibility.
+  The ``clustermesh-apiserver.cilium.io`` DNS name is also no longer included by default.
+* Cluster Mesh certificates are now configured to be automatically regenerated every
+  4 months, when the ``cronJob`` generation mode is selected.
 
 Deprecated Options
 ##################
@@ -427,6 +451,10 @@ from Cilium.
   originally introduced for the v1.3 to v1.4 upgrade path and are no longer
   needed.
 
+* The previously deprecated support for providing Cluster Mesh TLS certificates
+  and keys as helm values has been removed. You are now expected to pre-create
+  these secrets outside of the Cilium Helm chart when setting
+  ``clustermesh.apiserver.tls.auto.enabled=false``.
 
 Changes to Metrics
 ~~~~~~~~~~~~~~~~~~

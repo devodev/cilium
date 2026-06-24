@@ -228,7 +228,7 @@ func (m *manager) lookupTunnelIP(devices iter.Seq[*dptables.Device], n nodeTypes
 // NodeAdd implements [node.Handler]
 func (m *manager) NodeAdd(newNode nodeTypes.Node) error {
 	m.mu.Lock()
-	devices := statedb.ToSeq(m.devices.List(m.db.ReadTxn(), dptables.DeviceSelectedIndex.Query(true)))
+	devices := statedb.ToSeq(m.devices.List(m.db.ReadTxn(), dptables.DevicesBySelected(true)))
 	hostsToRefresh := m.syncNodeLocked(devices, newNode)
 	m.mu.Unlock()
 
@@ -363,10 +363,10 @@ func (m *manager) runDeviceSync(ctx context.Context, store *node.LocalNodeStore)
 func getDevicesToSync(rxn statedb.ReadTxn, devices statedb.Table[*dptables.Device]) (*statedb.WatchSet, iter.Seq[*dptables.Device]) {
 	ws := statedb.NewWatchSet()
 
-	selectedDevices, watchSelected := devices.ListWatch(rxn, dptables.DeviceSelectedIndex.Query(true))
+	selectedDevices, watchSelected := devices.ListWatch(rxn, dptables.DevicesBySelected(true))
 	ws.Add(watchSelected)
 
-	hostDev, _, watchHost, found := devices.GetWatch(rxn, tables.DeviceNameIndex.Query(defaults.HostDevice))
+	hostDev, _, watchHost, found := devices.GetWatch(rxn, tables.DeviceByName(defaults.HostDevice))
 	ws.Add(watchHost)
 
 	return ws,

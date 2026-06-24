@@ -498,7 +498,7 @@ func (e *externalEndpointReconcilerOps) createEndpoint(ctx context.Context, obj 
 	defer func() {
 		if err != nil {
 			if hasPIPv4 {
-				releaseErr := e.ipam.ReleaseIP(pipv4.IP.AsSlice(), ipam.PoolDefault())
+				releaseErr := e.ipam.ReleaseIP(pipv4.IP, ipam.PoolDefault())
 				if releaseErr != nil {
 					e.log.Warn("IPv4 cleanup failed. Leaking IPv4 for external endpoint",
 						logfields.Error, releaseErr,
@@ -508,7 +508,7 @@ func (e *externalEndpointReconcilerOps) createEndpoint(ctx context.Context, obj 
 				}
 			}
 			if hasPIPv6 {
-				releaseErr := e.ipam.ReleaseIP(pipv6.IP.AsSlice(), ipam.PoolDefault())
+				releaseErr := e.ipam.ReleaseIP(pipv6.IP, ipam.PoolDefault())
 				if releaseErr != nil {
 					e.log.Warn("IPv6 cleanup failed. Leaking IPv6 for external endpoint",
 						logfields.Error, releaseErr,
@@ -918,7 +918,7 @@ func (e *externalEndpointRestorer) EndpointRestored(ep endpoints.Endpoint) {
 			continue
 		}
 
-		_, err := e.ipam.AllocateIPWithoutSyncUpstream(ip.AsSlice(), ep.GetK8sNamespaceAndCEPName()+" [restored]", ipam.PoolDefault())
+		_, err := e.ipam.AllocateIPWithoutSyncUpstream(ip, ep.GetK8sNamespaceAndCEPName()+" [restored]", ipam.PoolDefault())
 		if err != nil {
 			e.log.Error("Failed to re-allocate external endpoint IP address",
 				logfields.EndpointID, ep.GetID16(),

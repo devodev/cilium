@@ -12,7 +12,6 @@ package privnet
 
 import (
 	"context"
-	"path"
 	"sync"
 	"sync/atomic"
 
@@ -156,7 +155,7 @@ func (obs *EndpointsObserver) Register(mgr store.WatchStoreManager,
 
 		obs.enabled.Store(true)
 		mgr.Register(prefix, func(ctx context.Context) {
-			obs.watcher.Watch(ctx, backend, path.Join(prefix, obs.cluster))
+			obs.watcher.Watch(ctx, backend, kvstore.JoinKey(prefix, obs.cluster))
 		})
 	} else {
 		obs.enabled.Store(false)

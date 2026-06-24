@@ -547,7 +547,7 @@ func (r *importRouteReconciler) toTableRoute(rtxn statedb.ReadTxn, owner *routeR
 
 func (r *importRouteReconciler) getDevice(rtxn statedb.ReadTxn, nexthop netip.Addr) (*tables.Device, error) {
 	if nexthop.Zone() != "" {
-		dev, _, found := r.deviceTable.Get(rtxn, tables.DeviceNameIndex.Query(nexthop.Zone()))
+		dev, _, found := r.deviceTable.Get(rtxn, tables.DeviceByName(nexthop.Zone()))
 		if !found {
 			return nil, fmt.Errorf("device %q not found for nexthop %q", nexthop.Zone(), nexthop)
 		}

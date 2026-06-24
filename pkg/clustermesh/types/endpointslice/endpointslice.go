@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
-	"path"
 	"sync"
 
 	"github.com/klauspost/compress/zstd"
@@ -24,7 +23,15 @@ import (
 //
 // WARNING - STABLE API: Changing the structure or values of this will
 // break backwards compatibility
-var EndpointSliceStorePrefix = path.Join(kvstore.BaseKeyPrefix, "state", "endpointslices", "v1")
+var EndpointSliceStorePrefix = kvstore.JoinKey(kvstore.BaseKeyPrefix, "state", "endpointslices", "v1")
+
+func init() {
+	kvstore.RegisterCommandTranscoder(
+		func() kvstore.TranscodableJSON { return &ClusterEndpointSlice{} },
+		EndpointSliceStorePrefix,
+		kvstore.StateToCachePrefix(EndpointSliceStorePrefix),
+	)
+}
 
 // ClusterEndpointSlice is the definition of an EndpointSlice in a cluster.
 //
@@ -45,7 +52,7 @@ func (eps *ClusterEndpointSlice) NamespacedName() types.NamespacedName {
 func (eps *ClusterEndpointSlice) GetKeyName() string {
 	// WARNING - STABLE API: Changing the structure of the key may break
 	// backwards compatibility
-	return path.Join(eps.Cluster, eps.Namespace, eps.Name)
+	return kvstore.JoinKey(eps.Cluster, eps.Namespace, eps.Name)
 }
 
 var (

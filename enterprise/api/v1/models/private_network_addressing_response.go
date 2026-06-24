@@ -18,7 +18,8 @@ import (
 
 	"github.com/go-openapi/errors"
 	"github.com/go-openapi/strfmt"
-	"github.com/go-openapi/swag"
+	"github.com/go-openapi/swag/jsonutils"
+	"github.com/go-openapi/swag/typeutils"
 )
 
 // PrivateNetworkAddressingResponse Contains the endpoint's private network specific information
@@ -46,7 +47,7 @@ func (m *PrivateNetworkAddressingResponse) Validate(formats strfmt.Registry) err
 }
 
 func (m *PrivateNetworkAddressingResponse) validateAddressing(formats strfmt.Registry) error {
-	if swag.IsZero(m.Addressing) { // not required
+	if typeutils.IsZero(m.Addressing) { // not required
 		return nil
 	}
 
@@ -86,7 +87,7 @@ func (m *PrivateNetworkAddressingResponse) contextValidateAddressing(ctx context
 
 	if m.Addressing != nil {
 
-		if swag.IsZero(m.Addressing) { // not required
+		if typeutils.IsZero(m.Addressing) { // not required
 			return nil
 		}
 
@@ -112,13 +113,13 @@ func (m *PrivateNetworkAddressingResponse) MarshalBinary() ([]byte, error) {
 	if m == nil {
 		return nil, nil
 	}
-	return swag.WriteJSON(m)
+	return jsonutils.WriteJSON(m)
 }
 
 // UnmarshalBinary interface implementation
 func (m *PrivateNetworkAddressingResponse) UnmarshalBinary(b []byte) error {
 	var res PrivateNetworkAddressingResponse
-	if err := swag.ReadJSON(b, &res); err != nil {
+	if err := jsonutils.ReadJSON(b, &res); err != nil {
 		return err
 	}
 	*m = res

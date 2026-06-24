@@ -23,6 +23,8 @@ import (
 	"github.com/cilium/cilium/operator/pkg/secretsync"
 )
 
+const testConfigMapSyncControllerName = "example.com/test-gateway-controller"
+
 var configMapFixture = []client.Object{
 	&corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -96,7 +98,7 @@ var configMapFixture = []client.Object{
 		Status: gatewayv1.PolicyStatus{
 			Ancestors: []gatewayv1.PolicyAncestorStatus{
 				{
-					ControllerName: "io.cilium/gateway-controller",
+					ControllerName: testConfigMapSyncControllerName,
 					Conditions: []metav1.Condition{
 						{
 							Type:   "Accepted",
@@ -188,7 +190,7 @@ var configMapFixture = []client.Object{
 		Status: gatewayv1.PolicyStatus{
 			Ancestors: []gatewayv1.PolicyAncestorStatus{
 				{
-					ControllerName: "io.cilium/gateway-controller",
+					ControllerName: testConfigMapSyncControllerName,
 					Conditions: []metav1.Condition{
 						{
 							Type:   "Accepted",
@@ -210,11 +212,13 @@ func Test_ConfigMapSync_Reconcile(t *testing.T) {
 		WithIndex(&gatewayv1.BackendTLSPolicy{}, indexers.BackendTLSPolicyConfigMapIndex, indexers.IndexBTLSPolicyByConfigMap).
 		Build()
 
+	gatewayHandler := gateway_api.NewSecretSyncHandler(c, logger, testConfigMapSyncControllerName)
+
 	r := secretsync.NewConfigMapSyncReconciler(c, logger, []*secretsync.ConfigMapSyncRegistration{
 		{
 			RefObject:            &gatewayv1.Gateway{},
-			RefObjectEnqueueFunc: gateway_api.EnqueueBackendTLSPolicyConfigMaps(c, logger),
-			RefObjectCheckFunc:   gateway_api.ConfigMapIsReferencedInCiliumGateway,
+			RefObjectEnqueueFunc: gatewayHandler.EnqueueBackendTLSPolicyConfigMaps(),
+			RefObjectCheckFunc:   gatewayHandler.ConfigMapIsReferencedInGateway,
 			SecretsNamespace:     secretsNamespace,
 		},
 	},

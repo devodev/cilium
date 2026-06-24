@@ -310,6 +310,8 @@ enum metric_dir {
 #define CB_DELIVERY_FLAGS_FROM_HOST		(1 << 1)
 #define CB_DELIVERY_FLAGS_FROM_TUNNEL		(1 << 2)
 #define CB_DELIVERY_FLAGS_USE_REDIRECT_PEER	(1 << 3)
+#define CB_DELIVERY_FLAGS_FROM_INGRESS_PROXY	(1 << 4)
+#define CB_DELIVERY_FLAGS_FROM_EGRESS_PROXY	(1 << 5)
 
 #define CB_NAT_FLAGS_REVDNAT_ONLY	(1 << 0)
 
@@ -341,6 +343,8 @@ enum {
 #define	CB_SRV6_SID_2		CB_1		/* Alias, non-overlapping */
 #define	CB_CLUSTER_ID_EGRESS	CB_1		/* Alias, non-overlapping */
 #define	CB_TRACED		CB_1		/* Alias, non-overlapping */
+#define	CB_FORCED_BACKEND_V4	CB_1		/* Alias, non-overlapping */
+#define	CB_FORCED_BACKEND_V6_1	CB_1		/* Alias, non-overlapping */
 	CB_2,
 #define	CB_ADDR_V6_2		CB_2		/* Alias, non-overlapping */
 #define CB_SRV6_SID_3		CB_2		/* Alias, non-overlapping */

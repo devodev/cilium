@@ -349,7 +349,7 @@ func egressIfindexForIface(ifaceIndex int, ifaceType string) uint32 {
 }
 
 func fetchLinkInfo(manager *Manager, name string) (ifaceName string, ifaceIndex int, ifaceType string, err error) {
-	dev, _, found := manager.deviceTable.Get(manager.db.ReadTxn(), tables.DeviceNameIndex.Query(name))
+	dev, _, found := manager.deviceTable.Get(manager.db.ReadTxn(), tables.DeviceByName(name))
 	if found {
 		return dev.Name, dev.Index, dev.Type, nil
 	}

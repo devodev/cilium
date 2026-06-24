@@ -12,7 +12,6 @@ package srv6manager
 
 import (
 	"context"
-	"net"
 	"net/netip"
 	"slices"
 	"strings"
@@ -23,7 +22,6 @@ import (
 	"github.com/cilium/hive/hivetest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go4.org/netipx"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
 	k8sTesting "k8s.io/client-go/testing"
@@ -134,18 +132,18 @@ func (fsm *fakeSIDManager) Observe(ctx context.Context, next func(sidmanager.Eve
 }
 
 type fakeIPAMAllocator struct {
-	sid net.IP
+	sid netip.Addr
 }
 
 var _ sidIPAllocator = (*fakeIPAMAllocator)(nil)
 
-func (fa *fakeIPAMAllocator) Release(ip net.IP) error {
+func (fa *fakeIPAMAllocator) Release(ip netip.Addr) error {
 	return nil
 }
 
 func (fa *fakeIPAMAllocator) AllocateNext() (*ipam.AllocationResult, error) {
 	return &ipam.AllocationResult{
-		IP: netipx.MustFromStdIP(fa.sid),
+		IP: fa.sid,
 	}, nil
 }
 
@@ -398,8 +396,8 @@ func TestPrivilegedSRv6Manager(t *testing.T) {
 	cidr1 := netip.MustParsePrefix("0.0.0.0/0")
 	cidr2 := netip.MustParsePrefix("10.0.0.0/24")
 
-	sid1IP := net.ParseIP("fd00:0:0:1::")
-	sid2IP := net.ParseIP("fd00:0:1:1::")
+	sid1IP := netip.MustParseAddr("fd00:0:0:1::")
+	sid2IP := netip.MustParseAddr("fd00:0:1:1::")
 	sid3 := srv6Types.MustNewSID(netip.MustParseAddr("fd00:0:1:2::"))
 
 	vrf0 := &v1alpha1.IsovalentVRF{
@@ -528,7 +526,7 @@ func TestPrivilegedSRv6Manager(t *testing.T) {
 			},
 			updatedSIDMapEntries: []*sidKV{
 				{
-					k: &srv6map.SIDKey{SID: types.IPv6(sid2IP.To16())},
+					k: &srv6map.SIDKey{SID: types.IPv6(sid2IP.As16())},
 					v: &srv6map.SIDValue{VRFID: 1},
 				},
 			},
@@ -562,7 +560,7 @@ func TestPrivilegedSRv6Manager(t *testing.T) {
 			},
 			initSIDMapEntries: []*sidKV{
 				{
-					k: &srv6map.SIDKey{SID: types.IPv6(sid2IP.To16())},
+					k: &srv6map.SIDKey{SID: types.IPv6(sid2IP.As16())},
 					v: &srv6map.SIDValue{VRFID: 1},
 				},
 			},
@@ -607,7 +605,7 @@ func TestPrivilegedSRv6Manager(t *testing.T) {
 			},
 			updatedSIDMapEntries: []*sidKV{
 				{
-					k: &srv6map.SIDKey{SID: types.IPv6(sid2IP.To16())},
+					k: &srv6map.SIDKey{SID: types.IPv6(sid2IP.As16())},
 					v: &srv6map.SIDValue{VRFID: 1},
 				},
 			},
@@ -662,7 +660,7 @@ func TestPrivilegedSRv6Manager(t *testing.T) {
 			updatedPolicyMapEntries: []*policyKV{
 				{
 					k: &srv6map.PolicyKey{VRFID: 1, DestCIDR: cidr2},
-					v: &srv6map.PolicyValue{SID: types.IPv6(sid1IP.To16())},
+					v: &srv6map.PolicyValue{SID: types.IPv6(sid1IP.As16())},
 				},
 			},
 		},
@@ -680,7 +678,7 @@ func TestPrivilegedSRv6Manager(t *testing.T) {
 			initPolicyMapEntries: []*policyKV{
 				{
 					k: &srv6map.PolicyKey{VRFID: 1, DestCIDR: cidr2},
-					v: &srv6map.PolicyValue{SID: types.IPv6(sid1IP.To16())},
+					v: &srv6map.PolicyValue{SID: types.IPv6(sid1IP.As16())},
 				},
 			},
 			updatedEndpoints: []*v2.CiliumEndpoint{endpoint1},
@@ -695,7 +693,7 @@ func TestPrivilegedSRv6Manager(t *testing.T) {
 			updatedPolicyMapEntries: []*policyKV{
 				{
 					k: &srv6map.PolicyKey{VRFID: 2, DestCIDR: cidr2},
-					v: &srv6map.PolicyValue{SID: types.IPv6(sid1IP.To16())},
+					v: &srv6map.PolicyValue{SID: types.IPv6(sid1IP.As16())},
 				},
 			},
 		},
@@ -713,7 +711,7 @@ func TestPrivilegedSRv6Manager(t *testing.T) {
 			initPolicyMapEntries: []*policyKV{
 				{
 					k: &srv6map.PolicyKey{VRFID: 1, DestCIDR: cidr2},
-					v: &srv6map.PolicyValue{SID: types.IPv6(sid1IP.To16())},
+					v: &srv6map.PolicyValue{SID: types.IPv6(sid1IP.As16())},
 				},
 			},
 			updatedEndpoints: []*v2.CiliumEndpoint{endpoint1},

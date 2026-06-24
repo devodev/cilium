@@ -30,24 +30,28 @@ import (
 //
 // To enforce default values in parameter, use SetDefaults or WithDefaults.
 func NewGetNetworkPrivateAddressingParams() *GetNetworkPrivateAddressingParams {
-	return &GetNetworkPrivateAddressingParams{
-		timeout: cr.DefaultTimeout,
-	}
+	return NewGetNetworkPrivateAddressingParamsWithTimeout(cr.DefaultTimeout)
 }
 
 // NewGetNetworkPrivateAddressingParamsWithTimeout creates a new GetNetworkPrivateAddressingParams object
 // with the ability to set a timeout on a request.
 func NewGetNetworkPrivateAddressingParamsWithTimeout(timeout time.Duration) *GetNetworkPrivateAddressingParams {
 	return &GetNetworkPrivateAddressingParams{
-		timeout: timeout,
+		inner: innerParams{
+			timeout: timeout,
+		},
 	}
 }
 
 // NewGetNetworkPrivateAddressingParamsWithContext creates a new GetNetworkPrivateAddressingParams object
 // with the ability to set a context for a request.
+//
+// Deprecated: use the operation call with context to pass the context instead of [GetNetworkPrivateAddressingParams].
 func NewGetNetworkPrivateAddressingParamsWithContext(ctx context.Context) *GetNetworkPrivateAddressingParams {
 	return &GetNetworkPrivateAddressingParams{
-		Context: ctx,
+		inner: innerParams{
+			ctx: ctx,
+		},
 	}
 }
 
@@ -104,9 +108,9 @@ type GetNetworkPrivateAddressingParams struct {
 	*/
 	Subnet *string
 
-	timeout    time.Duration
-	Context    context.Context
 	HTTPClient *http.Client
+
+	inner innerParams
 }
 
 // WithDefaults hydrates default values in the get network private addressing params (not the query body).
@@ -124,109 +128,112 @@ func (o *GetNetworkPrivateAddressingParams) SetDefaults() {
 	// no default values defined for this parameter
 }
 
-// WithTimeout adds the timeout to the get network private addressing params
+// WithTimeout adds the timeout to the get network private addressing params.
 func (o *GetNetworkPrivateAddressingParams) WithTimeout(timeout time.Duration) *GetNetworkPrivateAddressingParams {
 	o.SetTimeout(timeout)
 	return o
 }
 
-// SetTimeout adds the timeout to the get network private addressing params
+// SetTimeout adds the timeout to the get network private addressing params.
 func (o *GetNetworkPrivateAddressingParams) SetTimeout(timeout time.Duration) {
-	o.timeout = timeout
+	o.inner.timeout = timeout
 }
 
-// WithContext adds the context to the get network private addressing params
+// WithContext adds the context to the get network private addressing params.
+//
+// Deprecated: use the operation call with context to pass the context instead of [GetNetworkPrivateAddressingParams].
 func (o *GetNetworkPrivateAddressingParams) WithContext(ctx context.Context) *GetNetworkPrivateAddressingParams {
 	o.SetContext(ctx)
 	return o
 }
 
-// SetContext adds the context to the get network private addressing params
+// SetContext adds the context to the get network private addressing params.
+//
+// Deprecated: use the operation call with context to pass the context instead of [GetNetworkPrivateAddressingParams].
 func (o *GetNetworkPrivateAddressingParams) SetContext(ctx context.Context) {
-	o.Context = ctx
+	o.inner.ctx = ctx
 }
 
-// WithHTTPClient adds the HTTPClient to the get network private addressing params
+// WithHTTPClient adds the HTTPClient to the get network private addressing params.
 func (o *GetNetworkPrivateAddressingParams) WithHTTPClient(client *http.Client) *GetNetworkPrivateAddressingParams {
 	o.SetHTTPClient(client)
 	return o
 }
 
-// SetHTTPClient adds the HTTPClient to the get network private addressing params
+// SetHTTPClient adds the HTTPClient to the get network private addressing params.
 func (o *GetNetworkPrivateAddressingParams) SetHTTPClient(client *http.Client) {
 	o.HTTPClient = client
 }
 
-// WithIfname adds the ifname to the get network private addressing params
+// WithIfname adds the ifname to the get network private addressing params.
 func (o *GetNetworkPrivateAddressingParams) WithIfname(ifname string) *GetNetworkPrivateAddressingParams {
 	o.SetIfname(ifname)
 	return o
 }
 
-// SetIfname adds the ifname to the get network private addressing params
+// SetIfname adds the ifname to the get network private addressing params.
 func (o *GetNetworkPrivateAddressingParams) SetIfname(ifname string) {
 	o.Ifname = ifname
 }
 
-// WithNetwork adds the network to the get network private addressing params
+// WithNetwork adds the network to the get network private addressing params.
 func (o *GetNetworkPrivateAddressingParams) WithNetwork(network *string) *GetNetworkPrivateAddressingParams {
 	o.SetNetwork(network)
 	return o
 }
 
-// SetNetwork adds the network to the get network private addressing params
+// SetNetwork adds the network to the get network private addressing params.
 func (o *GetNetworkPrivateAddressingParams) SetNetwork(network *string) {
 	o.Network = network
 }
 
-// WithPodName adds the podName to the get network private addressing params
+// WithPodName adds the podName to the get network private addressing params.
 func (o *GetNetworkPrivateAddressingParams) WithPodName(podName string) *GetNetworkPrivateAddressingParams {
 	o.SetPodName(podName)
 	return o
 }
 
-// SetPodName adds the podName to the get network private addressing params
+// SetPodName adds the podName to the get network private addressing params.
 func (o *GetNetworkPrivateAddressingParams) SetPodName(podName string) {
 	o.PodName = podName
 }
 
-// WithPodNamespace adds the podNamespace to the get network private addressing params
+// WithPodNamespace adds the podNamespace to the get network private addressing params.
 func (o *GetNetworkPrivateAddressingParams) WithPodNamespace(podNamespace string) *GetNetworkPrivateAddressingParams {
 	o.SetPodNamespace(podNamespace)
 	return o
 }
 
-// SetPodNamespace adds the podNamespace to the get network private addressing params
+// SetPodNamespace adds the podNamespace to the get network private addressing params.
 func (o *GetNetworkPrivateAddressingParams) SetPodNamespace(podNamespace string) {
 	o.PodNamespace = podNamespace
 }
 
-// WithPodUID adds the podUID to the get network private addressing params
+// WithPodUID adds the podUID to the get network private addressing params.
 func (o *GetNetworkPrivateAddressingParams) WithPodUID(podUID string) *GetNetworkPrivateAddressingParams {
 	o.SetPodUID(podUID)
 	return o
 }
 
-// SetPodUID adds the podUid to the get network private addressing params
+// SetPodUID adds the podUid to the get network private addressing params.
 func (o *GetNetworkPrivateAddressingParams) SetPodUID(podUID string) {
 	o.PodUID = podUID
 }
 
-// WithSubnet adds the subnet to the get network private addressing params
+// WithSubnet adds the subnet to the get network private addressing params.
 func (o *GetNetworkPrivateAddressingParams) WithSubnet(subnet *string) *GetNetworkPrivateAddressingParams {
 	o.SetSubnet(subnet)
 	return o
 }
 
-// SetSubnet adds the subnet to the get network private addressing params
+// SetSubnet adds the subnet to the get network private addressing params.
 func (o *GetNetworkPrivateAddressingParams) SetSubnet(subnet *string) {
 	o.Subnet = subnet
 }
 
-// WriteToRequest writes these params to a swagger request
+// WriteToRequest writes these params to a [runtime.ClientRequest].
 func (o *GetNetworkPrivateAddressingParams) WriteToRequest(r runtime.ClientRequest, reg strfmt.Registry) error {
-
-	if err := r.SetTimeout(o.timeout); err != nil {
+	if err := r.SetTimeout(o.inner.timeout); err != nil {
 		return err
 	}
 	var res []error

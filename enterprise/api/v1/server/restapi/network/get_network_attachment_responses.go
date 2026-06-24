@@ -15,9 +15,8 @@ package network
 import (
 	"net/http"
 
-	"github.com/go-openapi/runtime"
-
 	"github.com/cilium/cilium/enterprise/api/v1/models"
+	"github.com/go-openapi/runtime"
 )
 
 // GetNetworkAttachmentOKCode is the HTTP code returned for type GetNetworkAttachmentOK

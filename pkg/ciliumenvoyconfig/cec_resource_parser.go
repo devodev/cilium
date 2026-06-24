@@ -73,6 +73,11 @@ type CECResourceParser struct {
 	accessLogPath               string
 
 	ingressIdentityEnabled bool
+
+	// enableBPFTProxy indicates whether BPF TProxy is enabled. When set,
+	// SO_REUSEPORT is disabled on (non-internal) listeners as it is not
+	// compatible with BPF TPROXY.
+	enableBPFTProxy bool
 }
 
 type parserParams struct {
@@ -85,8 +90,9 @@ type parserParams struct {
 	DB            *statedb.DB
 	Nodes         statedb.Table[*node.LocalNode]
 
-	CecConfig   CECConfig
-	EnvoyConfig envoyCfg.ProxyConfig
+	DaemonConfig *option.DaemonConfig
+	CecConfig    CECConfig
+	EnvoyConfig  envoyCfg.ProxyConfig
 
 	PolicyConfig types.CECPolicyConfig
 }
@@ -100,6 +106,7 @@ func newCECResourceParser(params parserParams) *CECResourceParser {
 		defaultMaxRequests:          params.EnvoyConfig.ProxyClusterMaxRequests,
 		defaultMaxPendingRequests:   params.EnvoyConfig.ProxyClusterMaxPendingRequests,
 		httpLingerConfig:            params.EnvoyConfig.EnvoyHTTPUpstreamLingerTimeout,
+		enableBPFTProxy:             params.DaemonConfig.EnableBPFTProxy,
 
 		ingressIdentityEnabled: params.PolicyConfig.Mode == types.CECPolicyModeDedicated,
 	}
@@ -184,10 +191,12 @@ func (r *CECResourceParser) ParseResources(cecNamespace string, cecName string, 
 				return envoy.Resources{}, fmt.Errorf("unspecified Listener name")
 			}
 
-			if option.Config.EnableBPFTProxy {
+			if r.enableBPFTProxy && listener.GetInternalListener() == nil {
 				// Envoy since 1.20.0 uses SO_REUSEPORT on listeners by default.
 				// BPF TPROXY is currently not compatible with SO_REUSEPORT, so
 				// disable it.  Note that this may degrade Envoy performance.
+				// Skip internal listeners as they don't bind to sockets and
+				// don't support the EnableReusePort field (validation would fail).
 				listener.EnableReusePort = &wrapperspb.BoolValue{Value: false}
 			}
 

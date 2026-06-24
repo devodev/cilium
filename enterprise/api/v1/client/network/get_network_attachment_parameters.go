@@ -30,24 +30,28 @@ import (
 //
 // To enforce default values in parameter, use SetDefaults or WithDefaults.
 func NewGetNetworkAttachmentParams() *GetNetworkAttachmentParams {
-	return &GetNetworkAttachmentParams{
-		timeout: cr.DefaultTimeout,
-	}
+	return NewGetNetworkAttachmentParamsWithTimeout(cr.DefaultTimeout)
 }
 
 // NewGetNetworkAttachmentParamsWithTimeout creates a new GetNetworkAttachmentParams object
 // with the ability to set a timeout on a request.
 func NewGetNetworkAttachmentParamsWithTimeout(timeout time.Duration) *GetNetworkAttachmentParams {
 	return &GetNetworkAttachmentParams{
-		timeout: timeout,
+		inner: innerParams{
+			timeout: timeout,
+		},
 	}
 }
 
 // NewGetNetworkAttachmentParamsWithContext creates a new GetNetworkAttachmentParams object
 // with the ability to set a context for a request.
+//
+// Deprecated: use the operation call with context to pass the context instead of [GetNetworkAttachmentParams].
 func NewGetNetworkAttachmentParamsWithContext(ctx context.Context) *GetNetworkAttachmentParams {
 	return &GetNetworkAttachmentParams{
-		Context: ctx,
+		inner: innerParams{
+			ctx: ctx,
+		},
 	}
 }
 
@@ -80,9 +84,9 @@ type GetNetworkAttachmentParams struct {
 	*/
 	PodNamespace string
 
-	timeout    time.Duration
-	Context    context.Context
 	HTTPClient *http.Client
+
+	inner innerParams
 }
 
 // WithDefaults hydrates default values in the get network attachment params (not the query body).
@@ -100,65 +104,68 @@ func (o *GetNetworkAttachmentParams) SetDefaults() {
 	// no default values defined for this parameter
 }
 
-// WithTimeout adds the timeout to the get network attachment params
+// WithTimeout adds the timeout to the get network attachment params.
 func (o *GetNetworkAttachmentParams) WithTimeout(timeout time.Duration) *GetNetworkAttachmentParams {
 	o.SetTimeout(timeout)
 	return o
 }
 
-// SetTimeout adds the timeout to the get network attachment params
+// SetTimeout adds the timeout to the get network attachment params.
 func (o *GetNetworkAttachmentParams) SetTimeout(timeout time.Duration) {
-	o.timeout = timeout
+	o.inner.timeout = timeout
 }
 
-// WithContext adds the context to the get network attachment params
+// WithContext adds the context to the get network attachment params.
+//
+// Deprecated: use the operation call with context to pass the context instead of [GetNetworkAttachmentParams].
 func (o *GetNetworkAttachmentParams) WithContext(ctx context.Context) *GetNetworkAttachmentParams {
 	o.SetContext(ctx)
 	return o
 }
 
-// SetContext adds the context to the get network attachment params
+// SetContext adds the context to the get network attachment params.
+//
+// Deprecated: use the operation call with context to pass the context instead of [GetNetworkAttachmentParams].
 func (o *GetNetworkAttachmentParams) SetContext(ctx context.Context) {
-	o.Context = ctx
+	o.inner.ctx = ctx
 }
 
-// WithHTTPClient adds the HTTPClient to the get network attachment params
+// WithHTTPClient adds the HTTPClient to the get network attachment params.
 func (o *GetNetworkAttachmentParams) WithHTTPClient(client *http.Client) *GetNetworkAttachmentParams {
 	o.SetHTTPClient(client)
 	return o
 }
 
-// SetHTTPClient adds the HTTPClient to the get network attachment params
+// SetHTTPClient adds the HTTPClient to the get network attachment params.
 func (o *GetNetworkAttachmentParams) SetHTTPClient(client *http.Client) {
 	o.HTTPClient = client
 }
 
-// WithPodName adds the podName to the get network attachment params
+// WithPodName adds the podName to the get network attachment params.
 func (o *GetNetworkAttachmentParams) WithPodName(podName string) *GetNetworkAttachmentParams {
 	o.SetPodName(podName)
 	return o
 }
 
-// SetPodName adds the podName to the get network attachment params
+// SetPodName adds the podName to the get network attachment params.
 func (o *GetNetworkAttachmentParams) SetPodName(podName string) {
 	o.PodName = podName
 }
 
-// WithPodNamespace adds the podNamespace to the get network attachment params
+// WithPodNamespace adds the podNamespace to the get network attachment params.
 func (o *GetNetworkAttachmentParams) WithPodNamespace(podNamespace string) *GetNetworkAttachmentParams {
 	o.SetPodNamespace(podNamespace)
 	return o
 }
 
-// SetPodNamespace adds the podNamespace to the get network attachment params
+// SetPodNamespace adds the podNamespace to the get network attachment params.
 func (o *GetNetworkAttachmentParams) SetPodNamespace(podNamespace string) {
 	o.PodNamespace = podNamespace
 }
 
-// WriteToRequest writes these params to a swagger request
+// WriteToRequest writes these params to a [runtime.ClientRequest].
 func (o *GetNetworkAttachmentParams) WriteToRequest(r runtime.ClientRequest, reg strfmt.Registry) error {
-
-	if err := r.SetTimeout(o.timeout); err != nil {
+	if err := r.SetTimeout(o.inner.timeout); err != nil {
 		return err
 	}
 	var res []error

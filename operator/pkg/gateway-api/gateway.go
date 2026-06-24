@@ -11,12 +11,12 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	mcsapiv1beta1 "sigs.k8s.io/mcs-api/pkg/apis/v1beta1"
 
 	"github.com/cilium/cilium/operator/pkg/gateway-api/helpers"
@@ -31,6 +31,7 @@ import (
 const (
 	// Deprecated: owningGatewayLabel will be removed later in favour of gatewayNameLabel
 	owningGatewayLabel = "io.cilium.gateway/owning-gateway"
+	gatewayNameLabel   = "gateway.networking.k8s.io/gateway-name"
 
 	lastTransitionTime = "LastTransitionTime"
 )
@@ -41,34 +42,31 @@ type gatewayReconciler struct {
 	Scheme     *runtime.Scheme
 	translator translation.Translator
 
-	logger        *slog.Logger
-	installedCRDs []schema.GroupVersionKind
+	logger         *slog.Logger
+	controllerName string
 }
 
-func newGatewayReconciler(mgr ctrl.Manager, translator translation.Translator, logger *slog.Logger, installedCRDs []schema.GroupVersionKind) *gatewayReconciler {
+func newGatewayReconciler(mgr ctrl.Manager, translator translation.Translator, logger *slog.Logger, controllerName string) *gatewayReconciler {
 	scopedLog := logger.With(logfields.Controller, gateway)
 
 	return &gatewayReconciler{
-		Client:        mgr.GetClient(),
-		Scheme:        mgr.GetScheme(),
-		translator:    translator,
-		logger:        scopedLog,
-		installedCRDs: installedCRDs,
+		Client:         mgr.GetClient(),
+		Scheme:         mgr.GetScheme(),
+		translator:     translator,
+		logger:         scopedLog,
+		controllerName: controllerName,
 	}
 }
 
 // SetupWithManager sets up the controller with the Manager.
 // The reconciler will be triggered by Gateway, or any cilium-managed GatewayClass events
 func (r *gatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	// Determine which optional CRDs are enabled
-	var serviceImportEnabled bool
-
-	for _, gvk := range r.installedCRDs {
-		switch gvk.Kind {
-		case helpers.ServiceImportKind:
-			serviceImportEnabled = true
-		}
-	}
+	// Determine which optional CRDs are enabled. The scheme is registered from
+	// the autodetected CRDs, so Recognizes() reflects what is installed.
+	scheme := r.Client.Scheme()
+	tcpRouteEnabled := helpers.HasTCPRouteSupport(scheme)
+	udpRouteEnabled := helpers.HasUDPRouteSupport(scheme)
+	serviceImportEnabled := helpers.HasServiceImportSupport(scheme)
 
 	// Add field indexes for HTTPRoutes
 	for indexName, indexerFunc := range map[string]client.IndexerFunc{
@@ -88,7 +86,7 @@ func (r *gatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	// Index Gateways by implementation (ie `cilium`)
-	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1.Gateway{}, indexers.ImplementationGatewayIndex, indexers.GenerateIndexerGatewayByImplementation(r.Client, helpers.CiliumDefaultControllerName)); err != nil {
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1.Gateway{}, indexers.ImplementationGatewayIndex, indexers.GenerateIndexerGatewayByImplementation(r.Client, gatewayv1.GatewayController(r.controllerName))); err != nil {
 		return fmt.Errorf("failed to setup field indexer %q: %w", indexers.ImplementationGatewayIndex, err)
 	}
 
@@ -99,6 +97,30 @@ func (r *gatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	} {
 		if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1.TLSRoute{}, indexName, indexerFunc); err != nil {
 			return fmt.Errorf("failed to setup field indexer %q: %w", indexName, err)
+		}
+	}
+
+	// Add indexes for TCPRoutes
+	if tcpRouteEnabled {
+		for indexName, indexerFunc := range map[string]client.IndexerFunc{
+			indexers.BackendServiceTCPRouteIndex: indexers.GenerateIndexerTCPRoutebyBackendService(r.Client, r.logger),
+			indexers.GatewayTCPRouteIndex:        indexers.IndexTCPRouteByGateway,
+		} {
+			if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1alpha2.TCPRoute{}, indexName, indexerFunc); err != nil {
+				return fmt.Errorf("failed to setup field indexer %q: %w", indexName, err)
+			}
+		}
+	}
+
+	// Add indexes for UDPRoutes
+	if udpRouteEnabled {
+		for indexName, indexerFunc := range map[string]client.IndexerFunc{
+			indexers.BackendServiceUDPRouteIndex: indexers.GenerateIndexerUDPRoutebyBackendService(r.Client, r.logger),
+			indexers.GatewayUDPRouteIndex:        indexers.IndexUDPRouteByGateway,
+		} {
+			if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1alpha2.UDPRoute{}, indexName, indexerFunc); err != nil {
+				return fmt.Errorf("failed to setup field indexer %q: %w", indexName, err)
+			}
 		}
 	}
 
@@ -117,7 +139,7 @@ func (r *gatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return fmt.Errorf("failed to setup field indexer %q: %w", indexers.BackendTLSPolicyConfigMapIndex, err)
 	}
 
-	hasMatchingControllerFn := helpers.GatewayHasMatchingControllerFn(context.Background(), r.Client, helpers.CiliumDefaultControllerName, r.logger)
+	hasMatchingControllerFn := helpers.GatewayHasMatchingControllerFn(context.Background(), r.Client, r.controllerName, r.logger)
 	gatewayBuilder := ctrl.NewControllerManagedBy(mgr).
 		// Watch its own resource
 		For(&gatewayv1.Gateway{},
@@ -125,16 +147,16 @@ func (r *gatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		// Watch GatewayClass resources, which are linked to Gateway
 		Watches(&gatewayv1.GatewayClass{},
 			watchhandlers.EnqueueRequestForOwningGatewayClass(r.Client, *r.logger),
-			builder.WithPredicates(predicates.GatewayClassOwnedByController(helpers.CiliumDefaultControllerName))).
+			builder.WithPredicates(predicates.GatewayClassOwnedByController(r.controllerName))).
 		// Watch related backend Service for status
 		// LB Services are handled by the Owns call later.
 		Watches(&corev1.Service{}, watchhandlers.EnqueueRequestForBackendService(r.Client, *r.logger)).
 		// Watch HTTPRoute linked to Gateway
-		Watches(&gatewayv1.HTTPRoute{}, watchhandlers.EnqueueRequestForOwningHTTPRoute(r.Client, r.logger, helpers.CiliumDefaultControllerName)).
+		Watches(&gatewayv1.HTTPRoute{}, watchhandlers.EnqueueRequestForOwningHTTPRoute(r.Client, r.logger, r.controllerName)).
 		// Watch GRPCRoute linked to Gateway
-		Watches(&gatewayv1.GRPCRoute{}, watchhandlers.EnqueueRequestForOwningGRPCRoute(r.Client, r.logger, helpers.CiliumDefaultControllerName)).
+		Watches(&gatewayv1.GRPCRoute{}, watchhandlers.EnqueueRequestForOwningGRPCRoute(r.Client, r.logger, r.controllerName)).
 		// Watch TLSRoute linked to Gateway
-		Watches(&gatewayv1.TLSRoute{}, watchhandlers.EnqueueRequestForOwningTLSRoute(r.Client, r.logger, helpers.CiliumDefaultControllerName)).
+		Watches(&gatewayv1.TLSRoute{}, watchhandlers.EnqueueRequestForOwningTLSRoute(r.Client, r.logger, r.controllerName)).
 		// Watch related secrets used to configure TLS
 		Watches(&corev1.Secret{},
 			watchhandlers.EnqueueRequestForTLSSecret(r.Client, r.logger),
@@ -151,6 +173,16 @@ func (r *gatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&ciliumv2.CiliumEnvoyConfig{}).
 		Owns(&corev1.Service{}).
 		Owns(&discoveryv1.EndpointSlice{})
+
+	if tcpRouteEnabled {
+		// Watch TCPRoute linked to Gateway
+		gatewayBuilder = gatewayBuilder.Watches(&gatewayv1alpha2.TCPRoute{}, watchhandlers.EnqueueRequestForOwningTCPRoute(r.Client, r.logger, r.controllerName))
+	}
+
+	if udpRouteEnabled {
+		// Watch UDPRoute linked to Gateway
+		gatewayBuilder = gatewayBuilder.Watches(&gatewayv1alpha2.UDPRoute{}, watchhandlers.EnqueueRequestForOwningUDPRoute(r.Client, r.logger, r.controllerName))
+	}
 
 	if serviceImportEnabled {
 		// Watch for changes to Backend Service Imports

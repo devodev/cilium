@@ -55,9 +55,6 @@ jobs:
           - name: clustermesh-apiserver
             make-target: build-container-clustermesh-apiserver
 
-          - name: docker-plugin
-            make-target: -C plugins/cilium-docker
-
           - name: cilium-dnsproxy
             make-target: -C enterprise/fqdn-proxy
 

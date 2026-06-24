@@ -169,7 +169,7 @@ func (m *manager) waitForDevice(ctx context.Context, deviceIndex int) (<-chan st
 	defer cancel()
 
 	for {
-		_, _, watch, found := m.deviceTable.GetWatch(m.db.ReadTxn(), tables.DeviceIDIndex.Query(deviceIndex))
+		_, _, watch, found := m.deviceTable.GetWatch(m.db.ReadTxn(), tables.DeviceByIndex(deviceIndex))
 		if found {
 			return watch, nil
 		}

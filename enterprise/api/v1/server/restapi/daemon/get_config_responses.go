@@ -15,9 +15,8 @@ package daemon
 import (
 	"net/http"
 
-	"github.com/go-openapi/runtime"
-
 	"github.com/cilium/cilium/enterprise/api/v1/models"
+	"github.com/go-openapi/runtime"
 )
 
 // GetConfigOKCode is the HTTP code returned for type GetConfigOK

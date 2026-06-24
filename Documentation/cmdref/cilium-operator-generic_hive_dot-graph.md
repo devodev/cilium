@@ -17,7 +17,7 @@ cilium-operator-generic hive dot-graph [flags]
 ### Options inherited from parent commands
 
 ```
-      --auto-create-cilium-pod-ip-pools stringToString                    Automatically create CiliumPodIPPool resources on startup. Specify pools in the form of <pool>=ipv4-cidrs:<cidr>,[<cidr>...];ipv4-mask-size:<size> (multiple pools can also be passed by repeating the CLI flag) (default [])
+      --auto-create-cilium-pod-ip-pools stringToString                    Automatically create CiliumPodIPPool resources on startup. Specify pools in the form of <pool>=ipv4-cidrs:<cidr>,[<cidr>...];ipv4-mask-size:<size>[;allow-first-ip:<bool>][;allow-last-ip:<bool>] (multiple pools can also be passed by repeating the CLI flag) (default [])
       --auto-create-default-pod-network                                   Automatically creates the default IsovalentPodNetwork on startup (default true)
       --ces-max-ciliumendpoints-per-ces int                               Maximum number of CiliumEndpoints allowed in a CES (default 100)
       --ces-rate-limits string                                            Configure rate limits for the CES controller. Accepts a list of rate limit configurations, must be a JSON formatted string. (default "[{\"nodes\":0,\"limit\":10,\"burst\":20}]")
@@ -50,6 +50,7 @@ cilium-operator-generic hive dot-graph [flags]
       --egress-gateway-ha-reconciliation-trigger-interval duration        Time between triggers of egress gateway state reconciliations (default 2s)
       --enable-bfd                                                        Enables BFD subsystem
       --enable-cilium-operator-server-access strings                      List of cilium operator APIs which are administratively enabled. Supports '*'. (default [*])
+      --enable-cluster-pool-to-multi-pool-migration                       Enable the migration of all nodes from cluster-pool IPAM to multi-pool IPAM
       --enable-egress-gateway-ha-icmp-health-probe                        Enables egress-gateway ha ICMP health probing of egress gateway nodes (default true)
       --enable-enterprise-bgp-control-plane                               Enable enterprise BGP in Cilium
       --enable-enterprise-bgp-control-plane-status-report                 Enable enterprise BGP status report in Cilium (default true)
@@ -112,6 +113,7 @@ cilium-operator-generic hive dot-graph [flags]
       --ingress-secrets-namespace string                                  Namespace having tls secrets used by Ingress and CEC. (default "cilium-secrets")
       --ingress-shared-lb-service-name string                             Name of shared LB service name for Ingress. (default "cilium-ingress")
       --ingress-use-remote-address                                        Use the immediate client's IP address as the origin client's IP address (default true)
+      --ipam-default-ip-pool string                                       Name of the default IP Pool when using multi-pool (default "default")
       --k8s-api-server-urls strings                                       Kubernetes API server URLs
       --k8s-client-connection-keep-alive duration                         Configures the keep alive duration of K8s client connections. K8 client is disabled if the value is set to 0 (default 30s)
       --k8s-client-connection-timeout duration                            Configures the timeout of K8s client connections. K8s client is disabled if the value is set to 0 (default 30s)
@@ -184,6 +186,7 @@ cilium-operator-generic hive dot-graph [flags]
       --mesh-auth-spire-server-address string                             SPIRE server endpoint. (default "spire-server.spire.svc:8081")
       --mesh-auth-spire-server-connection-timeout duration                SPIRE server connection timeout. (default 10s)
       --metrics-sampling-interval duration                                Set the internal metrics sampling interval (default 5m0s)
+      --multi-pool-migration-workers int                                  Number of workers to use for migrating nodes from cluster-pool IPAM to multi-pool IPAM (default 16)
       --nodes-gc-interval duration                                        GC interval for CiliumNodes (default 5m0s)
       --operator-api-serve-addr string                                    Address to serve API requests (default "localhost:9234")
       --operator-k8s-client-burst int                                     Burst value allowed for the K8s client (default 200)

@@ -266,7 +266,7 @@ func (m *manager) waitForDevice(ctx context.Context, deviceIndex int) (<-chan st
 	defer cancel()
 	for {
 		txn := m.db.ReadTxn()
-		_, _, watch, found := m.devices.GetWatch(txn, tables.DeviceIDIndex.Query(deviceIndex))
+		_, _, watch, found := m.devices.GetWatch(txn, tables.DeviceByIndex(deviceIndex))
 		if found {
 			return watch, nil
 		}
@@ -328,7 +328,7 @@ func (m *manager) reconcileSourceIPs(ctx context.Context, health cell.Health) <-
 }
 
 func (m *manager) resolveSourceIPs(health cell.Health) (evpnConfig.SourceIPs, <-chan struct{}) {
-	dev, _, watch, found := m.devices.GetWatch(m.db.ReadTxn(), tables.DeviceNameIndex.Query(m.evpnConfig.SourceInterface))
+	dev, _, watch, found := m.devices.GetWatch(m.db.ReadTxn(), tables.DeviceByName(m.evpnConfig.SourceInterface))
 	if !found {
 		m.log.Warn("EVPN source interface not found",
 			logfields.Interface, m.evpnConfig.SourceInterface,

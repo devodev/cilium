@@ -57,7 +57,7 @@ concurrency:
 
 env:
   # renovate: datasource=golang-version depName=go
-  go-version: 1.26.3
+  go-version: 1.26.4
 
 jobs:
   echo-inputs:
@@ -202,9 +202,6 @@ jobs:
           provision: 'false'
           cmd: |
             cd /host/base
-            if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-              cd /host/pull
-            fi
             export TMPDIR=/var/tmp
             export GOCACHE=/host/gocache
             mkdir -p /host/datapath-verifier /host/gocache
@@ -288,4 +285,4 @@ jobs:
         uses: cilium/cilium/.github/actions/set-commit-status@main # main
         with:
           sha: ${{ inputs.SHA || github.sha }}
-          status: ${{ needs.setup-and-test.result == 'success' && needs.merge-and-diff.result }}
+          status: ${{ needs.setup-and-test.result == 'success' && needs.merge-and-diff.result || needs.setup-and-test.result }}

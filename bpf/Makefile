@@ -151,26 +151,35 @@ endif
 
 include ./Makefile.bpf
 
-.PHONY: all bpf_all build_all install clean generate gen_compile_commands
-
+.PHONY: all
 all: bpf_all
 
+.PHONY: bpf_all
 bpf_all: $(BPF) generate
 
+.PHONY: build_all
 build_all: force
 	@$(ECHO_CHECK)/*.c BUILD_PERMUTATIONS=1
 	$(QUIET) $(MAKE) $(SUBMAKEOPTS) bpf_all BUILD_PERMUTATIONS=1
 
+.PHONY: testdata
 testdata:
-	${CLANG} ${FLAGS} --target=bpf -Wall -Werror \
+	@$(ECHO_CC)
+	$(QUIET)${CLANG} ${FLAGS} --target=bpf -Wall -Werror \
 	-c ../pkg/alignchecker/testdata/bpf_foo.c \
 	-o ../pkg/alignchecker/testdata/bpf_foo.o
 
+.PHONY: generate
 generate: $(BPF)
-	$(GO) generate ../pkg/datapath/types
-	$(GO) generate ../pkg/datapath/config
-	$(GO) generate ../pkg/datapath/maps
-	BPF2GO_CC="$(CLANG)" BPF2GO_CFLAGS="$(MAX_OVERLAY_OPTIONS) $(CLANG_FLAGS)" $(GO) generate ../pkg/datapath/bpf
+	@$(ECHO_GEN)../pkg/datapath/types
+	$(QUIET)$(GO) generate ../pkg/datapath/types
+	@$(ECHO_GEN)../pkg/datapath/config
+	$(QUIET)$(GO) generate ../pkg/datapath/config
+	@$(ECHO_GEN)../pkg/datapath/maps
+	$(QUIET)$(GO) generate ../pkg/datapath/maps
+	@$(ECHO_GEN)../pkg/datapath/bpf
+	$(QUIET)BPF2GO_CC="$(CLANG)" BPF2GO_CFLAGS="$(MAX_OVERLAY_OPTIONS) $(CLANG_FLAGS)" \
+		$(GO) generate ../pkg/datapath/bpf
 
 $(BPF_SIMPLE): %.o: %.c $(LIB)
 	@$(ECHO_CC)
@@ -228,10 +237,13 @@ bpf_lxc.o:: bpf_lxc.c $(LIB)
 
 $(foreach OPTS,$(LXC_OPTIONS),$(eval $(call PERMUTATION_template,bpf_lxc.o,$(OPTS))))
 
+.PHONY: install-binary
 install-binary:
 
+.PHONY: install-bash-completion
 install-bash-completion:
 
+.PHONY: clean
 clean:
 	@$(ECHO_CLEAN)
 	$(QUIET)rm -fr *.o *.ll *.i *.s
@@ -242,6 +254,7 @@ clean:
 
 
 BEAR_CLI   = $(shell which bear 2> /dev/null)
+.PHONY: gen_compile_commands
 gen_compile_commands:
 ifeq (, $(BEAR_CLI))
 	@echo 'Bear cli must be in $$PATH to generate json compilation database'

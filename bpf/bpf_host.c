@@ -1060,6 +1060,42 @@ do_netdev(struct __ctx_buff *ctx, __be16 proto, __u32 identity,
 			}
 		}
 
+		/* IPv6-in-IPv6 IPIP termination, mirror of the v4 path
+		 * below; see that comment for the full rationale. Fires for
+		 * any local endpoint (pod or hostNetwork) outer dst, when the
+		 * outer's next header is IPV6 directly with no extension
+		 * headers (the DSR-IPIP encap path never inserts them).
+		 */
+		if (CONFIG(enable_ipip_termination) && !from_host &&
+		    ip6->nexthdr == NEXTHDR_IPV6) {
+			const struct endpoint_info *ep_outer;
+
+			ep_outer = lookup_ip6_endpoint(ip6);
+			if (ep_outer) {
+				union v6addr outer_dst;
+
+				ipv6_addr_copy(&outer_dst,
+					       (union v6addr *)&ip6->daddr);
+
+				if (ctx_adjust_hroom(ctx, -(int)sizeof(*ip6),
+						     BPF_ADJ_ROOM_MAC,
+						     ctx_adjust_hroom_flags())) {
+					ret = DROP_INVALID;
+					goto drop_err_ingress;
+				}
+				if (!revalidate_data_pull(ctx, &data, &data_end, &ip6)) {
+					ret = DROP_INVALID;
+					goto drop_err_ingress;
+				}
+				ctx_store_meta_ipv6(ctx, CB_FORCED_BACKEND_V6_1,
+						    &outer_dst);
+				/* See the IPv4 sibling block below for why we
+				 * have to clear the skip-nodeport flag here.
+				 */
+				ctx_skip_nodeport_clear(ctx);
+			}
+		}
+
 		identity = resolve_srcid_ipv6(ctx, ip6, identity, &ipcache_srcid);
 		ctx_store_meta(ctx, CB_SRC_LABEL, identity);
 
@@ -1098,6 +1134,59 @@ do_netdev(struct __ctx_buff *ctx, __be16 proto, __u32 identity,
 		if (!revalidate_data_pull(ctx, &data, &data_end, &ip4)) {
 			ret = DROP_INVALID;
 			goto drop_err_ingress;
+		}
+
+		/* Terminate inbound IPIP in BPF on netdev ingress for any
+		 * outer dst that resolves to a local endpoint:
+		 *
+		 *  - Pod outer dst: the kernel would otherwise route the still-
+		 *    encapped packet via the lxc into the Pod netns where it
+		 *    gets dropped (no IPIP handler in the container).
+		 *  - Host outer dst (hostNetwork backend, or --enable-ipip-
+		 *    termination Envoy target): the kernel would otherwise
+		 *    decap on cilium_ipip4 via the collect_md fallback. Doing
+		 *    it here keeps the input ifindex on the physical netdev
+		 *    and lets us drop the bpf_host attach to cilium_ipip{4,6}.
+		 *
+		 * Stash the LB-picked backend (the just-stripped outer dst)
+		 * so nodeport_lb4() honors it instead of re-running selection.
+		 * For L7-punt-proxy svcs the lb4_svc_is_l7_punt_proxy &&
+		 * backend_local gate downstream punts to host stack before
+		 * any DNAT, so Envoy interception still works.
+		 */
+		if (CONFIG(enable_ipip_termination) && !from_host &&
+		    ip4->protocol == IPPROTO_IPIP &&
+		    ipv4_hdrlen(ip4) == sizeof(*ip4)) {
+			const struct endpoint_info *ep_outer;
+
+			ep_outer = lookup_ip4_endpoint(ip4);
+			if (ep_outer) {
+				__be32 outer_dst = ip4->daddr;
+
+				if (ctx_adjust_hroom(ctx, -(int)sizeof(*ip4),
+						     BPF_ADJ_ROOM_MAC,
+						     ctx_adjust_hroom_flags())) {
+					ret = DROP_INVALID;
+					goto drop_err_ingress;
+				}
+				if (!revalidate_data_pull(ctx, &data, &data_end, &ip4)) {
+					ret = DROP_INVALID;
+					goto drop_err_ingress;
+				}
+				ctx_store_meta(ctx, CB_FORCED_BACKEND_V4, outer_dst);
+				/* If NodePort XDP acceleration ran upstream, it
+				 * couldn't classify the IPIP packet (no L4 to
+				 * extract a service tuple from) and signalled
+				 * XFER_PKT_NO_SVC. cil_from_netdev translated
+				 * that into a skip-nodeport hint via tc_index.
+				 * That hint was correct for the OUTER header but
+				 * is stale now: the inner is exactly the service
+				 * request that needs the forced-backend DNAT in
+				 * nodeport_svc_lb4(). Clear it so handle_ipv4()
+				 * runs nodeport_lb4().
+				 */
+				ctx_skip_nodeport_clear(ctx);
+			}
 		}
 
 		identity = resolve_srcid_ipv4(ctx, ip4, identity, &ipcache_srcid);
@@ -1613,6 +1702,10 @@ int host_ingress_policy(struct __ctx_buff *ctx, __be16 proto,
 		.monitor = 0,
 	};
 	int ret;
+
+	ret = pull_l3_hdr(ctx, proto);
+	if (ret < 0)
+		return ret;
 
 	switch (proto) {
 # ifdef ENABLE_IPV6

@@ -18,10 +18,9 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/cilium/cilium/enterprise/api/v1/models"
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/strfmt"
-
-	"github.com/cilium/cilium/enterprise/api/v1/models"
 )
 
 // GetConfigReader is a Reader for the GetConfig structure.

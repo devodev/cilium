@@ -34,8 +34,8 @@ const (
 
 var BgpRoutesCmd = &cobra.Command{
 	Use:   "routes <available | advertised> <afi> <safi> [vrouter <asn>] [peer|neighbor <address>]",
-	Short: "List routes in the BGP Control Plane's RIBs",
-	Long:  "List routes in the BGP Control Plane's Routing Information Bases (RIBs)",
+	Short: "List routes in the BGP Control Plane's RIBs (deprecated)",
+	Long:  "List routes in the BGP Control Plane's Routing Information Bases (RIBs) (deprecated)",
 	Example: `  Get all IPv4 unicast routes available:
     cilium-dbg bgp routes available ipv4 unicast
 
@@ -90,6 +90,7 @@ var BgpRoutesCmd = &cobra.Command{
 				Fatalf("failed getting output in JSON: %s\n", err)
 			}
 		} else {
+			fmt.Fprint(cmd.OutOrStderr(), "Command \"routes\" is deprecated, Use the subcommand: \"shell bgp/routes\"\n")
 			// print peer addresses for `advertised` routes without specifying a peer
 			printPeer := (params.TableType == adjRIBOutTableType) && (params.Neighbor == nil || *params.Neighbor == "")
 			w := NewTabWriter()

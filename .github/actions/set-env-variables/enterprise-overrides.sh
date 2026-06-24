@@ -49,7 +49,7 @@ echo "CILIUM_CLI_EXCLUDE_OWNERS=@isovalent/core-structure" >> $GITHUB_ENV
 echo "PUSH_TO_DOCKER_HUB=false" >> "$GITHUB_ENV"
 
 # CE Scalability specific overrides
-source ./.github/actions/set-env-variables/enterprise-scalability-overrides.sh
+source "$GITHUB_ACTION_PATH/enterprise-scalability-overrides.sh"
 
 # CE feature gate specific overrides
 echo "CILIUM_GINKGO_EXTRA_ARGS=-cilium.install-helm-overrides=enterprise.featureGate.minimumMaturity=Alpha" >> "$GITHUB_ENV"

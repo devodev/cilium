@@ -103,14 +103,14 @@ func (l *EnterpriseLoader) registerEndpointConfig(pd *privnetDHCPDevice) {
 
 		if l.evpnConfig.Enabled {
 			cfg.EVPNEnable = true
-			dev, _, found := l.deviceTable.Get(l.db.ReadTxn(), tables.DeviceNameIndex.Query(l.evpnConfig.VxlanDevice))
+			dev, _, found := l.deviceTable.Get(l.db.ReadTxn(), tables.DeviceByName(l.evpnConfig.VxlanDevice))
 			if found {
 				cfg.EVPNDeviceIfIndex = uint32(dev.Index)
 				cfg.EVPNDeviceMAC.Addr = mac.MAC(dev.HardwareAddr).As6()
 			}
 			if l.evpnConfig.SourceInterface != "" {
 				cfg.EVPNSourceInterfaceConfigured = true
-				dev, _, found = l.deviceTable.Get(l.db.ReadTxn(), tables.DeviceNameIndex.Query(l.evpnConfig.SourceInterface))
+				dev, _, found = l.deviceTable.Get(l.db.ReadTxn(), tables.DeviceByName(l.evpnConfig.SourceInterface))
 				if found {
 					if sourceIPs, err := evpnConfig.SourceIPsFromDevice(dev); err == nil {
 						if sourceIPs.IPv4.IsValid() {
@@ -125,7 +125,7 @@ func (l *EnterpriseLoader) registerEndpointConfig(pd *privnetDHCPDevice) {
 		}
 
 		if l.inspectionFilter.EnabledForEndpoint(ep) {
-			dev, _, found := l.deviceTable.Get(l.db.ReadTxn(), tables.DeviceNameIndex.Query(inspectionConfig.InterfaceName))
+			dev, _, found := l.deviceTable.Get(l.db.ReadTxn(), tables.DeviceByName(inspectionConfig.InterfaceName))
 			if found {
 				cfg.PassiveInspectionEnable = true
 				cfg.PassiveInspectionIfIndex = uint32(dev.Index)

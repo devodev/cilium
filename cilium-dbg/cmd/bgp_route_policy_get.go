@@ -18,8 +18,8 @@ import (
 var BgpRoutePoliciesCmd = &cobra.Command{
 	Use:     "route-policies [vrouter <asn>]",
 	Aliases: []string{"rps"},
-	Short:   "List configured route policies",
-	Long:    "List route policies configured in the underlying routing daemon",
+	Short:   "List configured route policies (deprecated)",
+	Long:    "List route policies configured in the underlying routing daemon (deprecated)",
 	Run: func(cmd *cobra.Command, args []string) {
 		var err error
 		params := bgp.NewGetBgpRoutePoliciesParams()
@@ -49,6 +49,7 @@ var BgpRoutePoliciesCmd = &cobra.Command{
 				Fatalf("error getting output in JSON: %s\n", err)
 			}
 		} else {
+			fmt.Fprint(cmd.OutOrStderr(), "Command \"route-policies\" is deprecated, Use the subcommand: \"shell bgp/route-policies\"\n")
 			w := NewTabWriter()
 			api.PrintBGPRoutePoliciesTable(w, res.GetPayload())
 		}

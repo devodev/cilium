@@ -768,6 +768,9 @@
           },
           "type": "object"
         },
+        "enforceCAValidityThroughoutLeavesDuration": {
+          "type": "boolean"
+        },
         "extraVolumeMounts": {
           "items": {},
           "type": "array"
@@ -1398,17 +1401,6 @@
             },
             "tls": {
               "properties": {
-                "admin": {
-                  "properties": {
-                    "cert": {
-                      "type": "string"
-                    },
-                    "key": {
-                      "type": "string"
-                    }
-                  },
-                  "type": "object"
-                },
                 "authMode": {
                   "type": "string"
                 },
@@ -1429,41 +1421,24 @@
                     "privateKey": {
                       "type": "object"
                     },
+                    "schedule": {
+                      "type": "string"
+                    },
+                    "server": {
+                      "properties": {
+                        "extraDnsNames": {
+                          "items": {},
+                          "type": "array"
+                        },
+                        "extraIpAddresses": {
+                          "items": {},
+                          "type": "array"
+                        }
+                      },
+                      "type": "object"
+                    },
                     "subject": {
                       "type": "object"
-                    }
-                  },
-                  "type": "object"
-                },
-                "enableSecrets": {
-                  "type": "boolean"
-                },
-                "remote": {
-                  "properties": {
-                    "cert": {
-                      "type": "string"
-                    },
-                    "key": {
-                      "type": "string"
-                    }
-                  },
-                  "type": "object"
-                },
-                "server": {
-                  "properties": {
-                    "cert": {
-                      "type": "string"
-                    },
-                    "extraDnsNames": {
-                      "items": {},
-                      "type": "array"
-                    },
-                    "extraIpAddresses": {
-                      "items": {},
-                      "type": "array"
-                    },
-                    "key": {
-                      "type": "string"
                     }
                   },
                   "type": "object"
@@ -6798,6 +6773,9 @@
         }
       },
       "type": "object"
+    },
+    "nativeRoutingCIDRFromClusterPool": {
+      "type": "boolean"
     },
     "nodeIPAM": {
       "properties": {

@@ -62,7 +62,7 @@ int privnet_evpn_egress_disabled_v6_check(struct __ctx_buff *ctx)
 
 	dip_val.type = PRIVNET_FIB_VAL_TYPE_VXLAN_ROUTE;
 	status_code = privnet_evpn_egress_ipv6(ctx, NET_ID, 1, &dip_val,
-					       dst_ip, &trace);
+					       &dst_ip, &trace);
 	if (status_code != CTX_ACT_OK)
 		test_fatal("unexpected status code (expected %d, got %d)",
 			   CTX_ACT_OK, status_code);
