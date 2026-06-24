@@ -455,8 +455,8 @@ jobs:
             cilium --context ${context} status
             cilium --context ${context} clustermesh status
 
-            kubectl --context ${context} -n cilium-test logs --all-containers -l kubevirt.io=virt-launcher
-            kubectl --context ${context} -n kubevirt logs --all-containers -l app.kubernetes.io/component=kubevirt
+            kubectl --context ${context} -n cilium-test logs --all-containers -l kubevirt.io=virt-launcher --tail=-1
+            kubectl --context ${context} -n kubevirt logs --all-containers -l app.kubernetes.io/component=kubevirt --tail=-1
             cilium --context ${context} sysdump --output-filename cilium-sysdump-${{ matrix.name }}-${context}-final
           done
 
