@@ -67,6 +67,7 @@
 #include "enterprise_bpf_host.h"
 #include "lib/enterprise_encrypt.h"
 #include "lib/enterprise_flowlogs.h"
+#include "lib/enterprise_vrf.h"
 
 #ifndef tcx_early_hook
 #define tcx_early_hook(ctx, proto) CTX_ACT_OK
@@ -1431,6 +1432,22 @@ int cil_to_netdev(struct __ctx_buff *ctx)
 	ret = enterprise_privnet_to_netdev(ctx, proto);
 	if (IS_ERR(ret))
 		goto drop_err;
+
+	/* If this is an VXLAN packet we must check if GBP field is a VRF ID and
+	 * redirect to the correct device corresponding to the VRF's table
+	 * next hop route.
+	 *
+	 * This hack exists due to not having per-vrf VXLAN devices. Instead,
+	 * Cilium forwards all traffic to the same VXLAN device, which then
+	 * forwards this traffic directly to the stack. We cannot query the VRF
+	 * scoped next hop until we get back into eBPF, at the possible wrong
+	 * egress interface.
+	 */
+	ret = enterprise_vrf_redirect_to_egress(ctx, proto);
+	if (IS_ERR(ret))
+		goto drop_err;
+	if (ret == CTX_ACT_REDIRECT)
+		return ret;
 
 	/* Trace before clearing skb->cb */
 #ifdef ENABLE_IPSEC

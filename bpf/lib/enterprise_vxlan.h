@@ -8,6 +8,7 @@
 #include <linux/udp.h>
 #include <linux/if_ether.h>
 #include "lib/csum.h"
+#include "lib/enterprise_tunnel.h"
 
 /*
  * Points 'inner' to the inner IPv4 header of a IPv4 VXLan excapsulated
@@ -77,4 +78,31 @@ vxlan_get_inner_proto(const void *data, const void *data_end, __u32 l4_off) {
 	eth = (struct ethhdr *)(data + inner_l2_off);
 
 	return eth->h_proto;
+}
+
+/*
+ * Returns the group policy ID from the VXLAN header
+ *
+ * The caller must ensure the skb associated with these data buffers are infact
+ * a vxlan encapsulated packet before invoking this function.
+ *
+ * A real VXLAN implementation would first check the group policy flags in the
+ * first two words of the header. However, Cilium uses the GBP field to transport
+ * VRF ID information. When used it will only be set to a value larger then 0 since
+ * the VRF ID 0 is reserved for the default VRF.
+ *
+ * Therefore, our implementation below will simply return the current value of
+ * the GBP field.
+ */
+static __always_inline __be16
+vxlan_get_gbp(const void *data, const void *data_end, __u32 l4_off) {
+	struct vxlanhdr_gbp *vxlan = NULL;
+	int vxlan_off = l4_off + sizeof(struct udphdr);
+
+	if (data + vxlan_off + sizeof(struct vxlanhdr_gbp) > data_end)
+		return 0;
+
+	vxlan = (struct vxlanhdr_gbp *)(data + vxlan_off);
+
+	return vxlan->policy_id;
 }
