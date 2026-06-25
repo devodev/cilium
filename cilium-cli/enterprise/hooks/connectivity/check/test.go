@@ -69,6 +69,10 @@ type EnterpriseTest struct {
 
 	// inspection sender Deployments active during this test.
 	inspectionDeploys map[string]*appsv1.Deployment
+
+	// frr DaemonSet and ConfigMap active during this test.
+	frrDaemonSet *appsv1.DaemonSet
+	frrConfigMap *corev1.ConfigMap
 }
 
 func (t *EnterpriseTest) Context() *EnterpriseConnectivityTest {
@@ -476,6 +480,14 @@ func (t *EnterpriseTest) WithInspectionSenderDeployment(params InspectionSenderD
 	return t
 }
 
+func (t *EnterpriseTest) WithExternalFRR() *EnterpriseTest {
+	t.frrDaemonSet = check.NewFRRDaemonSet(t.ctx.Params())
+	t.frrConfigMap = check.NewFRRConfigMap()
+	return t.WithFeatureRequirements(
+		features.RequireEnabled(features.NodeWithoutCilium),
+	)
+}
+
 func (t *EnterpriseTest) Setup(ctx context.Context) error {
 	if err := t.applyPolicies(ctx); err != nil {
 		t.ContainerLogs(ctx)
@@ -490,6 +502,11 @@ func (t *EnterpriseTest) Setup(ctx context.Context) error {
 	if err := t.applyInspectionWorkloads(ctx); err != nil {
 		t.ContainerLogs(ctx)
 		return fmt.Errorf("applying inspection workloads: %w", err)
+	}
+
+	if err := t.applyExternalFRR(ctx); err != nil {
+		t.ContainerLogs(ctx)
+		return fmt.Errorf("applying external FRR: %w", err)
 	}
 
 	return nil

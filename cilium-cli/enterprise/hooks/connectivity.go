@@ -387,10 +387,9 @@ func (ec *EnterpriseConnectivity) addBGPTests(cts ...*check.ConnectivityTest) (e
 	newTest := func(ct *check.ConnectivityTest, name string) *enterpriseCheck.EnterpriseTest {
 		return enterpriseCheck.NewEnterpriseConnectivityTest(ct).
 			NewEnterpriseTest(name).
+			WithExternalFRR().
 			WithFeatureRequirements(
 				features.RequireEnabled(enterpriseFeatures.EnterpriseBGPControlPlane),
-				features.RequireEnabled(features.BGPControlPlane),
-				features.RequireEnabled(features.NodeWithoutCilium),
 			)
 	}
 
@@ -406,9 +405,9 @@ func (ec *EnterpriseConnectivity) addBFDTests(ct *check.ConnectivityTest) (err e
 	bfdStandaloneTest := func(ct *check.ConnectivityTest) *enterpriseCheck.EnterpriseTest {
 		return enterpriseCheck.NewEnterpriseConnectivityTest(ct).
 			NewEnterpriseTest("seq-bfd-standalone"). // prefix the test name with `seq-` to run it sequentially
+			WithExternalFRR().
 			WithFeatureRequirements(
 				features.RequireEnabled(enterpriseFeatures.BFD),
-				features.RequireEnabled(features.NodeWithoutCilium),
 			)
 	}
 	bfdStandaloneTest(ct).WithScenarios(
@@ -429,11 +428,10 @@ func (ec *EnterpriseConnectivity) addBFDTests(ct *check.ConnectivityTest) (err e
 	bfdBGPTest := func(ct *check.ConnectivityTest) *enterpriseCheck.EnterpriseTest {
 		return enterpriseCheck.NewEnterpriseConnectivityTest(ct).
 			NewEnterpriseTest("seq-bfd-bgp"). // prefix the test name with `seq-` to run it sequentially
+			WithExternalFRR().
 			WithFeatureRequirements(
 				features.RequireEnabled(enterpriseFeatures.BFD),
-				features.RequireEnabled(features.NodeWithoutCilium),
 				features.RequireEnabled(enterpriseFeatures.EnterpriseBGPControlPlane),
-				features.RequireEnabled(features.BGPControlPlane),
 			)
 	}
 	bfdBGPTest(ct).WithScenarios(enterpriseTests.BFDWithBGP())

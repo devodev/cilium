@@ -501,6 +501,62 @@ func (t *EnterpriseTest) deleteInspectionWorkloads(ctx context.Context) error {
 	return nil
 }
 
+func (t *EnterpriseTest) applyExternalFRR(ctx context.Context) error {
+	if t.frrDaemonSet == nil {
+		return nil
+	}
+
+	ct := t.ctx
+	client := ct.Clients()[0]
+	params := ct.Params()
+
+	// NOTE: FRR daemonset should be deployed only once per node as it is
+	// running in the host network namespace, and multiple deployments could
+	// cause issues with binding to the same ports - so deploy it in the
+	// SharedTestNamespace.
+	_, err := client.GetDaemonSet(ctx, params.SharedTestNamespace, t.frrDaemonSet.Name, metav1.GetOptions{})
+	if err != nil {
+		ct.Logf("✨ [%s] Deploying %s daemonset...", client.ClusterName(), t.frrDaemonSet.Name)
+		ds := check.NewFRRDaemonSet(params)
+		_, err = client.CreateDaemonSet(ctx, params.TestNamespace, ds, metav1.CreateOptions{})
+		if err != nil {
+			return fmt.Errorf("unable to create daemonset %s: %w", t.frrDaemonSet.Name, err)
+		}
+		_, err = client.GetConfigMap(ctx, params.TestNamespace, t.frrDaemonSet.Name, metav1.GetOptions{})
+		if err != nil {
+			cm := check.NewFRRConfigMap()
+			ct.Logf("✨ [%s] Deploying %s configmap...", client.ClusterName(), cm.Name)
+			_, err = client.CreateConfigMap(ctx, params.TestNamespace, cm, metav1.CreateOptions{})
+			if err != nil {
+				return fmt.Errorf("unable to create configmap %s: %w", cm.Name, err)
+			}
+		}
+		if err := check.WaitForDaemonSet(ctx, ct, client, params.SharedTestNamespace, t.frrDaemonSet.Name); err != nil {
+			return err
+		}
+	}
+
+	// Register FRR pods to the test context so that they can be used later.
+	frrPods, err := client.ListPods(ctx, params.SharedTestNamespace, metav1.ListOptions{
+		LabelSelector: "name=" + t.frrDaemonSet.Name,
+	})
+	if err != nil {
+		return fmt.Errorf("unable to list FRR pods: %w", err)
+	}
+
+	pods := make([]check.Pod, 0, len(frrPods.Items))
+	for _, pod := range frrPods.Items {
+		pods = append(pods, check.Pod{
+			K8sClient: client,
+			Pod:       pod.DeepCopy(),
+		})
+	}
+
+	ct.SetFRRPods(pods)
+
+	return nil
+}
+
 // SetupConnDisruptEGWHA deploys the EGW HA conn-disrupt test resources
 // (BGP peering, IEGP, server, clients, CNP).
 //

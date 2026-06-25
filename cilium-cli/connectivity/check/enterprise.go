@@ -36,3 +36,8 @@ func (ct *ConnectivityTest) CurlCommandParallelWithOutput(peer TestPeer, ipFam f
 
 	return cmd
 }
+
+// SetFRRPods records FRR pods deployed by enterprise connectivity hooks.
+func (ct *ConnectivityTest) SetFRRPods(pods []Pod) {
+	ct.frrPods = pods
+}
