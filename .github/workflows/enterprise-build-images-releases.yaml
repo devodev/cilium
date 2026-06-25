@@ -291,7 +291,7 @@ jobs:
           - name: cilium
             dockerfile: ./enterprise/images/cilium/Dockerfile
             # renovate: datasource=docker
-            base_image: ${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}/cilium-runtime-ubi:6c675c2927481d0ebc409d44ee42d1cca416a611
+            base_image: ${{ vars.ARTIFACTORY_HOST }}/${{ vars.ARTIFACTORY_ORGANIZATION_DEV }}/cilium-runtime-ubi:4c213a958bdf5af30b8ba8ce189aa4476e560724
             envoy_image: ${{ vars.ARTIFACTORY_HOST }}/${{ needs.mirror-envoy-image-artifactory.outputs.org }}/cilium-envoy-ubi:${{ needs.mirror-envoy-image-artifactory.outputs.version }}
             postfix: ubi
             image_name: cilium
