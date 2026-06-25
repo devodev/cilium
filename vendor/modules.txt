@@ -442,7 +442,6 @@ github.com/containerd/errdefs/pkg/errhttp
 github.com/containerd/errdefs/pkg/internal/cause
 # github.com/containerd/log v0.1.0
 ## explicit; go 1.20
-github.com/containerd/log
 # github.com/containernetworking/cni v1.3.0
 ## explicit; go 1.21
 github.com/containernetworking/cni/libcni
@@ -546,29 +545,15 @@ github.com/docker/docker/api/types/time
 github.com/docker/docker/api/types/versions
 github.com/docker/docker/api/types/volume
 github.com/docker/docker/client
-github.com/docker/docker/pkg/homedir
-github.com/docker/docker/pkg/ioutils
-github.com/docker/docker/pkg/plugingetter
-github.com/docker/docker/pkg/plugins
-github.com/docker/docker/pkg/plugins/transport
-github.com/docker/docker/pkg/rootless
 github.com/docker/docker/pkg/stdcopy
-# github.com/docker/go-connections v0.5.0
-## explicit; go 1.18
+# github.com/docker/go-connections v0.7.0
+## explicit; go 1.23
 github.com/docker/go-connections/nat
 github.com/docker/go-connections/sockets
 github.com/docker/go-connections/tlsconfig
 # github.com/docker/go-units v0.5.0
 ## explicit
 github.com/docker/go-units
-# github.com/docker/libnetwork v0.8.0-dev.2.0.20210525090646-64b7a4574d14
-## explicit
-github.com/docker/libnetwork/discoverapi
-github.com/docker/libnetwork/driverapi
-github.com/docker/libnetwork/drivers/remote/api
-github.com/docker/libnetwork/ipamapi
-github.com/docker/libnetwork/ipams/remote/api
-github.com/docker/libnetwork/types
 # github.com/dylibso/observe-sdk/go v0.0.0-20240819160327-2d926c5d788a
 ## explicit; go 1.21
 github.com/dylibso/observe-sdk/go
@@ -883,7 +868,6 @@ github.com/envoyproxy/go-control-plane/ratelimit/service/ratelimit/v3
 github.com/envoyproxy/protoc-gen-validate/validate
 # github.com/evanphx/json-patch v5.9.11+incompatible
 ## explicit
-github.com/evanphx/json-patch
 # github.com/evanphx/json-patch/v5 v5.9.11
 ## explicit; go 1.18
 github.com/evanphx/json-patch/v5
@@ -1233,9 +1217,6 @@ github.com/google/uuid
 ## explicit; go 1.24.0
 github.com/gopacket/gopacket
 github.com/gopacket/gopacket/layers
-# github.com/gorilla/mux v1.8.1
-## explicit; go 1.20
-github.com/gorilla/mux
 # github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
 ## explicit; go 1.20
 github.com/gorilla/websocket
@@ -1289,9 +1270,6 @@ github.com/insomniacslk/dhcp/rfc1035label
 # github.com/int128/listener v1.3.0
 ## explicit; go 1.20
 github.com/int128/listener
-# github.com/ishidawataru/sctp v0.0.0-20230406120618-7ff4192f6ff2
-## explicit; go 1.12
-github.com/ishidawataru/sctp
 # github.com/isovalent/hubble-timescape/api v1.19.0
 ## explicit; go 1.25.0
 github.com/isovalent/hubble-timescape/api/k8sevent/v1
@@ -1494,13 +1472,6 @@ github.com/moby/spdystream
 github.com/moby/spdystream/spdy
 # github.com/moby/sys/atomicwriter v0.1.0
 ## explicit; go 1.18
-github.com/moby/sys/atomicwriter
-# github.com/moby/sys/sequential v0.6.0
-## explicit; go 1.17
-github.com/moby/sys/sequential
-# github.com/moby/sys/userns v0.1.0
-## explicit; go 1.21
-github.com/moby/sys/userns
 # github.com/moby/term v0.5.2
 ## explicit; go 1.18
 github.com/moby/term
@@ -1514,8 +1485,8 @@ github.com/modern-go/reflect2
 # github.com/monochromegane/go-gitignore v0.0.0-20200626010858-205db1a8cc00
 ## explicit
 github.com/monochromegane/go-gitignore
-# github.com/morikuni/aec v1.0.0
-## explicit
+# github.com/morikuni/aec v1.1.0
+## explicit; go 1.21
 # github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822
 ## explicit
 github.com/munnerz/goautoneg
@@ -2437,8 +2408,6 @@ gopkg.in/yaml.v2
 # gopkg.in/yaml.v3 v3.0.1
 ## explicit
 gopkg.in/yaml.v3
-# gotest.tools/v3 v3.5.2
-## explicit; go 1.17
 # helm.sh/helm/v4 v4.2.0
 ## explicit; go 1.26.0
 helm.sh/helm/v4/internal/chart/v3
@@ -3382,7 +3351,7 @@ sigs.k8s.io/kustomize/kyaml/yaml/internal/k8sgen/pkg/util/validation/field
 sigs.k8s.io/kustomize/kyaml/yaml/merge2
 sigs.k8s.io/kustomize/kyaml/yaml/schema
 sigs.k8s.io/kustomize/kyaml/yaml/walk
-# sigs.k8s.io/mcs-api v0.5.0
+# sigs.k8s.io/mcs-api v0.5.1-0.20260611073251-db147c3e167e
 ## explicit; go 1.23.0
 sigs.k8s.io/mcs-api/config/crd
 sigs.k8s.io/mcs-api/pkg/apis/v1alpha1
@@ -3394,10 +3363,10 @@ sigs.k8s.io/mcs-api/pkg/client/clientset/versioned/typed/apis/v1alpha1
 sigs.k8s.io/mcs-api/pkg/client/clientset/versioned/typed/apis/v1alpha1/fake
 sigs.k8s.io/mcs-api/pkg/client/clientset/versioned/typed/apis/v1beta1
 sigs.k8s.io/mcs-api/pkg/client/clientset/versioned/typed/apis/v1beta1/fake
-# sigs.k8s.io/mcs-api/conformance v0.5.0
+# sigs.k8s.io/mcs-api/conformance v0.5.1-0.20260611073251-db147c3e167e
 ## explicit; go 1.23.0
 sigs.k8s.io/mcs-api/conformance
-# sigs.k8s.io/mcs-api/controllers v0.5.0
+# sigs.k8s.io/mcs-api/controllers v0.5.1-0.20260611073251-db147c3e167e
 ## explicit; go 1.23.0
 sigs.k8s.io/mcs-api/controllers
 # sigs.k8s.io/network-policy-api v0.2.0

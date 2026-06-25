@@ -105,11 +105,7 @@ func (r *PodCIDRReconciler) Reconcile(ctx context.Context, p EnterpriseReconcile
 	// get pod CIDR prefixes
 	var podCIDRPrefixes []netip.Prefix
 	for _, cidr := range p.CiliumNode.Spec.IPAM.PodCIDRs {
-		prefix, err := netip.ParsePrefix(cidr)
-		if err != nil {
-			return fmt.Errorf("failed to parse prefix %s: %w", cidr, err)
-		}
-		podCIDRPrefixes = append(podCIDRPrefixes, prefix)
+		podCIDRPrefixes = append(podCIDRPrefixes, cidr.Prefix)
 	}
 
 	// get per peer per family pod cidr advertisements

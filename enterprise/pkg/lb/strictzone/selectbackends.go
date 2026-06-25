@@ -12,6 +12,7 @@ package strictzone
 
 import (
 	"iter"
+	"log/slog"
 	"slices"
 
 	"github.com/cilium/hive/cell"
@@ -29,6 +30,7 @@ import (
 type selectBackendsParams struct {
 	cell.In
 
+	Logger      *slog.Logger
 	Writer      *writer.Writer
 	Nodes       statedb.Table[*node.LocalNode]
 	ClusterMesh *pkgclustermesh.ClusterMesh `optional:"true"`
@@ -39,6 +41,7 @@ func registerSelectBackends(p selectBackendsParams) {
 }
 
 type selector struct {
+	log                *slog.Logger
 	writer             *writer.Writer
 	nodes              statedb.Table[*node.LocalNode]
 	clusterMeshEnabled bool
@@ -46,6 +49,7 @@ type selector struct {
 
 func newSelector(p selectBackendsParams) selector {
 	return selector{
+		log:                p.Logger,
 		writer:             p.Writer,
 		nodes:              p.Nodes,
 		clusterMeshEnabled: p.ClusterMesh != nil,
@@ -76,7 +80,7 @@ func (s selector) baseSelectBackends(txn statedb.ReadTxn, bes iter.Seq2[*loadbal
 		return s.writer.DefaultSelectBackends(txn, bes, svc, fe)
 	}
 
-	return clustermesh.NewClusterMeshSelectBackends(s.writer).SelectBackends(txn, bes, svc, fe)
+	return clustermesh.NewClusterMeshSelectBackends(s.writer, s.log).SelectBackends(txn, bes, svc, fe)
 }
 
 func (s selector) localZone(txn statedb.ReadTxn) (string, bool) {

@@ -210,7 +210,7 @@ func (mr *mixedRouting) buildNativeFilter(ct *check.ConnectivityTest, self check
 		}
 
 		for _, cidr := range cn.Spec.IPAM.PodCIDRs {
-			cidrs = append(cidrs, "net "+cidr)
+			cidrs = append(cidrs, "net "+cidr.String())
 		}
 	}
 

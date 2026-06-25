@@ -27,6 +27,7 @@ import (
 	ossReconciler "github.com/cilium/cilium/pkg/bgp/manager/reconciler"
 	"github.com/cilium/cilium/pkg/bgp/manager/store"
 	"github.com/cilium/cilium/pkg/bgp/types"
+	iputil "github.com/cilium/cilium/pkg/ip"
 	ipamtypes "github.com/cilium/cilium/pkg/ipam/types"
 	v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	v1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
@@ -36,12 +37,12 @@ import (
 )
 
 func Test_PodCIDRAdvertisement(t *testing.T) {
-	podCIDR1v4 := "10.10.1.0/24"
-	podCIDR1v6 := "2001:db8:1::/96"
-	podCIDR2v4 := "10.10.2.0/24"
-	podCIDR2v6 := "2001:db8:2::/96"
-	podCIDR3v4 := "10.10.3.0/24"
-	podCIDR3v6 := "2001:db8:3::/96"
+	podCIDR1v4 := iputil.PrefixFrom(netip.MustParsePrefix("10.10.1.0/24"))
+	podCIDR1v6 := iputil.PrefixFrom(netip.MustParsePrefix("2001:db8:1::/96"))
+	podCIDR2v4 := iputil.PrefixFrom(netip.MustParsePrefix("10.10.2.0/24"))
+	podCIDR2v6 := iputil.PrefixFrom(netip.MustParsePrefix("2001:db8:2::/96"))
+	podCIDR3v4 := iputil.PrefixFrom(netip.MustParsePrefix("10.10.3.0/24"))
+	podCIDR3v6 := iputil.PrefixFrom(netip.MustParsePrefix("2001:db8:3::/96"))
 
 	redPeerConfig := &v1.IsovalentBGPPeerConfig{
 		ObjectMeta: metav1.ObjectMeta{
@@ -210,14 +211,14 @@ func Test_PodCIDRAdvertisement(t *testing.T) {
 						Type: types.RoutePolicyMatchAny,
 						Prefixes: []types.RoutePolicyPrefix{
 							{
-								CIDR:         netip.MustParsePrefix(podCIDR1v4),
-								PrefixLenMin: netip.MustParsePrefix(podCIDR1v4).Bits(),
-								PrefixLenMax: netip.MustParsePrefix(podCIDR1v4).Bits(),
+								CIDR:         podCIDR1v4.Prefix,
+								PrefixLenMin: podCIDR1v4.Prefix.Bits(),
+								PrefixLenMax: podCIDR1v4.Prefix.Bits(),
 							},
 							{
-								CIDR:         netip.MustParsePrefix(podCIDR2v4),
-								PrefixLenMin: netip.MustParsePrefix(podCIDR2v4).Bits(),
-								PrefixLenMax: netip.MustParsePrefix(podCIDR2v4).Bits(),
+								CIDR:         podCIDR2v4.Prefix,
+								PrefixLenMin: podCIDR2v4.Prefix.Bits(),
+								PrefixLenMax: podCIDR2v4.Prefix.Bits(),
 							},
 						},
 					},
@@ -246,14 +247,14 @@ func Test_PodCIDRAdvertisement(t *testing.T) {
 						Type: types.RoutePolicyMatchAny,
 						Prefixes: []types.RoutePolicyPrefix{
 							{
-								CIDR:         netip.MustParsePrefix(podCIDR1v6),
-								PrefixLenMin: netip.MustParsePrefix(podCIDR1v6).Bits(),
-								PrefixLenMax: netip.MustParsePrefix(podCIDR1v6).Bits(),
+								CIDR:         podCIDR1v6.Prefix,
+								PrefixLenMin: podCIDR1v6.Prefix.Bits(),
+								PrefixLenMax: podCIDR1v6.Prefix.Bits(),
 							},
 							{
-								CIDR:         netip.MustParsePrefix(podCIDR2v6),
-								PrefixLenMin: netip.MustParsePrefix(podCIDR2v6).Bits(),
-								PrefixLenMax: netip.MustParsePrefix(podCIDR2v6).Bits(),
+								CIDR:         podCIDR2v6.Prefix,
+								PrefixLenMin: podCIDR2v6.Prefix.Bits(),
+								PrefixLenMax: podCIDR2v6.Prefix.Bits(),
 							},
 						},
 					},
@@ -282,14 +283,14 @@ func Test_PodCIDRAdvertisement(t *testing.T) {
 						Type: types.RoutePolicyMatchAny,
 						Prefixes: []types.RoutePolicyPrefix{
 							{
-								CIDR:         netip.MustParsePrefix(podCIDR1v4),
-								PrefixLenMin: netip.MustParsePrefix(podCIDR1v4).Bits(),
-								PrefixLenMax: netip.MustParsePrefix(podCIDR1v4).Bits(),
+								CIDR:         podCIDR1v4.Prefix,
+								PrefixLenMin: podCIDR1v4.Prefix.Bits(),
+								PrefixLenMax: podCIDR1v4.Prefix.Bits(),
 							},
 							{
-								CIDR:         netip.MustParsePrefix(podCIDR2v4),
-								PrefixLenMin: netip.MustParsePrefix(podCIDR2v4).Bits(),
-								PrefixLenMax: netip.MustParsePrefix(podCIDR2v4).Bits(),
+								CIDR:         podCIDR2v4.Prefix,
+								PrefixLenMin: podCIDR2v4.Prefix.Bits(),
+								PrefixLenMax: podCIDR2v4.Prefix.Bits(),
 							},
 						},
 					},
@@ -318,14 +319,14 @@ func Test_PodCIDRAdvertisement(t *testing.T) {
 						Type: types.RoutePolicyMatchAny,
 						Prefixes: []types.RoutePolicyPrefix{
 							{
-								CIDR:         netip.MustParsePrefix(podCIDR1v6),
-								PrefixLenMin: netip.MustParsePrefix(podCIDR1v6).Bits(),
-								PrefixLenMax: netip.MustParsePrefix(podCIDR1v6).Bits(),
+								CIDR:         podCIDR1v6.Prefix,
+								PrefixLenMin: podCIDR1v6.Prefix.Bits(),
+								PrefixLenMax: podCIDR1v6.Prefix.Bits(),
 							},
 							{
-								CIDR:         netip.MustParsePrefix(podCIDR2v6),
-								PrefixLenMin: netip.MustParsePrefix(podCIDR2v6).Bits(),
-								PrefixLenMax: netip.MustParsePrefix(podCIDR2v6).Bits(),
+								CIDR:         podCIDR2v6.Prefix,
+								PrefixLenMin: podCIDR2v6.Prefix.Bits(),
+								PrefixLenMax: podCIDR2v6.Prefix.Bits(),
 							},
 						},
 					},
@@ -367,7 +368,7 @@ func Test_PodCIDRAdvertisement(t *testing.T) {
 				},
 				Spec: v2.NodeSpec{
 					IPAM: ipamtypes.IPAMSpec{
-						PodCIDRs: []string{
+						PodCIDRs: []iputil.Prefix{
 							podCIDR1v4,
 							podCIDR2v4,
 							podCIDR1v6,
@@ -385,12 +386,12 @@ func Test_PodCIDRAdvertisement(t *testing.T) {
 			},
 			expectedPaths: map[types.Family]map[string]struct{}{
 				{Afi: types.AfiIPv4, Safi: types.SafiUnicast}: {
-					podCIDR1v4: struct{}{},
-					podCIDR2v4: struct{}{},
+					podCIDR1v4.String(): struct{}{},
+					podCIDR2v4.String(): struct{}{},
 				},
 				{Afi: types.AfiIPv6, Safi: types.SafiUnicast}: {
-					podCIDR1v6: struct{}{},
-					podCIDR2v6: struct{}{},
+					podCIDR1v6.String(): struct{}{},
+					podCIDR2v6.String(): struct{}{},
 				},
 			},
 			expectedRPs: RoutePolicyMap{
@@ -415,7 +416,7 @@ func Test_PodCIDRAdvertisement(t *testing.T) {
 				},
 				Spec: v2.NodeSpec{
 					IPAM: ipamtypes.IPAMSpec{
-						PodCIDRs: []string{
+						PodCIDRs: []iputil.Prefix{
 							podCIDR1v4,
 							podCIDR2v4,
 							podCIDR1v6,
@@ -434,12 +435,12 @@ func Test_PodCIDRAdvertisement(t *testing.T) {
 			},
 			expectedPaths: map[types.Family]map[string]struct{}{
 				{Afi: types.AfiIPv4, Safi: types.SafiUnicast}: {
-					podCIDR1v4: struct{}{},
-					podCIDR2v4: struct{}{},
+					podCIDR1v4.String(): struct{}{},
+					podCIDR2v4.String(): struct{}{},
 				},
 				{Afi: types.AfiIPv6, Safi: types.SafiUnicast}: {
-					podCIDR1v6: struct{}{},
-					podCIDR2v6: struct{}{},
+					podCIDR1v6.String(): struct{}{},
+					podCIDR2v6.String(): struct{}{},
 				},
 			},
 			expectedRPs: RoutePolicyMap{
@@ -462,8 +463,8 @@ func Test_PodCIDRAdvertisement(t *testing.T) {
 			preconfiguredPaths: map[types.Family]map[string]struct{}{
 				// pod cidr 3 is extra advertisement, reconcile should clean this.
 				{Afi: types.AfiIPv4, Safi: types.SafiUnicast}: {
-					podCIDR3v4: struct{}{},
-					podCIDR3v6: struct{}{},
+					podCIDR3v4.String(): struct{}{},
+					podCIDR3v6.String(): struct{}{},
 				},
 			},
 			preconfiguredRPs: RoutePolicyMap{
@@ -475,7 +476,7 @@ func Test_PodCIDRAdvertisement(t *testing.T) {
 				},
 				Spec: v2.NodeSpec{
 					IPAM: ipamtypes.IPAMSpec{
-						PodCIDRs: []string{podCIDR1v4, podCIDR2v4},
+						PodCIDRs: []iputil.Prefix{podCIDR1v4, podCIDR2v4},
 					},
 				},
 			},
@@ -488,8 +489,8 @@ func Test_PodCIDRAdvertisement(t *testing.T) {
 			},
 			expectedPaths: map[types.Family]map[string]struct{}{
 				{Afi: types.AfiIPv4, Safi: types.SafiUnicast}: {
-					podCIDR1v4: struct{}{},
-					podCIDR2v4: struct{}{},
+					podCIDR1v4.String(): struct{}{},
+					podCIDR2v4.String(): struct{}{},
 				},
 				{Afi: types.AfiIPv6, Safi: types.SafiUnicast}: {},
 			},
@@ -511,8 +512,8 @@ func Test_PodCIDRAdvertisement(t *testing.T) {
 			preconfiguredPaths: map[types.Family]map[string]struct{}{
 				// pod cidr 1,2 already advertised, reconcile should clean this as there is no matching pod cidr advertisement.
 				{Afi: types.AfiIPv4, Safi: types.SafiUnicast}: {
-					podCIDR1v4: struct{}{},
-					podCIDR2v4: struct{}{},
+					podCIDR1v4.String(): struct{}{},
+					podCIDR2v4.String(): struct{}{},
 				},
 			},
 			preconfiguredRPs: RoutePolicyMap{
@@ -527,7 +528,7 @@ func Test_PodCIDRAdvertisement(t *testing.T) {
 				},
 				Spec: v2.NodeSpec{
 					IPAM: ipamtypes.IPAMSpec{
-						PodCIDRs: []string{podCIDR1v4, podCIDR2v4},
+						PodCIDRs: []iputil.Prefix{podCIDR1v4, podCIDR2v4},
 					},
 				},
 			},
@@ -555,12 +556,12 @@ func Test_PodCIDRAdvertisement(t *testing.T) {
 			},
 			preconfiguredPaths: map[types.Family]map[string]struct{}{
 				{Afi: types.AfiIPv4, Safi: types.SafiUnicast}: {
-					podCIDR1v4: struct{}{},
-					podCIDR2v4: struct{}{},
+					podCIDR1v4.String(): struct{}{},
+					podCIDR2v4.String(): struct{}{},
 				},
 				{Afi: types.AfiIPv6, Safi: types.SafiUnicast}: {
-					podCIDR1v6: struct{}{},
-					podCIDR2v6: struct{}{},
+					podCIDR1v6.String(): struct{}{},
+					podCIDR2v6.String(): struct{}{},
 				},
 			},
 			preconfiguredRPs: RoutePolicyMap{
@@ -573,7 +574,7 @@ func Test_PodCIDRAdvertisement(t *testing.T) {
 				},
 				Spec: v2.NodeSpec{
 					IPAM: ipamtypes.IPAMSpec{
-						PodCIDRs: []string{podCIDR1v4, podCIDR2v4},
+						PodCIDRs: []iputil.Prefix{podCIDR1v4, podCIDR2v4},
 					},
 				},
 			},
@@ -592,8 +593,8 @@ func Test_PodCIDRAdvertisement(t *testing.T) {
 			},
 			expectedPaths: map[types.Family]map[string]struct{}{
 				{Afi: types.AfiIPv4, Safi: types.SafiUnicast}: {
-					podCIDR1v4: struct{}{},
-					podCIDR2v4: struct{}{},
+					podCIDR1v4.String(): struct{}{},
+					podCIDR2v4.String(): struct{}{},
 				},
 			},
 			expectedRPs: RoutePolicyMap{

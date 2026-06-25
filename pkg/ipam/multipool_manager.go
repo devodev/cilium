@@ -219,6 +219,20 @@ func (p pendingAllocationsPerOwner) pendingForFamily(family Family) int {
 	return len(p[family])
 }
 
+// PoolSpecAccessors reads and writes the pool specification in the CiliumNode.
+//
+// This is needed to reuse the same multi-pool manager for different implementations,
+// since each frontend targets a different field when reading and writing the pool
+// specs.
+type PoolSpecAccessors struct {
+	// FromResource returns the IPAM Pool specs from the CiliumNode
+	FromResource func(*ciliumv2.CiliumNode) types.IPAMPoolSpec
+
+	// ToResource writes the IPAM Pool specs to the CiliumNode.
+	// It returns true if the pools have been updated, false otherwise.
+	ToResource func(*ciliumv2.CiliumNode, types.IPAMPoolSpec) bool
+}
+
 // SkipMasqueradeForPoolFn is the type of a function that, given a pool
 // returns true if the addresses of that pool should be excluded from
 // masquerading, false otherwise.
@@ -237,7 +251,7 @@ type MultiPoolManagerParams struct {
 	CNClient cilium_v2.CiliumNodeInterface
 	JobGroup job.Group
 
-	PoolsFromResource ciliumv2.PoolsFromResourceFunc
+	PoolSpecAccessors PoolSpecAccessors
 
 	SkipMasqueradeForPool SkipMasqueradeForPoolFn
 
@@ -260,8 +274,9 @@ type multiPoolManager struct {
 	poolsUpdated    chan struct{}
 	finishedRestore map[Family]bool
 
-	nodeMutex lock.Mutex
-	node      *ciliumv2.CiliumNode
+	nodeMutex  lock.Mutex
+	node       *ciliumv2.CiliumNode
+	nodeSynced bool
 
 	jobGroup   job.Group
 	k8sUpdater job.Trigger
@@ -272,7 +287,8 @@ type multiPoolManager struct {
 
 	logger *slog.Logger
 
-	poolsFromResource     ciliumv2.PoolsFromResourceFunc
+	poolsAccessor PoolSpecAccessors
+
 	skipMasqueradeForPool SkipMasqueradeForPoolFn
 
 	linearPreAlloc bool
@@ -296,8 +312,8 @@ func newMultiPoolManager(p MultiPoolManagerParams) *multiPoolManager {
 		localNodeUpdateFn: sync.OnceFunc(func() {
 			close(localNodeUpdated)
 		}),
-		poolsFromResource: p.PoolsFromResource,
-		linearPreAlloc:    p.LinearPreAlloc,
+		poolsAccessor:  p.PoolSpecAccessors,
+		linearPreAlloc: p.LinearPreAlloc,
 		skipMasqueradeForPool: func(Pool) (bool, error) {
 			return false, nil
 		},
@@ -312,6 +328,8 @@ func newMultiPoolManager(p MultiPoolManagerParams) *multiPoolManager {
 			func(ctx context.Context, health cell.Health) error {
 				for ev := range p.Node.Events(ctx) {
 					switch ev.Kind {
+					case resource.Sync:
+						mgr.setNodeSynced()
 					case resource.Upsert:
 						mgr.ciliumNodeUpdated(ev.Object)
 					case resource.Delete:
@@ -403,7 +421,7 @@ func (m *multiPoolManager) ciliumNodeUpdated(newNode *ciliumv2.CiliumNode) {
 	m.poolsMutex.Lock()
 	defer m.poolsMutex.Unlock()
 
-	for _, pool := range m.poolsFromResource(newNode).Allocated {
+	for _, pool := range m.poolsAccessor.FromResource(newNode).Allocated {
 		m.upsertPoolLocked(Pool(pool.Pool), pool.CIDRs, pool.AllowFirstIP, pool.AllowLastIP)
 	}
 
@@ -548,13 +566,14 @@ func (m *multiPoolManager) isRestoreFinishedLocked(family Family) bool {
 }
 
 func (m *multiPoolManager) updateLocalNode(ctx context.Context) error {
-	m.poolsMutex.Lock()
-
 	curNode := m.getNode()
 	if curNode == nil {
-		m.poolsMutex.Unlock()
 		return nil
 	}
+
+	nodeSynced := m.isNodeSynced()
+
+	m.poolsMutex.Lock()
 
 	newNode := curNode.DeepCopy()
 	requested := []types.IPAMPoolRequest{}
@@ -622,21 +641,26 @@ func (m *multiPoolManager) updateLocalNode(ctx context.Context) error {
 	sort.Slice(allocated, func(i, j int) bool {
 		return allocated[i].Pool < allocated[j].Pool
 	})
-	newNode.Spec.IPAM.Pools.Requested = requested
-	// Only write Allocated once local pools have been populated. Before
-	// that, the agent has no CIDRs of its own and writing an empty
+
+	var newPoolsSpec types.IPAMPoolSpec
+	newPoolsSpec.Requested = requested
+
+	// Only update Allocated once local pools have been populated. Before
+	// that, the agent has no CIDRs of its own and updating with an empty
 	// Allocated would clear CIDRs that may still be in use from a
-	// previous agent run. Once the agent has observed at least one CIDR
-	// (from Status.ENI.ENIs in ENI mode, or from Pools.Allocated in
-	// standard multi-pool mode), it writes Allocated to communicate
-	// in-use CIDRs back to the operator.
-	if len(m.pools) > 0 {
-		newNode.Spec.IPAM.Pools.Allocated = allocated
+	// previous agent run. Once the CiliumNode resource has been synced
+	// it updates Allocated to communicate in-use CIDRs back to the operator.
+	if nodeSynced {
+		newPoolsSpec.Allocated = allocated
+	} else {
+		pools := m.poolsAccessor.FromResource(curNode)
+		newPoolsSpec.Allocated = pools.Allocated
 	}
 
 	m.poolsMutex.Unlock()
 
-	if !newNode.Spec.IPAM.Pools.DeepEqual(&curNode.Spec.IPAM.Pools) {
+	changed := m.poolsAccessor.ToResource(newNode, newPoolsSpec)
+	if changed {
 		updatedNode, err := m.cnClient.Update(ctx, newNode, metav1.UpdateOptions{})
 		switch {
 		case k8sErrors.IsConflict(err):
@@ -911,4 +935,18 @@ func (m *multiPoolManager) setNode(node *ciliumv2.CiliumNode) *ciliumv2.CiliumNo
 	oldNode := m.node
 	m.node = node
 	return oldNode
+}
+
+func (m *multiPoolManager) isNodeSynced() bool {
+	m.nodeMutex.Lock()
+	defer m.nodeMutex.Unlock()
+
+	return m.nodeSynced
+}
+
+func (m *multiPoolManager) setNodeSynced() {
+	m.nodeMutex.Lock()
+	defer m.nodeMutex.Unlock()
+
+	m.nodeSynced = true
 }

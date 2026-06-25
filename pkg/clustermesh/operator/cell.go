@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/cilium/cilium/pkg/clustermesh/common"
+	cmendpointslice "github.com/cilium/cilium/pkg/clustermesh/endpointslice"
 	mcsapitypes "github.com/cilium/cilium/pkg/clustermesh/mcsapi/types"
 	"github.com/cilium/cilium/pkg/clustermesh/observer"
 	"github.com/cilium/cilium/pkg/clustermesh/types"
@@ -25,6 +26,8 @@ var Cell = cell.Module(
 	"Cell providing clustermesh capabilities in the operator",
 	cell.Config(ClusterMeshConfig{}),
 	cell.Config(mcsapitypes.DefaultMCSAPIConfig),
+	cell.Config(types.DefaultServiceModeV2Config),
+	cell.Invoke(types.ServiceModeV2Config.Validate),
 	cell.Provide(
 		common.DefaultRemoteClientFactory,
 		newClusterMesh,
@@ -36,12 +39,15 @@ var Cell = cell.Module(
 
 	metrics.Metric(NewMetrics),
 	metrics.Metric(common.MetricsProvider(metrics.SubsystemClusterMesh)),
+	metrics.Metric(cmendpointslice.MetricsProvider(metrics.CiliumOperatorNamespace)),
+	cmendpointslice.Cell,
 )
 
 type clusterMeshParams struct {
 	cell.In
 
 	common.Config
+	types.ServiceModeV2Config
 	wait.TimeoutConfig
 	Cfg       ClusterMeshConfig
 	CfgMCSAPI mcsapitypes.MCSAPIConfig

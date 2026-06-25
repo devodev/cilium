@@ -10,6 +10,7 @@ import (
 
 	"github.com/cilium/cilium/daemon/cmd/cni"
 	"github.com/cilium/cilium/pkg/clustermesh/common"
+	cmendpointslice "github.com/cilium/cilium/pkg/clustermesh/endpointslice"
 	"github.com/cilium/cilium/pkg/clustermesh/types"
 	"github.com/cilium/cilium/pkg/clustermesh/wait"
 	"github.com/cilium/cilium/pkg/dial"
@@ -43,13 +44,17 @@ var Cell = cell.Module(
 	cell.ProvidePrivate(idsMgrProvider),
 
 	cell.Config(common.DefaultConfig),
+	cell.Config(types.DefaultServiceModeV2Config),
+	cell.Invoke(types.ServiceModeV2Config.Validate),
 	cell.Config(wait.TimeoutConfigDefault),
 
 	metrics.Metric(NewMetrics),
 	metrics.Metric(common.MetricsProvider(metrics.SubsystemClusterMesh)),
+	metrics.Metric(cmendpointslice.MetricsProvider(metrics.Namespace)),
+	cmendpointslice.Cell,
 
 	cell.ProvidePrivate(newServiceMerger),
-	cell.Invoke(registerServicesInitialized),
+	cell.Invoke(registerLoadBalancerInitialized),
 
 	cell.Config(types.DefaultQuirks),
 	cell.Invoke(func(info types.ClusterInfo, dcfg *option.DaemonConfig, cnimgr cni.CNIConfigManager, log *slog.Logger, quirks types.QuirksConfig) error {
