@@ -15,11 +15,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"iter"
-	"math"
-	"net/netip"
 	"os"
-	"slices"
 	"strconv"
 	"testing"
 
@@ -30,19 +26,10 @@ import (
 
 	"github.com/cilium/cilium/api/v1/models"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/endpoints"
-	"github.com/cilium/cilium/enterprise/pkg/privnet/observers"
+	testTypes "github.com/cilium/cilium/enterprise/pkg/privnet/tests/types"
 	"github.com/cilium/cilium/pkg/endpoint/regeneration"
-	eptypes "github.com/cilium/cilium/pkg/endpoint/types"
 	"github.com/cilium/cilium/pkg/endpointstate"
-	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
-	slim_metav1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/meta/v1"
-	"github.com/cilium/cilium/pkg/labels"
-	"github.com/cilium/cilium/pkg/lock"
-	"github.com/cilium/cilium/pkg/mac"
-	"github.com/cilium/cilium/pkg/maps/policymap"
-	nodeTypes "github.com/cilium/cilium/pkg/node/types"
 	"github.com/cilium/cilium/pkg/promise"
-	ciliumTypes "github.com/cilium/cilium/pkg/types"
 )
 
 func mockEndpointCell(t testing.TB) cell.Cell {
@@ -50,9 +37,9 @@ func mockEndpointCell(t testing.TB) cell.Cell {
 
 	return cell.Group(
 		cell.ProvidePrivate(
-			newFakeEventObserver,
+			testTypes.NewFakeEndpointEventObserver,
+			testTypes.NewFakeEPM,
 			newFakeRestorer,
-			newFakeEPM,
 		),
 		cell.Provide(
 			regeneration.NewFence,
@@ -60,200 +47,21 @@ func mockEndpointCell(t testing.TB) cell.Cell {
 
 			newFakeEndpointCmds,
 		),
-		cell.DecorateAll(func(f *fakeEPM) endpoints.EndpointGetter { return f }),
-		cell.DecorateAll(func(f *fakeEPM) endpoints.EndpointCreator { return f }),
-		cell.DecorateAll(func(f *fakeEPM) endpoints.EndpointRemover { return f }),
-		cell.DecorateAll(func(f *fakeEndpointEventObserver) endpoints.EndpointEventObserver { return f }),
+		cell.DecorateAll(func(f *testTypes.FakeEPM) endpoints.EndpointGetter { return f }),
+		cell.DecorateAll(func(f *testTypes.FakeEPM) endpoints.EndpointCreator { return f }),
+		cell.DecorateAll(func(f *testTypes.FakeEPM) endpoints.EndpointRemover { return f }),
+		cell.DecorateAll(func(f *testTypes.FakeEndpointEventObserver) endpoints.EndpointEventObserver { return f }),
 	)
-}
-
-type fakeEP struct {
-	mu lock.Mutex
-
-	ID      uint16
-	IfName  string
-	IfIndex int
-
-	IPv4 netip.Addr
-	IPv6 netip.Addr
-	MAC  mac.MAC
-
-	PodName   string
-	Namespace string
-
-	Properties map[string]any
-	Labels     labels.Labels
-}
-
-var _ endpoints.Endpoint = &fakeEP{}
-
-// MarshalJSON the fake endpoint as an EndpointChangeRequest to match the format
-// used by epm-create.
-func (f *fakeEP) MarshalJSON() ([]byte, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return json.Marshal(
-		models.EndpointChangeRequest{
-			ID:             int64(f.ID),
-			InterfaceName:  f.IfName,
-			InterfaceIndex: int64(f.IfIndex),
-			K8sPodName:     f.PodName,
-			K8sNamespace:   f.Namespace,
-			Properties:     f.Properties,
-			Addressing: &models.AddressPair{
-				IPv4: f.GetIPv4Address(),
-				IPv6: f.GetIPv6Address(),
-			},
-			Mac:    f.MAC.String(),
-			Labels: f.Labels.GetPrintableModel(),
-		},
-	)
-}
-
-// GetPod implements [endpoints.Endpoint].
-func (f *fakeEP) GetPod() *slim_corev1.Pod {
-	return &slim_corev1.Pod{
-		ObjectMeta: slim_metav1.ObjectMeta{
-			Name:      f.PodName,
-			Namespace: f.Namespace,
-			Labels:    f.Labels.K8sStringMap(),
-		},
-		Spec: slim_corev1.PodSpec{
-			NodeName: nodeTypes.GetName(),
-		},
-	}
-}
-
-// GetID16 implements endpoints.Endpoint.
-func (f *fakeEP) GetID16() uint16 {
-	return f.ID
-}
-
-// HostInterface implements endpoints.Endpoint.
-func (f *fakeEP) HostInterface() string {
-	return f.IfName
-}
-
-// GetIfIndex implements endpoints.Endpoint.
-func (f *fakeEP) GetIfIndex() int {
-	return f.IfIndex
-}
-
-// IPv4Address implements endpoints.Endpoint.
-func (f *fakeEP) IPv4Address() netip.Addr {
-	return f.IPv4
-}
-
-// GetIPv4Address implements endpoints.Endpoint.
-func (f *fakeEP) GetIPv4Address() string {
-	if f.IPv4.IsValid() {
-		return f.IPv4.String()
-	}
-	return ""
-}
-
-// IPv6Address implements endpoints.Endpoint.
-func (f *fakeEP) IPv6Address() netip.Addr {
-	return f.IPv6
-}
-
-// GetIPv6Address implements endpoints.Endpoint.
-func (f *fakeEP) GetIPv6Address() string {
-	if f.IPv6.IsValid() {
-		return f.IPv6.String()
-	}
-	return ""
-}
-
-// GetK8sCEPName implements endpoints.Endpoint.
-func (f *fakeEP) GetK8sCEPName() string {
-	if cepName, ok := f.Properties[eptypes.PropertyCEPName]; ok {
-		return cepName.(string)
-	}
-	return f.PodName
-}
-
-// GetK8sNamespaceAndCEPName implements endpoints.Endpoint.
-func (f *fakeEP) GetK8sNamespaceAndCEPName() string {
-	return fmt.Sprintf("%s/%s", f.Namespace, f.GetK8sCEPName())
-}
-
-// GetK8sNamespaceAndPodName implements endpoints.Endpoint.
-func (f *fakeEP) GetK8sNamespaceAndPodName() string {
-	return fmt.Sprintf("%s/%s", f.Namespace, f.PodName)
-}
-
-// SetK8sMetadata implements endpoints.Endpoint.
-func (f *fakeEP) SetK8sMetadata(_ ciliumTypes.NamedPortMap) {
-	// no-op
-}
-
-// GetPropertyValue implements endpoints.Endpoint.
-func (f *fakeEP) GetPropertyValue(key string) any {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.Properties == nil {
-		return nil
-	}
-	return f.Properties[key]
-}
-
-// SetPropertyValue implements endpoints.Endpoint.
-func (f *fakeEP) SetPropertyValue(key string, value any) any {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.Properties == nil {
-		f.Properties = map[string]any{}
-	}
-	f.Properties[key] = value
-	return value
-}
-
-// IsProperty implements endpoints.Endpoint.
-func (f *fakeEP) IsProperty(key string) bool {
-	value, ok := f.GetPropertyValue(key).(bool)
-	return ok && value
-}
-
-// LXCMac implements endpoints.Endpoint.
-func (f *fakeEP) LXCMac() mac.MAC {
-	return f.MAC
-}
-
-// SyncEndpointHeaderFile implements endpoints.Endpoint.
-func (f *fakeEP) SyncEndpointHeaderFile() {}
-
-// UpdateLabels implements endpoints.Endpoint.
-func (f *fakeEP) UpdateLabels(ctx context.Context, sourceFilter string, identityLabels, infoLabels labels.Labels, blocking bool) (regenTriggered bool) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	f.Labels.RemoveFromSource(sourceFilter)
-	f.Labels.MergeLabels(identityLabels)
-
-	return false
-}
-
-// GetPolicyMap implements endpoints.Endpoint.
-func (f *fakeEP) GetPolicyMap() (policymap.PolicyMap, error) {
-	return nil, nil
-}
-
-// fakeEndpointEventObserver implements endpoints.EndpointEventObserver
-type fakeEndpointEventObserver = observers.Generic[endpoints.EndpointID, endpoints.EndpointEventKind]
-
-func newFakeEventObserver() *fakeEndpointEventObserver {
-	return observers.NewGeneric[endpoints.EndpointID, endpoints.EndpointEventKind]()
 }
 
 // fakeRestorer implements endpointstate.Restorer
 type fakeRestorer struct {
 	fence regeneration.Fence
 
-	observer  *fakeEndpointEventObserver
+	observer  *testTypes.FakeEndpointEventObserver
 	notifiers []endpoints.RestorationNotifier
 
-	epm *fakeEPM
+	epm *testTypes.FakeEPM
 
 	restored    chan struct{}
 	regenerated chan struct{}
@@ -269,9 +77,9 @@ func newFakeRestorer(in struct {
 	Promise   promise.Resolver[endpointstate.Restorer]
 	Lifecycle cell.Lifecycle
 
-	EndpointManager *fakeEPM
+	EndpointManager *testTypes.FakeEPM
 
-	Observer  *fakeEndpointEventObserver
+	Observer  *testTypes.FakeEndpointEventObserver
 	Notifiers []endpoints.RestorationNotifier `group:"privnet-endpoint-restoration-notifiers"`
 }) *fakeRestorer {
 	f := &fakeRestorer{
@@ -360,189 +168,12 @@ func (f *fakeRestorer) Await(context.Context) (endpointstate.Restorer, error) {
 	return f, nil
 }
 
-// fakeEPM implements endpoints.Endpoint{Creator,Getter,Remover}
-type fakeEPM struct {
-	mu   lock.Mutex
-	eps  []*fakeEP
-	subs []endpoints.EndpointSubscriber
-
-	observer *fakeEndpointEventObserver
-}
-
-func newFakeEPM(observer *fakeEndpointEventObserver) *fakeEPM {
-	return &fakeEPM{
-		subs: []endpoints.EndpointSubscriber{},
-		eps:  []*fakeEP{},
-
-		observer: observer,
-	}
-}
-
-// CreateEndpoint implements endpoints.EndpointCreator.
-func (f *fakeEPM) createEndpoint(epTemplate *models.EndpointChangeRequest, restored bool) (endpoints.Endpoint, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	var err error
-	ep := fakeEP{
-		ID:         uint16(epTemplate.ID),
-		IfName:     epTemplate.InterfaceName,
-		IfIndex:    int(epTemplate.InterfaceIndex),
-		PodName:    epTemplate.K8sPodName,
-		Namespace:  epTemplate.K8sNamespace,
-		Properties: epTemplate.Properties,
-		Labels:     labels.NewLabelsFromModel(epTemplate.Labels),
-	}
-	if epTemplate.Addressing.IPv4 != "" {
-		ep.IPv4, err = netip.ParseAddr(epTemplate.Addressing.IPv4)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if epTemplate.Addressing.IPv6 != "" {
-		ep.IPv6, err = netip.ParseAddr(epTemplate.Addressing.IPv6)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if epTemplate.Mac != "" {
-		ep.MAC, err = mac.ParseMAC(epTemplate.Mac)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if ep.ID == 0 {
-		// Allocate a new endpoint ID
-		epID := uint16(0)
-	allocateNextID:
-		for {
-			epID++
-			if epID == math.MaxUint16 {
-				return nil, fmt.Errorf("no available endpoint IDs")
-			}
-			for _, other := range f.eps {
-				if other.ID == epID {
-					continue allocateNextID
-				}
-			}
-			break
-		}
-		ep.ID = epID
-	}
-
-	// Check no duplicates with endpoint ID or CEP name exist
-	for _, other := range f.eps {
-		if other.ID == ep.ID {
-			return nil, fmt.Errorf("endpoint id %d already exists", ep.ID)
-		}
-		if other.GetK8sNamespaceAndCEPName() == ep.GetK8sNamespaceAndCEPName() {
-			return nil, fmt.Errorf("endpoint with CEP %s already exists", ep.GetK8sNamespaceAndCEPName())
-		}
-	}
-
-	f.eps = append(f.eps, &ep)
-	f.observer.Queue(endpoints.EndpointCreate, endpoints.EndpointID(ep.ID))
-	for _, sub := range f.subs {
-		if restored {
-			sub.EndpointRestored(&ep)
-		} else {
-			sub.EndpointCreated(&ep)
-		}
-	}
-	f.observer.Queue(endpoints.EndpointRegenSuccess, endpoints.EndpointID(ep.ID))
-	return &ep, nil
-}
-
-// CreateEndpoint implements endpoints.EndpointCreator.
-func (f *fakeEPM) CreateEndpoint(ctx context.Context, epTemplate *models.EndpointChangeRequest) (endpoints.Endpoint, error) {
-	ep, err := f.createEndpoint(epTemplate, false)
-	return ep, err
-}
-
-// RemoveEndpoint implements endpoints.EndpointRemover.
-func (f *fakeEPM) RemoveEndpoint(ep endpoints.Endpoint) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	numEndpoints := len(f.eps)
-	f.eps = slices.DeleteFunc(f.eps, func(fakeEP *fakeEP) bool {
-		return fakeEP.GetID16() == ep.GetID16()
-	})
-	if len(f.eps) == numEndpoints {
-		return fmt.Errorf("endpoint %d was already deleted", ep.GetID16())
-	}
-	f.observer.Queue(endpoints.EndpointDelete, endpoints.EndpointID(ep.GetID16()))
-	for _, sub := range f.subs {
-		sub.EndpointDeleted(ep)
-	}
-	return nil
-}
-
-// GetEndpointsByPodName implements endpoints.EndpointGetter.
-func (f *fakeEPM) GetEndpointsByPodName(nsname string) iter.Seq[endpoints.Endpoint] {
-	f.mu.Lock()
-	eps := slices.Clone(f.eps)
-	f.mu.Unlock()
-	return func(yield func(endpoints.Endpoint) bool) {
-		for _, ep := range eps {
-			if ep.GetK8sNamespaceAndPodName() == nsname {
-				if !yield(ep) {
-					return
-				}
-			}
-		}
-	}
-}
-
-// GetEndpoints implements endpoints.EndpointGetter.
-func (f *fakeEPM) GetEndpoints() iter.Seq[endpoints.Endpoint] {
-	f.mu.Lock()
-	eps := slices.Clone(f.eps)
-	f.mu.Unlock()
-	return func(yield func(endpoints.Endpoint) bool) {
-		for _, ep := range eps {
-			if !yield(ep) {
-				return
-			}
-		}
-	}
-}
-
-// LookupID implements endpoints.EndpointGetter.
-func (f *fakeEPM) LookupID(id uint16) (ep endpoints.Endpoint) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	for i := range f.eps {
-		if f.eps[i].GetID16() == id {
-			return f.eps[i]
-		}
-	}
-	return nil
-}
-
-// LookupCEPName implements endpoints.EndpointGetter.
-func (f *fakeEPM) LookupCEPName(nsname string) (ep endpoints.Endpoint) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	for i := range f.eps {
-		if f.eps[i].GetK8sNamespaceAndCEPName() == nsname {
-			return f.eps[i]
-		}
-	}
-	return nil
-}
-
-// Subscribe implements endpoints.EndpointGetter.
-func (f *fakeEPM) Subscribe(s endpoints.EndpointSubscriber) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.subs = append(f.subs, s)
-}
-
 type fakeEndpointCmds struct {
-	epm      *fakeEPM
+	epm      *testTypes.FakeEPM
 	restorer *fakeRestorer
 }
 
-func newFakeEndpointCmds(epm *fakeEPM, restore *fakeRestorer) uhive.ScriptCmdsOut {
+func newFakeEndpointCmds(epm *testTypes.FakeEPM, restore *fakeRestorer) uhive.ScriptCmdsOut {
 	f := &fakeEndpointCmds{
 		epm:      epm,
 		restorer: restore,
@@ -648,7 +279,7 @@ func (f *fakeEndpointCmds) createEPCmd() script.Cmd {
 			if err != nil {
 				return nil, err
 			}
-			_, err = f.epm.createEndpoint(epr, false)
+			_, err = f.epm.CreateEndpoint(s.Context(), epr)
 			if err != nil {
 				return nil, fmt.Errorf("fake endpoint creation failed: %w", err)
 			}
@@ -672,7 +303,7 @@ func (f *fakeEndpointCmds) restoreEPCmd() script.Cmd {
 			if err != nil {
 				return nil, err
 			}
-			_, err = f.epm.createEndpoint(epr, true)
+			_, err = f.epm.RestoreEndpoint(s.Context(), epr)
 			if err != nil {
 				return nil, fmt.Errorf("fake endpoint creation failed: %w", err)
 			}
