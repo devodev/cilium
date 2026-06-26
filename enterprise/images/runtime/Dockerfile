@@ -7,9 +7,6 @@ ARG CILIUM_LLVM_IMAGE=artifactory.devhub-cloud.cisco.com/isovalent-eng-docker/ci
 ARG CILIUM_BPFTOOL_IMAGE=artifactory.devhub-cloud.cisco.com/isovalent-eng-docker/cilium-bpftool-ubi:1782199947-07a03f9@sha256:07a75813555b1e3922fc9d90fcf64a1dbe15dba3460927548b50b22466273942
 ARG COMPILERS_IMAGE=artifactory.devhub-cloud.cisco.com/isovalent-eng-docker/image-compilers-ubi:1782199947-07a03f9@sha256:fb9d3e0106977928c0d1f7f9399ab520f28c7961542c3943ffac754624f96b90
 
-ARG VERSION=0.0.0-dev
-ARG REVISION=000000
-
 FROM ${CILIUM_LLVM_IMAGE} AS llvm-dist
 FROM ${CILIUM_BPFTOOL_IMAGE} AS bpftool-dist
 FROM ${COMPILERS_IMAGE} AS compilers
@@ -29,6 +26,9 @@ RUN --mount=type=bind,readwrite,source=./images/runtime,target=. \
     ./download-cni.sh
 
 FROM ${UBI_MINI_IMAGE} AS release
+
+ARG VERSION=0.0.0-dev
+ARG REVISION=000000
 
 LABEL name="Isovalent UBI runtime image" \
       maintainer="support@isovalent.com" \

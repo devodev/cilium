@@ -233,11 +233,6 @@ kind-privnet-install-common: kind-privnet-jetstack-repo
 		--chart-directory $(ROOT_DIR)/install/kubernetes/cilium \
 		--values $(ROOT_DIR)/contrib/testing/privnet/kind-privnet.yaml \
 		--set cluster.name=privnet-cluster --set cluster.id=1 \
-		--set routingMode=native \
-		--set autoDirectNodeRoutes=true \
-		--set ipv4NativeRoutingCIDR=10.196.0.0/16 \
-		--set ipv6NativeRoutingCIDR=fd00:10:196::/56 \
-		--set enterprise.clustermesh.mixedRoutingMode.enabled=true \
 		--set enterprise.privateNetworks.networkAttachmentDefinitions.enabled=true \
 		--set=enterprise.privateNetworks.mode=local-access \
 		--set enterprise.privateNetworks.webhook.enabled=true \
@@ -263,8 +258,6 @@ kind-privnet-install-common: kind-privnet-jetstack-repo
 		--set cluster.name=privnet-inb0 --set cluster.id=2 \
 		--set enterprise.privateNetworks.mode=bridge \
 		--set enterprise.privateNetworks.externalEndpoints.enabled=true \
-		--set routingMode=tunnel \
-		--set enterprise.clustermesh.mixedRoutingMode.enabled=true \
 		$(KIND_PRIVNET_VALUES_FILES) \
 		--version=
 
@@ -276,8 +269,6 @@ kind-privnet-install-common: kind-privnet-jetstack-repo
 		--set cluster.name=privnet-inb1 --set cluster.id=3 \
 		--set enterprise.privateNetworks.mode=bridge \
 		--set enterprise.privateNetworks.externalEndpoints.enabled=true \
-		--set routingMode=tunnel \
-		--set enterprise.clustermesh.mixedRoutingMode.enabled=true \
 		$(KIND_PRIVNET_VALUES_FILES) \
 		--version=
 

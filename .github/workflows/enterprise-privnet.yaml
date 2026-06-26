@@ -106,6 +106,10 @@ jobs:
             k8s-routing-mode: 'tunnel'
           - name: '2'
             k8s-routing-mode: 'native'
+            mixed-routing-mode: 'true'
+          - name: '3'
+            k8s-routing-mode: 'tunnel'
+            cp-dp-separation: 'true'
 
     steps:
       - name: Collect Workflow Telemetry
@@ -145,7 +149,6 @@ jobs:
             --set ipv4.enabled=true \
             --set ipv6.enabled=true \
             --set tunnelProtocol=vxlan \
-            --set enterprise.clustermesh.mixedRoutingMode.enabled=true \
             --set kubeProxyReplacement=true \
             --set socketLB.enabled=true \
             --set socketLB.hostNamespaceOnly=true \
@@ -178,6 +181,18 @@ jobs:
             --set 'enterprise.featureGate.approved[4]'=PrivateNetworkBridge \
             --set 'enterprise.featureGate.approved[5]'=PrivateNetworkLocalAccess \
           "
+
+          if [ "${{ matrix.cp-dp-separation }}" = "true" ]; then
+            CILIUM_INSTALL_DEFAULTS+=" \
+              --set enterprise.preferredTunnelEndpointDevices={dp0}
+            "
+          fi
+
+          if [ "${{ matrix.mixed-routing-mode }}" = "true" ]; then
+            CILIUM_INSTALL_DEFAULTS+=" \
+              --set enterprise.clustermesh.mixedRoutingMode.enabled=true \
+            "
+          fi
 
           CILIUM_INSTALL_K8S=" \
             --set cni.exclusive=false \
@@ -440,8 +455,10 @@ jobs:
             cilium --context ${context} status
             cilium --context ${context} clustermesh status
 
-            kubectl --context ${context} -n cilium-test logs --all-containers -l kubevirt.io=virt-launcher
-            kubectl --context ${context} -n kubevirt logs --all-containers -l app.kubernetes.io/component=kubevirt
+            kubectl --context ${context} -n kube-system logs --all-containers -l component=etcd --tail=-1
+            kubectl --context ${context} -n kube-system logs --all-containers -l component=kube-apiserver --tail=-1
+            kubectl --context ${context} -n cilium-test logs --all-containers -l kubevirt.io=virt-launcher --tail=-1
+            kubectl --context ${context} -n kubevirt logs --all-containers -l app.kubernetes.io/component=kubevirt --tail=-1
             cilium --context ${context} sysdump --output-filename cilium-sysdump-${{ matrix.name }}-${context}-final
           done
 
