@@ -36,8 +36,8 @@ paths:
       summary: Get health of Cilium daemon
       description: |
         Returns health and status information of the Cilium daemon and related
-        components such as the local container runtime, connected datastore,
-        Kubernetes integration and Hubble.
+        components such as the connected datastore, Kubernetes integration and
+        Hubble.
       tags:
       - daemon
       parameters:
@@ -969,7 +969,6 @@ parameters:
         - cilium-global: Global Cilium endpoint UUID, e.g. cilium-global:cluster1:nodeX:452343
         - cni-attachment-id: CNI attachment ID, e.g. cni-attachment-id:22222:eth0
         - container-id: Container runtime ID, e.g. container-id:22222 (deprecated, may not be unique)
-        - container-name: Container name, e.g. container-name:foobar (deprecated, may not be unique)
         - pod-name: pod name for this container if K8s is enabled, e.g. pod-name:default:foobar (deprecated, may not be unique)
         - cep-name: cep name for this container if K8s is enabled, e.g. pod-name:default:foobar-net1
     in: path
@@ -1183,9 +1182,6 @@ definitions:
       container-id:
         description: ID assigned by container runtime
         type: string
-      container-name:
-        description: Name assigned to container
-        type: string
       container-netns-path:
         description: Path of Container Netns
         type: string
@@ -1241,8 +1237,8 @@ definitions:
         type: boolean
       disable-legacy-identifiers:
         description: >-
-          Disables lookup using legacy endpoint identifiers (container name,
-          container id, pod name) for this endpoint
+          Disables lookup using legacy endpoint identifiers (container id, pod
+          name) for this endpoint
         type: boolean
       netns-cookie:
         description: Network namespace cookie
@@ -1861,9 +1857,6 @@ definitions:
         "$ref": "#/definitions/Status"
       cni-file:
         description: Status of the CNI configuration file
-        "$ref": "#/definitions/Status"
-      container-runtime:
-        description: Status of local container runtime
         "$ref": "#/definitions/Status"
       host-firewall:
         description: Status of the host firewall
@@ -3929,7 +3922,7 @@ definitions:
         type: string
 
   Label:
-    description: Label is the Cilium's representation of a container label
+    description: Label is Cilium's representation of a label
     type: object
     properties:
       key:
@@ -3937,7 +3930,7 @@ definitions:
       value:
         type: string
       source:
-        description: Source can be one of the above values (e.g. LabelSourceContainer)
+        description: Source can be one of the above values (e.g. LabelSourceK8s)
         type: string
   LabelArray:
     description: LabelArray is an array of labels forming a set
