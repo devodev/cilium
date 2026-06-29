@@ -135,8 +135,10 @@ func (r *cecReconciler) process(ctx context.Context, health cell.Health) error {
 			}
 		}
 
+		var initWatch <-chan struct{}
 		if r.initDone != nil {
-			if ok, _ := r.cecs.Initialized(txn); ok {
+			var initialized bool
+			if initialized, initWatch = r.cecs.Initialized(txn); initialized {
 				// All initial CECs processed, unblock endpoint restoration.
 				close(r.initDone)
 				r.initDone = nil
@@ -146,8 +148,8 @@ func (r *cecReconciler) process(ctx context.Context, health cell.Health) error {
 		select {
 		case <-ctx.Done():
 			return nil
-		case <-watch:
-
+		case <-watch: // wakes on changes
+		case <-initWatch: // wakes on table becoming initialized even if empty
 		}
 	}
 }
