@@ -249,14 +249,6 @@ jobs:
             build_args: |
               CILIUM_RUNTIME_IMAGE=quay.io/isovalent-dev/cilium-runtime-wfi:a23cb179a0f1ca69f3e0a03d46f4748fbf02d204@sha256:ad3ab1a22177673568e44cbbcb4a09ea521fff7c9dd39ee1b6a4386846fe5acd
 
-          - name: docker-plugin
-            distro: scratch
-            dockerfile: ./images/cilium-docker-plugin/Dockerfile
-            image_name: docker-plugin
-            platforms: linux/amd64,linux/arm64
-            build_args: |
-              CILIUM_RUNTIME_IMAGE=quay.io/isovalent-dev/cilium-runtime-wfi:a23cb179a0f1ca69f3e0a03d46f4748fbf02d204@sha256:ad3ab1a22177673568e44cbbcb4a09ea521fff7c9dd39ee1b6a4386846fe5acd
-
           - name: cilium-dnsproxy
             distro: chainguard
             dockerfile: ./enterprise/fqdn-proxy/images/cilium-dnsproxy/Dockerfile

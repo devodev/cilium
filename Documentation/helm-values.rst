@@ -640,6 +640,10 @@
      - Specifies whether etcd data is stored in a temporary volume backed by the node's default medium, such as disk, SSD or network storage (Disk), or RAM (Memory). The Memory option enables improved etcd read and write performance at the cost of additional memory usage, which counts against the memory limits of the container.
      - string
      - ``"Disk"``
+   * - :spelling:ignore:`clustermesh.apiserver.etcdQPS`
+     - Rate limit for the apiserver container while syncing Kubernetes resources from the local cluster to the local etcd.
+     - int
+     - ``50``
    * - :spelling:ignore:`clustermesh.apiserver.extraArgs`
      - Additional clustermesh-apiserver arguments.
      - list
@@ -668,6 +672,10 @@
      - Enable KVStoreMesh. KVStoreMesh caches the information retrieved from the remote clusters in the local etcd instance (deprecated - KVStoreMesh will always be enabled once the option is removed).
      - bool
      - ``true``
+   * - :spelling:ignore:`clustermesh.apiserver.kvstoremesh.etcdQPS`
+     - Rate limit for the kvstoremesh container while syncing resources from all remote clusters to the local etcd.
+     - int
+     - ``100``
    * - :spelling:ignore:`clustermesh.apiserver.kvstoremesh.extraArgs`
      - Additional KVStoreMesh arguments.
      - list
@@ -2091,7 +2099,7 @@
    * - :spelling:ignore:`envoy.image`
      - Envoy container image.
      - object
-     - ``{"digest":"sha256:533d4cb6c28ea9334051f036e130115b1f02d9c0fa6560f1308ec9b54bf0bb0c","override":null,"pullPolicy":"Always","repository":"quay.io/cilium/cilium-envoy","tag":"v1.37.4-1781154076-332f6c5e06ed996f5b6ea43d57f8bba4d103ecec","useDigest":true}``
+     - ``{"digest":"sha256:abc439b70846a384b8d728b0bc42e5dd48bbbc456515a4cd989f3652d8986b43","override":null,"pullPolicy":"Always","repository":"quay.io/cilium/cilium-envoy","tag":"v1.37.5-1782264709-cdc3744d2a0d37948ed88498195c637ece94c44b","useDigest":true}``
    * - :spelling:ignore:`envoy.initContainers`
      - Init containers added to the cilium Envoy DaemonSet.
      - list
@@ -4659,7 +4667,7 @@
    * - :spelling:ignore:`preflight.envoy.image`
      - Envoy pre-flight image.
      - object
-     - ``{"digest":"sha256:533d4cb6c28ea9334051f036e130115b1f02d9c0fa6560f1308ec9b54bf0bb0c","override":null,"pullPolicy":"Always","repository":"quay.io/cilium/cilium-envoy","tag":"v1.37.4-1781154076-332f6c5e06ed996f5b6ea43d57f8bba4d103ecec","useDigest":true}``
+     - ``{"digest":"sha256:abc439b70846a384b8d728b0bc42e5dd48bbbc456515a4cd989f3652d8986b43","override":null,"pullPolicy":"Always","repository":"quay.io/cilium/cilium-envoy","tag":"v1.37.5-1782264709-cdc3744d2a0d37948ed88498195c637ece94c44b","useDigest":true}``
    * - :spelling:ignore:`preflight.extraEnv`
      - Additional preflight environment variables.
      - list

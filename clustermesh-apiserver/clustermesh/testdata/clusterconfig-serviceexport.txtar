@@ -15,6 +15,7 @@ kvstore/list -o json cilium/cluster-config config.actual
   "capabilities": {
     "syncedCanaries": true,
     "maxConnectedClusters": 255,
-    "serviceExportsEnabled": true
+    "serviceExportsEnabled": true,
+    "endpointSlicesExportMode": "services-and-endpointslices"
   }
 }

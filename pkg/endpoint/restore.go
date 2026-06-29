@@ -385,11 +385,8 @@ func (e *Endpoint) restoreIdentity(regenerator *Regenerator) error {
 func (e *Endpoint) toSerializedEndpoint() *serializableEndpoint {
 	return &serializableEndpoint{
 		ID:                       e.ID,
-		ContainerName:            e.GetContainerName(),
 		ContainerID:              e.GetContainerID(),
 		ContainerNetnsPath:       e.containerNetnsPath,
-		DockerNetworkID:          e.dockerNetworkID,
-		DockerEndpointID:         e.dockerEndpointID,
 		IfName:                   e.ifName,
 		IfIndex:                  e.ifIndex,
 		ParentIfIndex:            e.parentIfIndex,
@@ -431,23 +428,12 @@ type serializableEndpoint struct {
 	// ID of the endpoint, unique in the scope of the node
 	ID uint16
 
-	// containerName is the name given to the endpoint by the container runtime
-	ContainerName string
-
-	// containerID is the container ID that docker has assigned to the endpoint
+	// containerID is the container ID associated with the endpoint.
 	// Note: The JSON tag was kept for backward compatibility.
 	ContainerID string `json:"dockerID,omitempty"`
 
 	// ContainerNetnsPath is the path to the container's network namespace
 	ContainerNetnsPath string
-
-	// dockerNetworkID is the network ID of the libnetwork network if the
-	// endpoint is a docker managed container which uses libnetwork
-	DockerNetworkID string
-
-	// dockerEndpointID is the Docker network endpoint ID if managed by
-	// libnetwork
-	DockerEndpointID string
 
 	// ifName is the name of the host facing interface (veth pair) which
 	// connects into the endpoint
@@ -465,7 +451,7 @@ type serializableEndpoint struct {
 	ContainerIfName string
 
 	// DisableLegacyIdentifiers disables lookup using legacy endpoint identifiers
-	// (container name, container id, pod name) for this endpoint.
+	// (container id, pod name) for this endpoint.
 	DisableLegacyIdentifiers bool
 
 	// Labels is the endpoint's label configuration
@@ -575,11 +561,8 @@ func (ep *Endpoint) fromSerializedEndpoint(r *serializableEndpoint) {
 	ep.ID = r.ID
 	ep.createdAt = time.Now()
 	ep.initialEnvoyPolicyComputed = make(chan struct{})
-	ep.containerName.Store(&r.ContainerName)
 	ep.containerID.Store(&r.ContainerID)
 	ep.containerNetnsPath = r.ContainerNetnsPath
-	ep.dockerNetworkID = r.DockerNetworkID
-	ep.dockerEndpointID = r.DockerEndpointID
 	ep.ifName = r.IfName
 	ep.ifIndex = r.IfIndex
 	ep.parentIfIndex = r.ParentIfIndex

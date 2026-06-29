@@ -95,6 +95,7 @@
 /cilium-cli/connectivity/builder/pod_to_pod_encryption.go @isovalent/encryption
 /cilium-cli/connectivity/builder/pod_to_pod_encryption_v2.go @isovalent/encryption
 /cilium-cli/connectivity/builder/service_loopback.go @isovalent/isovalent-loadbalancer
+/cilium-cli/connectivity/builder/ztunnel*.go @isovalent/encryption
 /cilium-cli/connectivity/perf/** @isovalent/scalability-performance
 /cilium-cli/connectivity/tests/bgp.go @isovalent/traffic-engineering
 /cilium-cli/connectivity/tests/clustermesh-endpointslice-sync.go @isovalent/clustermesh

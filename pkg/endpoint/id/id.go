@@ -43,21 +43,6 @@ const (
 	// This attachment ID uniquely identifies a CNI ADD and CNI DEL invocation pair.
 	CNIAttachmentIdPrefix PrefixType = "cni-attachment-id"
 
-	// DockerEndpointPrefix is used to address an endpoint via the Docker
-	// endpoint ID. This method is only possible if the endpoint was
-	// created via the cilium-docker plugin and the container is backed by
-	// the libnetwork abstraction.
-	DockerEndpointPrefix PrefixType = "docker-endpoint"
-
-	// ContainerNamePrefix is used to address the endpoint via the
-	// container's name. This addressing mechanism depends on the container
-	// runtime. Only the primary container that the networking scope can be
-	// used to address an endpoint.
-	// This can only be used to look up endpoints which have not opted-out of
-	// legacy identifiers.
-	// Deprecated. Use CNIAttachmentIdPrefix instead
-	ContainerNamePrefix PrefixType = "container-name"
-
 	// CEPNamePrefix is used to address an endpoint via its Kubernetes
 	// CiliumEndpoint resource name. This addressing only works if the endpoint
 	// is represented as a Kubernetes CiliumEndpoint resource.
@@ -146,8 +131,6 @@ func Parse(id string) (PrefixType, string, error) {
 		CiliumGlobalIdPrefix,
 		CNIAttachmentIdPrefix,
 		ContainerIdPrefix,
-		DockerEndpointPrefix,
-		ContainerNamePrefix,
 		CEPNamePrefix,
 		PodNamePrefix,
 		IPv4Prefix,

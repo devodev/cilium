@@ -36,8 +36,8 @@ paths:
       summary: Get health of Cilium daemon
       description: |
         Returns health and status information of the Cilium daemon and related
-        components such as the local container runtime, connected datastore,
-        Kubernetes integration and Hubble.
+        components such as the connected datastore, Kubernetes integration and
+        Hubble.
       tags:
       - daemon
       parameters:
@@ -969,10 +969,8 @@ parameters:
         - cilium-global: Global Cilium endpoint UUID, e.g. cilium-global:cluster1:nodeX:452343
         - cni-attachment-id: CNI attachment ID, e.g. cni-attachment-id:22222:eth0
         - container-id: Container runtime ID, e.g. container-id:22222 (deprecated, may not be unique)
-        - container-name: Container name, e.g. container-name:foobar (deprecated, may not be unique)
         - pod-name: pod name for this container if K8s is enabled, e.g. pod-name:default:foobar (deprecated, may not be unique)
         - cep-name: cep name for this container if K8s is enabled, e.g. pod-name:default:foobar-net1
-        - docker-endpoint: Docker libnetwork endpoint ID, e.g. docker-endpoint:4444
     in: path
     required: true
     type: string
@@ -1184,21 +1182,12 @@ definitions:
       container-id:
         description: ID assigned by container runtime
         type: string
-      container-name:
-        description: Name assigned to container
-        type: string
       container-netns-path:
         description: Path of Container Netns
-        type: string
-      docker-endpoint-id:
-        description: Docker endpoint ID
         type: string
       labels:
         description: Labels describing the identity
         "$ref": "#/definitions/Labels"
-      docker-network-id:
-        description: Docker network ID
-        type: string
       interface-name:
         description: Name of network device in host netns
         type: string
@@ -1248,8 +1237,8 @@ definitions:
         type: boolean
       disable-legacy-identifiers:
         description: >-
-          Disables lookup using legacy endpoint identifiers (container name,
-          container id, pod name) for this endpoint
+          Disables lookup using legacy endpoint identifiers (container id, pod
+          name) for this endpoint
         type: boolean
       netns-cookie:
         description: Network namespace cookie
@@ -1795,6 +1784,11 @@ definitions:
       container-name:
         description: Name assigned to container (deprecated, may not be unique)
         type: string
+      # docker-endpoint-id and docker-network-id are retained for backwards
+      # compatibility only. The cilium-docker plugin has been removed and nothing
+      # populates these anymore, but during an upgrade older agents may still set
+      # them on the CiliumEndpoint CRD. The fields must stay in the schema so the
+      # generated CRD keeps accepting those objects. Do not remove.
       docker-endpoint-id:
         description: Docker endpoint ID
         type: string
@@ -1863,9 +1857,6 @@ definitions:
         "$ref": "#/definitions/Status"
       cni-file:
         description: Status of the CNI configuration file
-        "$ref": "#/definitions/Status"
-      container-runtime:
-        description: Status of local container runtime
         "$ref": "#/definitions/Status"
       host-firewall:
         description: Status of the host firewall
@@ -2326,6 +2317,9 @@ definitions:
       num-shared-services:
         description: Number of services in the cluster
         type: integer
+      num-endpoint-slices:
+        description: Number of endpoint slices in the cluster
+        type: integer
       num-service-exports:
         description: Number of MCS-API service exports in the cluster
         type: integer
@@ -2360,6 +2354,10 @@ definitions:
       services:
         description: Services synchronization status
         type: boolean
+      endpoint-slices:
+        description: Endpoint slices synchronization status (null means that the component is not watching endpoint slices)
+        type: boolean
+        x-nullable: true
       service-exports:
         description: MCS-API service exports synchronization status (null means that the component is not watching service exports)
         type: boolean
@@ -2395,6 +2393,12 @@ definitions:
         description: Whether or not MCS-API ServiceExports is enabled by the cluster (null means unsupported).
         type: boolean
         x-nullable: true
+      endpoint-slices-export-mode:
+        description: EndpointSlices export mode advertised by the remote cluster
+        type: string
+        enum:
+        - services-and-endpointslices
+        - endpointslices-only
   MonitorStatus:
     description: Status of the node monitor
     properties:
@@ -3918,7 +3922,7 @@ definitions:
         type: string
 
   Label:
-    description: Label is the Cilium's representation of a container label
+    description: Label is Cilium's representation of a label
     type: object
     properties:
       key:
@@ -3926,7 +3930,7 @@ definitions:
       value:
         type: string
       source:
-        description: Source can be one of the above values (e.g. LabelSourceContainer)
+        description: Source can be one of the above values (e.g. LabelSourceK8s)
         type: string
   LabelArray:
     description: LabelArray is an array of labels forming a set

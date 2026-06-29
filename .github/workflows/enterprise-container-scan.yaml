@@ -16,8 +16,7 @@ jobs:
       scan_result: ${{ steps.failure-flag.outputs.scan_result }}
     strategy:
       matrix:
-        image: [cilium, clustermesh-apiserver, docker-plugin, hubble-relay, operator-generic, operator-aws,
-                operator-alibabacloud, operator-azure]
+        image: [cilium, clustermesh-apiserver, hubble-relay, operator-generic, operator-aws, operator-alibabacloud, operator-azure]
         # We don't scan Enterprise images for maintained OSS branches, because
         # OSS syncs don't happen frequently enough to give an accurate picture
         # of the dependencies used by Cilium. We only scan the Enterprise images

@@ -80,6 +80,44 @@ func TestCalculateExcessIPs(t *testing.T) {
 	}
 }
 
+func TestStaticIPNeedsResolution(t *testing.T) {
+	for _, tc := range []struct {
+		name             string
+		assignedStaticIP string
+		want             bool
+	}{
+		{
+			name:             "empty value not yet assigned",
+			assignedStaticIP: "",
+			want:             true,
+		},
+		{
+			name:             "legacy azure public IP prefix resource ID",
+			assignedStaticIP: "/subscriptions/0000/resourceGroups/rg/providers/Microsoft.Network/publicIPPrefixes/prefix",
+			want:             true,
+		},
+		{
+			name:             "legacy azure public IP resource ID",
+			assignedStaticIP: "/subscriptions/0000/resourceGroups/rg/providers/Microsoft.Network/publicIPAddresses/cilium-managed-public-ip",
+			want:             true,
+		},
+		{
+			name:             "valid IPv4 address",
+			assignedStaticIP: "203.0.113.7",
+			want:             false,
+		},
+		{
+			name:             "valid IPv6 address",
+			assignedStaticIP: "2001:db8::1",
+			want:             false,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.want, staticIPNeedsResolution(tc.assignedStaticIP))
+		})
+	}
+}
+
 type k8sMockNode struct{}
 
 func (k *k8sMockNode) Update(origNode, newNode *v2.CiliumNode) (*v2.CiliumNode, error) {
@@ -119,7 +157,7 @@ func TestSyncToAPIServerForNonExistingNode(t *testing.T) {
 }
 
 func TestPoolRequestedIPv4(t *testing.T) {
-	t.Run("returns demand from default pool", func(t *testing.T) {
+	t.Run("returns IPv4 demand from default pool", func(t *testing.T) {
 		cn := &v2.CiliumNode{}
 		cn.Spec.IPAM.Pools.Requested = []ipamTypes.IPAMPoolRequest{
 			{
@@ -127,14 +165,44 @@ func TestPoolRequestedIPv4(t *testing.T) {
 				Needed: ipamTypes.IPAMPoolDemand{IPv4Addrs: 24},
 			},
 		}
-		requested, ok := poolRequestedIPv4(cn)
+		requestedIPv4, _, ok := poolRequestedIPs(cn)
 		require.True(t, ok)
-		require.Equal(t, 24, requested)
+		require.Equal(t, 24, requestedIPv4)
+	})
+
+	t.Run("returns IPv6 demand from default pool", func(t *testing.T) {
+		cn := &v2.CiliumNode{}
+		cn.Spec.IPAM.Pools.Requested = []ipamTypes.IPAMPoolRequest{
+			{
+				Pool:   defaults.IPAMDefaultIPPool,
+				Needed: ipamTypes.IPAMPoolDemand{IPv6Addrs: 48},
+			},
+		}
+		_, requestedIPv6, ok := poolRequestedIPs(cn)
+		require.True(t, ok)
+		require.Equal(t, 48, requestedIPv6)
+	})
+
+	t.Run("returns IPv4/IPv6 demand from default pool", func(t *testing.T) {
+		cn := &v2.CiliumNode{}
+		cn.Spec.IPAM.Pools.Requested = []ipamTypes.IPAMPoolRequest{
+			{
+				Pool: defaults.IPAMDefaultIPPool,
+				Needed: ipamTypes.IPAMPoolDemand{
+					IPv4Addrs: 24,
+					IPv6Addrs: 48,
+				},
+			},
+		}
+		requestedIPv4, requestedIPv6, ok := poolRequestedIPs(cn)
+		require.True(t, ok)
+		require.Equal(t, 24, requestedIPv4)
+		require.Equal(t, 48, requestedIPv6)
 	})
 
 	t.Run("returns false when no Requested entries", func(t *testing.T) {
 		cn := &v2.CiliumNode{}
-		_, ok := poolRequestedIPv4(cn)
+		_, _, ok := poolRequestedIPs(cn)
 		require.False(t, ok)
 	})
 
@@ -146,7 +214,7 @@ func TestPoolRequestedIPv4(t *testing.T) {
 				Needed: ipamTypes.IPAMPoolDemand{IPv4Addrs: 10},
 			},
 		}
-		_, ok := poolRequestedIPv4(cn)
+		_, _, ok := poolRequestedIPs(cn)
 		require.False(t, ok)
 	})
 
@@ -154,13 +222,17 @@ func TestPoolRequestedIPv4(t *testing.T) {
 		cn := &v2.CiliumNode{}
 		cn.Spec.IPAM.Pools.Requested = []ipamTypes.IPAMPoolRequest{
 			{
-				Pool:   defaults.IPAMDefaultIPPool,
-				Needed: ipamTypes.IPAMPoolDemand{IPv4Addrs: 0},
+				Pool: defaults.IPAMDefaultIPPool,
+				Needed: ipamTypes.IPAMPoolDemand{
+					IPv4Addrs: 0,
+					IPv6Addrs: 0,
+				},
 			},
 		}
-		requested, ok := poolRequestedIPv4(cn)
+		requestedIPv4, requestedIPv6, ok := poolRequestedIPs(cn)
 		require.True(t, ok)
-		require.Equal(t, 0, requested)
+		require.Equal(t, 0, requestedIPv4)
+		require.Equal(t, 0, requestedIPv6)
 	})
 }
 

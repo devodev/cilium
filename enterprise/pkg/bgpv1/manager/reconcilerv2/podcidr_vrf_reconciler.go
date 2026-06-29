@@ -138,11 +138,7 @@ func (r *PodCIDRVRFReconciler) getPodCIDRs(cn *v2.CiliumNode) ([]netip.Prefix, e
 
 	var podCIDRPrefixes []netip.Prefix
 	for _, cidr := range cn.Spec.IPAM.PodCIDRs {
-		prefix, err := netip.ParsePrefix(cidr)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse prefix %s: %w", cidr, err)
-		}
-		podCIDRPrefixes = append(podCIDRPrefixes, prefix)
+		podCIDRPrefixes = append(podCIDRPrefixes, cidr.Prefix)
 	}
 
 	return podCIDRPrefixes, nil

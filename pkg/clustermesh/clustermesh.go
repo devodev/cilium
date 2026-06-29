@@ -12,10 +12,12 @@ import (
 	"sync"
 
 	"github.com/cilium/hive/cell"
+	"github.com/cilium/hive/job"
 
 	"github.com/cilium/cilium/api/v1/models"
 	"github.com/cilium/cilium/pkg/allocator"
 	"github.com/cilium/cilium/pkg/clustermesh/common"
+	cmendpointslice "github.com/cilium/cilium/pkg/clustermesh/endpointslice"
 	"github.com/cilium/cilium/pkg/clustermesh/observer"
 	serviceStore "github.com/cilium/cilium/pkg/clustermesh/store"
 	cmtypes "github.com/cilium/cilium/pkg/clustermesh/types"
@@ -24,6 +26,7 @@ import (
 	"github.com/cilium/cilium/pkg/ipcache"
 	"github.com/cilium/cilium/pkg/kvstore"
 	"github.com/cilium/cilium/pkg/kvstore/store"
+	"github.com/cilium/cilium/pkg/loadbalancer/writer"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	nodeStore "github.com/cilium/cilium/pkg/node/store"
 	"github.com/cilium/cilium/pkg/source"
@@ -35,6 +38,7 @@ type Configuration struct {
 	cell.In
 
 	common.Config
+	cmtypes.ServiceModeV2Config
 	wait.TimeoutConfig
 
 	// ClusterInfo is the id/name of the local cluster.
@@ -167,6 +171,7 @@ func (cm *ClusterMesh) NewRemoteCluster(name string, status common.StatusFunc) c
 		name:                     name,
 		clusterID:                cmtypes.ClusterIDUnset,
 		clusterConfigValidator:   cm.conf.ClusterInfo.ValidateRemoteConfig,
+		serviceModeV2:            cm.conf.ServiceModeV2,
 		usedIDs:                  cm.conf.ClusterIDsManager,
 		status:                   status,
 		storeFactory:             cm.conf.StoreFactory,
@@ -201,7 +206,7 @@ func (cm *ClusterMesh) NewRemoteCluster(name string, status common.StatusFunc) c
 			cm.conf.ServiceMerger.MergeExternalServiceUpdate,
 			cm.conf.ServiceMerger.MergeExternalServiceDelete,
 		),
-		store.RWSWithOnSyncCallback(func(ctx context.Context) { close(rc.synced.services) }),
+		store.RWSWithOnSyncCallback(func(ctx context.Context) { rc.synced.services.Stop() }),
 		store.RWSWithEntriesMetric(cm.conf.Metrics.TotalServices.WithLabelValues(rc.name)),
 	)
 
@@ -248,6 +253,14 @@ func (cm *ClusterMesh) NodesSynced(ctx context.Context) error {
 // It returns an error if the given context expired.
 func (cm *ClusterMesh) ServicesSynced(ctx context.Context) error {
 	return cm.synced(ctx, func(rc *remoteCluster) wait.Fn { return rc.synced.Services })
+}
+
+// EndpointSlicesSynced() returns after that either the initial list of endpoint slices has
+// been received from all remote clusters, and synchronized with the BPF datapath, or
+// the maximum wait period controlled by the clustermesh-sync-timeout flag elapsed.
+// It returns an error if the given context expired.
+func (cm *ClusterMesh) EndpointSlicesSynced(ctx context.Context) error {
+	return cm.ObserverSynced(ctx, cmendpointslice.Name)
 }
 
 // IPIdentitiesSynced returns after that either the initial list of ipcache entries
@@ -312,4 +325,34 @@ func (cm *ClusterMesh) Status() (status *models.ClusterMeshStatus) {
 		func(a, b *models.RemoteCluster) int { return cmp.Compare(a.Name, b.Name) })
 
 	return
+}
+
+// registerLoadBalancerInitialized adds a job to wait for the ClusterMesh resources
+// backing the load balancer before marking the load-balancing tables as initialized.
+func registerLoadBalancerInitialized(jobs job.Group, cm *ClusterMesh, cfg cmtypes.ServiceModeV2Config, w *writer.Writer) {
+	if cm == nil {
+		return
+	}
+	markDone := w.RegisterInitializer("clustermesh")
+	jobs.Add(
+		job.OneShot(
+			"loadbalancer-initialized",
+			func(ctx context.Context, health cell.Health) error {
+				var err error
+				if cfg.ServiceModeV2.ShouldWatchLegacyServices() {
+					err = cm.ServicesSynced(ctx)
+				} else if cfg.ServiceModeV2.ShouldWatchEndpointSlices() {
+					err = cm.EndpointSlicesSynced(ctx)
+				}
+				if err != nil {
+					return err
+				}
+
+				txn := w.WriteTxn()
+				markDone(txn)
+				txn.Commit()
+				return nil
+			},
+		),
+	)
 }

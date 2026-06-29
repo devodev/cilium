@@ -53,7 +53,9 @@ func TestScript(t *testing.T) {
 	setup := func(t testing.TB, args []string) *script.Engine {
 		h := hive.New(
 			cell.Config(cmtypes.DefaultClusterInfo),
+			cell.Config(cmtypes.DefaultServiceModeV2Config),
 			cell.Invoke(cmtypes.ClusterInfo.Validate),
+			cell.Invoke(cmtypes.ServiceModeV2Config.Validate),
 
 			cell.Config(kvstoremesh.DefaultConfig),
 			cell.Config(ClientFactoryParams{}),

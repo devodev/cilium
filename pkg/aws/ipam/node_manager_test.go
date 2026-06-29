@@ -150,7 +150,7 @@ func TestNodeManagerDefaultAllocation(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, instances)
 
-	eniID1, _, err := ec2api.CreateNetworkInterface(t.Context(), 0, "s-1", "desc", []string{"sg1", "sg2"}, false)
+	eniID1, _, err := ec2api.CreateNetworkInterface(t.Context(), 0, "s-1", "desc", []string{"sg1", "sg2"}, false, false)
 	require.NoError(t, err)
 	_, err = ec2api.AttachNetworkInterface(t.Context(), 0, instanceID, eniID1)
 	require.NoError(t, err)
@@ -197,7 +197,7 @@ func TestNodeManagerPrefixDelegation(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, instances)
 
-	eniID1, _, err := ec2api.CreateNetworkInterface(t.Context(), 0, "s-1", "desc", []string{"sg1", "sg2"}, true)
+	eniID1, _, err := ec2api.CreateNetworkInterface(t.Context(), 0, "s-1", "desc", []string{"sg1", "sg2"}, true, false)
 	require.NoError(t, err)
 	_, err = ec2api.AttachNetworkInterface(t.Context(), 0, instanceID, eniID1)
 	require.NoError(t, err)
@@ -269,7 +269,7 @@ func TestNodeManagerENIWithSGTags(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, instances)
 
-	eniID1, _, err := ec2api.CreateNetworkInterface(t.Context(), 0, "s-1", "desc", []string{"sg1", "sg2"}, false)
+	eniID1, _, err := ec2api.CreateNetworkInterface(t.Context(), 0, "s-1", "desc", []string{"sg1", "sg2"}, false, false)
 	require.NoError(t, err)
 	_, err = ec2api.AttachNetworkInterface(t.Context(), 0, instanceID, eniID1)
 	require.NoError(t, err)
@@ -332,7 +332,7 @@ func TestNodeManagerMinAllocate20(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, instances)
 
-	eniID1, _, err := ec2api.CreateNetworkInterface(t.Context(), 0, "s-1", "desc", []string{"sg1", "sg2"}, false)
+	eniID1, _, err := ec2api.CreateNetworkInterface(t.Context(), 0, "s-1", "desc", []string{"sg1", "sg2"}, false, false)
 	require.NoError(t, err)
 	_, err = ec2api.AttachNetworkInterface(t.Context(), 0, instanceID, eniID1)
 	require.NoError(t, err)
@@ -391,7 +391,7 @@ func TestNodeManagerMinAllocateAndPreallocate(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, instances)
 
-	eniID1, _, err := ec2api.CreateNetworkInterface(t.Context(), 0, "s-1", "desc", []string{"sg1", "sg2"}, false)
+	eniID1, _, err := ec2api.CreateNetworkInterface(t.Context(), 0, "s-1", "desc", []string{"sg1", "sg2"}, false, false)
 	require.NoError(t, err)
 	_, err = ec2api.AttachNetworkInterface(t.Context(), 0, instanceID, eniID1)
 	require.NoError(t, err)
@@ -459,7 +459,7 @@ func TestNodeManagerReleaseAddress(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, instances)
 
-	eniID1, _, err := ec2api.CreateNetworkInterface(t.Context(), 0, "s-1", "desc", []string{"sg1", "sg2"}, false)
+	eniID1, _, err := ec2api.CreateNetworkInterface(t.Context(), 0, "s-1", "desc", []string{"sg1", "sg2"}, false, false)
 	require.NoError(t, err)
 	_, err = ec2api.AttachNetworkInterface(t.Context(), 0, instanceID, eniID1)
 	require.NoError(t, err)
@@ -567,7 +567,7 @@ func TestNodeManagerENIExcludeInterfaceTags(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, instances)
 
-	eniID1, _, err := ec2api.CreateNetworkInterface(t.Context(), 0, "s-1", "desc", []string{"sg1", "sg2"}, false)
+	eniID1, _, err := ec2api.CreateNetworkInterface(t.Context(), 0, "s-1", "desc", []string{"sg1", "sg2"}, false, false)
 	require.NoError(t, err)
 	err = ec2api.TagENI(t.Context(), eniID1, map[string]string{
 		"foo":                 "bar",
@@ -640,7 +640,7 @@ func TestNodeManagerExceedENICapacity(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, instances)
 
-	eniID1, _, err := ec2api.CreateNetworkInterface(t.Context(), 0, "s-1", "desc", []string{"sg1", "sg2"}, false)
+	eniID1, _, err := ec2api.CreateNetworkInterface(t.Context(), 0, "s-1", "desc", []string{"sg1", "sg2"}, false, false)
 	require.NoError(t, err)
 	_, err = ec2api.AttachNetworkInterface(t.Context(), 0, instanceID, eniID1)
 	require.NoError(t, err)
@@ -702,7 +702,7 @@ func TestInterfaceCreatedInInitialSubnet(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, instances)
 
-	eniID1, _, err := ec2api.CreateNetworkInterface(t.Context(), 0, testSubnet.ID, "desc", []string{"sg1", "sg2"}, false)
+	eniID1, _, err := ec2api.CreateNetworkInterface(t.Context(), 0, testSubnet.ID, "desc", []string{"sg1", "sg2"}, false, false)
 	require.NoError(t, err)
 	_, err = ec2api.AttachNetworkInterface(t.Context(), 0, instanceID, eniID1)
 	require.NoError(t, err)
@@ -775,7 +775,7 @@ func TestNodeManagerManyNodes(t *testing.T) {
 	state := make([]*nodeState, numNodes)
 
 	for i := range state {
-		eniID, _, err := ec2api.CreateNetworkInterface(t.Context(), 0, "mgmt-1", "desc", []string{"sg1", "sg2"}, false)
+		eniID, _, err := ec2api.CreateNetworkInterface(t.Context(), 0, "mgmt-1", "desc", []string{"sg1", "sg2"}, false, false)
 		require.NoError(t, err)
 		_, err = ec2api.AttachNetworkInterface(t.Context(), 0, fmt.Sprintf("i-testNodeManagerManyNodes-%d", i), eniID)
 		require.NoError(t, err)
@@ -833,7 +833,7 @@ func TestNodeManagerInstanceNotRunning(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, instances)
 
-	eniID1, _, err := ec2api.CreateNetworkInterface(t.Context(), 0, "s-1", "desc", []string{"sg1", "sg2"}, false)
+	eniID1, _, err := ec2api.CreateNetworkInterface(t.Context(), 0, "s-1", "desc", []string{"sg1", "sg2"}, false, false)
 	require.NoError(t, err)
 	_, err = ec2api.AttachNetworkInterface(t.Context(), 0, instanceID, eniID1)
 	require.NoError(t, err)
@@ -881,11 +881,11 @@ func TestInstanceBeenDeleted(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, instances)
 
-	eniID1, _, err := ec2api.CreateNetworkInterface(t.Context(), 0, "s-1", "desc", []string{"sg1", "sg2"}, false)
+	eniID1, _, err := ec2api.CreateNetworkInterface(t.Context(), 0, "s-1", "desc", []string{"sg1", "sg2"}, false, false)
 	require.NoError(t, err)
 	_, err = ec2api.AttachNetworkInterface(t.Context(), 0, instanceID, eniID1)
 	require.NoError(t, err)
-	eniID2, _, err := ec2api.CreateNetworkInterface(t.Context(), 8, "s-1", "desc", []string{"sg1", "sg2"}, false)
+	eniID2, _, err := ec2api.CreateNetworkInterface(t.Context(), 8, "s-1", "desc", []string{"sg1", "sg2"}, false, false)
 	require.NoError(t, err)
 	_, err = ec2api.AttachNetworkInterface(t.Context(), 1, instanceID, eniID2)
 	require.NoError(t, err)
@@ -944,7 +944,7 @@ func TestNodeManagerStaticIP(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, instances)
 
-	eniID1, _, err := ec2api.CreateNetworkInterface(t.Context(), 0, "s-1", "desc", []string{"sg1", "sg2"}, false)
+	eniID1, _, err := ec2api.CreateNetworkInterface(t.Context(), 0, "s-1", "desc", []string{"sg1", "sg2"}, false, false)
 	require.NoError(t, err)
 	_, err = ec2api.AttachNetworkInterface(t.Context(), 0, instanceID, eniID1)
 	require.NoError(t, err)
@@ -991,7 +991,7 @@ func TestNodeManagerStaticIPAlreadyAssociated(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, instances)
 
-	eniID1, _, err := ec2api.CreateNetworkInterface(t.Context(), 0, "s-1", "desc", []string{"sg1", "sg2"}, false)
+	eniID1, _, err := ec2api.CreateNetworkInterface(t.Context(), 0, "s-1", "desc", []string{"sg1", "sg2"}, false, false)
 	require.NoError(t, err)
 	_, err = ec2api.AttachNetworkInterface(t.Context(), 0, instanceID, eniID1)
 	require.NoError(t, err)
@@ -1015,6 +1015,67 @@ func TestNodeManagerStaticIPAlreadyAssociated(t *testing.T) {
 	require.Equal(t, staticIP, node.Stats().IPv4.AssignedStaticIP)
 }
 
+// TestNodeManagerStaticIPPrimaryENI verifies that the static IP is associated
+// with the primary ENI (Number == 0) even when secondary ENIs are present.
+//
+// - m5.large (3x ENIs, 2x10-2 IPs)
+// - MinAllocate 0
+// - MaxAllocate 0
+// - PreAllocate 8
+// - FirstInterfaceIndex 0
+func TestNodeManagerStaticIPPrimaryENI(t *testing.T) {
+	setup(t)
+
+	const instanceID = "i-testNodeManagerStaticIPPrimaryENI-0"
+
+	ec2api := apiMock.NewAPI([]*ipamTypes.Subnet{testSubnet}, []*ipamTypes.VirtualNetwork{testVpc}, testSecurityGroups, testRouteTables)
+	instances, err := NewInstancesManager(t.Context(), hivetest.Logger(t), ec2api, metadataMockapi)
+	require.NoError(t, err)
+	require.NotNil(t, instances)
+
+	// Primary ENI (Number == 0).
+	primaryENI, _, err := ec2api.CreateNetworkInterface(t.Context(), 0, "s-1", "desc", []string{"sg1", "sg2"}, false, false)
+	require.NoError(t, err)
+	_, err = ec2api.AttachNetworkInterface(t.Context(), 0, instanceID, primaryENI)
+	require.NoError(t, err)
+
+	// Secondary ENI (Number == 1)
+	secondaryENI, _, err := ec2api.CreateNetworkInterface(t.Context(), 0, "s-1", "desc", []string{"sg1", "sg2"}, false, false)
+	require.NoError(t, err)
+	_, err = ec2api.AttachNetworkInterface(t.Context(), 1, instanceID, secondaryENI)
+	require.NoError(t, err)
+
+	_, err = instances.Resync(t.Context())
+	require.NoError(t, err)
+	mngr, err := nodemanager.NewNodeManager(hivetest.Logger(t), instances, k8sapi, metricsapi, 10, false, 0, false)
+	require.NoError(t, err)
+	require.NotNil(t, mngr)
+
+	staticIPTags := map[string]string{"some-eip-tag": "some-value"}
+	cn := newCiliumNode("node1", withTestDefaults(), withInstanceID(instanceID), withInstanceType("m5.large"), withIPAMPreAllocate(8), withIPAMStaticIPTags(staticIPTags))
+	mngr.Upsert(cn)
+	require.NoError(t, testutils.WaitUntil(func() bool { return reachedAddressesNeeded(mngr, "node1", 0) }, 5*time.Second))
+
+	node := mngr.Get("node1")
+	require.NotNil(t, node)
+	// Verify that the static IP has been successfully assigned.
+	require.Equal(t, "192.0.2.254", node.Stats().IPv4.AssignedStaticIP)
+
+	// Verify that the EIP was associated with the primary ENI and not with any
+	// secondary ENI.
+	instance, err := ec2api.GetInstance(t.Context(), nil, nil, instanceID)
+	require.NoError(t, err)
+	for _, iface := range instance.Interfaces {
+		eni, ok := iface.(*types.ENI)
+		require.True(t, ok)
+		if eni.Number == 0 {
+			require.Equal(t, "192.0.2.254", eni.PublicIP.String())
+		} else {
+			require.False(t, eni.PublicIP.IsValid(), "secondary ENI %s (number %d) should not have a public IP", eni.ID, eni.Number)
+		}
+	}
+}
+
 func benchmarkAllocWorker(b *testing.B, workers int64, delay time.Duration, rateLimit float64, burst int) {
 	testSubnet1 := &ipamTypes.Subnet{ID: "s-1", AvailabilityZone: "us-west-1", VirtualNetworkID: "vpc-1", AvailableAddresses: 1000000}
 	testSubnet2 := &ipamTypes.Subnet{ID: "s-2", AvailabilityZone: "us-west-1", VirtualNetworkID: "vpc-1", AvailableAddresses: 1000000}
@@ -1034,7 +1095,7 @@ func benchmarkAllocWorker(b *testing.B, workers int64, delay time.Duration, rate
 
 	b.ResetTimer()
 	for i := range state {
-		eniID, _, err := ec2api.CreateNetworkInterface(b.Context(), 0, "s-1", "desc", []string{"sg1", "sg2"}, false)
+		eniID, _, err := ec2api.CreateNetworkInterface(b.Context(), 0, "s-1", "desc", []string{"sg1", "sg2"}, false, false)
 		require.NoError(b, err)
 		_, err = ec2api.AttachNetworkInterface(b.Context(), 0, fmt.Sprintf("i-benchmarkAllocWorker-%d", i), eniID)
 		require.NoError(b, err)

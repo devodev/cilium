@@ -158,27 +158,9 @@ type Endpoint struct {
 	// mutex protects write operations to this endpoint structure
 	mutex lock.RWMutex
 
-	// containerName is the name given to the endpoint by the container runtime.
-	// It is not mutable once set, but is not set on the initial endpoint creation
-	// when using the docker plugin. CNI-based clusters (read: all clusters) set
-	// this on endpoint creation.
-	containerName atomic.Pointer[string]
-
-	// containerID is the container ID that docker has assigned to the endpoint.
-	// It is not mutable once set, but is not set on the initial endpoint creation
-	// when using the docker plugin. CNI-based clusters (read: all clusters) set
-	// this on endpoint creation.
+	// containerID is the container ID that the container runtime has assigned to
+	// the endpoint. It is not mutable once set.
 	containerID atomic.Pointer[string]
-
-	// dockerNetworkID is the network ID of the libnetwork network if the
-	// endpoint is a docker managed container which uses libnetwork
-	// Constant after endpoint creation / restoration.
-	dockerNetworkID string
-
-	// dockerEndpointID is the Docker network endpoint ID if managed by
-	// libnetwork.
-	// immutable.
-	dockerEndpointID string
 
 	// ifName is the name of the host facing interface (veth pair) which
 	// connects into the endpoint
@@ -200,7 +182,7 @@ type Endpoint struct {
 	parentIfIndex int
 
 	// disableLegacyIdentifiers disables lookup using legacy endpoint identifiers
-	// (container name, container id, pod name) for this endpoint.
+	// (container id, pod name) for this endpoint.
 	// Immutable after Endpoint creation.
 	disableLegacyIdentifiers bool
 
@@ -2073,9 +2055,7 @@ func (e *Endpoint) ModifyIdentityLabels(source string, addLabels, delLabels labe
 
 	// If the client made a request to modify labels, even if there was
 	// no new labels added or deleted then we can safely remove the init
-	// label. This is a workaround to allow the cilium-docker plugin
-	// to remove endpoints in 'init' state if the containers were not
-	// started with any label.
+	// label.
 	if len(addLabels) == 0 && len(delLabels) == 0 && e.IsInit() {
 		idLabls := e.labels.IdentityLabels()
 		delete(idLabls, labels.IDNameInit)
@@ -2918,8 +2898,6 @@ func (e *Endpoint) CopyFromTemplate() *Endpoint {
 		createdAt:          e.createdAt,
 		ctMapGC:            e.ctMapGC,
 		dnsRulesAPI:        e.dnsRulesAPI,
-		dockerEndpointID:   e.dockerEndpointID,
-		dockerNetworkID:    e.dockerNetworkID,
 		epBuildQueue:       e.epBuildQueue,
 		forcePolicyCompute: e.forcePolicyCompute,
 		hasBPFProgram:      e.hasBPFProgram,

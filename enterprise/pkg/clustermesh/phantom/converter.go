@@ -17,8 +17,8 @@ import (
 	"github.com/cilium/cilium/operator/watchers"
 	"github.com/cilium/cilium/pkg/annotation"
 	"github.com/cilium/cilium/pkg/clustermesh/store"
-	"github.com/cilium/cilium/pkg/k8s"
 	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
+	slim_discovery_v1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/discovery/v1"
 )
 
 func decorateClusterServiceConverter(conv watchers.ClusterServiceConverter) watchers.ClusterServiceConverter {
@@ -32,9 +32,9 @@ type phantomServiceConverter struct {
 // Convert implements watchers.ClusterServiceConverter.
 // Mutates the service in order to make the service
 // reachable in remote clusters, if it is marked to be of type phantom.
-func (c *phantomServiceConverter) Convert(svc *slim_corev1.Service, getEndpoints func(namespace string, name string) []*k8s.Endpoints) (out *store.ClusterService, toUpsert bool, err error) {
+func (c *phantomServiceConverter) Convert(svc *slim_corev1.Service, getEndpointSlices func(namespace string, name string) []*slim_discovery_v1.EndpointSlice) (out *store.ClusterService, toUpsert bool, err error) {
 	if !getAnnotationPhantom(svc) {
-		return c.orig.Convert(svc, getEndpoints)
+		return c.orig.Convert(svc, getEndpointSlices)
 	}
 
 	svc = svc.DeepCopy()
@@ -55,7 +55,7 @@ func (c *phantomServiceConverter) Convert(svc *slim_corev1.Service, getEndpoints
 		return c.orig.ForDeletion(svc), false, nil
 	}
 
-	out, toUpsert, err = c.orig.Convert(svc, getEndpoints)
+	out, toUpsert, err = c.orig.Convert(svc, getEndpointSlices)
 	if err == nil {
 		out.IncludeExternal = false
 	}

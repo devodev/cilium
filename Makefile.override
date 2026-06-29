@@ -18,10 +18,6 @@ SUBDIR_FQDN_PROXY_CONTAINER := enterprise/fqdn-proxy
 BPF_SOURCE_INFO := "bpf/lib/source_info.h bpf/lib/enterprise_source_info.h"
 GO_SOURCE_INFO := "pkg/monitor/api/files.go pkg/monitor/api/enterprise_files.go"
 
-ifdef LIBNETWORK_PLUGIN
-SUBDIRS_CILIUM_CONTAINER += plugins/cilium-docker
-endif
-
 ifeq ($(ADDITIONAL_KIND_VALUES_FILE),)
 ADDITIONAL_KIND_VALUES_FILE := contrib/testing/enterprise-kind.yaml
 endif
