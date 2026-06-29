@@ -256,8 +256,19 @@ spec:
                       description: SRv6Responder is a flag to enable SRv6 responder
                         on the BGP instance.
                       type: boolean
+                    vrfRef:
+                      description: |-
+                        VRFRef refers to the IsovalentCoreVRF resource that this BGP instance
+                        is associated with.
+                      properties:
+                        name:
+                          description: Name is the name of the VRF resource.
+                          type: string
+                      required:
+                      - name
+                      type: object
                     vrfs:
-                      description: VRFs is a list of VRFs for this virtual router
+                      description: VRFs is a list of VRFs for this instance.
                       items:
                         properties:
                           configRef:

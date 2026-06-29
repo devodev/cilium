@@ -99,7 +99,7 @@ type IsovalentBGPInstance struct {
 	// +listMapKey=name
 	Peers []IsovalentBGPPeer `json:"peers,omitempty"`
 
-	// VRFs is a list of VRFs for this virtual router
+	// VRFs is a list of VRFs for this instance.
 	//
 	// +kubebuilder:validation:Optional
 	VRFs []BGPVRF `json:"vrfs,omitempty"`
@@ -110,6 +110,19 @@ type IsovalentBGPInstance struct {
 	//
 	// +kubebuilder:validation:Optional
 	RouteReflector *RouteReflector `json:"routeReflector,omitempty"`
+
+	// VRFRef refers to the IsovalentCoreVRF resource that this BGP instance
+	// is associated with.
+	//
+	// +kubebuilder:validation:Optional
+	VRFRef *BGPVRFReference `json:"vrfRef,omitempty"`
+}
+
+type BGPVRFReference struct {
+	// Name is the name of the VRF resource.
+	//
+	// +kubebuilder:validation:Required
+	Name string `json:"name"`
 }
 
 type RouteReflector struct {
