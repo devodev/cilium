@@ -13,7 +13,6 @@ import (
 	"github.com/cilium/hive/job"
 
 	"github.com/cilium/cilium/pkg/ciliumenvoyconfig/types"
-	"github.com/cilium/cilium/pkg/completion"
 	"github.com/cilium/cilium/pkg/container/set"
 	"github.com/cilium/cilium/pkg/endpointmanager"
 	"github.com/cilium/cilium/pkg/envoy"
@@ -245,7 +244,7 @@ func (m *ingressPolicyManager) syncIngressPolicy(ctx context.Context, p *Ingress
 		logfields.Ingress, p.GetDesiredPolicy().SelectorPolicy.IngressPolicyEnabled,
 		logfields.Egress, p.GetDesiredPolicy().SelectorPolicy.EgressPolicyEnabled)
 
-	if err, rf, _ := m.xdsServer.UpdateNetworkPolicy(p, p.GetDesiredPolicy(), completion.NewWaitGroup(ctx)); err != nil {
+	if err, rf, _ := m.xdsServer.UpdateNetworkPolicy(p, p.GetDesiredPolicy(), nil); err != nil {
 		m.logger.Error("Failed to update network policy",
 			logfields.Name, p.GetPolicyNames(),
 			logfields.Error, err)
