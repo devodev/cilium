@@ -23,7 +23,7 @@ jobs:
         # of the dependencies used by Cilium. We only scan the Enterprise images
         # for the oldest maintained Enterprise version, which does not receive
         # OSS dependency updates.
-        branch: [v1.16-ce, v1.17, v1.18, v1.19]
+        branch: [v1.17, v1.18, v1.19]
         include:
           - image: cilium
             branch: v1.17-ce

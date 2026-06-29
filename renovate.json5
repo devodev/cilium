@@ -42,7 +42,6 @@
     'v1.19-ce',
     'v1.18-ce',
     'v1.17-ce',
-    'v1.16-ce',
   ],
   vulnerabilityAlerts: {
     enabled: true,
@@ -161,16 +160,6 @@
         'v1.18-ce',
         'v1.17-ce',
       ]
-    },
-    {
-      matchPackageNames: [
-        'docker.io/library/golang',
-        'go',
-      ],
-      allowedVersions: '<1.25',
-      matchBaseBranches: [
-        'v1.16-ce',
-      ],
     },
     {
       groupName: 'all kind-images',
