@@ -798,8 +798,6 @@ Makefile* @cilium/build
 #   Responsible for maintaining files related to cloud infrastructures.
 # - @isovalent/isovalent-loadbalancer
 #   Responsible for maintaining the enterprise-specific Isovalent LoadBalancer
-# - @isovalent/multi-network
-#   Responsible for maintaining the Cilium-native multi-network feature
 # - @isovalent/networking-framework
 #   Responsible for IPAM, multi-homing, loader, CNI bootstrap, platform frameworks
 # - @isovalent/infrastructure
@@ -857,7 +855,6 @@ Makefile* @cilium/build
 /.github/workflows/enterprise-lb.yaml @isovalent/isovalent-loadbalancer
 /.github/workflows/enterprise-lb-dashboards.yaml @isovalent/isovalent-loadbalancer
 /.github/workflows/enterprise-lint.yaml @isovalent/core-structure
-/.github/workflows/enterprise-multi-network.yaml @isovalent/multi-network
 /.github/workflows/enterprise-multicast.yaml @isovalent/traffic-engineering
 /.github/workflows/enterprise-panda-scale.yaml @isovalent/scalability-performance
 /.github/workflows/enterprise-privnet.yaml @isovalent/private-networking
@@ -955,7 +952,6 @@ Makefile* @cilium/build
 /Makefile.vrf @isovalent/cilium-datapath
 /README.enterprise.md @isovalent/core-structure
 /renovate.json5 @isovalent/infrastructure
-*podnetwork* @isovalent/multi-network
 /enterprise/Makefile @isovalent/cni @isovalent/hubble-api
 /enterprise/api/extensions @isovalent/hubble-api
 /enterprise/api/v1 @isovalent/cilium-agent @isovalent/cni
@@ -990,7 +986,6 @@ Makefile* @cilium/build
 /enterprise/operator/pkg/evpn/ @isovalent/traffic-engineering
 /enterprise/operator/pkg/gateway-api/ @isovalent/service-mesh
 /enterprise/operator/pkg/lb/ @isovalent/isovalent-loadbalancer
-/enterprise/operator/pkg/multinetwork/ @isovalent/multi-network
 /enterprise/operator/pkg/networkpolicy/ @isovalent/policy-identity-networking
 /enterprise/operator/pkg/privnet/ @isovalent/private-networking
 /enterprise/operator/pkg/srv6/ @isovalent/traffic-engineering
@@ -1030,7 +1025,6 @@ Makefile* @cilium/build
 /enterprise/pkg/maps/vni @isovalent/traffic-engineering
 /enterprise/pkg/maps/evpn @isovalent/traffic-engineering
 /enterprise/pkg/multicast/ @isovalent/traffic-engineering
-/enterprise/pkg/multinetwork/ @isovalent/multi-network
 /enterprise/pkg/mixedrouting/ @isovalent/clustermesh
 /enterprise/pkg/policy/ @isovalent/policy-identity-networking
 /enterprise/pkg/privnet/ @isovalent/private-networking
@@ -1042,7 +1036,6 @@ Makefile* @cilium/build
 /enterprise/pkg/tunnelip @isovalent/private-networking
 /enterprise/pkg/vrf @isovalent/cilium-datapath
 /enterprise/plugins/cilium-cni/ @isovalent/cilium-agent
-/enterprise/plugins/cilium-cni/pkg/multinetwork/ @isovalent/multi-network
 /enterprise/plugins/cilium-cni/pkg/privnet/ @isovalent/private-networking
 /enterprise/test/srv6/ @isovalent/traffic-engineering
 /enterprise/test/helpers/hubble.go @isovalent/hubble
@@ -1094,7 +1087,6 @@ Makefile* @cilium/build
 /pkg/k8s/apis/isovalent.com/client/crds/v1alpha1/isovalentclusterwidenetworkpolicies.yaml @isovalent/policy-identity-networking
 /pkg/k8s/apis/isovalent.com/client/crds/v1alpha1/isovalentcorevrf*.yaml @isovalent/cilium-datapath
 /pkg/k8s/apis/isovalent.com/client/crds/v1alpha1/isovalentnetworkpolicies.yaml @isovalent/policy-identity-networking
-/pkg/k8s/apis/isovalent.com/client/crds/v1alpha1/isovalentpodnetworks.yaml @isovalent/multi-network
 /pkg/k8s/apis/isovalent.com/client/crds/v1alpha1/lb*.yaml @isovalent/isovalent-loadbalancer
 /pkg/k8s/apis/isovalent.com/client/crds/v1alpha1/*privatenetwork*.yaml @isovalent/private-networking
 /pkg/k8s/apis/isovalent.com/client/crds/v1/isovalentbgp*.yaml @isovalent/traffic-engineering
@@ -1105,7 +1097,6 @@ Makefile* @cilium/build
 /pkg/k8s/apis/isovalent.com/v1alpha1/encryption_types.go @isovalent/encryption
 /pkg/k8s/apis/isovalent.com/v1alpha1/fsg_types.go @isovalent/traffic-engineering
 /pkg/k8s/apis/isovalent.com/v1alpha1/lb_types*  @isovalent/isovalent-loadbalancer
-/pkg/k8s/apis/isovalent.com/v1alpha1/podnetwork_types.go @isovalent/multi-network
 /pkg/k8s/apis/isovalent.com/v1alpha1/icnp_types.go @isovalent/policy-identity-networking
 /pkg/k8s/apis/isovalent.com/v1alpha1/inp_types.go @isovalent/policy-identity-networking
 /pkg/k8s/apis/isovalent.com/v1alpha1/privatenetwork_types.go @isovalent/private-networking

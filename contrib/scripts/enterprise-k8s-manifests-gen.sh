@@ -32,7 +32,6 @@ CRDS_ISOVALENT_V1ALPHA1="isovalentfqdngroups \
                          isovalentsrv6locatorpools \
                          isovalentsrv6egresspolicies \
                          isovalentvrfs \
-                         isovalentpodnetworks \
                          isovalentmulticastgroups \
                          isovalentmulticastnodes \
                          isovalentbfdprofiles \

@@ -68,7 +68,6 @@ type apiParams struct {
 
 	DaemonGetConfigHandler                    daemon.GetConfigHandler
 	GetHealthzHandler                         restapi.GetHealthzHandler
-	NetworkGetNetworkAttachmentHandler        network.GetNetworkAttachmentHandler
 	NetworkGetNetworkPrivateAddressingHandler network.GetNetworkPrivateAddressingHandler
 }
 
@@ -79,7 +78,6 @@ func newAPI(p apiParams) *restapi.CiliumEnterpriseAPIAPI {
 
 	api.DaemonGetConfigHandler = p.DaemonGetConfigHandler
 	api.GetHealthzHandler = p.GetHealthzHandler
-	api.NetworkGetNetworkAttachmentHandler = p.NetworkGetNetworkAttachmentHandler
 	api.NetworkGetNetworkPrivateAddressingHandler = p.NetworkGetNetworkPrivateAddressingHandler
 
 	// Inject custom middleware if provided by Hive

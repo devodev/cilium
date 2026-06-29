@@ -22,7 +22,6 @@ import (
 type mockEnterpriseFeatures struct {
 	EnterpriseBGPEnabled bool
 	BFDEnabled           bool
-	MultiNetworkEnabled  bool
 }
 
 func (p mockEnterpriseFeatures) IsEnterpriseBGPEnabled() bool {
@@ -31,10 +30,6 @@ func (p mockEnterpriseFeatures) IsEnterpriseBGPEnabled() bool {
 
 func (p mockEnterpriseFeatures) IsBFDEnabled() bool {
 	return p.BFDEnabled
-}
-
-func (p mockEnterpriseFeatures) IsMultiNetworkEnabled() bool {
-	return p.MultiNetworkEnabled
 }
 
 func TestUpdateEnterpriseBGPEnabled(t *testing.T) {
@@ -143,42 +138,6 @@ func TestUpdateEgressGatewayHAEnabled(t *testing.T) {
 
 			counterValue := metrics.ACLBEgressGatewayHAEnabled.Get()
 			assert.Equal(t, tt.expected, counterValue, "Expected value to be %.f for enabled: %t, got %.f", tt.expected, tt.enableEgressGatewayHA, counterValue)
-		})
-	}
-}
-
-func TestUpdateMultiNetworkEnabled(t *testing.T) {
-	tests := []struct {
-		name               string
-		enableMultiNetwork bool
-		expected           float64
-	}{
-		{
-			name:               "MultiNetwork enabled",
-			enableMultiNetwork: true,
-			expected:           1,
-		},
-		{
-			name:               "MultiNetwork disabled",
-			enableMultiNetwork: false,
-			expected:           0,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			metrics := NewEnterpriseMetrics(true)
-			config := &option.OperatorConfig{}
-			daemonConfig := &daemonOption.DaemonConfig{}
-
-			params := mockEnterpriseFeatures{
-				MultiNetworkEnabled: tt.enableMultiNetwork,
-			}
-
-			metrics.update(params, config, daemonConfig)
-
-			counterValue := metrics.DPMultiNetworkEnabled.Get()
-			assert.Equal(t, tt.expected, counterValue, "Expected value to be %.f for enabled: %t, got %.f", tt.expected, tt.enableMultiNetwork, counterValue)
 		})
 	}
 }

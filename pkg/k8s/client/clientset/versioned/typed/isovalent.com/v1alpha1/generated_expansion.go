@@ -45,8 +45,6 @@ type IsovalentMulticastNodeExpansion interface{}
 
 type IsovalentNetworkPolicyExpansion interface{}
 
-type IsovalentPodNetworkExpansion interface{}
-
 type IsovalentSRv6EgressPolicyExpansion interface{}
 
 type IsovalentSRv6LocatorPoolExpansion interface{}

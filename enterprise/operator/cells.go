@@ -23,7 +23,6 @@ import (
 	"github.com/cilium/cilium/enterprise/operator/pkg/evpn"
 	enterprisegatewayapi "github.com/cilium/cilium/enterprise/operator/pkg/gateway-api"
 	"github.com/cilium/cilium/enterprise/operator/pkg/lb"
-	"github.com/cilium/cilium/enterprise/operator/pkg/multinetwork"
 	"github.com/cilium/cilium/enterprise/operator/pkg/networkpolicy"
 	"github.com/cilium/cilium/enterprise/operator/pkg/privnet"
 	"github.com/cilium/cilium/enterprise/operator/pkg/srv6/locatorpool"
@@ -72,7 +71,6 @@ var (
 			healthcheck.Cell,
 			cell.Invoke(func(*egressgatewayha.OperatorManager) {}),
 
-			multinetwork.Cell,
 			bgpv2.Cell,
 			bfd.Cell,
 			evpn.Cell,

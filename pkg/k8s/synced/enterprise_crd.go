@@ -21,7 +21,6 @@ import (
 func AllIsovalentCRDResourceNames() []string {
 	result := []string{
 		CRDResourceName(v1alpha1.IFGName),
-		CRDResourceName(v1alpha1.IPNName),
 		CRDResourceName(v1alpha1.ICEPName),
 		CRDResourceName(v1alpha1.IsovalentInspectionConfigName),
 		CRDResourceName(v1alpha1.IsovalentNetworkPolicyName),

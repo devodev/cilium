@@ -63,12 +63,6 @@ func NewCiliumEnterpriseAPIAPI(spec *loads.Document) *CiliumEnterpriseAPIAPI {
 			return middleware.NotImplemented("operation GetHealthz has not yet been implemented")
 		}),
 
-		NetworkGetNetworkAttachmentHandler: network.GetNetworkAttachmentHandlerFunc(func(params network.GetNetworkAttachmentParams) middleware.Responder {
-			_ = params
-
-			return middleware.NotImplemented("operation network.GetNetworkAttachment has not yet been implemented")
-		}),
-
 		NetworkGetNetworkPrivateAddressingHandler: network.GetNetworkPrivateAddressingHandlerFunc(func(params network.GetNetworkPrivateAddressingParams) middleware.Responder {
 			_ = params
 
@@ -114,8 +108,6 @@ type CiliumEnterpriseAPIAPI struct {
 	DaemonGetConfigHandler daemon.GetConfigHandler
 	// GetHealthzHandler sets the operation handler for the get healthz operation
 	GetHealthzHandler GetHealthzHandler
-	// NetworkGetNetworkAttachmentHandler sets the operation handler for the get network attachment operation
-	NetworkGetNetworkAttachmentHandler network.GetNetworkAttachmentHandler
 	// NetworkGetNetworkPrivateAddressingHandler sets the operation handler for the get network private addressing operation
 	NetworkGetNetworkPrivateAddressingHandler network.GetNetworkPrivateAddressingHandler
 
@@ -200,9 +192,6 @@ func (o *CiliumEnterpriseAPIAPI) Validate() error {
 	}
 	if o.GetHealthzHandler == nil {
 		unregistered = append(unregistered, "GetHealthzHandler")
-	}
-	if o.NetworkGetNetworkAttachmentHandler == nil {
-		unregistered = append(unregistered, "network.GetNetworkAttachmentHandler")
 	}
 	if o.NetworkGetNetworkPrivateAddressingHandler == nil {
 		unregistered = append(unregistered, "network.GetNetworkPrivateAddressingHandler")
@@ -305,10 +294,6 @@ func (o *CiliumEnterpriseAPIAPI) initHandlerCache() {
 		o.handlers["GET"] = make(map[string]http.Handler)
 	}
 	o.handlers["GET"]["/healthz"] = NewGetHealthz(o.context, o.GetHealthzHandler)
-	if o.handlers["GET"] == nil {
-		o.handlers["GET"] = make(map[string]http.Handler)
-	}
-	o.handlers["GET"]["/network/attachment"] = network.NewGetNetworkAttachment(o.context, o.NetworkGetNetworkAttachmentHandler)
 	if o.handlers["GET"] == nil {
 		o.handlers["GET"] = make(map[string]http.Handler)
 	}

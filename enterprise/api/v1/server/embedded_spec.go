@@ -76,41 +76,6 @@ func init() {
         }
       }
     },
-    "/network/attachment": {
-      "get": {
-        "tags": [
-          "network"
-        ],
-        "summary": "Retrieve the network attachment for a pod",
-        "parameters": [
-          {
-            "$ref": "#/parameters/network-pod-name"
-          },
-          {
-            "$ref": "#/parameters/network-pod-namespace"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "schema": {
-              "$ref": "#/definitions/NetworkAttachmentList"
-            }
-          },
-          "500": {
-            "description": "Network attachment error",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            },
-            "x-go-name": "Failure"
-          },
-          "501": {
-            "description": "Network attachment feature is disabled",
-            "x-go-name": "Disabled"
-          }
-        }
-      }
-    },
     "/network/private/addressing": {
       "get": {
         "tags": [
@@ -178,10 +143,6 @@ func init() {
       "description": "The current configuration of any enterprise-only features",
       "type": "object",
       "properties": {
-        "multi-network": {
-          "description": "Indicates whether multi-network support is enabled",
-          "type": "boolean"
-        },
         "private-networks": {
           "description": "Private networks configuration",
           "$ref": "#/definitions/PrivateNetworksConfiguration"
@@ -190,60 +151,6 @@ func init() {
     },
     "Error": {
       "type": "string"
-    },
-    "NetworkAttachmentElement": {
-      "description": "A network attachment",
-      "type": "object",
-      "required": [
-        "name"
-      ],
-      "properties": {
-        "ipam": {
-          "description": "IPAM parameters",
-          "$ref": "#/definitions/NetworkAttachmentIPAMParameters"
-        },
-        "name": {
-          "description": "Name of the network this pod is attached to",
-          "type": "string"
-        },
-        "routes": {
-          "description": "Network routes to set up for this network attachment inside the pod",
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/NetworkAttachmentRoute"
-          }
-        }
-      }
-    },
-    "NetworkAttachmentIPAMParameters": {
-      "description": "IPAM parameters of a network attachment",
-      "type": "object",
-      "properties": {
-        "ipam-pool": {
-          "description": "Name of the IPAM pool this network attachment allocates from",
-          "type": "string"
-        }
-      }
-    },
-    "NetworkAttachmentList": {
-      "description": "List of network attachments",
-      "properties": {
-        "attachments": {
-          "description": "Networks this pod is attached to",
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/NetworkAttachmentElement"
-          }
-        },
-        "pod-name": {
-          "description": "Name of the pod which is attached to these networks",
-          "type": "string"
-        },
-        "pod-namespace": {
-          "description": "Namespace of the pod which is attached to these networks",
-          "type": "string"
-        }
-      }
     },
     "NetworkAttachmentRoute": {
       "description": "Route for a network attachment",
@@ -419,49 +326,6 @@ func init() {
         }
       }
     },
-    "/network/attachment": {
-      "get": {
-        "tags": [
-          "network"
-        ],
-        "summary": "Retrieve the network attachment for a pod",
-        "parameters": [
-          {
-            "type": "string",
-            "description": "Kubernetes pod name for which to query the network attachment",
-            "name": "pod-name",
-            "in": "query",
-            "required": true
-          },
-          {
-            "type": "string",
-            "description": "Kubernetes pod namespace for which to query the network attachment",
-            "name": "pod-namespace",
-            "in": "query",
-            "required": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success",
-            "schema": {
-              "$ref": "#/definitions/NetworkAttachmentList"
-            }
-          },
-          "500": {
-            "description": "Network attachment error",
-            "schema": {
-              "$ref": "#/definitions/Error"
-            },
-            "x-go-name": "Failure"
-          },
-          "501": {
-            "description": "Network attachment feature is disabled",
-            "x-go-name": "Disabled"
-          }
-        }
-      }
-    },
     "/network/private/addressing": {
       "get": {
         "tags": [
@@ -551,10 +415,6 @@ func init() {
       "description": "The current configuration of any enterprise-only features",
       "type": "object",
       "properties": {
-        "multi-network": {
-          "description": "Indicates whether multi-network support is enabled",
-          "type": "boolean"
-        },
         "private-networks": {
           "description": "Private networks configuration",
           "$ref": "#/definitions/PrivateNetworksConfiguration"
@@ -563,60 +423,6 @@ func init() {
     },
     "Error": {
       "type": "string"
-    },
-    "NetworkAttachmentElement": {
-      "description": "A network attachment",
-      "type": "object",
-      "required": [
-        "name"
-      ],
-      "properties": {
-        "ipam": {
-          "description": "IPAM parameters",
-          "$ref": "#/definitions/NetworkAttachmentIPAMParameters"
-        },
-        "name": {
-          "description": "Name of the network this pod is attached to",
-          "type": "string"
-        },
-        "routes": {
-          "description": "Network routes to set up for this network attachment inside the pod",
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/NetworkAttachmentRoute"
-          }
-        }
-      }
-    },
-    "NetworkAttachmentIPAMParameters": {
-      "description": "IPAM parameters of a network attachment",
-      "type": "object",
-      "properties": {
-        "ipam-pool": {
-          "description": "Name of the IPAM pool this network attachment allocates from",
-          "type": "string"
-        }
-      }
-    },
-    "NetworkAttachmentList": {
-      "description": "List of network attachments",
-      "properties": {
-        "attachments": {
-          "description": "Networks this pod is attached to",
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/NetworkAttachmentElement"
-          }
-        },
-        "pod-name": {
-          "description": "Name of the pod which is attached to these networks",
-          "type": "string"
-        },
-        "pod-namespace": {
-          "description": "Namespace of the pod which is attached to these networks",
-          "type": "string"
-        }
-      }
     },
     "NetworkAttachmentRoute": {
       "description": "Route for a network attachment",

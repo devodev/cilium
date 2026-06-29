@@ -543,26 +543,6 @@ func addSysdumpTasks(collector *sysdump.Collector, opts *EnterpriseOptions) erro
 			},
 		},
 		{
-			Description: "Collecting IsovalentPodNetworks",
-			Quick:       true,
-			Task: func(ctx context.Context) error {
-				podNetworks := schema.GroupVersionResource{
-					Group:    "isovalent.com",
-					Resource: "isovalentpodnetworks",
-					Version:  "v1alpha1",
-				}
-				n := corev1.NamespaceAll
-				v, err := collector.Client.ListUnstructured(ctx, podNetworks, &n, metav1.ListOptions{})
-				if err != nil {
-					return fmt.Errorf("failed to collect Isovalent pod networks: %w", err)
-				}
-				if err := collector.WriteYAML("cilium-enterprise-isovalentpodnetworks-<ts>.yaml", v); err != nil {
-					return fmt.Errorf("failed to collect Isovalent pod networks: %w", err)
-				}
-				return nil
-			},
-		},
-		{
 			Description: "Collecting IsovalentEgressGatewayPolicy",
 			Quick:       true,
 			Task: func(ctx context.Context) error {

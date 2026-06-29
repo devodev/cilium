@@ -44,13 +44,13 @@ Implements the feature gate validation. Provides `Validate` and `validateFeature
 `validateFeatureGates` is `cell.Invoke`d to validate the feature gates in the cilium-agent. You
 can test this in action with the `hive` command (for flags coming from cell.Config):
 
-  $ go run ./enterprise/daemon hive --enable-multi-network --feature-gates-strict=true
+  $ go run ./enterprise/daemon hive --private-networks-enabled --feature-gates-strict=true
   ...
 	feature not approved: Beta feature: DatapathIPModeDualStack was enabled, but it is not a supported feature.
   Please contact Isovalent Support for more information on how to grant an exception.
   
-  $ go run ./enterprise/daemon hive --enable-multi-network --feature-gates-strict=true \
-    --feature-gates-approved=MultiNetwork,DatapathIPModeDualStack
+  $ go run ./enterprise/daemon hive --private-networks-enabled --feature-gates-strict=true \
+    --feature-gates-approved=PrivateNetworks,DatapathIPModeDualStack
   ...
 
 ### helm-gen

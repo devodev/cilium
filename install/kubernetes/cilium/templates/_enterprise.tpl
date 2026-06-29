@@ -93,17 +93,6 @@ feature-gates-strict: {{ .Values.enterprise.featureGate.strict | quote }}
 feature-gates-minimum-maturity: {{ . | quote }}
 {{- end }}
 
-{{- if .Values.enterprise.multiNetwork.enabled }}
-# Multi-network support
-enable-multi-network: {{ .Values.enterprise.multiNetwork.enabled | quote }}
-{{- if hasKey .Values.enterprise.multiNetwork "autoDirectNodeRoutes" }}
-multi-network-auto-direct-node-routes: {{ .Values.enterprise.multiNetwork.autoDirectNodeRoutes | quote }}
-{{- end }}
-{{- if hasKey .Values.enterprise.multiNetwork "autoCreateDefaultPodNetwork" }}
-auto-create-default-pod-network: {{ .Values.enterprise.multiNetwork.autoCreateDefaultPodNetwork | quote }}
-{{- end }}
-{{- end }}
-
 {{- if .Values.hubble.export }}
 {{- if .Values.hubble.export.static.enabled }}
 hubble-export-format-version: {{ .Values.hubble.export.static.formatVersion | quote }}

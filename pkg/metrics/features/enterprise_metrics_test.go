@@ -29,7 +29,6 @@ type mockEnterpriseFeatures struct {
 	FQDNHAEnabled                  bool
 	FQDNOfflineModeEnabled         bool
 	MulticastEnabled               bool
-	MultiNetworkEnabled            bool
 }
 
 func (m mockEnterpriseFeatures) IsEnterpriseBGPEnabled() bool {
@@ -70,10 +69,6 @@ func (m mockEnterpriseFeatures) IsOverlappingPodCIDREnabled() bool {
 
 func (m mockEnterpriseFeatures) IsMulticastEnabled() bool {
 	return m.MulticastEnabled
-}
-
-func (m mockEnterpriseFeatures) IsMultiNetworkEnabled() bool {
-	return m.MultiNetworkEnabled
 }
 
 func TestUpdateSRv6(t *testing.T) {
@@ -494,41 +489,6 @@ func TestUpdateMulticast(t *testing.T) {
 
 			counterValue := metrics.DPMulticastEnabled.Get()
 			assert.Equal(t, tt.expected, counterValue, "Expected value to be %.f for enabled: %t, got %.f", tt.expected, tt.enableMulticast, counterValue)
-		})
-	}
-}
-
-func TestUpdateMultiNetwork(t *testing.T) {
-	tests := []struct {
-		name               string
-		enableMultiNetwork bool
-		expected           float64
-	}{
-		{
-			name:               "Multi-Network enabled",
-			enableMultiNetwork: true,
-			expected:           1,
-		},
-		{
-			name:               "Multi-Network disabled",
-			enableMultiNetwork: false,
-			expected:           0,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			metrics := NewEnterpriseMetrics(true)
-			config := &option.DaemonConfig{}
-
-			params := mockEnterpriseFeatures{
-				MultiNetworkEnabled: tt.enableMultiNetwork,
-			}
-
-			metrics.update(params, config)
-
-			counterValue := metrics.DPMultiNetworkEnabled.Get()
-			assert.Equal(t, tt.expected, counterValue, "Expected value to be %.f for enabled: %t, got %.f", tt.expected, tt.enableMultiNetwork, counterValue)
 		})
 	}
 }

@@ -34,7 +34,6 @@ import (
 	cemaps "github.com/cilium/cilium/enterprise/pkg/maps"
 	"github.com/cilium/cilium/enterprise/pkg/mixedrouting"
 	"github.com/cilium/cilium/enterprise/pkg/multicast"
-	"github.com/cilium/cilium/enterprise/pkg/multinetwork"
 	"github.com/cilium/cilium/enterprise/pkg/nat/stats"
 	policyK8s "github.com/cilium/cilium/enterprise/pkg/policy/k8s"
 	"github.com/cilium/cilium/enterprise/pkg/privnet"
@@ -109,8 +108,6 @@ var (
 		mixedrouting.Cell,
 		tunnelip.Cell,
 		encryptionPolicy.Cell,
-
-		multinetwork.Cell,
 
 		multicast.Cell,
 

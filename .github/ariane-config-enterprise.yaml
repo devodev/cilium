@@ -21,7 +21,6 @@ triggers:
     - enterprise-evpn.yaml
     - enterprise-fqdn-ha.yaml
     - enterprise-fqdn-ha-upgrade.yaml
-    - enterprise-multi-network.yaml
     - enterprise-srv6-datapath.yaml
     - enterprise-multicast.yaml
     - enterprise-lb.yaml
@@ -46,11 +45,6 @@ triggers:
   /cute (.+):
     workflows:
     - enterprise-cute.yaml
-  /ci-multi-network:
-    workflows:
-    - enterprise-multi-network.yaml
-    depends-on:
-    - /build-images
   /ci-evpn:
     workflows:
       - enterprise-evpn.yaml
@@ -172,8 +166,6 @@ workflows:
   enterprise-fqdn-ha.yaml:
     paths-ignore-regex: ((bpf/complexity-tests|bpf/tests|test|Documentation|hubble|.github/actions/cl2-modules|enterprise/olm)/|(.github/renovate\.json5|README.rst|CODEOWNERS|stable.txt|.*\.md|.*_test\.go)$)
   enterprise-fqdn-ha-upgrade.yaml:
-    paths-ignore-regex: ((bpf/complexity-tests|bpf/tests|test|Documentation|hubble|.github/actions/cl2-modules|enterprise/olm)/|(.github/renovate\.json5|README.rst|CODEOWNERS|stable.txt|.*\.md|.*_test\.go)$)
-  enterprise-multi-network.yaml:
     paths-ignore-regex: ((bpf/complexity-tests|bpf/tests|test|Documentation|hubble|.github/actions/cl2-modules|enterprise/olm)/|(.github/renovate\.json5|README.rst|CODEOWNERS|stable.txt|.*\.md|.*_test\.go)$)
   enterprise-srv6-datapath.yaml:
     paths-ignore-regex: ((bpf/complexity-tests|bpf/tests|test|Documentation|hubble|.github/actions/cl2-modules|enterprise/olm)/|(.github/renovate\.json5|README.rst|CODEOWNERS|stable.txt|.*\.md|.*_test\.go)$)

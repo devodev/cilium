@@ -20,7 +20,6 @@ rules:
   - isovalentmulticastnodes.isovalent.com
   - isovalentegressgatewaypolicies.isovalent.com
   - isovalentfqdngroups.isovalent.com
-  - isovalentpodnetworks.isovalent.com
   - isovalentsrv6egresspolicies.isovalent.com
   - isovalentsrv6sidmanagers.isovalent.com
   - isovalentsrv6locatorpools.isovalent.com
@@ -349,14 +348,6 @@ rules:
   verbs:
   # to allow IEGPs status.groupStatus updates
   - update
-{{- if .Values.enterprise.multiNetwork.enabled }}
-- apiGroups:
-    - isovalent.com
-  resources:
-    - isovalentpodnetworks
-  verbs:
-    - create
-{{- end }}
 # TODO: Wrap within Helm value for L7LB CRD and LBFrontend
 {{- if .Values.enterprise.loadbalancer.enabled }}
 - apiGroups:

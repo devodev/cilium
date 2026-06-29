@@ -2605,20 +2605,6 @@
           },
           "type": "object"
         },
-        "multiNetwork": {
-          "properties": {
-            "autoCreateDefaultPodNetwork": {
-              "type": "boolean"
-            },
-            "autoDirectNodeRoutes": {
-              "type": "boolean"
-            },
-            "enabled": {
-              "type": "boolean"
-            }
-          },
-          "type": "object"
-        },
         "multicast": {
           "properties": {
             "enabled": {

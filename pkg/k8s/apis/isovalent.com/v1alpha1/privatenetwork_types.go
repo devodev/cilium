@@ -182,6 +182,11 @@ type PrivateNetworkDHCPOption82Spec struct {
 	RemoteID string `json:"remoteID,omitempty"`
 }
 
+// NetworkCIDR is an IPv4 or IPV6 network CIDR.
+//
+// +kubebuilder:validation:Format=cidr
+type NetworkCIDR string
+
 // NetworkCIDRv4 is an IPv4 network CIDR.
 //
 // +kubebuilder:validation:MaxLength=18

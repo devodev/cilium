@@ -66,16 +66,6 @@ features:
     helm:
       enterprise.srv6.enabled: true
 
-  MultiNetwork:
-    maturity: Beta
-    description: |
-      Provides functionality for attaching multiple network interfaces to Pods
-    flags:
-      enable-multi-network: true
-    skip-flag-check: true
-    helm:
-      enterprise.multiNetwork.enabled: true
-
   DNSProxyHA:
     maturity: Stable
     description:

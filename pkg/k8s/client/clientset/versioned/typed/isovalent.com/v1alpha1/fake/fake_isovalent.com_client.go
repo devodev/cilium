@@ -95,10 +95,6 @@ func (c *FakeIsovalentV1alpha1) IsovalentNetworkPolicies(namespace string) v1alp
 	return newFakeIsovalentNetworkPolicies(c, namespace)
 }
 
-func (c *FakeIsovalentV1alpha1) IsovalentPodNetworks() v1alpha1.IsovalentPodNetworkInterface {
-	return newFakeIsovalentPodNetworks(c)
-}
-
 func (c *FakeIsovalentV1alpha1) IsovalentSRv6EgressPolicies() v1alpha1.IsovalentSRv6EgressPolicyInterface {
 	return newFakeIsovalentSRv6EgressPolicies(c)
 }

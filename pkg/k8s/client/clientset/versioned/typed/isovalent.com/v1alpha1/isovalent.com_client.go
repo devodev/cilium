@@ -35,7 +35,6 @@ type IsovalentV1alpha1Interface interface {
 	IsovalentMulticastGroupsGetter
 	IsovalentMulticastNodesGetter
 	IsovalentNetworkPoliciesGetter
-	IsovalentPodNetworksGetter
 	IsovalentSRv6EgressPoliciesGetter
 	IsovalentSRv6LocatorPoolsGetter
 	IsovalentSRv6SIDManagersGetter
@@ -134,10 +133,6 @@ func (c *IsovalentV1alpha1Client) IsovalentMulticastNodes() IsovalentMulticastNo
 
 func (c *IsovalentV1alpha1Client) IsovalentNetworkPolicies(namespace string) IsovalentNetworkPolicyInterface {
 	return newIsovalentNetworkPolicies(c, namespace)
-}
-
-func (c *IsovalentV1alpha1Client) IsovalentPodNetworks() IsovalentPodNetworkInterface {
-	return newIsovalentPodNetworks(c)
 }
 
 func (c *IsovalentV1alpha1Client) IsovalentSRv6EgressPolicies() IsovalentSRv6EgressPolicyInterface {

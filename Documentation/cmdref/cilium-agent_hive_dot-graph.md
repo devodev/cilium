@@ -130,7 +130,6 @@ cilium-agent hive dot-graph [flags]
       --enable-l2-pod-announcements                                      Enable announcing Pod IPs with Gratuitous ARP and NDP
       --enable-lb-ipam                                                   Enable LB IPAM (default true)
       --enable-monitor                                                   Enable the monitor unix domain socket server (default true)
-      --enable-multi-network                                             Enable support for multiple pod networks
       --enable-no-service-endpoints-routable                             Enable routes when service has 0 endpoints (default true)
       --enable-node-ipam                                                 Enable Node IPAM
       --enable-passive-inspection                                        Enable passive inspection for pod traffic (mirror packets to a dedicated dummy interface)
@@ -334,7 +333,6 @@ cilium-agent hive dot-graph [flags]
       --metrics-sampling-interval duration                               Set the internal metrics sampling interval (default 5m0s)
       --monitor-queue-size int                                           Size of the event queue when reading monitor events
       --mtu int                                                          Overwrite auto-detected MTU of underlying network
-      --multi-network-auto-direct-node-routes                            Enable multi-network aware automatic L2 routing between nodes (experimental) (default true)
       --multicast-enabled                                                Enables multicast in Cilium
       --nat-map-stats-entries int                                        Number k top stats entries to store locally in statedb (default 32)
       --nat-map-stats-interval duration                                  Interval upon which nat maps are iterated for stats (default 30s)

@@ -11,7 +11,6 @@ cilium-operator-azure [flags]
 ### Options
 
 ```
-      --auto-create-default-pod-network                                   Automatically creates the default IsovalentPodNetwork on startup (default true)
       --azure-resource-group string                                       Resource group containing the cluster nodes, defaults to cilium operator's own resource group retrieved via Azure Instance Metadata Service (IMDS)
       --azure-subscription-id string                                      Subscription ID to access Azure API
       --azure-use-primary-address                                         Use Azure IP address from interface's primary IPConfigurations
@@ -67,7 +66,6 @@ cilium-operator-azure [flags]
       --enable-l7-proxy                                                   Enable L7 proxy for L7 policy enforcement (default true)
       --enable-lb-ipam                                                    Enable LB IPAM (default true)
       --enable-metrics                                                    Enable Prometheus metrics
-      --enable-multi-network                                              Enable support for multiple pod networks
       --enable-node-ipam                                                  Enable Node IPAM
       --enable-node-selector-labels                                       Enable use of node label based identity
       --enable-policy string                                              Enable policy enforcement (default "default")

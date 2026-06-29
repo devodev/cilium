@@ -17,7 +17,6 @@ cilium-operator-aws hive dot-graph [flags]
 ### Options inherited from parent commands
 
 ```
-      --auto-create-default-pod-network                                   Automatically creates the default IsovalentPodNetwork on startup (default true)
       --aws-enable-prefix-delegation                                      Allows operator to allocate prefixes to ENIs instead of individual IP addresses
       --aws-max-results-per-call int32                                    Maximum results per AWS API call for DescribeNetworkInterfaces and DescribeSecurityGroups. Set to 0 to let AWS determine optimal page size (default). If set to 0 and AWS returns OperationNotPermitted errors, automatically switches to 1000 for all future requests
       --aws-release-excess-ips                                            Enable releasing excess free IP addresses from AWS ENI.
@@ -67,7 +66,6 @@ cilium-operator-aws hive dot-graph [flags]
       --enable-k8s-api-discovery                                          Enable discovery of Kubernetes API groups and resources with the discovery API
       --enable-lb-ipam                                                    Enable LB IPAM (default true)
       --enable-metrics                                                    Enable Prometheus metrics
-      --enable-multi-network                                              Enable support for multiple pod networks
       --enable-node-ipam                                                  Enable Node IPAM
       --enable-policy-secrets-sync                                        Enables fan-in TLS secrets sync from multiple namespaces to singular namespace (specified by policy-secrets-namespace flag)
       --enable-wireguard                                                  Enable WireGuard

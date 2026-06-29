@@ -51,8 +51,6 @@ type Interface interface {
 	IsovalentMulticastNodes() IsovalentMulticastNodeInformer
 	// IsovalentNetworkPolicies returns a IsovalentNetworkPolicyInformer.
 	IsovalentNetworkPolicies() IsovalentNetworkPolicyInformer
-	// IsovalentPodNetworks returns a IsovalentPodNetworkInformer.
-	IsovalentPodNetworks() IsovalentPodNetworkInformer
 	// IsovalentSRv6EgressPolicies returns a IsovalentSRv6EgressPolicyInformer.
 	IsovalentSRv6EgressPolicies() IsovalentSRv6EgressPolicyInformer
 	// IsovalentSRv6LocatorPools returns a IsovalentSRv6LocatorPoolInformer.
@@ -190,11 +188,6 @@ func (v *version) IsovalentMulticastNodes() IsovalentMulticastNodeInformer {
 // IsovalentNetworkPolicies returns a IsovalentNetworkPolicyInformer.
 func (v *version) IsovalentNetworkPolicies() IsovalentNetworkPolicyInformer {
 	return &isovalentNetworkPolicyInformer{factory: v.factory, namespace: v.namespace, tweakListOptions: v.tweakListOptions}
-}
-
-// IsovalentPodNetworks returns a IsovalentPodNetworkInformer.
-func (v *version) IsovalentPodNetworks() IsovalentPodNetworkInformer {
-	return &isovalentPodNetworkInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
 // IsovalentSRv6EgressPolicies returns a IsovalentSRv6EgressPolicyInformer.

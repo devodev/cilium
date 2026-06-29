@@ -167,8 +167,6 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Isovalent().V1alpha1().IsovalentMulticastNodes().Informer()}, nil
 	case v1alpha1.SchemeGroupVersion.WithResource("isovalentnetworkpolicies"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Isovalent().V1alpha1().IsovalentNetworkPolicies().Informer()}, nil
-	case v1alpha1.SchemeGroupVersion.WithResource("isovalentpodnetworks"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Isovalent().V1alpha1().IsovalentPodNetworks().Informer()}, nil
 	case v1alpha1.SchemeGroupVersion.WithResource("isovalentsrv6egresspolicies"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Isovalent().V1alpha1().IsovalentSRv6EgressPolicies().Informer()}, nil
 	case v1alpha1.SchemeGroupVersion.WithResource("isovalentsrv6locatorpools"):

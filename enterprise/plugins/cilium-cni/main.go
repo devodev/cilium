@@ -14,7 +14,6 @@ import (
 	"runtime"
 
 	_ "github.com/cilium/cilium/enterprise/fips"
-	"github.com/cilium/cilium/enterprise/plugins/cilium-cni/pkg/multinetwork"
 	"github.com/cilium/cilium/enterprise/plugins/cilium-cni/pkg/privnet"
 	"github.com/cilium/cilium/pkg/version"
 	"github.com/cilium/cilium/plugins/cilium-cni/cmd"
@@ -29,7 +28,6 @@ func main() {
 
 	cmd.PluginMain(
 		cmd.WithVersion("Cilium CNI plugin (enterprise) "+version.Version),
-		cmd.WithEPConfigurator(multinetwork.NewEndpointConfigurator()),
 		cmd.WithOnConfigReady(privnetAddHooks),
 		cmd.WithOnIPAMReady(privnetAddHooks),
 		cmd.WithOnLinkConfigReady(privnetAddHooks),

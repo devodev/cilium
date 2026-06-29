@@ -17,7 +17,6 @@ cilium-operator-azure hive dot-graph [flags]
 ### Options inherited from parent commands
 
 ```
-      --auto-create-default-pod-network                                   Automatically creates the default IsovalentPodNetwork on startup (default true)
       --azure-resource-group string                                       Resource group containing the cluster nodes, defaults to cilium operator's own resource group retrieved via Azure Instance Metadata Service (IMDS)
       --azure-subscription-id string                                      Subscription ID to access Azure API
       --azure-use-primary-address                                         Use Azure IP address from interface's primary IPConfigurations
@@ -66,7 +65,6 @@ cilium-operator-azure hive dot-graph [flags]
       --enable-k8s-api-discovery                                          Enable discovery of Kubernetes API groups and resources with the discovery API
       --enable-lb-ipam                                                    Enable LB IPAM (default true)
       --enable-metrics                                                    Enable Prometheus metrics
-      --enable-multi-network                                              Enable support for multiple pod networks
       --enable-node-ipam                                                  Enable Node IPAM
       --enable-policy-secrets-sync                                        Enables fan-in TLS secrets sync from multiple namespaces to singular namespace (specified by policy-secrets-namespace flag)
       --enable-wireguard                                                  Enable WireGuard

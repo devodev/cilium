@@ -109,7 +109,6 @@ var (
 		"@isovalent/infrastructure":             {},
 		"@isovalent/isovalent-loadbalancer":     {},
 		"@isovalent/metrics":                    {},
-		"@isovalent/multi-network":              {},
 		"@isovalent/networking-framework":       {},
 		"@isovalent/openshift":                  {},
 		"@isovalent/policy-identity-networking": {},

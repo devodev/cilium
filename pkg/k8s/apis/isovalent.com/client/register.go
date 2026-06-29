@@ -43,9 +43,6 @@ const (
 	// VRFName is the full name of the IsovalentSRv6EgressPolicy CRD.
 	VRFName = k8sconstv1alpha1.VRFKindDefinition + "/" + k8sconstv1alpha1.CustomResourceDefinitionVersion
 
-	// IPNCRDName is the full name of the IsovalentPodNetwork CRD.
-	IPNCRDName = k8sconstv1alpha1.IPNKindDefinition + "/" + k8sconstv1alpha1.CustomResourceDefinitionVersion
-
 	// MulticastGroupCRDName is the full name of the MulticastGroup CRD.
 	MulticastGroupCRDName = k8sconstv1alpha1.MulticastGroupKindDefinition + "/" + k8sconstv1alpha1.CustomResourceDefinitionVersion
 
@@ -165,10 +162,6 @@ func CustomResourceDefinitionList() map[string]*CRDList {
 		synced.CRDResourceName(k8sconstv1.IEGPName): {
 			Name:     IEGPCRDName,
 			FullName: k8sconstv1.IEGPName,
-		},
-		synced.CRDResourceName(k8sconstv1alpha1.IPNName): {
-			Name:     IPNCRDName,
-			FullName: k8sconstv1alpha1.IPNName,
 		},
 		synced.CRDResourceName(k8sconstv1alpha1.MulticastGroupName): {
 			Name:     MulticastGroupCRDName,
@@ -325,9 +318,6 @@ var (
 	//go:embed crds/v1/isovalentegressgatewaypolicies.yaml
 	crdsv1IsovalentEgressGatewayPolicies []byte
 
-	//go:embed crds/v1alpha1/isovalentpodnetworks.yaml
-	crdsv2Alpha1IsovalentPodNetworks []byte
-
 	//go:embed crds/v1alpha1/isovalentmulticastgroups.yaml
 	crdsv1Alpha1IsovalentMulticastGroups []byte
 
@@ -441,8 +431,6 @@ func GetPregeneratedCRD(logger *slog.Logger, crdName string) apiextensionsv1.Cus
 		crdBytes = crdsv1Alpha1IsovalentVRFs
 	case IEGPCRDName:
 		crdBytes = crdsv1IsovalentEgressGatewayPolicies
-	case IPNCRDName:
-		crdBytes = crdsv2Alpha1IsovalentPodNetworks
 	case MulticastGroupCRDName:
 		crdBytes = crdsv1Alpha1IsovalentMulticastGroups
 	case MulticastNodeCRDName:

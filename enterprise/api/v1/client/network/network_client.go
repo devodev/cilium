@@ -68,12 +68,6 @@ type ClientOption func(*runtime.ClientOperation)
 // ClientService is the interface for Client methods.
 type ClientService interface {
 
-	// GetNetworkAttachment retrieve the network attachment for a pod.
-	GetNetworkAttachment(params *GetNetworkAttachmentParams, opts ...ClientOption) (*GetNetworkAttachmentOK, error)
-
-	// GetNetworkAttachmentContext retrieve the network attachment for a pod.
-	GetNetworkAttachmentContext(ctx context.Context, params *GetNetworkAttachmentParams, opts ...ClientOption) (*GetNetworkAttachmentOK, error)
-
 	// GetNetworkPrivateAddressing retrieve the private network for the pod.
 	GetNetworkPrivateAddressing(params *GetNetworkPrivateAddressingParams, opts ...ClientOption) (*GetNetworkPrivateAddressingOK, error)
 
@@ -81,72 +75,6 @@ type ClientService interface {
 	GetNetworkPrivateAddressingContext(ctx context.Context, params *GetNetworkPrivateAddressingParams, opts ...ClientOption) (*GetNetworkPrivateAddressingOK, error)
 
 	SetTransport(transport runtime.ContextualTransport)
-}
-
-/*
-GetNetworkAttachmentretrieves the network attachment for a pod.
-
-This method does not support injected context.
-However, timeout and opentracing contexts are honored whenever enabled.
-
-If you need to pass a specific context, use [Client.GetNetworkAttachmentContext] instead.
-*/
-func (a *Client) GetNetworkAttachment(params *GetNetworkAttachmentParams, opts ...ClientOption) (*GetNetworkAttachmentOK, error) {
-	var ctx context.Context
-	if params.inner.ctx != nil {
-		ctx = params.inner.ctx
-	} else {
-		ctx = context.Background()
-	}
-
-	return a.GetNetworkAttachmentContext(ctx, params, opts...)
-}
-
-/*
-GetNetworkAttachmentContextretrieves the network attachment for a pod.
-
-Do not use the deprecated [GetNetworkAttachmentParams.Context] with this method: it would be ignored.
-*/
-func (a *Client) GetNetworkAttachmentContext(ctx context.Context, params *GetNetworkAttachmentParams, opts ...ClientOption) (*GetNetworkAttachmentOK, error) {
-	// NOTE: parameters are not validated before sending
-	if params == nil {
-		params = NewGetNetworkAttachmentParams()
-	}
-
-	op := &runtime.ClientOperation{
-		ID:                 "GetNetworkAttachment",
-		Method:             "GET",
-		PathPattern:        "/network/attachment",
-		ProducesMediaTypes: []string{"application/json"},
-		ConsumesMediaTypes: []string{"application/json"},
-		Schemes:            []string{"http"},
-		Params:             params,
-		Reader:             &GetNetworkAttachmentReader{formats: a.formats},
-		Client:             params.HTTPClient,
-	}
-
-	for _, opt := range opts {
-		opt(op)
-	}
-
-	result, err := a.transport.SubmitContext(ctx, op)
-	if err != nil {
-		return nil, err
-	}
-
-	// only one success response has to be checked
-	success, ok := result.(*GetNetworkAttachmentOK)
-	if ok {
-		return success, nil
-	}
-
-	// unexpected success response.
-
-	// no default response is defined.
-	//
-	// safeguard: normally, in the absence of a default response, unknown success responses return an error above: so this is a codegen issue
-	msg := fmt.Sprintf("unexpected success response for GetNetworkAttachment: API contract not enforced by server. Client expected to get an error, but got: %T", result)
-	panic(msg)
 }
 
 /*

@@ -117,15 +117,6 @@ enterprise:
     # -- Enables Bidirectional Forwarding Detection (BFD) feature.
     enabled: false
 
-  # -- Multi-network support (preview feature)
-  multiNetwork:
-    # -- Enables the multi-network feature in Cilium CNI
-    enabled: false
-    # -- Enable multi-network aware automatic L2 routing between nodes
-    autoDirectNodeRoutes: true
-    # -- Automatically creates a "default" IsovalentPodNetwork on operator startup
-    autoCreateDefaultPodNetwork: true
-
   multicast:
     # -- Enables multicast in cilium, multicast replication works only in tunnel mode.
     enabled: false

@@ -26,27 +26,6 @@ paths:
         '404':
           description: Cilium Enterprise API is not available
           x-go-name: Disabled
-  "/network/attachment":
-    get:
-      summary: Retrieve the network attachment for a pod
-      tags:
-        - network
-      parameters:
-        - "$ref": "#/parameters/network-pod-name"
-        - "$ref": "#/parameters/network-pod-namespace"
-      responses:
-        '200':
-          description: Success
-          schema:
-            "$ref": "#/definitions/NetworkAttachmentList"
-        '500':
-          description: Network attachment error
-          x-go-name: Failure
-          schema:
-            "$ref": "#/definitions/Error"
-        '501':
-          description: Network attachment feature is disabled
-          x-go-name: Disabled
   "/network/private/addressing":
     get:
       summary: Retrieve the private network for the pod
@@ -123,45 +102,6 @@ parameters:
 definitions:
   Error:
     type: string
-  NetworkAttachmentList:
-    description: |-
-      List of network attachments
-    properties:
-      pod-name:
-        description: Name of the pod which is attached to these networks
-        type: string
-      pod-namespace:
-        description: Namespace of the pod which is attached to these networks
-        type: string
-      attachments:
-        description: Networks this pod is attached to
-        type: array
-        items:
-          "$ref": "#/definitions/NetworkAttachmentElement"
-  NetworkAttachmentElement:
-    description: A network attachment
-    type: object
-    required:
-      - name
-    properties:
-      name:
-        description: Name of the network this pod is attached to
-        type: string
-      ipam:
-        description: IPAM parameters
-        "$ref": "#/definitions/NetworkAttachmentIPAMParameters"
-      routes:
-        description: Network routes to set up for this network attachment inside the pod
-        type: array
-        items:
-          "$ref": "#/definitions/NetworkAttachmentRoute"
-  NetworkAttachmentIPAMParameters:
-    description: IPAM parameters of a network attachment
-    type: object
-    properties:
-      ipam-pool:
-        description: Name of the IPAM pool this network attachment allocates from
-        type: string
   NetworkAttachmentRoute:
     description: Route for a network attachment
     type: object
@@ -237,9 +177,6 @@ definitions:
     description: The current configuration of any enterprise-only features
     type: object
     properties:
-      multi-network:
-        description: Indicates whether multi-network support is enabled
-        type: boolean
       private-networks:
         description: Private networks configuration
         "$ref": "#/definitions/PrivateNetworksConfiguration"

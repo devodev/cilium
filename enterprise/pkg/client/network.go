@@ -16,20 +16,6 @@ import (
 	"github.com/cilium/cilium/pkg/api"
 )
 
-// NetworkAttachments returns the network attachments for a given pod
-func (c *EnterpriseClient) NetworkAttachments(podNamespace, podName string) (*models.NetworkAttachmentList, error) {
-	params := network.NewGetNetworkAttachmentParams().
-		WithPodNamespace(podNamespace).
-		WithPodName(podName).
-		WithTimeout(api.ClientTimeout)
-
-	resp, err := c.Network.GetNetworkAttachment(params)
-	if err != nil {
-		return nil, err
-	}
-	return resp.Payload, nil
-}
-
 func (c *EnterpriseClient) PrivateNetworkAddressing(net, subnet, podNamespace, podName, podUID, ifname string) (*models.PrivateNetworkAddressingResponse, error) {
 	params := network.NewGetNetworkPrivateAddressingParams().
 		WithPodNamespace(podNamespace).

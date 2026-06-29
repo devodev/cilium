@@ -27,9 +27,6 @@ import (
 // swagger:model EnterpriseDaemonConfiguration
 type EnterpriseDaemonConfiguration struct {
 
-	// Indicates whether multi-network support is enabled
-	MultiNetwork bool `json:"multi-network,omitempty"`
-
 	// Private networks configuration
 	PrivateNetworks *PrivateNetworksConfiguration `json:"private-networks,omitempty"`
 }

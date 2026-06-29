@@ -31,7 +31,6 @@ type EnterpriseMetrics struct {
 	CPFQDNHAEnabled                    metric.Gauge
 	CPFQDNOfflineModeEnabled           metric.Gauge
 	DPMulticastEnabled                 metric.Gauge
-	DPMultiNetworkEnabled              metric.Gauge
 }
 
 const (
@@ -125,13 +124,6 @@ func NewEnterpriseMetrics(withDefaults bool) EnterpriseMetrics {
 			Help:      "Multicast enabled on the agent",
 			Name:      "multicast_enabled",
 		}),
-
-		DPMultiNetworkEnabled: metric.NewGauge(metric.GaugeOpts{
-			Namespace: metrics.Namespace,
-			Subsystem: enterprise + subsystemDP,
-			Help:      "Multi-Network enabled on the agent",
-			Name:      "multi_network_enabled",
-		}),
 	}
 }
 
@@ -187,9 +179,4 @@ func (m EnterpriseMetrics) update(params enabledEnterpriseFeatures, config *opti
 	if params.IsMulticastEnabled() {
 		m.DPMulticastEnabled.Set(1)
 	}
-
-	if params.IsMultiNetworkEnabled() {
-		m.DPMultiNetworkEnabled.Set(1)
-	}
-
 }

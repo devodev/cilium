@@ -43,11 +43,6 @@ const (
 	VRFKindDefinition = "IsovalentVRF"
 	VRFName           = VRFPluralName + "." + CustomResourceDefinitionGroup
 
-	// IsovalentPodNetwork (IPN)
-	IPNPluralName     = "isovalentpodnetworks"
-	IPNKindDefinition = "IsovalentPodNetwork"
-	IPNName           = IPNPluralName + "." + CustomResourceDefinitionGroup
-
 	// IsovalentMulticastGroup (MulticastGroup)
 	MulticastGroupPluralName     = "isovalentmulticastgroups"
 	MulticastGroupKindDefinition = "IsovalentMulticastGroup"
@@ -213,8 +208,6 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&IsovalentVRFList{},
 		&IsovalentSRv6EgressPolicy{},
 		&IsovalentSRv6EgressPolicyList{},
-		&IsovalentPodNetwork{},
-		&IsovalentPodNetworkList{},
 		&IsovalentMulticastGroup{},
 		&IsovalentMulticastGroupList{},
 		&IsovalentMulticastNode{},

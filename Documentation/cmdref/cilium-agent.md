@@ -204,7 +204,6 @@ cilium-agent [flags]
       --enable-local-redirect-policy                                     Enable Local Redirect Policy
       --enable-masquerade-to-route-source                                Masquerade packets to the source IP provided from the routing layer rather than interface address
       --enable-monitor                                                   Enable the monitor unix domain socket server (default true)
-      --enable-multi-network                                             Enable support for multiple pod networks
       --enable-nat46x64-gateway                                          Enable NAT46 and NAT64 gateway
       --enable-no-service-endpoints-routable                             Enable routes when service has 0 endpoints (default true)
       --enable-node-ipam                                                 Enable Node IPAM
@@ -473,7 +472,6 @@ cilium-agent [flags]
       --monitor-aggregation-interval duration                            Monitor report interval when monitor aggregation is enabled (default 5s)
       --monitor-queue-size int                                           Size of the event queue when reading monitor events
       --mtu int                                                          Overwrite auto-detected MTU of underlying network
-      --multi-network-auto-direct-node-routes                            Enable multi-network aware automatic L2 routing between nodes (experimental) (default true)
       --multicast-enabled                                                Enables multicast in Cilium
       --nat-map-stats-entries int                                        Number k top stats entries to store locally in statedb (default 32)
       --nat-map-stats-interval duration                                  Interval upon which nat maps are iterated for stats (default 30s)

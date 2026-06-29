@@ -341,11 +341,6 @@ annotations:
       description: |
         IsovalentWAFPolicy defines reusable WAF settings and custom rules that can
         be attached to selected resources within the same namespace.
-    - kind: IsovalentPodNetwork
-      version: v1alpha1
-      name: isovalentpodnetworks.isovalent.com
-      displayName: Isovalent Pod Network
-      description: IsovalentPodNetwork defines a network to which pods can be attached.
     - kind: IsovalentSRv6EgressPolicy
       version: v1alpha1
       name: isovalentsrv6egresspolicies.isovalent.com

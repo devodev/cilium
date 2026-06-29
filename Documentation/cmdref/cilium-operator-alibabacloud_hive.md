@@ -13,7 +13,6 @@ cilium-operator-alibabacloud hive [flags]
 ```
       --alibaba-cloud-release-excess-ips                                  Enable releasing excess free IP addresses from Alibaba Cloud ENI.
       --alibaba-cloud-vpc-id string                                       Specific VPC ID for AlibabaCloud ENI. If not set use same VPC as operator
-      --auto-create-default-pod-network                                   Automatically creates the default IsovalentPodNetwork on startup (default true)
       --ces-max-ciliumendpoints-per-ces int                               Maximum number of CiliumEndpoints allowed in a CES (default 100)
       --ces-rate-limits string                                            Configure rate limits for the CES controller. Accepts a list of rate limit configurations, must be a JSON formatted string. (default "[{\"nodes\":0,\"limit\":10,\"burst\":20}]")
       --cilium-endpoint-gc-interval duration                              GC interval for cilium endpoints (default 5m0s)
@@ -58,7 +57,6 @@ cilium-operator-alibabacloud hive [flags]
       --enable-k8s-api-discovery                                          Enable discovery of Kubernetes API groups and resources with the discovery API
       --enable-lb-ipam                                                    Enable LB IPAM (default true)
       --enable-metrics                                                    Enable Prometheus metrics
-      --enable-multi-network                                              Enable support for multiple pod networks
       --enable-node-ipam                                                  Enable Node IPAM
       --enable-policy-secrets-sync                                        Enables fan-in TLS secrets sync from multiple namespaces to singular namespace (specified by policy-secrets-namespace flag)
       --enable-wireguard                                                  Enable WireGuard

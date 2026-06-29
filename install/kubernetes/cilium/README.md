@@ -494,10 +494,6 @@ contributors across the globe, there is almost always someone available to help.
 | enterprise.inspection.enabled | bool | `false` | Enable passive inspection for pod traffic. When enabled, a clone of packets leaving and entering pods is redirected to a dedicated dummy interface ("cilium_inspect") for passive inspection. |
 | enterprise.loadbalancer.enabled | bool | `false` | Enables Loadbalancer mode (Control Plane) |
 | enterprise.loadbalancer.gatewayAPI.enabled | bool | `false` | Enable support for Gateway API in ILB |
-| enterprise.multiNetwork | object | `{"autoCreateDefaultPodNetwork":true,"autoDirectNodeRoutes":true,"enabled":false}` | Multi-network support (preview feature) |
-| enterprise.multiNetwork.autoCreateDefaultPodNetwork | bool | `true` | Automatically creates a "default" IsovalentPodNetwork on operator startup |
-| enterprise.multiNetwork.autoDirectNodeRoutes | bool | `true` | Enable multi-network aware automatic L2 routing between nodes |
-| enterprise.multiNetwork.enabled | bool | `false` | Enables the multi-network feature in Cilium CNI |
 | enterprise.multicast.enabled | bool | `false` | Enables multicast in cilium, multicast replication works only in tunnel mode. |
 | enterprise.networkPolicy.tiers.enabled | bool | `false` | Add support for tiered policy. |
 | enterprise.preferredTunnelEndpointDevices | list | `[]` | Devices to prefer for tunneling. Supports `+` as a wildcard in the device name, for example `eth+`. |

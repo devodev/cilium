@@ -10,7 +10,6 @@ import (
 	"github.com/cilium/hive/job"
 
 	bgpconfig "github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
-	"github.com/cilium/cilium/enterprise/operator/pkg/multinetwork"
 	"github.com/cilium/cilium/enterprise/pkg/bfd/types"
 	operatorOption "github.com/cilium/cilium/operator/option"
 	"github.com/cilium/cilium/pkg/metrics"
@@ -50,9 +49,8 @@ type enterpriseFeaturesParams struct {
 	OperatorConfig *operatorOption.OperatorConfig
 	DaemonConfig   *option.DaemonConfig
 
-	BGP          bgpconfig.Config
-	BFD          types.BFDConfig
-	MultiNetwork multinetwork.Config
+	BGP bgpconfig.Config
+	BFD types.BFDConfig
 }
 
 func (p enterpriseFeaturesParams) IsEnterpriseBGPEnabled() bool {
@@ -63,12 +61,7 @@ func (p enterpriseFeaturesParams) IsBFDEnabled() bool {
 	return p.BFD.IsEnabled()
 }
 
-func (p enterpriseFeaturesParams) IsMultiNetworkEnabled() bool {
-	return p.MultiNetwork.IsEnabled()
-}
-
 type enabledEnterpriseFeatures interface {
 	IsEnterpriseBGPEnabled() bool
 	IsBFDEnabled() bool
-	IsMultiNetworkEnabled() bool
 }

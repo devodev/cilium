@@ -22,7 +22,6 @@ type EnterpriseMetrics struct {
 	ACLBEnterpriseBGPEnabled   metric.Gauge
 	ACLBBFDEnabled             metric.Gauge
 	ACLBEgressGatewayHAEnabled metric.Gauge
-	DPMultiNetworkEnabled      metric.Gauge
 }
 
 const (
@@ -54,13 +53,6 @@ func NewEnterpriseMetrics(withDefaults bool) EnterpriseMetrics {
 			Help:      "Egress Gateway HA enabled on the operator",
 			Name:      "egress_gateway_ha_enabled",
 		}),
-
-		DPMultiNetworkEnabled: metric.NewGauge(metric.GaugeOpts{
-			Namespace: metrics.Namespace,
-			Subsystem: enterprise + subsystemDP,
-			Help:      "MultiNetwork enabled on the operator",
-			Name:      "multi_network_enabled",
-		}),
 	}
 }
 
@@ -77,8 +69,5 @@ func (m EnterpriseMetrics) update(params enabledEnterpriseFeatures, config *opti
 	}
 	if daemonConfig.EnableIPv4EgressGatewayHA {
 		m.ACLBEgressGatewayHAEnabled.Set(1)
-	}
-	if params.IsMultiNetworkEnabled() {
-		m.DPMultiNetworkEnabled.Set(1)
 	}
 }
