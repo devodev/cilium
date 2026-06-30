@@ -8,7 +8,7 @@ ARG GOLANG_IMAGE=artifactory.devhub-cloud.cisco.com/sto-cg-docker/go:v1.26.4-dev
 # renovate: datasource=docker depName=artifactory.devhub-cloud.cisco.com/sto-cg-docker/static
 ARG BASE_IMAGE=artifactory.devhub-cloud.cisco.com/sto-cg-docker/static:latest@sha256:4124a7da5f2ce1cb2d67afc3d8779c86ead71bd431caa530cfbd2da8017882cd
 # renovate: datasource=docker depName=artifactory.devhub-cloud.cisco.com/sto-cg-docker/chainguard-base
-ARG APK_IMAGE=artifactory.devhub-cloud.cisco.com/sto-cg-docker/chainguard-base:v20230214-2026.03.24
+ARG APK_IMAGE=artifactory.devhub-cloud.cisco.com/sto-cg-docker/chainguard-base:latest@sha256:b55e0043be0b2e564f560d855038367234a5639bd72af102ae01144b7328daa5
 
 # FIPS vars (overridden via --build-arg for FIPS builds)
 ARG GOEXPERIMENT=
