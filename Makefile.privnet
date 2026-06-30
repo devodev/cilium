@@ -30,13 +30,13 @@ PRIVNET_CONTAINER_IMAGE ?= ghcr.io/nicolaka/netshoot:v0.15@sha256:47b907d662d139
 PRIVNET_DNSMASQ_IMAGE ?= quay.io/poseidon/dnsmasq:v0.5.0-48-gbbba844@sha256:e16f3ab204162dec6fa80ace89584f566e418431da45d5340487ec84b19b1777
 
 # renovate: datasource=github-releases depName=cert-manager/cert-manager
-PRIVNET_CERT_MANAGER_VERSION ?= v1.20.2
+PRIVNET_CERT_MANAGER_VERSION ?= v1.20.3
 
 # renovate: datasource=github-releases depName=kubevirt/kubevirt
 PRIVNET_KUBEVIRT_VERSION ?= v1.8.4
 
 # renovate: datasource=github-tags depName=kubev2v/forklift
-PRIVNET_FORKLIFT_VERSION ?= v2.12.0
+PRIVNET_FORKLIFT_VERSION ?= v2.12.1
 
 # renovate: datasource=github-releases depName=k8snetworkplumbingwg/multus-cni
 PRIVNET_MULTUS_VERSION ?= v4.3.0
