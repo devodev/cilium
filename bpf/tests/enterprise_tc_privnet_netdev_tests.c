@@ -86,7 +86,7 @@ mock_ctx_redirect(const struct __sk_buff __maybe_unused *ctx, int ifindex,
 }
 
 static __always_inline int
-mock_ext_eps_policy_can_access(struct __ctx_buff __maybe_unused *ctx,
+mock_ext_eps_policy_can_access(const struct __ctx_buff *ctx __maybe_unused,
 			       struct endpoint_key __maybe_unused *key,
 			       __u32 __maybe_unused sec_identity, __u16 __maybe_unused ethertype,
 			       __be16 __maybe_unused dport, __u8 __maybe_unused proto,

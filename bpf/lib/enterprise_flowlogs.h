@@ -98,7 +98,8 @@ struct {
 } CILIUM_LB_FLOW_LOG_V4_1_MAP __section_maps_btf,
   CILIUM_LB_FLOW_LOG_V4_2_MAP __section_maps_btf;
 
-static __always_inline int lb_flow_log_v4(struct __ctx_buff *ctx)
+static __always_inline int
+lb_flow_log_v4(const struct __ctx_buff *ctx)
 {
 	void *data_end = ctx_data_end(ctx);
 	void *data = ctx_data(ctx);
@@ -173,7 +174,8 @@ struct {
 } CILIUM_LB_FLOW_LOG_V6_1_MAP __section_maps_btf,
   CILIUM_LB_FLOW_LOG_V6_2_MAP __section_maps_btf;
 
-static __always_inline int lb_flow_log_v6(struct __ctx_buff *ctx __maybe_unused)
+static __always_inline int
+lb_flow_log_v6(const struct __ctx_buff *ctx __maybe_unused)
 {
 	void *data_end = ctx_data_end(ctx);
 	void *data = ctx_data(ctx);
@@ -253,7 +255,8 @@ struct {
 } CILIUM_LB_FLOW_LOG_L2_1_MAP __section_maps_btf,
   CILIUM_LB_FLOW_LOG_L2_2_MAP __section_maps_btf;
 
-static __always_inline int lb_flow_log_l2(struct __ctx_buff *ctx __maybe_unused)
+static __always_inline int
+lb_flow_log_l2(const struct __ctx_buff *ctx __maybe_unused)
 {
 	void *data_end = ctx_data_end(ctx);
 	void *data = ctx_data(ctx);
@@ -306,7 +309,7 @@ static __always_inline int lb_flow_log_l2(struct __ctx_buff *ctx __maybe_unused)
 }
 
 static __always_inline int
-lb_flow_log(struct __ctx_buff *ctx, __u16 proto)
+lb_flow_log(const struct __ctx_buff *ctx, __u16 proto)
 {
 	switch (proto) {
 	case bpf_htons(ETH_P_IP):
@@ -321,7 +324,7 @@ lb_flow_log(struct __ctx_buff *ctx, __u16 proto)
 }
 
 static __always_inline int
-lb_early_hook(struct __ctx_buff *ctx __maybe_unused, __u16 proto __maybe_unused)
+lb_early_hook(const struct __ctx_buff *ctx __maybe_unused, __u16 proto __maybe_unused)
 {
 	int ret = CTX_ACT_OK;
 

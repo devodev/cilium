@@ -10,7 +10,7 @@
 #define INGRESS_POLICY	!(CT_EGRESS)
 
 static __always_inline int
-ext_eps_policy_can_egress4(struct __ctx_buff *ctx, __be32 ip, __u32 dst_id,
+ext_eps_policy_can_egress4(const struct __ctx_buff *ctx, __be32 ip, __u32 dst_id,
 			   __be16 dport, __u8 proto, int l4_off, __u8 *match_type,
 			   __u8 *audited, __s8 *ext_err, __u16 *proxy_port, __u32 *cookie)
 {
@@ -25,7 +25,7 @@ ext_eps_policy_can_egress4(struct __ctx_buff *ctx, __be32 ip, __u32 dst_id,
 }
 
 static __always_inline int
-ext_eps_policy_can_ingress4(struct __ctx_buff *ctx, __be32 ip, __u32 dst_id,
+ext_eps_policy_can_ingress4(const struct __ctx_buff *ctx, __be32 ip, __u32 dst_id,
 			    __be16 dport, __u8 proto, int l4_off, bool is_untracked_fragment,
 			    __u8 *match_type, __u8 *audited, __s8 *ext_err, __u16 *proxy_port,
 			    __u32 *cookie)
@@ -41,7 +41,7 @@ ext_eps_policy_can_ingress4(struct __ctx_buff *ctx, __be32 ip, __u32 dst_id,
 }
 
 static __always_inline int
-ext_eps_policy_can_egress6(struct __ctx_buff *ctx, union v6addr ip6, __u32 dst_id,
+ext_eps_policy_can_egress6(const struct __ctx_buff *ctx, union v6addr ip6, __u32 dst_id,
 			   __be16 dport, __u8 proto, int l4_off, __u8 *match_type,
 			   __u8 *audited, __s8 *ext_err, __u16 *proxy_port, __u32 *cookie)
 {
@@ -56,7 +56,7 @@ ext_eps_policy_can_egress6(struct __ctx_buff *ctx, union v6addr ip6, __u32 dst_i
 }
 
 static __always_inline int
-ext_eps_policy_can_ingress6(struct __ctx_buff *ctx, union v6addr ip6, __u32 dst_id,
+ext_eps_policy_can_ingress6(const struct __ctx_buff *ctx, union v6addr ip6, __u32 dst_id,
 			    __be16 dport, __u8 proto, int l4_off, bool is_untracked_fragment,
 			    __u8 *match_type, __u8 *audited, __s8 *ext_err, __u16 *proxy_port,
 			    __u32 *cookie)

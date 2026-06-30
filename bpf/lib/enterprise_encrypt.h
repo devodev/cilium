@@ -93,7 +93,7 @@ encrypt_flow_lookup(__u32 src_id, __be16 src_port, __u32 dst_id, __be16 dst_port
 }
 
 static __always_inline int
-encrypt_get_l4_info_ipv6(struct __ctx_buff *ctx, const struct ipv6hdr *ip6,
+encrypt_get_l4_info_ipv6(const struct __ctx_buff *ctx, const struct ipv6hdr *ip6,
 			 __u8 *l4_proto, __u32 *l4_off)
 {
 	__u32 ipv6_off;
@@ -108,14 +108,14 @@ encrypt_get_l4_info_ipv6(struct __ctx_buff *ctx, const struct ipv6hdr *ip6,
 }
 
 static __always_inline void
-encrypt_get_l4_info_ipv4(struct iphdr *ip4, __u8 *l4_proto, __u32 *l4_off)
+encrypt_get_l4_info_ipv4(const struct iphdr *ip4, __u8 *l4_proto, __u32 *l4_off)
 {
 	*l4_proto = ip4->protocol;
 	*l4_off = ETH_HLEN + ipv4_hdrlen(ip4);
 }
 
 static __always_inline int
-encrypt_handle_vxlan_inner_packet(struct __ctx_buff __maybe_unused *ctx,
+encrypt_handle_vxlan_inner_packet(const struct __ctx_buff *ctx __maybe_unused,
 				  void *data, void *data_end, __u32 *l4_off, __u8 *l4_proto,
 				  const struct remote_endpoint_info __maybe_unused **dst)
 {
@@ -176,7 +176,7 @@ encrypt_handle_vxlan_inner_packet(struct __ctx_buff __maybe_unused *ctx,
 }
 
 static __always_inline bool
-encrypt_policy_matches(struct __ctx_buff *ctx, __u8 l4_proto, __u32 l4_off,
+encrypt_policy_matches(const struct __ctx_buff *ctx, __u8 l4_proto, __u32 l4_off,
 		       __u32 src_sec_identity, __u32 dst_sec_identity)
 {
 	struct ipv4_frag_l4ports __maybe_unused ports;

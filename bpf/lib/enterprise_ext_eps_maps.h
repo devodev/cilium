@@ -35,7 +35,7 @@ struct {
 } cilium_ext_eps_policy __section_maps_btf;
 
 static __always_inline int
-__ext_eps_policy_can_access(struct __ctx_buff *ctx, struct endpoint_key *key,
+__ext_eps_policy_can_access(const struct __ctx_buff *ctx, const struct endpoint_key *key,
 			    __u32 sec_identity, __u16 ethertype, __be16 dport,
 			    __u8 proto, int l4_off, __u8 *match_type, int dir,
 			    bool is_untracked_fragment, __u8 *audited,

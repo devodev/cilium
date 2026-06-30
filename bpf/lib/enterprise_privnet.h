@@ -888,7 +888,7 @@ privnet_evpn_egress_ipv4(struct __ctx_buff *ctx, __u16 net_id, __u32 sec_label,
 }
 
 static __always_inline int
-privnet_unknown_policy_can_access(struct __ctx_buff *ctx, __u32 local_id, __u32 remote_id,
+privnet_unknown_policy_can_access(const struct __ctx_buff *ctx, __u32 local_id, __u32 remote_id,
 				  __u16 ethertype, __be16 dport, __u8 proto, int off, int dir,
 				  bool is_untracked_fragment, __u8 *match_type, __s8 *ext_err,
 				  __u16 *proxy_port, __u32 *cookie, __u8 *audited)
@@ -921,7 +921,7 @@ privnet_unknown_policy_can_access(struct __ctx_buff *ctx, __u32 local_id, __u32 
 }
 
 __noinline __weak int
-privnet_unknown_policy_egress4(struct __ctx_buff *ctx,
+privnet_unknown_policy_egress4(const struct __ctx_buff *ctx,
 			       __u16 net_id,
 			       __u32 sec_label,
 			       __u32 *dst_sec_identity,
@@ -1162,7 +1162,7 @@ static __always_inline int privnet_egress_ipv4(struct __ctx_buff *ctx,
 }
 
 __noinline __weak int
-privnet_unknown_policy_egress6(struct __ctx_buff *ctx,
+privnet_unknown_policy_egress6(const struct __ctx_buff *ctx,
 			       __u16 net_id,
 			       __u32 sec_label,
 			       __u32 *dst_sec_identity,
@@ -1505,7 +1505,7 @@ enforce_privnet_ingress_segmentation_at_lxc(bool unknown_flow, bool host_traffic
 }
 
 __noinline __weak int
-privnet_unknown_policy_ingress4(struct __ctx_buff *ctx,
+privnet_unknown_policy_ingress4(const struct __ctx_buff *ctx,
 				__u16 net_id,
 				__u32 sec_label,
 				__u32 *src_sec_identity,
@@ -1744,7 +1744,7 @@ privnet_lxc_unknown_ingress_ipv4(struct __ctx_buff *ctx,
  * The call does unknown flow policy
  */
 static __always_inline int
-privnet_lxc_unxlated_ingress_ipv4(struct __ctx_buff *ctx,
+privnet_lxc_unxlated_ingress_ipv4(const struct __ctx_buff *ctx,
 				  __u32 sec_label, __u16 net_id,
 				  __u32 *src_sec_identity,
 				  struct trace_ctx *trace)
@@ -1847,7 +1847,7 @@ out:
 }
 
 __noinline __weak int
-privnet_unknown_policy_ingress6(struct __ctx_buff *ctx,
+privnet_unknown_policy_ingress6(const struct __ctx_buff *ctx,
 				__u16 net_id,
 				__u32 sec_label,
 				__u32 *src_sec_identity,
@@ -2035,8 +2035,8 @@ privnet_lxc_unknown_ingress_ipv6(struct __ctx_buff *ctx, __u32 sec_label, __u16 
 }
 
 static __always_inline int
-privnet_lxc_unxlated_ingress_ipv6(struct __ctx_buff *ctx, __u32 sec_label, __u16 net_id,
-				 __u32 *src_sec_identity, struct trace_ctx *trace)
+privnet_lxc_unxlated_ingress_ipv6(const struct __ctx_buff *ctx, __u32 sec_label, __u16 net_id,
+				  __u32 *src_sec_identity, struct trace_ctx *trace)
 {
 	set_privnet_net_ids(net_id, net_id);
 	return privnet_unknown_policy_ingress6(ctx, net_id, sec_label, src_sec_identity, trace);

@@ -273,7 +273,8 @@ enterprise_privnet_to_lxc_ipv6_after_policy(struct __ctx_buff *ctx)
 }
 #endif /* ENABLE_IPV6 */
 
-static __always_inline bool is_privnet_unknown_inb_flow(struct __ctx_buff *ctx __maybe_unused)
+static __always_inline bool
+is_privnet_unknown_inb_flow(struct __ctx_buff *ctx __maybe_unused)
 {
 #ifdef HAVE_ENCAP
 	if (ctx_load_meta(ctx, CB_FROM_TUNNEL)) {
@@ -290,12 +291,12 @@ static __always_inline bool is_privnet_unknown_inb_flow(struct __ctx_buff *ctx _
 }
 
 static __always_inline bool
-is_privnet_local_access_flow(struct __ctx_buff *ctx)
+is_privnet_local_access_flow(const struct __ctx_buff *ctx)
 {
-	__u16 netdev_net_id __maybe_unused;
-	__u16 lxc_net_id __maybe_unused;
 	const struct privnet_device_val *netdev_dev_val __maybe_unused;
 	const struct privnet_device_val *lxc_dev_val __maybe_unused;
+	__u16 netdev_net_id __maybe_unused;
+	__u16 lxc_net_id __maybe_unused;
 
 	if (CONFIG(privnet_local_access_enable)) {
 		netdev_dev_val = privnet_get_device(ctx_get_ingress_ifindex(ctx));
@@ -329,7 +330,7 @@ is_privnet_local_access_flow(struct __ctx_buff *ctx)
 }
 
 static __always_inline bool
-is_privnet_evpn_flow(struct __ctx_buff *ctx)
+is_privnet_evpn_flow(const struct __ctx_buff *ctx)
 {
 	return (CONFIG(privnet_enable) && CONFIG(evpn_enable) &&
 		ctx_get_ingress_ifindex(ctx) == CONFIG(evpn_device_ifindex));

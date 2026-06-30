@@ -161,8 +161,8 @@ privnet_get_ct_any_map4(__u32 network_id)
 }
 
 static __always_inline int
-privnet_ct_unknown_flow_ingress_ipv4(struct __ctx_buff *ctx,
-				     struct iphdr *ip4,
+privnet_ct_unknown_flow_ingress_ipv4(const struct __ctx_buff *ctx,
+				     const struct iphdr *ip4,
 				     const union v4addr *orig_dip,
 				     __u32 network_id,
 				     struct trace_ctx *trace)
@@ -205,8 +205,8 @@ privnet_ct_unknown_flow_ingress_ipv4(struct __ctx_buff *ctx,
 }
 
 static __always_inline int
-privnet_ct_unknown_flow_ingress_ipv6(struct __ctx_buff *ctx,
-				     struct ipv6hdr *ip6,
+privnet_ct_unknown_flow_ingress_ipv6(const struct __ctx_buff *ctx,
+				     const struct ipv6hdr *ip6,
 				     const union v6addr *orig_dip,
 				     __u32 network_id,
 				     struct trace_ctx *trace)
