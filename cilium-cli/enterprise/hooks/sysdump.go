@@ -563,27 +563,6 @@ func addSysdumpTasks(collector *sysdump.Collector, opts *EnterpriseOptions) erro
 			},
 		},
 		{
-			// collect raw output to pick up HA-style format
-			Description: "Collecting CiliumEgressGatewayPolicy",
-			Quick:       true,
-			Task: func(ctx context.Context) error {
-				gatewayPolicies := schema.GroupVersionResource{
-					Group:    "cilium.io",
-					Resource: "ciliumegressgatewaypolicies",
-					Version:  "v2",
-				}
-				n := corev1.NamespaceAll
-				v, err := collector.Client.ListUnstructured(ctx, gatewayPolicies, &n, metav1.ListOptions{})
-				if err != nil {
-					return fmt.Errorf("failed to collect Cilium Egress Gateway policies: %w", err)
-				}
-				if err := collector.WriteYAML("cilium-enterprise-ciliumegressgatewaypolicies-<ts>.yaml", v); err != nil {
-					return fmt.Errorf("failed to collect Cilium Egress Gateway policies: %w", err)
-				}
-				return nil
-			},
-		},
-		{
 			Description: "Collecting IsovalentMulticastGroup",
 			Quick:       true,
 			Task: func(ctx context.Context) error {
