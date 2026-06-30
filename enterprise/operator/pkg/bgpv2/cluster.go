@@ -521,6 +521,7 @@ func toNodeBGPInstance(
 			Name:      clusterBGPInstance.Name,
 			LocalASN:  clusterBGPInstance.LocalASN,
 			LocalPort: clusterBGPInstance.LocalPort,
+			VRFRef:    clusterBGPInstance.VRFRef,
 		}
 
 		// find BGPResourceManager global override for this instance
