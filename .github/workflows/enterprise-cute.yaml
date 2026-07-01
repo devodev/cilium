@@ -41,7 +41,7 @@ env:
   name: ${{ github.run_id }}
   USE_GKE_GCLOUD_AUTH_PLUGIN: True
   # renovate: datasource=github-releases depName=kubernetes/kubernetes
-  kubectl_version: v1.36.1
+  kubectl_version: v1.36.2
   terraform_version: 1.10.5
   upload_dir: github-upload
   artifact_retention_days: 15
@@ -79,7 +79,7 @@ jobs:
     timeout-minutes: 750
     steps:
       - name: Checkout workflow context branch
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
 
@@ -166,7 +166,7 @@ jobs:
           helm repo add ${{ env.CILIUM_OSS_HELM_REPO_NAME }} ${{ env.CILIUM_OSS_HELM_REPO_URL }}
 
       - name: Checkout CuTE repository
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           repository: isovalent/cute-${{ steps.vars.outputs.cute_repo }}
           ref: ${{ steps.vars.outputs.cute_ref }}
@@ -305,7 +305,7 @@ jobs:
 
       - name: Set up AWS CLI credentials
         if: steps.cute_props.outputs.provider == 'aws'
-        uses: aws-actions/configure-aws-credentials@e7f100cf4c008499ea8adda475de1042d6975c7b # v6.2.0
+        uses: aws-actions/configure-aws-credentials@254c19bd240aabef8777f48595e9d2d7b972184b # v6.2.1
         with:
           role-to-assume: ${{ secrets.AWS_PR_CUTE_ASSUME_ROLE }}
           aws-region: ${{ steps.cute_props.outputs.region }}

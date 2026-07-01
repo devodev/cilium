@@ -42,7 +42,7 @@ jobs:
           app_id: ${{ secrets.ISOVALENT_MIRROR_UPSTREAM_BOT_APP_ID }}
 
       - name: Checkout default branch (trusted)
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: true
@@ -52,7 +52,7 @@ jobs:
         uses: ./.github/actions/disk-cleanup
 
       - name: Checkout base branch (trusted)
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ github.base_ref }}
           persist-credentials: true
@@ -66,10 +66,10 @@ jobs:
 
       - name: Set up QEMU
         id: qemu
-        uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
 
       - name: Checkout pull request branch (NOT TRUSTED)
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: true
           ref: ${{ github.event.pull_request.head.sha }}
@@ -102,7 +102,7 @@ jobs:
       - name: Release enterprise-runtime-base
         if: ${{ steps.runtime-base-tag.outputs.exists == 'false' }}
         id: enterprise-runtime-base-release
-        uses: chainguard-images/actions/apko-publish@d3e31d8149976e801966d39958e2d86ba952eee4 # main
+        uses: chainguard-images/actions/apko-publish@b60767bcc68220a0afc419dc14f59b230157eba7 # main
         with:
           config: ./enterprise/images/wolfi/runtime-base/image.yaml
           tag: quay.io/${{ env.QUAY_ORGANIZATION_DEV }}/cilium-runtime-base-wfi:${{  steps.runtime-base-tag.outputs.tag }}
