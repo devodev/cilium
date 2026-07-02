@@ -227,6 +227,29 @@ func (m *BGPRouterManager) reconcileStateWithRetry(ctx context.Context) error {
 	return wait.ExponentialBackoffWithContext(ctx, bo, retryFn)
 }
 
+func (m *BGPRouterManager) GetGlobalsExtended(ctx context.Context) (*agent.GetGlobalsResponse, error) {
+	m.RLock()
+	defer m.RUnlock()
+
+	if !m.running {
+		return nil, fmt.Errorf("bgp router manager is not running")
+	}
+
+	var res agent.GetGlobalsResponse
+	for _, i := range m.BGPInstances {
+		bgp, err := i.Router.GetBGPExtended(ctx)
+		if err != nil {
+			return nil, err
+		}
+		res.Instances = append(res.Instances, agent.InstanceGlobal{
+			Name:   i.Name,
+			Global: bgp.Global,
+		})
+	}
+
+	return &res, nil
+}
+
 func (m *BGPRouterManager) GetPeers(ctx context.Context, req *ossAgent.GetPeersRequest) (*ossAgent.GetPeersResponse, error) {
 	m.RLock()
 	defer m.RUnlock()

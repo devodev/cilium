@@ -23,6 +23,9 @@ import (
 type EnterpriseBGPRouterManager interface {
 	ossAgent.BGPRouterManager
 
+	// GetGlobalsExtended returns global BGP configuration of all BGP instances.
+	GetGlobalsExtended(ctx context.Context) (*GetGlobalsResponse, error)
+
 	// GetRoutesExtended returns BGP routes of the specified BGP instance from underlying router.
 	// If BGP instance is not specified, returns the result of all instances.
 	GetRoutesExtended(ctx context.Context, req *GetRoutesExtendedRequest) (*GetRoutesExtendedResponse, error)
@@ -38,6 +41,11 @@ type EnterpriseBGPRouterManager interface {
 	ReconcileEnterpriseInstances(ctx context.Context, nodeObj *v1.IsovalentBGPNodeConfig, ciliumNode *v2.CiliumNode) error
 }
 
+// GetGlobalsResponse is the response type for GetGlobalsExtended method.
+type GetGlobalsResponse struct {
+	Instances []InstanceGlobal
+}
+
 // GetRoutesExtendedRequest is a request for GetRoutesExtended method.
 type GetRoutesExtendedRequest struct {
 	TableType ossTypes.TableType
@@ -47,6 +55,12 @@ type GetRoutesExtendedRequest struct {
 // GetRoutesExtendedResponse is the response type for GetRoutesExtended method.
 type GetRoutesExtendedResponse struct {
 	Instances []InstanceRoutesExtended
+}
+
+// InstanceGlobal holds global BGP configuration for a specific BGP instance.
+type InstanceGlobal struct {
+	Name   string
+	Global ossTypes.BGPGlobal
 }
 
 // InstanceRoutesExtended holds routes for a specific BGP instance.

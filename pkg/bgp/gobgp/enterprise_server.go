@@ -136,6 +136,32 @@ func NewEnterpriseGoBGPServer(ctx context.Context, log *slog.Logger, params ossT
 	return gobgpSrv, nil
 }
 
+func (g *GoBGPServer) GetBGPExtended(ctx context.Context) (*types.GetBGPExtendedResponse, error) {
+	bgpConfig, err := g.server.GetBgp(ctx, &gobgp.GetBgpRequest{})
+	if err != nil {
+		return nil, err
+	}
+
+	if bgpConfig.Global == nil {
+		return nil, fmt.Errorf("gobgp returned nil config")
+	}
+
+	res := ossTypes.BGPGlobal{
+		ASN:        bgpConfig.Global.Asn,
+		RouterID:   bgpConfig.Global.RouterId,
+		ListenPort: bgpConfig.Global.ListenPort,
+	}
+	if bgpConfig.Global.RouteSelectionOptions != nil {
+		res.RouteSelectionOptions = &ossTypes.RouteSelectionOptions{
+			AdvertiseInactiveRoutes: bgpConfig.Global.RouteSelectionOptions.AdvertiseInactiveRoutes,
+		}
+	}
+
+	return &types.GetBGPExtendedResponse{
+		Global: res,
+	}, nil
+}
+
 func (g *GoBGPServer) GetRoutesExtended(ctx context.Context, r *types.GetRoutesExtendedRequest) (*types.GetRoutesExtendedResponse, error) {
 	var (
 		routes []*types.ExtendedRoute

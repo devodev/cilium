@@ -27,6 +27,10 @@ import (
 type EnterpriseRouter interface {
 	ossTypes.Router
 
+	// GetBGPExtended retrieves BGP global configuration from the
+	// underlying router.
+	GetBGPExtended(ctx context.Context) (*GetBGPExtendedResponse, error)
+
 	// GetRoutesExtended retrieves routes from the RIB of underlying router
 	// implementation. The reply contains extended enterprise-specific
 	// route information.
@@ -51,6 +55,10 @@ type EnterpriseRouter interface {
 // EnterpriseRouterProvider provides enterprise BGP router instances.
 type EnterpriseRouterProvider interface {
 	NewEnterpriseRouter(ctx context.Context, log *slog.Logger, params ossTypes.ServerParameters) (EnterpriseRouter, error)
+}
+
+type GetBGPExtendedResponse struct {
+	Global ossTypes.BGPGlobal
 }
 
 type GetRoutesExtendedRequest struct {

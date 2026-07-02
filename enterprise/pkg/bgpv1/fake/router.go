@@ -13,6 +13,7 @@ package fake
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/netip"
 
 	ceeTypes "github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
@@ -34,6 +35,10 @@ func NewEnterpriseFakeRouter() *EnterpriseFakeRouter {
 		ResetPeersCh:     make(chan netip.Addr, 10),
 		extendedPolicies: make(map[string]*ceeTypes.ExtendedRoutePolicy),
 	}
+}
+
+func (f *EnterpriseFakeRouter) GetBGPExtended(ctx context.Context) (*ceeTypes.GetBGPExtendedResponse, error) {
+	return nil, fmt.Errorf("GetBGPExtended is not implemented in the fake router")
 }
 
 func (f *EnterpriseFakeRouter) ResetNeighbor(ctx context.Context, r ossTypes.ResetNeighborRequest) error {
