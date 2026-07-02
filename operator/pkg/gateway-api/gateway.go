@@ -67,6 +67,7 @@ func (r *gatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	tcpRouteEnabled := helpers.HasTCPRouteSupport(scheme)
 	udpRouteEnabled := helpers.HasUDPRouteSupport(scheme)
 	serviceImportEnabled := helpers.HasServiceImportSupport(scheme)
+	listenerSetEnabled := helpers.HasListenerSetSupport(scheme)
 
 	// Add field indexes for HTTPRoutes
 	for indexName, indexerFunc := range map[string]client.IndexerFunc{
@@ -88,6 +89,11 @@ func (r *gatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// Index Gateways by implementation (ie `cilium`)
 	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1.Gateway{}, indexers.ImplementationGatewayIndex, indexers.GenerateIndexerGatewayByImplementation(r.Client, gatewayv1.GatewayController(r.controllerName))); err != nil {
 		return fmt.Errorf("failed to setup field indexer %q: %w", indexers.ImplementationGatewayIndex, err)
+	}
+
+	// Index Gateways by referenced TLS Secrets
+	if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1.Gateway{}, helpers.GatewaySecretIndex, indexers.IndexGatewayBySecret); err != nil {
+		return fmt.Errorf("failed to setup field indexer %q: %w", helpers.GatewaySecretIndex, err)
 	}
 
 	// Add indexes for TLSRoutes
@@ -139,6 +145,37 @@ func (r *gatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return fmt.Errorf("failed to setup field indexer %q: %w", indexers.BackendTLSPolicyConfigMapIndex, err)
 	}
 
+	// Index ListenerSets by parent Gateway, and routes by ListenerSet parentRefs
+	if listenerSetEnabled {
+		if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1.ListenerSet{}, indexers.ListenerSetGatewayIndex, indexers.IndexListenerSetByGateway); err != nil {
+			return fmt.Errorf("failed to setup field indexer %q: %w", indexers.ListenerSetGatewayIndex, err)
+		}
+
+		if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1.ListenerSet{}, helpers.ListenerSetSecretIndex, indexers.IndexListenerSetBySecret); err != nil {
+			return fmt.Errorf("failed to setup field indexer %q: %w", helpers.ListenerSetSecretIndex, err)
+		}
+
+		if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1.HTTPRoute{}, indexers.HTTPRouteListenerSetIndex, indexers.IndexHTTPRouteByListenerSet); err != nil {
+			return fmt.Errorf("failed to setup field indexer %q: %w", indexers.HTTPRouteListenerSetIndex, err)
+		}
+		if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1.GRPCRoute{}, indexers.GRPCRouteListenerSetIndex, indexers.IndexGRPCRouteByListenerSet); err != nil {
+			return fmt.Errorf("failed to setup field indexer %q: %w", indexers.GRPCRouteListenerSetIndex, err)
+		}
+		if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1.TLSRoute{}, indexers.TLSRouteListenerSetIndex, indexers.IndexTLSRouteByListenerSet); err != nil {
+			return fmt.Errorf("failed to setup field indexer %q: %w", indexers.TLSRouteListenerSetIndex, err)
+		}
+		if tcpRouteEnabled {
+			if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1alpha2.TCPRoute{}, indexers.TCPRouteListenerSetIndex, indexers.IndexTCPRouteByListenerSet); err != nil {
+				return fmt.Errorf("failed to setup field indexer %q: %w", indexers.TCPRouteListenerSetIndex, err)
+			}
+		}
+		if udpRouteEnabled {
+			if err := mgr.GetFieldIndexer().IndexField(context.Background(), &gatewayv1alpha2.UDPRoute{}, indexers.UDPRouteListenerSetIndex, indexers.IndexUDPRouteByListenerSet); err != nil {
+				return fmt.Errorf("failed to setup field indexer %q: %w", indexers.UDPRouteListenerSetIndex, err)
+			}
+		}
+	}
+
 	hasMatchingControllerFn := helpers.GatewayHasMatchingControllerFn(context.Background(), r.Client, r.controllerName, r.logger)
 	gatewayBuilder := ctrl.NewControllerManagedBy(mgr).
 		// Watch its own resource
@@ -159,8 +196,8 @@ func (r *gatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&gatewayv1.TLSRoute{}, watchhandlers.EnqueueRequestForOwningTLSRoute(r.Client, r.logger, r.controllerName)).
 		// Watch related secrets used to configure TLS
 		Watches(&corev1.Secret{},
-			watchhandlers.EnqueueRequestForTLSSecret(r.Client, r.logger),
-			builder.WithPredicates(predicate.NewPredicateFuncs(predicates.SecretUsedInGatewayFn(r.Client, r.logger)))).
+			watchhandlers.EnqueueRequestForTLSSecret(r.Client, r.controllerName, r.logger),
+			builder.WithPredicates(predicate.NewPredicateFuncs(predicates.SecretUsedInGatewayFn(r.Client, r.controllerName, r.logger)))).
 		// Watch related namespace in allowed namespaces
 		Watches(&corev1.Namespace{},
 			watchhandlers.EnqueueRequestForAllowedNamespace(r.Client, r.logger)).
@@ -184,6 +221,11 @@ func (r *gatewayReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	if udpRouteEnabled {
 		// Watch UDPRoute linked to Gateway
 		gatewayBuilder = gatewayBuilder.Watches(&gatewayv1alpha2.UDPRoute{}, watchhandlers.EnqueueRequestForOwningUDPRoute(r.Client, r.logger, r.controllerName))
+	}
+
+	if listenerSetEnabled {
+		// Watch ListenerSet linked to Gateway
+		gatewayBuilder = gatewayBuilder.Watches(&gatewayv1.ListenerSet{}, watchhandlers.EnqueueRequestForListenerSetOwner(r.Client, r.logger, defaultControllerName))
 	}
 
 	if serviceImportEnabled {

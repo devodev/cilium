@@ -271,6 +271,18 @@ func (e mapStateEntry) withPassPriority(priority, tierPriority, nextTierPriority
 func (ms mapState) withState(initMap mapStateMap) mapState {
 	for k, v := range initMap {
 		ms.insert(k, v)
+
+		if k.Identity == 0 {
+			// We don't want to have to change mapstate literals every time we aggregate.
+			// Expand nid 0 to all aggregated numeric IDs
+			for _, newID := range AllAggregates {
+				newKey := k.WithIdentity(newID)
+				if _, exists := initMap[newKey]; exists {
+					continue
+				}
+				ms.insert(newKey, v)
+			}
+		}
 	}
 	return ms
 }
@@ -1023,30 +1035,42 @@ func TestMapState_insertWithChanges(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		t.Log(tt.name)
-		changes := ChangeState{
-			Adds:    make(Keys),
-			Deletes: make(Keys),
-			old:     make(mapStateMap),
-		}
-		// copy the starting point
-		ms := testMapState(t, make(mapStateMap, tt.ms.Len()))
-		tt.ms.forEach(func(k Key, v mapStateEntry) bool {
-			ms.insert(k, v)
-			return true
+		t.Run(tt.name, func(t *testing.T) {
+			changes := ChangeState{
+				Adds:    make(Keys),
+				Deletes: make(Keys),
+				old:     make(mapStateMap),
+			}
+			// copy the starting point
+			ms := testMapState(t, make(mapStateMap, tt.ms.Len()))
+			tt.ms.forEach(func(k Key, v mapStateEntry) bool {
+				ms.insert(k, v)
+				return true
+			})
+
+			entry := NewMapStateEntry(tt.args.entry).withLabels(labels.LabelArrayList{nil})
+			ms.insertWithChanges(types.MaxDenyPrecedence, tt.args.key, entry, denyRules, changes)
+			// fix up 0-expansion
+			if tt.args.key.Identity == 0 {
+				// expand 0 to all aggregate keys
+				for _, nid := range AllAggregates {
+					k := tt.args.key.WithIdentity(nid)
+					ms.insertWithChanges(types.MaxDenyPrecedence, k, entry, denyRules, changes)
+					if _, inAdds := tt.wantAdds[tt.args.key]; inAdds {
+						tt.wantAdds[k] = struct{}{}
+					}
+				}
+			}
+			ms.validatePortProto(t)
+			require.Truef(t, ms.Equal(&tt.want), "%s: MapState mismatch:\n%s", tt.name, ms.diff(&tt.want))
+			require.Equalf(t, tt.wantAdds, changes.Adds, "%s: Adds mismatch", tt.name)
+			require.Equalf(t, tt.wantDeletes, changes.Deletes, "%s: Deletes mismatch", tt.name)
+			require.Equalf(t, tt.wantOld, changes.old, "%s: OldValues mismatch allows", tt.name)
+
+			// Revert changes and check that we get the original mapstate
+			ms.revertChanges(changes)
+			require.Truef(t, ms.Equal(&tt.ms), "%s: MapState mismatch:\n%s", tt.name, ms.diff(&tt.ms))
 		})
-
-		entry := NewMapStateEntry(tt.args.entry).withLabels(labels.LabelArrayList{nil})
-		ms.insertWithChanges(types.MaxDenyPrecedence, tt.args.key, entry, denyRules, changes)
-		ms.validatePortProto(t)
-		require.Truef(t, ms.Equal(&tt.want), "%s: MapState mismatch:\n%s", tt.name, ms.diff(&tt.want))
-		require.Equalf(t, tt.wantAdds, changes.Adds, "%s: Adds mismatch", tt.name)
-		require.Equalf(t, tt.wantDeletes, changes.Deletes, "%s: Deletes mismatch", tt.name)
-		require.Equalf(t, tt.wantOld, changes.old, "%s: OldValues mismatch allows", tt.name)
-
-		// Revert changes and check that we get the original mapstate
-		ms.revertChanges(changes)
-		require.Truef(t, ms.Equal(&tt.ms), "%s: MapState mismatch:\n%s", tt.name, ms.diff(&tt.ms))
 	}
 }
 
@@ -1140,7 +1164,7 @@ func TestMapState_AccumulateMapChangesDeny(t *testing.T) {
 			ingressL3OnlyKey(41): denyEntry(),
 		}),
 		args: []args{
-			{cs: csFoo, adds: []int{0}, deletes: []int{}, port: 80, proto: 6, ingress: true, redirect: ListenerPriorityHTTP, deny: false},
+			{cs: nil, adds: []int{0}, deletes: []int{}, port: 80, proto: 6, ingress: true, redirect: ListenerPriorityHTTP, deny: false},
 		},
 		state: testMapState(t, mapStateMap{
 			AnyIngressKey():      allowEntry(),
@@ -1440,6 +1464,14 @@ func TestMapState_AccumulateMapChangesDeny(t *testing.T) {
 		_, changes := policyMaps.consumeMapChanges(epPolicy, denyRules)
 		policyMapState.validatePortProto(t)
 		require.True(t, policyMapState.Equal(&tt.state), "%s (MapState):\n%s", tt.name, policyMapState.diff(&tt.state))
+		// massage adds to expand 0 to aggregates
+		for add := range tt.adds {
+			if add.Identity == 0 {
+				for _, nid := range AllAggregates {
+					tt.adds[add.WithIdentity(nid)] = struct{}{}
+				}
+			}
+		}
 		require.Equal(t, tt.adds, changes.Adds, tt.name+" (adds)")
 		require.Equal(t, tt.deletes, changes.Deletes, tt.name+" (deletes)")
 	}
@@ -1542,13 +1574,11 @@ func TestMapState_AccumulateMapChanges(t *testing.T) {
 		},
 		state: testMapState(t, mapStateMap{
 			AnyIngressKey():     allowEntry(),
-			HostIngressKey():    allowEntry(),
 			DNSUDPEgressKey(42): allowEntry(),
 			DNSTCPEgressKey(42): allowEntry(),
 		}),
 		adds: Keys{
 			AnyIngressKey():     {},
-			HostIngressKey():    {},
 			DNSUDPEgressKey(42): {},
 			DNSTCPEgressKey(42): {},
 		},
@@ -1561,7 +1591,6 @@ func TestMapState_AccumulateMapChanges(t *testing.T) {
 		},
 		state: testMapState(t, mapStateMap{
 			AnyIngressKey():     allowEntry(),
-			HostIngressKey():    allowEntry(),
 			DNSUDPEgressKey(42): allowEntry(),
 			DNSTCPEgressKey(42): allowEntry(),
 			HttpEgressKey(43):   proxyEntryHTTP(1),
@@ -1955,6 +1984,17 @@ func TestMapState_AccumulateMapChanges(t *testing.T) {
 	}
 	policyMapState := emptyMapState(hivetest.Logger(t))
 
+	// fixup adds to expand 0 to all aggregates
+	for _, tt := range tests {
+		for add := range tt.adds {
+			if add.Identity == 0 {
+				for _, nid := range AllAggregates {
+					tt.adds[add.WithIdentity(nid)] = struct{}{}
+				}
+			}
+		}
+	}
+
 	for _, tt := range tests {
 		t.Log(tt.name)
 		policyMaps := MapChanges{logger: hivetest.Logger(t)}
@@ -2044,7 +2084,7 @@ func TestMapState_denyPreferredInsertWithSubnets(t *testing.T) {
 	// Mock the identities what would be selected by the world, IP, and subnet selectors
 
 	// Selections for the label selector 'reserved:world'
-	reservedWorldSelections := identity.NumericIdentitySlice{identity.ReservedIdentityWorld, worldIPIdentity, worldSubnetIdentity}
+	reservedWorldSelections := identity.NumericIdentitySlice{identity.ReservedIdentityWorld}
 
 	// Selections for the CIDR selector 'cidr:192.0.2.3/32'
 	worldIPSelections := identity.NumericIdentitySlice{worldIPIdentity}
@@ -2101,7 +2141,7 @@ func TestMapState_denyPreferredInsertWithSubnets(t *testing.T) {
 		{"deny-allow: a superset a|b L3-only; without allow-all, later order allow", WithoutAllowAll, 0, reservedWorldSelections, 0, worldSubnetSelections, 1, true, false, 0, 0, 0, 0, insertA},
 		{"deny-allow: a superset a|b L3-only; without allow-all, later order world deny inserted", WithoutAllowAll, 0, reservedWorldSelections, 2, worldSubnetSelections, 1, true, false, 0, 0, 0, 0, insertBoth},
 
-		{"deny-allow: b superset a|b L3-only", WithAllowAll, 0, worldIPSelections, 0, worldSubnetSelections, 0, true, false, 0, 0, 0, 0, insertAllowAll | insertBoth},
+		{"deny-allow: b superset a|b L3-only", WithAllowAll, 0, worldIPSelections, 0, worldSubnetSelections, 0, true, false, 0, 0, 0, 0, insertAllowAll | insertA},
 		{"deny-allow: b superset a|b L3-only; later order allows the same", WithAllowAll, 2, worldIPSelections, 0, worldSubnetSelections, 1, true, false, 0, 0, 0, 0, insertAllowAll | insertBoth},
 		{"deny-allow: b superset a|b L3-only; later order keys not inserted", WithoutAllowAll, 0, worldIPSelections, 2, worldSubnetSelections, 1, true, false, 0, 0, 0, 0, insertB},
 		{"deny-allow: b superset a|b L3-only; later order less specific deny NOT inserted", WithAllowAll, 3, worldIPSelections, 2, worldSubnetSelections, 1, true, false, 0, 0, 0, 0, insertAllowAll | insertB},
@@ -2141,7 +2181,7 @@ func TestMapState_denyPreferredInsertWithSubnets(t *testing.T) {
 		{"deny-allow: b superset a L3-only, b L3L4; without allow-all, IP allow not inserted", WithoutAllowAll, 0, worldIPSelections, 0, worldSubnetSelections, 1, true, false, 0, 0, 80, 6, insertBoth | worldIPl3only},
 		{"deny-allow: b superset a L3-only, b L3L4; without allow-all, later order more specific deny inserted without denying TCP/80", WithoutAllowAll, 0, worldIPSelections, 2, worldSubnetSelections, 1, true, false, 0, 0, 80, 6, insertBoth},
 
-		{"deny-allow: a superset a L4, b L3-only", WithAllowAll, 0, reservedWorldSelections, 0, worldSubnetSelections, 0, true, false, 0, 6, 0, 0, insertAllowAll | insertBoth},
+		{"deny-allow: a superset a L4, b L3-only", WithAllowAll, 0, reservedWorldSelections, 0, worldSubnetSelections, 0, true, false, 0, 6, 0, 0, insertAllowAll | insertA},
 		{"deny-allow: a superset a L4, b L3-only; later order allows the same", WithAllowAll, 2, reservedWorldSelections, 0, worldSubnetSelections, 1, true, false, 0, 6, 0, 0, insertAllowAll | insertBoth},
 		{"deny-allow: a superset a L4, b L3-only; later order wider keys inserted", WithoutAllowAll, 0, worldSubnetSelections, 0, worldIPSelections, 1, true, false, 0, 6, 0, 0, insertBoth},
 		{"deny-allow: a superset a L4, b L3-only; later order allow-all, world deny inserted", WithAllowAll, 3, reservedWorldSelections, 2, worldSubnetSelections, 1, true, false, 0, 6, 0, 0, insertAllowAll | insertBoth | insertAL3NotInB},
@@ -2149,7 +2189,7 @@ func TestMapState_denyPreferredInsertWithSubnets(t *testing.T) {
 		{"deny-allow: a superset a L4, b L3-only; without allow-all, later order allow the same", WithoutAllowAll, 0, reservedWorldSelections, 0, worldSubnetSelections, 1, true, false, 0, 6, 0, 0, insertBoth},
 		{"deny-allow: a superset a L4, b L3-only; without allow-all, later order world/TCP deny inserted", WithoutAllowAll, 0, reservedWorldSelections, 2, worldSubnetSelections, 1, true, false, 0, 6, 0, 0, insertBoth | insertAL3NotInB},
 
-		{"deny-allow: b superset a L4, b L3-only", WithAllowAll, 0, worldIPSelections, 0, worldSubnetSelections, 0, true, false, 0, 6, 0, 0, insertAllowAll | insertBoth},
+		{"deny-allow: b superset a L4, b L3-only", WithAllowAll, 0, worldIPSelections, 0, worldSubnetSelections, 0, true, false, 0, 6, 0, 0, insertAllowAll | insertA},
 		{"deny-allow: b superset a L4, b L3-only; later order allows the same", WithoutAllowAll, 0, worldIPSelections, 0, worldSubnetSelections, 1, true, false, 0, 6, 0, 0, insertBoth},
 		{"deny-allow: b superset a L4, b L3-only; later order keys not inserted", WithoutAllowAll, 0, worldIPSelections, 2, worldSubnetSelections, 1, true, false, 0, 6, 0, 0, insertB},
 		{"deny-allow: b superset a L4, b L3-only; later order more specific deny NOT inserted", WithAllowAll, 3, worldIPSelections, 2, worldSubnetSelections, 1, true, false, 0, 6, 0, 0, insertAllowAll | insertB},
@@ -2189,7 +2229,7 @@ func TestMapState_denyPreferredInsertWithSubnets(t *testing.T) {
 		{"deny-allow: b superset a L4, b L3L4; without allow-all, later order allows the same", WithoutAllowAll, 0, worldIPSelections, 0, worldSubnetSelections, 1, true, false, 0, 6, 80, 6, insertBoth | worldIPProtoOnly},
 		{"deny-allow: b superset a L4, b L3L4; without allow-all, later order more specific deny inserted", WithoutAllowAll, 0, worldIPSelections, 2, worldSubnetSelections, 1, true, false, 0, 6, 80, 6, insertBoth},
 
-		{"deny-allow: a superset a L3L4, b L3-only", WithAllowAll, 0, reservedWorldSelections, 0, worldSubnetSelections, 0, true, false, 80, 6, 0, 0, insertAllowAll | insertBoth},
+		{"deny-allow: a superset a L3L4, b L3-only", WithAllowAll, 0, reservedWorldSelections, 0, worldSubnetSelections, 0, true, false, 80, 6, 0, 0, insertAllowAll | insertA},
 		{"deny-allow: a superset a L3L4, b L3-only; later order allows the same", WithAllowAll, 2, reservedWorldSelections, 0, worldSubnetSelections, 1, true, false, 80, 6, 0, 0, insertAllowAll | insertBoth},
 		{"deny-allow: a superset a L3L4, b L3-only; later order wider keys inserted", WithoutAllowAll, 0, worldSubnetSelections, 0, worldIPSelections, 1, true, false, 80, 6, 0, 0, insertBoth},
 		{"deny-allow: a superset a L3L4, b L3-only; later order world deny inserted", WithAllowAll, 3, reservedWorldSelections, 2, worldSubnetSelections, 1, true, false, 80, 6, 0, 0, insertAllowAll | insertBoth | insertAL3NotInB},
@@ -2197,7 +2237,7 @@ func TestMapState_denyPreferredInsertWithSubnets(t *testing.T) {
 		{"deny-allow: a superset a L3L4, b L3-only; without allow-all, later order allows the same", WithoutAllowAll, 0, reservedWorldSelections, 0, worldSubnetSelections, 1, true, false, 80, 6, 0, 0, insertBoth},
 		{"deny-allow: a superset a L3L4, b L3-only; without allow-all, later order world deny inserted", WithoutAllowAll, 0, reservedWorldSelections, 2, worldSubnetSelections, 1, true, false, 80, 6, 0, 0, insertBoth | insertAL3NotInB},
 
-		{"deny-allow: b superset a L3L4, b L3-only", WithAllowAll, 0, worldIPSelections, 0, worldSubnetSelections, 0, true, false, 80, 6, 0, 0, insertAllowAll | insertBoth},
+		{"deny-allow: b superset a L3L4, b L3-only", WithAllowAll, 0, worldIPSelections, 0, worldSubnetSelections, 0, true, false, 80, 6, 0, 0, insertAllowAll | insertA},
 		{"deny-allow: b superset a L3L4, b L3-only; later order allows the same", WithAllowAll, 2, worldIPSelections, 0, worldSubnetSelections, 1, true, false, 80, 6, 0, 0, insertAllowAll | insertBoth},
 		{"deny-allow: b superset a L3L4, b L3-only; later order keys not inserted", WithoutAllowAll, 0, worldIPSelections, 2, worldSubnetSelections, 1, true, false, 80, 6, 0, 0, insertB},
 		{"deny-allow: b superset a L3L4, b L3-only; later order more specific deny NOT inserted", WithAllowAll, 3, worldIPSelections, 2, worldSubnetSelections, 1, true, false, 80, 6, 0, 0, insertAllowAll | insertB},
@@ -2245,8 +2285,8 @@ func TestMapState_denyPreferredInsertWithSubnets(t *testing.T) {
 		{"deny-deny: a superset a|b L3-only", WithAllowAll, 0, worldSubnetSelections, 0, worldIPSelections, 0, true, true, 0, 0, 0, 0, insertAllowAll | insertBoth},
 		{"deny-deny: a superset a|b L3-only; without allow-all", WithoutAllowAll, 0, worldSubnetSelections, 0, worldIPSelections, 0, true, true, 0, 0, 0, 0, insertBoth},
 
-		{"deny-deny: b superset a|b L3-only", WithAllowAll, 0, worldSubnetSelections, 0, reservedWorldSelections, 0, true, true, 0, 0, 0, 0, insertAllowAll | insertBoth},
-		{"deny-deny: b superset a|b L3-only; without allow-all", WithoutAllowAll, 0, worldSubnetSelections, 0, reservedWorldSelections, 0, true, true, 0, 0, 0, 0, insertBoth},
+		{"deny-deny: b superset a|b L3-only", WithAllowAll, 0, worldSubnetSelections, 0, reservedWorldSelections, 0, true, true, 0, 0, 0, 0, insertAllowAll | insertB},
+		{"deny-deny: b superset a|b L3-only; without allow-all", WithoutAllowAll, 0, worldSubnetSelections, 0, reservedWorldSelections, 0, true, true, 0, 0, 0, 0, insertB},
 
 		{"deny-deny: a superset a L3-only, b L4", WithAllowAll, 0, worldSubnetSelections, 0, worldIPSelections, 0, true, true, 0, 0, 0, 6, insertAllowAll | insertA},
 		{"deny-deny: a superset a L3-only, b L4; without allow-all", WithoutAllowAll, 0, worldSubnetSelections, 0, worldIPSelections, 0, true, true, 0, 0, 0, 6, insertA},
@@ -2269,8 +2309,8 @@ func TestMapState_denyPreferredInsertWithSubnets(t *testing.T) {
 		{"deny-deny: a superset a L4, b L4", WithAllowAll, 0, worldSubnetSelections, 0, worldIPSelections, 0, true, true, 0, 6, 0, 6, insertAllowAll | insertBoth},
 		{"deny-deny: a superset a L4, b L4; without allow-all", WithoutAllowAll, 0, worldSubnetSelections, 0, worldIPSelections, 0, true, true, 0, 6, 0, 6, insertBoth},
 
-		{"deny-deny: b superset a L4, b L4", WithAllowAll, 0, worldSubnetSelections, 0, reservedWorldSelections, 0, true, true, 0, 6, 0, 6, insertAllowAll | insertBoth},
-		{"deny-deny: b superset a L4, b L4; without allow-all", WithoutAllowAll, 0, worldSubnetSelections, 0, reservedWorldSelections, 0, true, true, 0, 6, 0, 6, insertBoth},
+		{"deny-deny: b superset a L4, b L4", WithAllowAll, 0, worldSubnetSelections, 0, reservedWorldSelections, 0, true, true, 0, 6, 0, 6, insertAllowAll | insertB},
+		{"deny-deny: b superset a L4, b L4; without allow-all", WithoutAllowAll, 0, worldSubnetSelections, 0, reservedWorldSelections, 0, true, true, 0, 6, 0, 6, insertB},
 
 		{"deny-deny: a superset a L4, b L3L4", WithAllowAll, 0, worldSubnetSelections, 0, worldIPSelections, 0, true, true, 0, 6, 80, 6, insertAllowAll | insertA},
 		{"deny-deny: a superset a L4, b L3L4; without allow-all", WithoutAllowAll, 0, worldSubnetSelections, 0, worldIPSelections, 0, true, true, 0, 6, 80, 6, insertA},
@@ -2293,13 +2333,16 @@ func TestMapState_denyPreferredInsertWithSubnets(t *testing.T) {
 		{"deny-deny: a superset a L3L4, b L3L4", WithAllowAll, 0, worldSubnetSelections, 0, worldIPSelections, 0, true, true, 80, 6, 80, 6, insertAllowAll | insertBoth},
 		{"deny-deny: a superset a L3L4, b L3L4; without allow-all", WithoutAllowAll, 0, worldSubnetSelections, 0, worldIPSelections, 0, true, true, 80, 6, 80, 6, insertBoth},
 
-		{"deny-deny: b superset a L3L4, b L3L4", WithAllowAll, 0, worldSubnetSelections, 0, reservedWorldSelections, 0, true, true, 80, 6, 80, 6, insertAllowAll | insertBoth},
-		{"deny-deny: b superset a L3L4, b L3L4; without allow-all", WithoutAllowAll, 0, worldSubnetSelections, 0, reservedWorldSelections, 0, true, true, 80, 6, 80, 6, insertBoth},
+		{"deny-deny: b superset a L3L4, b L3L4", WithAllowAll, 0, worldSubnetSelections, 0, reservedWorldSelections, 0, true, true, 80, 6, 80, 6, insertAllowAll | insertB},
+		{"deny-deny: b superset a L3L4, b L3L4; without allow-all", WithoutAllowAll, 0, worldSubnetSelections, 0, reservedWorldSelections, 0, true, true, 80, 6, 80, 6, insertB},
 
 		// allow-allow insertions do not need tests as their affect on one another does not matter.
 	}
 	for _, tt := range tests {
-		anyIngressKey := IngressKey()
+		anyIngressKeys := []types.Key{}
+		for _, nid := range AllAggregates {
+			anyIngressKeys = append(anyIngressKeys, IngressKey().WithIdentity(nid))
+		}
 		allowEntry := allowEntry().withLevel(tt.allowAllLevel)
 		var aKeys []Key
 		for _, idA := range tt.aIdentities {
@@ -2345,7 +2388,9 @@ func TestMapState_denyPreferredInsertWithSubnets(t *testing.T) {
 		bEntry := NewMapStateEntry(types.NewMapStateEntry(tt.bLevel, tt.bIsDeny, 0, 0, types.NoAuthRequirement))
 		expectedKeys := emptyMapState(hivetest.Logger(t))
 		if tt.outcome&insertAllowAll > 0 {
-			expectedKeys.insert(anyIngressKey, allowEntry)
+			for _, k := range anyIngressKeys {
+				expectedKeys.insert(k, allowEntry)
+			}
 		}
 		// insert allow expectations before deny expectations to manage overlap
 		if tt.aLevel <= tt.bLevel && tt.outcome&insertB > 0 {
@@ -2403,7 +2448,9 @@ func TestMapState_denyPreferredInsertWithSubnets(t *testing.T) {
 
 		changes := ChangeState{}
 		if tt.withAllowAll {
-			outcomeKeys.insertWithChanges(types.MaxDenyPrecedence, anyIngressKey, allowEntry, allFeatures, changes)
+			for _, k := range anyIngressKeys {
+				outcomeKeys.insertWithChanges(types.MaxDenyPrecedence, k, allowEntry, allFeatures, changes)
+			}
 		}
 		for _, idA := range tt.aIdentities {
 			aKey := IngressKey().WithIdentity(idA).WithPortProto(tt.aProto, tt.aPort)
@@ -2429,7 +2476,9 @@ func TestMapState_denyPreferredInsertWithSubnets(t *testing.T) {
 			outcomeKeys.insertWithChanges(types.MaxDenyPrecedence, aKey, aEntry, allFeatures, changes)
 		}
 		if tt.withAllowAll {
-			outcomeKeys.insertWithChanges(types.MaxDenyPrecedence, anyIngressKey, allowEntry, allFeatures, changes)
+			for _, k := range anyIngressKeys {
+				outcomeKeys.insertWithChanges(types.MaxDenyPrecedence, k, allowEntry, allFeatures, changes)
+			}
 		}
 		outcomeKeys.validatePortProto(t)
 		require.True(t, expectedKeys.Equal(&outcomeKeys), "%s (in reverse) (MapState):\n%s\nExpected:\n%s\nObtained:\n%s\n", tt.name, outcomeKeys.diff(&expectedKeys), expectedKeys, outcomeKeys)
@@ -2438,8 +2487,12 @@ func TestMapState_denyPreferredInsertWithSubnets(t *testing.T) {
 	// This should result in both entries being inserted with
 	// no changes, as they do not affect one another anymore.
 	for _, tt := range tests {
-		anyIngressKey := IngressKey()
-		anyEgressKey := EgressKey()
+		anyIngressKeys := []types.Key{}
+		anyEgressKeys := []types.Key{}
+		for _, nid := range AllAggregates {
+			anyIngressKeys = append(anyIngressKeys, IngressKey().WithIdentity(nid))
+			anyEgressKeys = append(anyEgressKeys, EgressKey().WithIdentity(nid))
+		}
 		allowEntry := allowEntry().withLevel(tt.allowAllLevel)
 		var aKeys []Key
 		for _, idA := range tt.aIdentities {
@@ -2453,25 +2506,42 @@ func TestMapState_denyPreferredInsertWithSubnets(t *testing.T) {
 		bEntry := NewMapStateEntry(types.NewMapStateEntry(tt.bLevel, tt.bIsDeny, 0, 0, types.NoAuthRequirement))
 		expectedKeys := emptyMapState(hivetest.Logger(t))
 		if tt.outcome&insertAllowAll > 0 {
-			expectedKeys.insert(anyIngressKey, allowEntry)
-			expectedKeys.insert(anyEgressKey, allowEntry)
+			for _, k := range anyIngressKeys {
+				expectedKeys.insert(k, allowEntry)
+			}
+			for _, k := range anyEgressKeys {
+				expectedKeys.insert(k, allowEntry)
+			}
 		}
-		if tt.withAllowAll == WithoutAllowAll || (!tt.aIsDeny && tt.aLevel < tt.allowAllLevel) || tt.aLevel <= tt.allowAllLevel {
-			for _, aKey := range aKeys {
+
+		// Will the A or B keys be aggregated to a wildcard?
+		// If not, they are expected.
+		for _, aKey := range aKeys {
+			if tt.withAllowAll == WithoutAllowAll ||
+				aKey.LPMKey != anyIngressKeys[0].LPMKey ||
+				!aEntry.equivalent(allowEntry) {
+
 				expectedKeys.insert(aKey, aEntry)
 			}
 		}
-		if tt.withAllowAll == WithoutAllowAll || (!tt.bIsDeny && tt.bLevel < tt.allowAllLevel) || tt.bLevel <= tt.allowAllLevel {
-			for _, bKey := range bKeys {
+
+		for _, bKey := range bKeys {
+			if tt.withAllowAll == WithoutAllowAll ||
+				bKey.LPMKey != anyEgressKeys[0].LPMKey ||
+				!bEntry.equivalent(allowEntry) {
+
 				expectedKeys.insert(bKey, bEntry)
 			}
 		}
+
 		outcomeKeys := emptyMapState(hivetest.Logger(t))
 
 		changes := ChangeState{}
 		if tt.withAllowAll {
-			outcomeKeys.insertWithChanges(types.MaxDenyPrecedence, anyIngressKey, allowEntry, allFeatures, changes)
-			outcomeKeys.insertWithChanges(types.MaxDenyPrecedence, anyEgressKey, allowEntry, allFeatures, changes)
+			for i := range len(anyEgressKeys) {
+				outcomeKeys.insertWithChanges(types.MaxDenyPrecedence, anyIngressKeys[i], allowEntry, allFeatures, changes)
+				outcomeKeys.insertWithChanges(types.MaxDenyPrecedence, anyEgressKeys[i], allowEntry, allFeatures, changes)
+			}
 		}
 		for _, aKey := range aKeys {
 			outcomeKeys.insertWithChanges(types.MaxDenyPrecedence, aKey, aEntry, allFeatures, changes)
@@ -2492,8 +2562,10 @@ func TestMapState_denyPreferredInsertWithSubnets(t *testing.T) {
 			outcomeKeys.insertWithChanges(types.MaxDenyPrecedence, aKey, aEntry, allFeatures, changes)
 		}
 		if tt.withAllowAll {
-			outcomeKeys.insertWithChanges(types.MaxDenyPrecedence, anyEgressKey, allowEntry, allFeatures, changes)
-			outcomeKeys.insertWithChanges(types.MaxDenyPrecedence, anyIngressKey, allowEntry, allFeatures, changes)
+			for i := range len(anyEgressKeys) {
+				outcomeKeys.insertWithChanges(types.MaxDenyPrecedence, anyEgressKeys[i], allowEntry, allFeatures, changes)
+				outcomeKeys.insertWithChanges(types.MaxDenyPrecedence, anyIngressKeys[i], allowEntry, allFeatures, changes)
+			}
 		}
 		outcomeKeys.validatePortProto(t)
 		require.True(t, expectedKeys.Equal(&outcomeKeys), "%s different traffic directions (in reverse) (MapState):\n%s", tt.name, outcomeKeys.diff(&expectedKeys))
@@ -2533,17 +2605,6 @@ func TestDenyPreferredInsertLogic(t *testing.T) {
 	n := epPolicy.policyMapState.Len()
 	p.Detach()
 	assert.Positive(t, n)
-}
-
-// equalsMapState determines if this mapState is deeply equal to the argument mapStateMap
-func (msA *mapState) equalsMapState(msB mapStateMap) bool {
-	if msA.Len() != len(msB) {
-		return false
-	}
-	return msA.forEach(func(kA Key, vA mapStateEntry) bool {
-		vB, ok := msB[kA]
-		return ok && vB.Equal(vA)
-	})
 }
 
 func (obtained *mapState) diffMapState(expected mapStateMap) (res string) {
@@ -3136,7 +3197,6 @@ func TestMapState_orderedMapStateValidation(t *testing.T) {
 			name := fmt.Sprintf("%s combination %v (limits %v)", tt.name, tierPermutation, tierLimits)
 			t.Run(name, func(t *testing.T) {
 				//t.Parallel()
-				t.Log(name)
 				changes := ChangeState{
 					Adds:    make(Keys),
 					Deletes: make(Keys),
@@ -3150,13 +3210,20 @@ func TestMapState_orderedMapStateValidation(t *testing.T) {
 				for tier, perm := range tierPermutation {
 					for _, i := range tierPermutations[tier][perm] {
 						tierMaxPrecedence := tt.tiers[tier].basePriority.ToDenyPrecedence()
-						ms.insertWithChanges(tierMaxPrecedence, tierEntries[tier][i].key, tierEntries[tier][i].entry, features, changes)
+						if tierEntries[tier][i].key.Identity == 0 {
+							for _, nid := range AllAggregates {
+								ms.insertWithChanges(tierMaxPrecedence, tierEntries[tier][i].key.WithIdentity(nid), tierEntries[tier][i].entry, features, changes)
+							}
+						} else {
+							ms.insertWithChanges(tierMaxPrecedence, tierEntries[tier][i].key, tierEntries[tier][i].entry, features, changes)
+						}
 					}
 				}
 
 				// validate mapState
 				ms.validatePortProto(t)
-				require.Truef(t, ms.equalsMapState(tt.want), "%s: MapState mismatch on permutation %v:\n%s", tt.name, tierPermutation, ms.diffMapState(tt.want))
+				wantMapState := testMapState(t, tt.want)
+				require.Truef(t, ms.Equal(&wantMapState), "%s: MapState mismatch on permutation %v:\n%s", tt.name, tierPermutation, ms.diff(&wantMapState))
 
 				// run probes
 				for _, probe := range tt.probes {
@@ -3330,6 +3397,9 @@ func TestMapState_passValidation(t *testing.T) {
 					}
 
 					adds := identity.NumericIdentitySlice{key.Identity}
+					if key.Identity == 0 { // ID 0 is shorthand for all aggregates - expand here.
+						adds = AllAggregates
+					}
 					epPolicy.policyMapChanges.AccumulateMapChanges(types.Tier(tier), basePriority, adds, nil, key, entry)
 				}
 			}
@@ -3346,7 +3416,8 @@ func TestMapState_passValidation(t *testing.T) {
 				require.Equal(t, wantKeys, changes.Adds, tt.name+" (adds)")
 				require.Equal(t, Keys{}, changes.Deletes, tt.name+" (deletes)")
 
-				require.Truef(t, epPolicy.policyMapState.equalsMapState(tt.want), "%s: MapState mismatch:\n%s", tt.name, epPolicy.policyMapState.diffMapState(tt.want))
+				wantMapState := testMapState(t, tt.want)
+				require.Truef(t, epPolicy.policyMapState.Equal(&wantMapState), "%s: MapState mismatch:\n%s", tt.name, epPolicy.policyMapState.diffMapState(tt.want))
 			}
 			// run probes
 			for i, probe := range tt.probes {
