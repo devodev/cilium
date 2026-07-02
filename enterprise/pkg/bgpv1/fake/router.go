@@ -41,6 +41,10 @@ func (f *EnterpriseFakeRouter) GetBGPExtended(ctx context.Context) (*ceeTypes.Ge
 	return nil, fmt.Errorf("GetBGPExtended is not implemented in the fake router")
 }
 
+func (f *EnterpriseFakeRouter) GetPeerStateExtended(ctx context.Context, r *ceeTypes.GetPeerStateExtendedRequest) (*ceeTypes.GetPeerStateExtendedResponse, error) {
+	return nil, fmt.Errorf("GetPeerStateExtended is not implemented in the fake router")
+}
+
 func (f *EnterpriseFakeRouter) ResetNeighbor(ctx context.Context, r ossTypes.ResetNeighborRequest) error {
 	if r.Soft {
 		f.Resets[r.PeerAddress] = r.SoftResetDirection

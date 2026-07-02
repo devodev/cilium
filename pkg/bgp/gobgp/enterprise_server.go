@@ -12,9 +12,11 @@ package gobgp
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/netip"
 
 	gobgp "github.com/osrg/gobgp/v4/api"
 	"github.com/osrg/gobgp/v4/pkg/apiutil"
@@ -23,6 +25,7 @@ import (
 
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
 	ossTypes "github.com/cilium/cilium/pkg/bgp/types"
+	v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/time"
 )
@@ -160,6 +163,107 @@ func (g *GoBGPServer) GetBGPExtended(ctx context.Context) (*types.GetBGPExtended
 	return &types.GetBGPExtendedResponse{
 		Global: res,
 	}, nil
+}
+
+// GetPeerStateExtended retrieves BGP peering state from underlying GoBGP server.
+func (g *GoBGPServer) GetPeerStateExtended(ctx context.Context, r *types.GetPeerStateExtendedRequest) (*types.GetPeerStateExtendedResponse, error) {
+	var res types.GetPeerStateExtendedResponse
+
+	fn := func(peer *gobgp.Peer) {
+		if peer == nil {
+			return
+		}
+
+		state := ossTypes.PeerState{}
+
+		if peer.Transport != nil {
+			state.Port = int64(peer.Transport.RemotePort)
+		}
+
+		if peer.Conf != nil {
+			if peer.Conf.Description != "" {
+				pd := peerDescription{}
+				if err := json.Unmarshal([]byte(peer.Conf.Description), &pd); err == nil {
+					// If unmarshal is not successful, we
+					// ignore and do not set Name field.
+					state.Name = pd.Name
+				}
+			}
+			// We can just ignore error here. In that case, the addr
+			// is invalid. Caller is responsible for handling the
+			// invalid case.
+			addr, _ := netip.ParseAddr(peer.Conf.NeighborAddress)
+			state.Address = addr
+			state.LocalAsn = int64(peer.Conf.LocalAsn)
+			state.PeerAsn = int64(peer.Conf.PeerAsn)
+			state.TCPPasswordEnabled = peer.Conf.AuthPassword != ""
+		}
+
+		if peer.State != nil {
+			if peer.Conf.PeerAsn == 0 { // if peerAsn is not set, use peer state peerAsn
+				state.PeerAsn = int64(peer.State.PeerAsn)
+			}
+
+			state.SessionState = toAgentSessionState(peer.State.SessionState)
+			state.LocalCapabilities = toAgentCap(peer.State.LocalCap)
+			state.RemoteCapabilities = toAgentCap(peer.State.RemoteCap)
+
+			// Uptime is time since session got established. It is
+			// calculated by difference in time from uptime
+			// timestamp till now.
+			if peer.State.SessionState == gobgp.PeerState_SESSION_STATE_ESTABLISHED && peer.Timers != nil && peer.Timers.State != nil {
+				state.Uptime = time.Since(peer.Timers.State.Uptime.AsTime())
+			}
+		}
+
+		for _, afiSafi := range peer.AfiSafis {
+			if afiSafi.State == nil || afiSafi.State.Family == nil {
+				continue
+			}
+			state.Families = append(state.Families, toAgentAfiSafiState(afiSafi.State))
+		}
+
+		if peer.EbgpMultihop != nil && peer.EbgpMultihop.Enabled {
+			state.EbgpMultihopTTL = int64(peer.EbgpMultihop.MultihopTtl)
+		} else {
+			state.EbgpMultihopTTL = int64(v2.DefaultBGPEBGPMultihopTTL) // defaults to 1 if not enabled
+		}
+
+		if peer.Timers != nil {
+			tConfig := peer.Timers.Config
+			tState := peer.Timers.State
+			if tConfig != nil {
+				state.Timers.ConnectRetryTime = time.Duration(tConfig.ConnectRetry) * time.Second
+				state.Timers.ConfiguredHoldTime = time.Duration(tConfig.HoldTime) * time.Second
+				state.Timers.ConfiguredKeepAliveTime = time.Duration(tConfig.KeepaliveInterval) * time.Second
+			}
+			if tState != nil {
+				if tState.NegotiatedHoldTime != 0 {
+					state.Timers.AppliedHoldTime = time.Duration(tState.NegotiatedHoldTime) * time.Second
+				}
+				if tState.KeepaliveInterval != 0 {
+					state.Timers.AppliedKeepAliveTime = time.Duration(tState.KeepaliveInterval) * time.Second
+				}
+			}
+		}
+
+		state.GracefulRestart = ossTypes.BgpGracefulRestart{}
+		if peer.GracefulRestart != nil {
+			state.GracefulRestart.Enabled = peer.GracefulRestart.Enabled
+			state.GracefulRestart.RestartTime = time.Duration(peer.GracefulRestart.RestartTime) * time.Second
+		}
+
+		res.Peers = append(res.Peers, state)
+	}
+
+	// API to get peering list from gobgp, enableAdvertised is set to true
+	// to get count of advertised routes.
+	err := g.server.ListPeer(ctx, &gobgp.ListPeerRequest{EnableAdvertised: true}, fn)
+	if err != nil {
+		return nil, err
+	}
+
+	return &res, nil
 }
 
 func (g *GoBGPServer) GetRoutesExtended(ctx context.Context, r *types.GetRoutesExtendedRequest) (*types.GetRoutesExtendedResponse, error) {

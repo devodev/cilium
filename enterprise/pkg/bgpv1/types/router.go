@@ -31,6 +31,9 @@ type EnterpriseRouter interface {
 	// underlying router.
 	GetBGPExtended(ctx context.Context) (*GetBGPExtendedResponse, error)
 
+	// GetPeerStateExtended retrieves BGP peer states from the underlying router.
+	GetPeerStateExtended(ctx context.Context, r *GetPeerStateExtendedRequest) (*GetPeerStateExtendedResponse, error)
+
 	// GetRoutesExtended retrieves routes from the RIB of underlying router
 	// implementation. The reply contains extended enterprise-specific
 	// route information.
@@ -59,6 +62,14 @@ type EnterpriseRouterProvider interface {
 
 type GetBGPExtendedResponse struct {
 	Global ossTypes.BGPGlobal
+}
+
+type GetPeerStateExtendedRequest struct {
+	ossTypes.GetPeerStateRequest
+}
+
+type GetPeerStateExtendedResponse struct {
+	Peers []ossTypes.PeerState
 }
 
 type GetRoutesExtendedRequest struct {

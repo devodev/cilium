@@ -273,6 +273,29 @@ func (m *BGPRouterManager) GetPeers(ctx context.Context, req *ossAgent.GetPeersR
 	return &res, nil
 }
 
+func (m *BGPRouterManager) GetPeersExtended(ctx context.Context, req *agent.GetPeersExtendedRequest) (*agent.GetPeersExtendedResponse, error) {
+	m.RLock()
+	defer m.RUnlock()
+
+	if !m.running {
+		return nil, fmt.Errorf("bgp router manager is not running")
+	}
+
+	var res agent.GetPeersExtendedResponse
+	for _, i := range m.BGPInstances {
+		r, err := i.Router.GetPeerStateExtended(ctx, &entTypes.GetPeerStateExtendedRequest{})
+		if err != nil {
+			return nil, err
+		}
+		res.Instances = append(res.Instances, agent.InstancePeerStatesExtended{
+			Name:  i.Name,
+			Peers: r.Peers,
+		})
+	}
+
+	return &res, nil
+}
+
 // GetPeersLegacy gets peering state from previously initialized bgp instances.
 func (m *BGPRouterManager) GetPeersLegacy(ctx context.Context) ([]*models.BgpPeer, error) {
 	m.RLock()

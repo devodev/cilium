@@ -26,6 +26,9 @@ type EnterpriseBGPRouterManager interface {
 	// GetGlobalsExtended returns global BGP configuration of all BGP instances.
 	GetGlobalsExtended(ctx context.Context) (*GetGlobalsResponse, error)
 
+	// GetPeersExtended returns BGP peer states of all BGP instances.
+	GetPeersExtended(ctx context.Context, req *GetPeersExtendedRequest) (*GetPeersExtendedResponse, error)
+
 	// GetRoutesExtended returns BGP routes of the specified BGP instance from underlying router.
 	// If BGP instance is not specified, returns the result of all instances.
 	GetRoutesExtended(ctx context.Context, req *GetRoutesExtendedRequest) (*GetRoutesExtendedResponse, error)
@@ -52,6 +55,16 @@ type GetRoutesExtendedRequest struct {
 	Family    ossTypes.Family
 }
 
+// GetPeersExtendedRequest is a request for GetPeersExtended method.
+type GetPeersExtendedRequest struct {
+	ossAgent.GetPeersRequest
+}
+
+// GetPeersExtendedResponse is the response type for GetPeersExtended method.
+type GetPeersExtendedResponse struct {
+	Instances []InstancePeerStatesExtended
+}
+
 // GetRoutesExtendedResponse is the response type for GetRoutesExtended method.
 type GetRoutesExtendedResponse struct {
 	Instances []InstanceRoutesExtended
@@ -61,6 +74,12 @@ type GetRoutesExtendedResponse struct {
 type InstanceGlobal struct {
 	Name   string
 	Global ossTypes.BGPGlobal
+}
+
+// InstancePeerStatesExtended holds peer states for a specific BGP instance.
+type InstancePeerStatesExtended struct {
+	Name  string
+	Peers []ossTypes.PeerState
 }
 
 // InstanceRoutesExtended holds routes for a specific BGP instance.
