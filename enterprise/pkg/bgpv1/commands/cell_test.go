@@ -37,6 +37,7 @@ func TestBGPCommandOverride(t *testing.T) {
 			enterpriseEnabled: true,
 			check: func(t *testing.T, bgpCommands ossCommands.BGPCommands, commands map[string]script.Cmd) {
 				// Override should occur
+				require.NotNil(t, bgpCommands["bgp/globals"])
 				require.NotNil(t, bgpCommands["bgp/routes"])
 				require.NotNil(t, bgpCommands["bgp/route-policies"])
 			},
@@ -46,6 +47,7 @@ func TestBGPCommandOverride(t *testing.T) {
 			enterpriseEnabled: false,
 			check: func(t *testing.T, bgpCommands ossCommands.BGPCommands, commands map[string]script.Cmd) {
 				// No override should occur
+				require.Nil(t, bgpCommands["bgp/globals"])
 				require.Nil(t, bgpCommands["bgp/routes"])
 				require.Nil(t, bgpCommands["bgp/route-policies"])
 			},
@@ -81,6 +83,7 @@ func TestBGPCommandOverride(t *testing.T) {
 						// the enterprise-extended
 						// commands.
 						return ossCommands.BGPCommands{
+							"bgp/globals":        nil,
 							"bgp/routes":         nil,
 							"bgp/route-policies": nil,
 						}
@@ -94,6 +97,7 @@ func TestBGPCommandOverride(t *testing.T) {
 			require.NoError(t, h.Populate(hivetest.Logger(t)))
 
 			// The commands should always be present.
+			require.Contains(t, bgpCommands, "bgp/globals")
 			require.Contains(t, bgpCommands, "bgp/routes")
 			require.Contains(t, bgpCommands, "bgp/route-policies")
 
