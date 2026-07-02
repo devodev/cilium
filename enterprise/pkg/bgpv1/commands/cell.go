@@ -33,7 +33,7 @@ var Cell = cell.Group(
 				// enterprise-extended versions when the enterprise
 				// BGP Control Plane is enabled.
 				ossCmds["bgp/globals"] = BGPGlobalsCmd(bgpMgr)
-				ossCmds["bgp/peers"] = ossCommands.BGPPeersCmd(bgpMgr)
+				ossCmds["bgp/peers"] = BGPPeersCmd(bgpMgr)
 				ossCmds["bgp/routes"] = BGPRoutesCmd(bgpMgr, errorPathStore)
 				ossCmds["bgp/route-policies"] = BGPPRoutePolicies(bgpMgr)
 			}
