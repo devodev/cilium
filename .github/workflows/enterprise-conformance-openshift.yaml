@@ -128,7 +128,7 @@ jobs:
           echo sha=${sha} >> $GITHUB_OUTPUT
 
       - name: Login to Artifactory
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        uses: docker/login-action@c99871dec2022cc055c062a10cc1a1310835ceb4 # v4.3.0
         with:
           registry: ${{ env.ARTIFACTORY_DEV }}
           username: ${{ vars.ARTIFACTORY_USERNAME }}
@@ -157,7 +157,7 @@ jobs:
 
       - name: Login to registry.redhat.io for pulling images
         if: ${{ steps.wait_images.outputs.rebuild_clife  == 'true' }}
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        uses: docker/login-action@c99871dec2022cc055c062a10cc1a1310835ceb4 # v4.3.0
         with:
           registry: registry.redhat.io
           username: ${{ secrets.REDHAT_USERNAME_CI }}
@@ -373,7 +373,7 @@ jobs:
           role-duration-seconds: 5400
 
       - name: Login to Artifactory for Cilium CLI
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        uses: docker/login-action@c99871dec2022cc055c062a10cc1a1310835ceb4 # v4.3.0
         with:
           registry: ${{ env.ARTIFACTORY_DEV }}
           username: ${{ vars.ARTIFACTORY_USERNAME }}
