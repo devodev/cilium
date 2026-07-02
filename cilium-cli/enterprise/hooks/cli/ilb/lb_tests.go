@@ -118,4 +118,5 @@ var Tests = []func(t T){
 	TestWAFBlocksInlineRuleAttack,
 	TestWAFBlocksCustomProfileWithInlineRuleAttack,
 	TestWAFMonitorsManagedProfileAttacks,
+	TestWAFMultipleMatchingPoliciesUseOldest,
 }

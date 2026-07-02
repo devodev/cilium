@@ -219,6 +219,47 @@ func TestWAFBlocksInlineRuleAttack(t T) {
 	env.eventuallyResponseWithHeaders(hostName, path, map[string]string{"User-Agent": "Nessus"}, "403", "blocked by waf", nil)
 }
 
+func TestWAFMultipleMatchingPoliciesUseOldest(t T) {
+	testName := "waf-multiple-matching-policies-use-oldest"
+	hostName := "insecure.acme.io"
+	path := "/api/foo-insecure"
+
+	env := newWAFTestEnv(t,
+		testName,
+		hostName,
+		path,
+		wafPolicy(
+			testName+"-first",
+			wafLabelValue,
+			withWAFEnabled(true),
+			withWAFMode(isovalentv1alpha1.IsovalentWAFPolicyModeEnforce),
+			withWAFInlineRules(`SecRule REQUEST_HEADERS:User-Agent "@streq Nessus" "id:1000,phase:1,deny,status:403,msg:'block Nessus user-agent'"`),
+		),
+		wafPolicy(
+			testName+"-second",
+			wafLabelValue,
+			withWAFEnabled(true),
+			withWAFMode(isovalentv1alpha1.IsovalentWAFPolicyModeEnforce),
+			withWAFInlineRules(`SecRule REQUEST_HEADERS:X-Block-Second "@streq true" "id:1001,phase:1,deny,status:403,msg:'block second policy header'"`),
+		))
+	if env == nil {
+		return
+	}
+
+	path = "/api/foo-insecure-reconciled"
+	t.Log("Updating LBService route after both matching WAF policies are accepted to trigger LB reconciliation...")
+	env.updateHTTPRoutePath(path)
+
+	t.Log("Testing benign request on the updated route...")
+	env.eventuallyResponseWithHeaders(hostName, path, nil, "200", "", nil)
+
+	t.Log("Testing request blocked by the oldest matching WAF policy...")
+	env.eventuallyResponseWithHeaders(hostName, path, map[string]string{"User-Agent": "Nessus"}, "403", "blocked by waf", nil)
+
+	t.Log("Testing request allowed by the non-owning matching WAF policy...")
+	env.eventuallyResponseWithHeaders(hostName, path, map[string]string{"X-Block-Second": "true"}, "200", "", nil)
+}
+
 func TestWAFBlocksCustomProfileWithInlineRuleAttack(t T) {
 	testName := "waf-blocks-custom-profile-inline-rule-attack"
 	hostName := "insecure.acme.io"
@@ -255,7 +296,7 @@ func TestWAFBlocksCustomProfileWithInlineRuleAttack(t T) {
 	env.eventuallyResponseWithHeaders(hostName, path+attacks[0].query, nil, "403", "blocked by waf", nil)
 }
 
-func newWAFTestEnv(t T, testName, hostName, path string, policy *isovalentv1alpha1.IsovalentWAFPolicy) *wafTestEnv {
+func newWAFTestEnv(t T, testName, hostName, path string, policies ...*isovalentv1alpha1.IsovalentWAFPolicy) *wafTestEnv {
 	ciliumCli, k8sCli := NewCiliumAndK8sCli(t)
 	if skipIfWAFDisabled(t, k8sCli, "WAF is not enabled in cilium-config") {
 		return nil
@@ -291,10 +332,12 @@ func newWAFTestEnv(t T, testName, hostName, path string, policy *isovalentv1alph
 	scenario.createLBService(service)
 
 	t.Log("Creating IsovalentWAFPolicy resources...")
-	scenario.createWAFPolicy(policy)
+	for _, policy := range policies {
+		scenario.createWAFPolicy(policy)
+		scenario.waitForWAFPolicyAccepted(policy.Name)
+	}
 
-	t.Log("Waiting for policy acceptance and full VIP connectivity...")
-	scenario.waitForWAFPolicyAccepted(testName)
+	t.Log("Waiting for full VIP connectivity...")
 	vip := scenario.waitForFullVIPConnectivityInclIPv6(testName)
 
 	vipIP := vip.IPv4Formatted()
@@ -317,6 +360,26 @@ func (e *wafTestEnv) expectStatus(hostName, path, expected string) {
 	}
 	if stdout != expected {
 		e.scenario.t.Failedf("unexpected response code (cmd: %q, stdout: %q, stderr: %q)", testCmd, stdout, stderr)
+	}
+}
+
+func (e *wafTestEnv) updateHTTPRoutePath(path string) {
+	lbsvc, err := e.scenario.ciliumCli.GetLBService(e.scenario.t.Context(), e.scenario.k8sNamespace, e.scenario.testName, metav1.GetOptions{})
+	if err != nil {
+		e.scenario.t.Failedf("failed to get LBService %q: %s", e.scenario.testName, err)
+	}
+	if lbsvc.Spec.Applications.HTTPProxy == nil || len(lbsvc.Spec.Applications.HTTPProxy.Routes) == 0 {
+		e.scenario.t.Failedf("LBService %q has no HTTP proxy route", e.scenario.testName)
+	}
+
+	route := &lbsvc.Spec.Applications.HTTPProxy.Routes[0]
+	if route.Match == nil {
+		route.Match = &isovalentv1alpha1.LBServiceHTTPRouteMatch{}
+	}
+	route.Match.Path = &isovalentv1alpha1.LBServiceHTTPPath{Exact: ptr.To(path)}
+
+	if err := e.scenario.ciliumCli.UpdateLBService(e.scenario.t.Context(), e.scenario.k8sNamespace, lbsvc, metav1.UpdateOptions{}); err != nil {
+		e.scenario.t.Failedf("failed to update LBService %q route path: %s", e.scenario.testName, err)
 	}
 }
 

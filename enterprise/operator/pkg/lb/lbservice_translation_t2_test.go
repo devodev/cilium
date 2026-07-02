@@ -237,8 +237,8 @@ func (e *testHTTPRouteExtension) WatchNamespaceScoped() []client.Object {
 	return nil
 }
 
-func (e *testHTTPRouteExtension) Resolve(context.Context, lbextension.Target) (lbextension.State, error) {
-	return nil, nil
+func (e *testHTTPRouteExtension) Resolve(context.Context, lbextension.Target) (lbextension.ResolveResult, error) {
+	return lbextension.ResolveResult{}, nil
 }
 
 func (e *testHTTPRouteExtension) HTTPFilters(types.NamespacedName, lbextension.State) ([]lbextension.HTTPFilter, error) {
@@ -276,8 +276,8 @@ func (e *testAccessLogExtension) WatchNamespaceScoped() []client.Object {
 	return nil
 }
 
-func (e *testAccessLogExtension) Resolve(context.Context, lbextension.Target) (lbextension.State, error) {
-	return nil, nil
+func (e *testAccessLogExtension) Resolve(context.Context, lbextension.Target) (lbextension.ResolveResult, error) {
+	return lbextension.ResolveResult{}, nil
 }
 
 func (e *testAccessLogExtension) HTTPFilters(types.NamespacedName, lbextension.State) ([]lbextension.HTTPFilter, error) {

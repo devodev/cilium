@@ -59,6 +59,12 @@ type EffectiveConfig struct {
 	HandlingOverrides EffectiveHandlingOverrides
 }
 
+// Resolution describes the outcome of resolving WAF configuration for a target.
+type Resolution struct {
+	Config         *EffectiveConfig
+	DeferReconcile bool
+}
+
 type PolicyTarget struct {
 	GroupKind      schema.GroupKind
 	NamespacedName types.NamespacedName
@@ -170,66 +176,52 @@ func (r *Resolver) Enabled() bool {
 	return r.defaults.Enabled
 }
 
-func (r *Resolver) ResolveConfig(ctx context.Context, target PolicyTarget) (*EffectiveConfig, error) {
+func (r *Resolver) ResolveConfig(ctx context.Context, target PolicyTarget) (Resolution, error) {
 	if !r.Enabled() {
-		return nil, nil
+		return Resolution{}, nil
 	}
 
 	policies, err := r.loadPolicies(ctx, target.NamespacedName.Namespace)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load IsovalentWAFPolicies: %w", err)
+		return Resolution{}, fmt.Errorf("failed to load IsovalentWAFPolicies: %w", err)
 	}
 
-	if len(policies) == 0 {
-		return nil, nil
-	}
-
-	matches, pending, err := matchPolicies(target, policies)
+	matches, err := matchPolicies(target, policies)
 	if err != nil {
-		return nil, err
-	}
-
-	if len(pending) > 0 {
-		r.logger.Debug(
-			"matching WAF policies are still pending validation, deferring WAF config resolution",
-			logfields.K8sNamespace, target.NamespacedName.Namespace,
-			logfields.Service, target.NamespacedName.Name,
-			logfields.PolicyLogString, policiesToString(pending),
-		)
-		return nil, nil
+		return Resolution{}, err
 	}
 
 	if len(matches) == 0 {
 		r.logger.Debug(
-			"no accepted WAF policy matches LBService, skipping WAF config resolution for this reconcile",
+			"no WAF policy matches LBService, skipping WAF config resolution for this reconcile",
 			logfields.K8sNamespace, target.NamespacedName.Namespace,
 			logfields.Service, target.NamespacedName.Name,
 		)
-		return nil, nil
+		return Resolution{}, nil
 	}
+
+	policy, timestampTie := selectOwningPolicy(matches)
 
 	if len(matches) > 1 {
 		r.logger.Warn(
-			"multiple accepted WAF policies match LBService, skipping WAF config resolution for this reconcile",
+			"multiple WAF policies match LBService, using the oldest policy for this reconcile",
 			logfields.K8sNamespace, target.NamespacedName.Namespace,
 			logfields.Service, target.NamespacedName.Name,
 			logfields.PolicyLogString, policiesToString(matches),
+			logfields.PolicyEntry, policy,
 		)
-		return nil, nil
 	}
 
-	config, err := r.policyToConfig(matches[0])
-	if err != nil {
-		return nil, fmt.Errorf("failed to resolve effective WAF config: %w", err)
+	if timestampTie {
+		r.logger.Warn(
+			"multiple WAF policies match LBService and have the same creation timestamp, the first policy returned by the API server was selected",
+			logfields.K8sNamespace, target.NamespacedName.Namespace,
+			logfields.Service, target.NamespacedName.Name,
+			logfields.PolicyEntry, policy,
+		)
 	}
 
-	r.logger.Debug(
-		"resolved effective WAF config for LBService",
-		logfields.K8sNamespace, target.NamespacedName.Namespace,
-		logfields.Service, target.NamespacedName.Name,
-		logfields.PolicyLogString, policiesToString(matches),
-	)
-	return &config, nil
+	return r.configForPolicy(target, policy)
 }
 
 func (r *Resolver) loadPolicies(ctx context.Context, namespace string) ([]isovalentv1alpha1.IsovalentWAFPolicy, error) {
@@ -241,35 +233,38 @@ func (r *Resolver) loadPolicies(ctx context.Context, namespace string) ([]isoval
 	return policyList.Items, nil
 }
 
-func matchPolicies(
-	target PolicyTarget,
-	policies []isovalentv1alpha1.IsovalentWAFPolicy,
-) ([]*isovalentv1alpha1.IsovalentWAFPolicy, []*isovalentv1alpha1.IsovalentWAFPolicy, error) {
-	matches := make([]*isovalentv1alpha1.IsovalentWAFPolicy, 0)
-	pending := make([]*isovalentv1alpha1.IsovalentWAFPolicy, 0)
-
-	for i := range policies {
-		policy := &policies[i]
-		if policy.Namespace != target.NamespacedName.Namespace {
-			continue
-		}
-		match, err := matchesTarget(policy.Spec.Targets, target)
-		if err != nil {
-			return nil, nil, fmt.Errorf("policy %s/%s has invalid target selector: %w", policy.Namespace, policy.Name, err)
-		}
-		if !match {
-			continue
-		}
-
-		switch stateFor(policy) {
-		case policyStatePending:
-			pending = append(pending, policy)
-		case policyStateAccepted:
-			matches = append(matches, policy)
-		}
+func (r *Resolver) configForPolicy(target PolicyTarget, policy *isovalentv1alpha1.IsovalentWAFPolicy) (Resolution, error) {
+	switch stateFor(policy) {
+	case policyStateRejected:
+		r.logger.Warn(
+			"matched WAF policy rejected, skipping WAF config resolution for this reconcile",
+			logfields.K8sNamespace, target.NamespacedName.Namespace,
+			logfields.Service, target.NamespacedName.Name,
+			logfields.PolicyEntry, policy,
+		)
+		return Resolution{}, nil
+	case policyStatePending:
+		r.logger.Warn(
+			"matched WAF policy is pending validation, deferring WAF config resolution",
+			logfields.K8sNamespace, target.NamespacedName.Namespace,
+			logfields.Service, target.NamespacedName.Name,
+			logfields.PolicyEntry, policy,
+		)
+		return Resolution{DeferReconcile: true}, nil
 	}
 
-	return matches, pending, nil
+	config, err := r.policyToConfig(policy)
+	if err != nil {
+		return Resolution{}, fmt.Errorf("failed to resolve effective WAF config: %w", err)
+	}
+
+	r.logger.Debug(
+		"resolved effective WAF config for LBService",
+		logfields.K8sNamespace, target.NamespacedName.Namespace,
+		logfields.Service, target.NamespacedName.Name,
+		logfields.PolicyEntry, policy,
+	)
+	return Resolution{Config: &config}, nil
 }
 
 func (r *Resolver) policyToConfig(policy *isovalentv1alpha1.IsovalentWAFPolicy) (EffectiveConfig, error) {
@@ -323,6 +318,47 @@ func (r *Resolver) policyProfileName(policy *isovalentv1alpha1.IsovalentWAFPolic
 		return policy.Spec.Rules.Profile.Managed.Name
 	}
 	return r.defaults.PolicyProfile
+}
+
+func matchPolicies(target PolicyTarget, policies []isovalentv1alpha1.IsovalentWAFPolicy) ([]*isovalentv1alpha1.IsovalentWAFPolicy, error) {
+	matches := make([]*isovalentv1alpha1.IsovalentWAFPolicy, 0)
+
+	for i := range policies {
+		policy := &policies[i]
+		if policy.Namespace != target.NamespacedName.Namespace {
+			continue
+		}
+		match, err := matchesTarget(policy.Spec.Targets, target)
+		if err != nil {
+			return nil, fmt.Errorf("policy %s/%s has invalid target selector: %w", policy.Namespace, policy.Name, err)
+		}
+		if match {
+			matches = append(matches, policy)
+		}
+	}
+
+	return matches, nil
+}
+
+func selectOwningPolicy(matches []*isovalentv1alpha1.IsovalentWAFPolicy) (*isovalentv1alpha1.IsovalentWAFPolicy, bool) {
+	if len(matches) == 1 {
+		return matches[0], false
+	}
+
+	policy := matches[0]
+	timestampTie := false
+	for i := 1; i < len(matches); i++ {
+		if matches[i].CreationTimestamp.Time.Before(policy.CreationTimestamp.Time) {
+			policy = matches[i]
+			timestampTie = false
+			continue
+		}
+		if matches[i].CreationTimestamp.Time.Equal(policy.CreationTimestamp.Time) {
+			timestampTie = true
+		}
+	}
+
+	return policy, timestampTie
 }
 
 func policyRulesSource(policy *isovalentv1alpha1.IsovalentWAFPolicy) EffectiveRuleSource {

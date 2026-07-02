@@ -66,7 +66,7 @@ func TestResolverResolveConfig(t *testing.T) {
 	testCases := []struct {
 		desc     string
 		objects  []ctrlClient.Object
-		expected *EffectiveConfig
+		expected Resolution
 	}{
 		{
 			desc: "no accepted match returns nil",
@@ -78,11 +78,11 @@ func TestResolverResolveConfig(t *testing.T) {
 				)
 				return &policy
 			}()},
-			expected: nil,
+			expected: Resolution{},
 		},
 		{
 			desc:     "no policies returns nil",
-			expected: nil,
+			expected: Resolution{},
 		},
 		{
 			desc: "applies matching accepted policy overrides",
@@ -99,13 +99,15 @@ func TestResolverResolveConfig(t *testing.T) {
 				}
 				return &policy
 			}()},
-			expected: &EffectiveConfig{
-				Enabled:     true,
-				Mode:        mode,
-				FailureMode: defaults.FailureMode,
-				Rules: EffectiveRules{
-					Source: EffectiveRuleSourceInline,
-					Inline: mustInlineRulesForTest(t, inline),
+			expected: Resolution{
+				Config: &EffectiveConfig{
+					Enabled:     true,
+					Mode:        mode,
+					FailureMode: defaults.FailureMode,
+					Rules: EffectiveRules{
+						Source: EffectiveRuleSourceInline,
+						Inline: mustInlineRulesForTest(t, inline),
+					},
 				},
 			},
 		},
@@ -119,13 +121,15 @@ func TestResolverResolveConfig(t *testing.T) {
 				)
 				return &policy
 			}()},
-			expected: &EffectiveConfig{
-				Enabled:     true,
-				Mode:        defaults.Mode,
-				FailureMode: defaults.FailureMode,
-				Rules: EffectiveRules{
-					Source:        EffectiveRuleSourceManaged,
-					PolicyProfile: defaults.PolicyProfile,
+			expected: Resolution{
+				Config: &EffectiveConfig{
+					Enabled:     true,
+					Mode:        defaults.Mode,
+					FailureMode: defaults.FailureMode,
+					Rules: EffectiveRules{
+						Source:        EffectiveRuleSourceManaged,
+						PolicyProfile: defaults.PolicyProfile,
+					},
 				},
 			},
 		},
@@ -144,13 +148,15 @@ func TestResolverResolveConfig(t *testing.T) {
 				}
 				return &policy
 			}()},
-			expected: &EffectiveConfig{
-				Enabled:     true,
-				Mode:        defaults.Mode,
-				FailureMode: defaults.FailureMode,
-				Rules: EffectiveRules{
-					Source:        EffectiveRuleSourceManaged,
-					PolicyProfile: profile,
+			expected: Resolution{
+				Config: &EffectiveConfig{
+					Enabled:     true,
+					Mode:        defaults.Mode,
+					FailureMode: defaults.FailureMode,
+					Rules: EffectiveRules{
+						Source:        EffectiveRuleSourceManaged,
+						PolicyProfile: profile,
+					},
 				},
 			},
 		},
@@ -170,14 +176,16 @@ func TestResolverResolveConfig(t *testing.T) {
 				}
 				return &policy
 			}()},
-			expected: &EffectiveConfig{
-				Enabled:     true,
-				Mode:        defaults.Mode,
-				FailureMode: defaults.FailureMode,
-				Rules: EffectiveRules{
-					Source:        EffectiveRuleSourceManaged,
-					PolicyProfile: profile,
-					Inline:        mustInlineRulesForTest(t, inline),
+			expected: Resolution{
+				Config: &EffectiveConfig{
+					Enabled:     true,
+					Mode:        defaults.Mode,
+					FailureMode: defaults.FailureMode,
+					Rules: EffectiveRules{
+						Source:        EffectiveRuleSourceManaged,
+						PolicyProfile: profile,
+						Inline:        mustInlineRulesForTest(t, inline),
+					},
 				},
 			},
 		},
@@ -208,19 +216,21 @@ func TestResolverResolveConfig(t *testing.T) {
 				}
 				return &policy
 			}()},
-			expected: &EffectiveConfig{
-				Enabled:     true,
-				Mode:        defaults.Mode,
-				FailureMode: defaults.FailureMode,
-				Rules: EffectiveRules{
-					Source:        EffectiveRuleSourceManaged,
-					PolicyProfile: profile,
-					Overrides:     ruleOverrides,
-				},
-				HandlingOverrides: EffectiveHandlingOverrides{
-					BodyLimitBytes:          &bodyLimitBytes,
-					BlockResponseStatusCode: &blockStatusCode,
-					BlockResponseBody:       &blockBody,
+			expected: Resolution{
+				Config: &EffectiveConfig{
+					Enabled:     true,
+					Mode:        defaults.Mode,
+					FailureMode: defaults.FailureMode,
+					Rules: EffectiveRules{
+						Source:        EffectiveRuleSourceManaged,
+						PolicyProfile: profile,
+						Overrides:     ruleOverrides,
+					},
+					HandlingOverrides: EffectiveHandlingOverrides{
+						BodyLimitBytes:          &bodyLimitBytes,
+						BlockResponseStatusCode: &blockStatusCode,
+						BlockResponseBody:       &blockBody,
+					},
 				},
 			},
 		},
@@ -239,13 +249,15 @@ func TestResolverResolveConfig(t *testing.T) {
 				}
 				return &policy
 			}()},
-			expected: &EffectiveConfig{
-				Enabled:     true,
-				Mode:        defaults.Mode,
-				FailureMode: defaults.FailureMode,
-				Rules: EffectiveRules{
-					Source:        EffectiveRuleSourceProfile,
-					CustomProfile: customProfile,
+			expected: Resolution{
+				Config: &EffectiveConfig{
+					Enabled:     true,
+					Mode:        defaults.Mode,
+					FailureMode: defaults.FailureMode,
+					Rules: EffectiveRules{
+						Source:        EffectiveRuleSourceProfile,
+						CustomProfile: customProfile,
+					},
 				},
 			},
 		},
@@ -265,14 +277,16 @@ func TestResolverResolveConfig(t *testing.T) {
 				}
 				return &policy
 			}()},
-			expected: &EffectiveConfig{
-				Enabled:     true,
-				Mode:        defaults.Mode,
-				FailureMode: defaults.FailureMode,
-				Rules: EffectiveRules{
-					Source:        EffectiveRuleSourceProfile,
-					CustomProfile: customProfile,
-					Overrides:     ruleOverrides,
+			expected: Resolution{
+				Config: &EffectiveConfig{
+					Enabled:     true,
+					Mode:        defaults.Mode,
+					FailureMode: defaults.FailureMode,
+					Rules: EffectiveRules{
+						Source:        EffectiveRuleSourceProfile,
+						CustomProfile: customProfile,
+						Overrides:     ruleOverrides,
+					},
 				},
 			},
 		},
@@ -289,14 +303,16 @@ func TestResolverResolveConfig(t *testing.T) {
 				}
 				return &policy
 			}()},
-			expected: &EffectiveConfig{
-				Enabled:     true,
-				Mode:        defaults.Mode,
-				FailureMode: defaults.FailureMode,
-				Rules: EffectiveRules{
-					Source:        EffectiveRuleSourceManaged,
-					PolicyProfile: defaults.PolicyProfile,
-					Overrides:     ruleOverrides,
+			expected: Resolution{
+				Config: &EffectiveConfig{
+					Enabled:     true,
+					Mode:        defaults.Mode,
+					FailureMode: defaults.FailureMode,
+					Rules: EffectiveRules{
+						Source:        EffectiveRuleSourceManaged,
+						PolicyProfile: defaults.PolicyProfile,
+						Overrides:     ruleOverrides,
+					},
 				},
 			},
 		},
@@ -317,15 +333,17 @@ func TestResolverResolveConfig(t *testing.T) {
 				}
 				return &policy
 			}()},
-			expected: &EffectiveConfig{
-				Enabled:     true,
-				Mode:        defaults.Mode,
-				FailureMode: defaults.FailureMode,
-				Rules: EffectiveRules{
-					Source:        EffectiveRuleSourceProfile,
-					CustomProfile: customProfile,
-					Inline:        mustInlineRulesForTest(t, inline),
-					Overrides:     ruleOverrides,
+			expected: Resolution{
+				Config: &EffectiveConfig{
+					Enabled:     true,
+					Mode:        defaults.Mode,
+					FailureMode: defaults.FailureMode,
+					Rules: EffectiveRules{
+						Source:        EffectiveRuleSourceProfile,
+						CustomProfile: customProfile,
+						Inline:        mustInlineRulesForTest(t, inline),
+						Overrides:     ruleOverrides,
+					},
 				},
 			},
 		},
@@ -340,13 +358,15 @@ func TestResolverResolveConfig(t *testing.T) {
 				}
 				return &policy
 			}()},
-			expected: &EffectiveConfig{
-				Enabled:     true,
-				Mode:        defaults.Mode,
-				FailureMode: defaults.FailureMode,
-				Rules: EffectiveRules{
-					Source:        EffectiveRuleSourceManaged,
-					PolicyProfile: profile,
+			expected: Resolution{
+				Config: &EffectiveConfig{
+					Enabled:     true,
+					Mode:        defaults.Mode,
+					FailureMode: defaults.FailureMode,
+					Rules: EffectiveRules{
+						Source:        EffectiveRuleSourceManaged,
+						PolicyProfile: profile,
+					},
 				},
 			},
 		},
@@ -374,18 +394,20 @@ func TestResolverResolveConfig(t *testing.T) {
 				}
 				return &policy
 			}()},
-			expected: &EffectiveConfig{
-				Enabled:     true,
-				Mode:        defaults.Mode,
-				FailureMode: defaults.FailureMode,
-				Rules: EffectiveRules{
-					Source:        EffectiveRuleSourceManaged,
-					PolicyProfile: profile,
+			expected: Resolution{
+				Config: &EffectiveConfig{
+					Enabled:     true,
+					Mode:        defaults.Mode,
+					FailureMode: defaults.FailureMode,
+					Rules: EffectiveRules{
+						Source:        EffectiveRuleSourceManaged,
+						PolicyProfile: profile,
+					},
 				},
 			},
 		},
 		{
-			desc: "multiple accepted matches return nil",
+			desc: "multiple accepted matches use owning policy",
 			objects: []ctrlClient.Object{
 				func() ctrlClient.Object {
 					policy := acceptedPolicy(
@@ -404,10 +426,20 @@ func TestResolverResolveConfig(t *testing.T) {
 					return &policy
 				}(),
 			},
-			expected: nil,
+			expected: Resolution{
+				Config: &EffectiveConfig{
+					Enabled:     true,
+					Mode:        defaults.Mode,
+					FailureMode: defaults.FailureMode,
+					Rules: EffectiveRules{
+						Source:        EffectiveRuleSourceManaged,
+						PolicyProfile: defaults.PolicyProfile,
+					},
+				},
+			},
 		},
 		{
-			desc: "pending matching policy returns nil",
+			desc: "pending matching policy defers reconciliation",
 			objects: []ctrlClient.Object{func() ctrlClient.Object {
 				policy := acceptedPolicy(
 					"team-a",
@@ -417,7 +449,9 @@ func TestResolverResolveConfig(t *testing.T) {
 				policy.Generation = 2
 				return &policy
 			}()},
-			expected: nil,
+			expected: Resolution{
+				DeferReconcile: true,
+			},
 		},
 	}
 

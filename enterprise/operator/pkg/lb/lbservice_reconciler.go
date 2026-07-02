@@ -12,11 +12,13 @@ package lb
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
 	"slices"
 	"strings"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
@@ -57,6 +59,8 @@ const (
 const (
 	endpointSliceIPv6Midfix = "ipv6-"
 )
+
+var errReconcileDeferred = errors.New("reconciliation deferred")
 
 type lbServiceReconciler struct {
 	logger         *slog.Logger
@@ -247,17 +251,31 @@ func (r *lbServiceReconciler) Reconcile(ctx context.Context, req reconcile.Reque
 			return controllerruntime.Success()
 		}
 
+		if errors.Is(err, errReconcileDeferred) {
+			scopedLog.Warn("Deferring reconciliation")
+			if err := r.updateStatus(ctx, lb); err != nil {
+				return controllerruntime.Fail(err)
+			}
+			return reconcile.Result{RequeueAfter: 5 * time.Second}, nil
+		}
+
 		return controllerruntime.Fail(fmt.Errorf("failed to reconcile LBService: %w", err))
 	}
 
-	lb.UpdateResourceStatus()
-
 	// Update the status of LBService
-	if err := r.client.Status().Update(ctx, lb); err != nil {
-		return controllerruntime.Fail(fmt.Errorf("failed to update LBService status: %w", err))
+	if err := r.updateStatus(ctx, lb); err != nil {
+		return controllerruntime.Fail(err)
 	}
 
 	return controllerruntime.Success()
+}
+
+func (r *lbServiceReconciler) updateStatus(ctx context.Context, lb *isovalentv1alpha1.LBService) error {
+	lb.UpdateResourceStatus()
+	if err := r.client.Status().Update(ctx, lb); err != nil {
+		return fmt.Errorf("failed to update LBService status: %w", err)
+	}
+	return nil
 }
 
 func (r *lbServiceReconciler) reconcileResources(ctx context.Context, lbsvc *isovalentv1alpha1.LBService) error {
@@ -1644,11 +1662,14 @@ func (r *lbServiceReconciler) resolveHTTPExtensions(ctx context.Context, target 
 			continue
 		}
 
-		state, err := ext.Resolve(ctx, target)
+		resolution, err := ext.Resolve(ctx, target)
 		if err != nil {
 			return nil, fmt.Errorf("failed to resolve HTTP extension %q: %w", ext.Name(), err)
 		}
-		states[ext.Name()] = state
+		if resolution.DeferReconcile {
+			return nil, errReconcileDeferred
+		}
+		states[ext.Name()] = resolution.State
 	}
 
 	return states, nil

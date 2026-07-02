@@ -56,12 +56,16 @@ func (e *lbExtension) WatchNamespaceScoped() []client.Object {
 	return []client.Object{&isovalentv1alpha1.IsovalentWAFPolicy{}}
 }
 
-func (e *lbExtension) Resolve(ctx context.Context, target lbextension.Target) (lbextension.State, error) {
-	return e.resolver.ResolveConfig(ctx, wafpolicy.PolicyTarget{
+func (e *lbExtension) Resolve(ctx context.Context, target lbextension.Target) (lbextension.ResolveResult, error) {
+	resolution, err := e.resolver.ResolveConfig(ctx, wafpolicy.PolicyTarget{
 		GroupKind:      target.GroupKind,
 		NamespacedName: target.NamespacedName,
 		Labels:         target.Labels,
 	})
+	return lbextension.ResolveResult{
+		State:          resolution.Config,
+		DeferReconcile: resolution.DeferReconcile,
+	}, err
 }
 
 func (e *lbExtension) HTTPFilters(service types.NamespacedName, state lbextension.State) ([]lbextension.HTTPFilter, error) {

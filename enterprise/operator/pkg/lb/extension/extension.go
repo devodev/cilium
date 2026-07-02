@@ -22,6 +22,11 @@ import (
 
 type State any
 
+type ResolveResult struct {
+	State          State
+	DeferReconcile bool
+}
+
 type Target struct {
 	GroupKind      schema.GroupKind
 	NamespacedName types.NamespacedName
@@ -51,7 +56,7 @@ type HTTPExtension interface {
 
 	WatchNamespaceScoped() []client.Object
 
-	Resolve(context.Context, Target) (State, error)
+	Resolve(context.Context, Target) (ResolveResult, error)
 
 	HTTPFilters(service types.NamespacedName, state State) ([]HTTPFilter, error)
 	HTTPRoutes(service types.NamespacedName, state State) ([]HTTPRoute, error)
