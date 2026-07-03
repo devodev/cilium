@@ -6,66 +6,53 @@ on:
     # Run at the end of every day from Monday to Friday
     - cron: '0 0 * * 1-5'
 
+permissions: {}
+
 jobs:
   analyze:
     name: Analyze
-    runs-on: ${{ matrix.config.runner }}
+    uses: isovalent/reusable-workflows/.github/workflows/codeql.yaml@ab4888b9078f03883bf2e399959b9df377fcac1d # v0.13.0
     permissions:
       actions: read
       contents: read
       security-events: write
-    strategy:
-      fail-fast: false
-      matrix:
-        config:
-          - runner: ubuntu-24.04
-            language: 'actions'
-          - runner: ubuntu-24.04
-            language: 'go'
-            build-mode: manual
+    with:
+      languages: '["actions"]'
 
+  analyze-go:
+    name: Analyze Go
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - name: Initialize CodeQL=======
-        if: matrix.config.language == 'go'
+      - name: Initialize CodeQL
         uses: github/codeql-action/init@54f647b7e1bb85c95cddabcd46b0c578ec92bc1a # v4
         with:
-          languages: ${{ matrix.config.language }}
+          languages: go
           build-mode: manual
 
-      - name: Initialize CodeQL
-        if: matrix.config.language != 'go'
-        uses: github/codeql-action/init@54f647b7e1bb85c95cddabcd46b0c578ec92bc1a # v4
-        with:
-          languages: ${{ matrix.config.language }}
-
       - name: Build agent
-        if: matrix.config.language == 'go'
         working-directory: ./daemon
         run: make
 
       - name: Build operator
-        if: matrix.config.language == 'go'
         working-directory: ./operator
         run: make
 
       - name: Build hubble-relay
-        if: matrix.config.language == 'go'
         working-directory: ./hubble-relay
         run: make
 
       - name: Build clustermesh-apiserver
-        if: matrix.config.language == 'go'
         working-directory: ./clustermesh-apiserver
         run: make
-
-      - name: Autobuild
-        if: matrix.config.language != 'go'
-        uses: github/codeql-action/autobuild@54f647b7e1bb85c95cddabcd46b0c578ec92bc1a # v4
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@54f647b7e1bb85c95cddabcd46b0c578ec92bc1a # v4
         with:
-          category: '/language:${{matrix.config.language}}'
+          category: '/language:go'
