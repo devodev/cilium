@@ -658,7 +658,6 @@ privnet_is_identity_any_host(__u32 identity)
 static __always_inline int
 privnet_host_snat_ingress4(struct __ctx_buff *ctx __maybe_unused)
 {
-	int ret = 0;
 #if defined(ENABLE_IPV4) && defined(ENABLE_NODEPORT)
 	struct ipv4_nat_target target = {
 		.addr = CONFIG(privnet_host_snat_ipv4).be32,
@@ -669,8 +668,8 @@ privnet_host_snat_ingress4(struct __ctx_buff *ctx __maybe_unused)
 		 * the PurgeOrphanNATEntries (GC) removing the NAT entries of non-closed connections.
 		 */
 	};
-	struct trace_ctx trace = {};
 	struct ipv4_ct_tuple tuple = {};
+	struct trace_ctx trace = {};
 	void *data, *data_end;
 	fraginfo_t fraginfo;
 	struct iphdr *ip4;
@@ -686,11 +685,11 @@ privnet_host_snat_ingress4(struct __ctx_buff *ctx __maybe_unused)
 
 	l4_off = ETH_HLEN + ipv4_hdrlen(ip4);
 
-	ret = snat_v4_nat(ctx, &tuple, ip4, fraginfo, l4_off,
-			  &target, &trace, &ext_err);
+	return snat_v4_nat(ctx, &tuple, ip4, fraginfo, l4_off,
+			   &target, &trace, &ext_err);
+#else
+	return 0;
 #endif /* ENABLE_IPV4 && ENABLE_NODEPORT */
-
-	return ret;
 }
 
 /* The function does rev-SNAT to packets destined to a (remote) host (from
@@ -699,7 +698,6 @@ privnet_host_snat_ingress4(struct __ctx_buff *ctx __maybe_unused)
 static __always_inline int
 privnet_host_rev_snat_egress4(struct __ctx_buff *ctx __maybe_unused)
 {
-	int ret = 0;
 #if defined(ENABLE_IPV4) && defined(ENABLE_NODEPORT)
 	struct ipv4_nat_target target = {
 		.min_port = NODEPORT_PORT_MIN_NAT,
@@ -708,17 +706,16 @@ privnet_host_rev_snat_egress4(struct __ctx_buff *ctx __maybe_unused)
 	struct trace_ctx trace = {};
 	__s8 ext_err = 0;
 
-	ret = snat_v4_rev_nat(ctx, &target, &trace, &ext_err);
+	return snat_v4_rev_nat(ctx, &target, &trace, &ext_err);
+#else
+	return 0;
 #endif /* ENABLE_IPV4 && ENABLE_NODEPORT */
-
-	return ret;
 }
 
 /* See comment for privnet_host_snat_ingress4(). */
 static __always_inline int
 privnet_host_snat_ingress6(struct __ctx_buff *ctx __maybe_unused)
 {
-	int ret = 0;
 #if defined(ENABLE_IPV6) && defined(ENABLE_NODEPORT)
 	struct snat_v6_args *args = AUX(snat_v6_args);
 	void *data, *data_end;
@@ -745,17 +742,16 @@ privnet_host_snat_ingress6(struct __ctx_buff *ctx __maybe_unused)
 	l4_off = (__u32)(((void *)ip6 - data) + hdrlen);
 
 
-	ret = snat_v6_nat(ctx, fraginfo, l4_off, &ext_err);
+	return snat_v6_nat(ctx, fraginfo, l4_off, &ext_err);
+#else
+	return 0;
 #endif /* ENABLE_IPV6 && ENABLE_NODEPORT */
-
-	return ret;
 }
 
 /* See comment for privnet_host_rev_snat_egress4(). */
 static __always_inline int
 privnet_host_rev_snat_egress6(struct __ctx_buff *ctx __maybe_unused)
 {
-	int ret = 0;
 #if defined(ENABLE_IPV6) && defined(ENABLE_NODEPORT)
 	struct ipv6_nat_target target = {
 		.min_port = NODEPORT_PORT_MIN_NAT,
@@ -764,10 +760,10 @@ privnet_host_rev_snat_egress6(struct __ctx_buff *ctx __maybe_unused)
 	struct trace_ctx trace = {};
 	__s8 ext_err = 0;
 
-	ret = snat_v6_rev_nat(ctx, &target, &trace, &ext_err);
+	return snat_v6_rev_nat(ctx, &target, &trace, &ext_err);
+#else
+	return 0;
 #endif /* ENABLE_IPV6 && ENABLE_NODEPORT */
-
-	return ret;
 }
 
 static __always_inline int
