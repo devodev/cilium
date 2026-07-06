@@ -247,6 +247,9 @@ spec:
             readOnly: true
           - name: clickhouse-data
             mountPath: /var/lib/clickhouse
+          {{- with .Values.hubble.timescape.clickhouse.extraVolumeMounts }}
+          {{- toYaml . | nindent 10 }}
+          {{- end }}
           readinessProbe:
             httpGet:
               path: /ping
@@ -353,6 +356,9 @@ spec:
             mountPath: /var/lib/hubble-timescape/rbac
             readOnly: true
           {{- end }}
+          {{- with .Values.hubble.timescape.extraVolumeMounts }}
+          {{- toYaml . | nindent 10 }}
+          {{- end }}
       volumes:
       - name: config
         configMap:
@@ -438,6 +444,9 @@ spec:
         emptyDir:
           sizeLimit: 5Gi
         {{- end }}
+      {{- with .Values.hubble.timescape.extraVolumes }}
+      {{- toYaml . | nindent 6 }}
+      {{- end }}
 {{- if .Values.hubble.timescape.persistence.enabled }}
 ---
 apiVersion: v1
