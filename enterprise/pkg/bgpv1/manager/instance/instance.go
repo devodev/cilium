@@ -15,14 +15,13 @@ import (
 	"log/slog"
 
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
-	ossTypes "github.com/cilium/cilium/pkg/bgp/types"
 	v1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
 )
 
 // EnterpriseBGPInstance is a container for providing interface with underlying router implementation.
 type EnterpriseBGPInstance struct {
 	Name                string
-	Global              ossTypes.BGPGlobal
+	Global              types.EnterpriseBGPGlobal
 	CancelCtx           context.CancelFunc
 	Config              *v1.IsovalentBGPNodeInstance
 	Router              types.EnterpriseRouter
@@ -37,14 +36,14 @@ func (i *EnterpriseBGPInstance) NotifyStateChange() {
 }
 
 // NewEnterpriseBGPInstance will start an underlying BGP instance using the provided types.RouterProvider,
-// utilizing ossTypes.ServerParameters for its initial configuration.
+// utilizing types.EnterpriseServerParameters for its initial configuration.
 //
 // The returned BGPInstance has a nil IsovalentBGPNodeInstance config, and is
 // ready to be provided to ReconcileBGPConfig.
 //
 // Canceling the provided context will kill the BGP instance along with calling the
 // underlying Router's Stop() method.
-func NewEnterpriseBGPInstance(ctx context.Context, routerProvider types.EnterpriseRouterProvider, log *slog.Logger, name string, params ossTypes.ServerParameters) (*EnterpriseBGPInstance, error) {
+func NewEnterpriseBGPInstance(ctx context.Context, routerProvider types.EnterpriseRouterProvider, log *slog.Logger, name string, params types.EnterpriseServerParameters) (*EnterpriseBGPInstance, error) {
 	routerCtx, cancel := context.WithCancel(ctx)
 	s, err := routerProvider.NewEnterpriseRouter(routerCtx, log, params)
 	if err != nil {

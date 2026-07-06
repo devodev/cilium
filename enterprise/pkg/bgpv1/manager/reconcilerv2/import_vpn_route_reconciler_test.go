@@ -223,8 +223,8 @@ func TestSRv6RouteImport(t *testing.T) {
 				return gobgp.NewEnterpriseGoBGPServer(
 					t.Context(),
 					logger,
-					types.ServerParameters{
-						Global:            global,
+					entTypes.EnterpriseServerParameters{
+						Global:            entTypes.EnterpriseBGPGlobal{BGPGlobal: global},
 						StateNotification: stateCh,
 					},
 				)
@@ -232,7 +232,7 @@ func TestSRv6RouteImport(t *testing.T) {
 			func(router entTypes.EnterpriseRouter, global types.BGPGlobal) *EnterpriseBGPInstance {
 				return &EnterpriseBGPInstance{
 					Name:   "test",
-					Global: global,
+					Global: entTypes.EnterpriseBGPGlobal{BGPGlobal: global},
 					Router: router,
 					Config: &v1.IsovalentBGPNodeInstance{
 						Name:     "test",

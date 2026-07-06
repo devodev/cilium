@@ -666,13 +666,15 @@ func (m *BGPRouterManager) registerBGPInstance(ctx context.Context,
 		return err
 	}
 
-	globalConfig := types.ServerParameters{
-		Global: types.BGPGlobal{
-			ASN:        uint32(localASN),
-			RouterID:   routerID,
-			ListenPort: localPort,
-			RouteSelectionOptions: &types.RouteSelectionOptions{
-				AdvertiseInactiveRoutes: true,
+	globalConfig := entTypes.EnterpriseServerParameters{
+		Global: entTypes.EnterpriseBGPGlobal{
+			BGPGlobal: types.BGPGlobal{
+				ASN:        uint32(localASN),
+				RouterID:   routerID,
+				ListenPort: localPort,
+				RouteSelectionOptions: &types.RouteSelectionOptions{
+					AdvertiseInactiveRoutes: true,
+				},
 			},
 		},
 		StateNotification: make(types.StateNotificationCh, 1),

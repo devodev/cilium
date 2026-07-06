@@ -31,7 +31,7 @@ import (
 )
 
 // NewEnterpriseGoBGPServer returns instance of go bgp router wrapper.
-func NewEnterpriseGoBGPServer(ctx context.Context, log *slog.Logger, params ossTypes.ServerParameters) (types.EnterpriseRouter, error) {
+func NewEnterpriseGoBGPServer(ctx context.Context, log *slog.Logger, params types.EnterpriseServerParameters) (types.EnterpriseRouter, error) {
 	logger := log.With(
 		logfields.Component, "gobgp-server",
 		ossTypes.LocalASNLogField, params.Global.ASN,

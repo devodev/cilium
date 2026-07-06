@@ -37,9 +37,12 @@ func NewEnterpriseRouterProviderAsOSS() ossTypes.RouterProvider {
 }
 
 func (p *EnterpriseRouterProvider) NewRouter(ctx context.Context, log *slog.Logger, params ossTypes.ServerParameters) (ossTypes.Router, error) {
-	return NewEnterpriseGoBGPServer(ctx, log, params)
+	return NewEnterpriseGoBGPServer(ctx, log, types.EnterpriseServerParameters{
+		Global:            types.EnterpriseBGPGlobal{BGPGlobal: params.Global},
+		StateNotification: params.StateNotification,
+	})
 }
 
-func (p *EnterpriseRouterProvider) NewEnterpriseRouter(ctx context.Context, log *slog.Logger, params ossTypes.ServerParameters) (types.EnterpriseRouter, error) {
+func (p *EnterpriseRouterProvider) NewEnterpriseRouter(ctx context.Context, log *slog.Logger, params types.EnterpriseServerParameters) (types.EnterpriseRouter, error) {
 	return NewEnterpriseGoBGPServer(ctx, log, params)
 }

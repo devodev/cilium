@@ -57,7 +57,18 @@ type EnterpriseRouter interface {
 
 // EnterpriseRouterProvider provides enterprise BGP router instances.
 type EnterpriseRouterProvider interface {
-	NewEnterpriseRouter(ctx context.Context, log *slog.Logger, params ossTypes.ServerParameters) (EnterpriseRouter, error)
+	NewEnterpriseRouter(ctx context.Context, log *slog.Logger, params EnterpriseServerParameters) (EnterpriseRouter, error)
+}
+
+// EnterpriseServerParameters contains Enterprise BGP router startup parameters.
+type EnterpriseServerParameters struct {
+	Global            EnterpriseBGPGlobal
+	StateNotification ossTypes.StateNotificationCh
+}
+
+// EnterpriseBGPGlobal contains Enterprise BGP global startup parameters.
+type EnterpriseBGPGlobal struct {
+	ossTypes.BGPGlobal
 }
 
 type GetBGPExtendedResponse struct {

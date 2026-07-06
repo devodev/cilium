@@ -241,11 +241,13 @@ func TestNeighborReconciler(t *testing.T) {
 	for _, tt := range table {
 		t.Run(tt.name, func(t *testing.T) {
 			// our test BgpServer with our original router ID and local port
-			srvParams := types.ServerParameters{
-				Global: types.BGPGlobal{
-					ASN:        64125,
-					RouterID:   "127.0.0.1",
-					ListenPort: -1,
+			srvParams := enterpriseTypes.EnterpriseServerParameters{
+				Global: enterpriseTypes.EnterpriseBGPGlobal{
+					BGPGlobal: types.BGPGlobal{
+						ASN:        64125,
+						RouterID:   "127.0.0.1",
+						ListenPort: -1,
+					},
 				},
 			}
 
@@ -445,11 +447,13 @@ func TestNeighborReconciler_SourceInterfaceAddress(t *testing.T) {
 	}).Reconciler.(*NeighborReconciler)
 
 	// initialize test instance
-	srvParams := types.ServerParameters{
-		Global: types.BGPGlobal{
-			ASN:        64125,
-			RouterID:   "127.0.0.1",
-			ListenPort: -1,
+	srvParams := enterpriseTypes.EnterpriseServerParameters{
+		Global: enterpriseTypes.EnterpriseBGPGlobal{
+			BGPGlobal: types.BGPGlobal{
+				ASN:        64125,
+				RouterID:   "127.0.0.1",
+				ListenPort: -1,
+			},
 		},
 	}
 	testInstance, err := instance.NewEnterpriseBGPInstance(
@@ -1666,7 +1670,7 @@ func TestImportPolicyNotMutatedByDefaulting(t *testing.T) {
 		fake.NewEnterpriseFakeRouterProvider(),
 		logger,
 		instance0.Name,
-		types.ServerParameters{},
+		enterpriseTypes.EnterpriseServerParameters{},
 	)
 	require.NoError(t, err)
 

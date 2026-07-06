@@ -38,6 +38,6 @@ func (p *EnterpriseFakeRouterProvider) NewRouter(context.Context, *slog.Logger, 
 	return NewEnterpriseFakeRouter(), nil
 }
 
-func (p *EnterpriseFakeRouterProvider) NewEnterpriseRouter(context.Context, *slog.Logger, ossTypes.ServerParameters) (types.EnterpriseRouter, error) {
+func (p *EnterpriseFakeRouterProvider) NewEnterpriseRouter(context.Context, *slog.Logger, types.EnterpriseServerParameters) (types.EnterpriseRouter, error) {
 	return NewEnterpriseFakeRouter(), nil
 }

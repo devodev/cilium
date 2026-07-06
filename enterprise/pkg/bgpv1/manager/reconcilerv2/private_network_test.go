@@ -870,9 +870,11 @@ func TestPrivateNetworkReconciler(t *testing.T) {
 		Name:   "fake-instance",
 		Router: fake.NewEnterpriseFakeRouter(),
 	}
-	testBGPInstance.Global = types.BGPGlobal{
-		ASN:      uint32(testASN),
-		RouterID: testRouterID,
+	testBGPInstance.Global = ceeTypes.EnterpriseBGPGlobal{
+		BGPGlobal: types.BGPGlobal{
+			ASN:      uint32(testASN),
+			RouterID: testRouterID,
+		},
 	}
 	svcVRFReconciler.Init(testBGPInstance)
 
