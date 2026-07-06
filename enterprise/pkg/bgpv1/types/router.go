@@ -100,7 +100,17 @@ type GetPeerStateExtendedRequest struct {
 }
 
 type GetPeerStateExtendedResponse struct {
-	Peers []ossTypes.PeerState
+	Peers []PeerStateExtended
+}
+
+// PeerStateExtended is an extension of ossTypes.PeerState with
+// enterprise-specific peer state.
+type PeerStateExtended struct {
+	ossTypes.PeerState
+
+	// BindInterface is the Linux device (e.g. a VRF device) the peer's
+	// connect socket is bound to. Empty if not bound to any device.
+	BindInterface string
 }
 
 type GetRoutesExtendedRequest struct {

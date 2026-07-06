@@ -25,6 +25,7 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/agent"
+	entTypes "github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
 	ossTypes "github.com/cilium/cilium/pkg/bgp/types"
 	"github.com/cilium/cilium/pkg/time"
 )
@@ -107,6 +108,7 @@ func PrintPeerStatesTable(w io.Writer, instances []agent.InstancePeerStatesExten
 	type row struct {
 		Instance     string
 		Peer         string
+		VRF          string
 		SessionState string
 		Uptime       string
 		Family       string
@@ -122,6 +124,7 @@ func PrintPeerStatesTable(w io.Writer, instances []agent.InstancePeerStatesExten
 				rows = append(rows, row{
 					Instance:     instance.Name,
 					Peer:         peer.Name,
+					VRF:          formatVRFDevice(peer.BindInterface),
 					SessionState: peer.SessionState.String(),
 					Uptime:       peer.Uptime.Truncate(time.Second).String(),
 					Family:       family.String(),
@@ -149,6 +152,7 @@ func PrintPeerStatesTable(w io.Writer, instances []agent.InstancePeerStatesExten
 	rows = slices.Insert(rows, 0, row{
 		Instance:     "Instance",
 		Peer:         "Peer",
+		VRF:          "VRF",
 		SessionState: "Session State",
 		Uptime:       "Uptime",
 		Family:       "Family",
@@ -171,8 +175,9 @@ func PrintPeerStatesTable(w io.Writer, instances []agent.InstancePeerStatesExten
 
 			if row.Instance == "" && row.Peer == prevPeer {
 				// Deduplicate Peer name. Also per-peer information like
-				// Session State and Uptime doesn't need to be repeated.
+				// VRF, Session State and Uptime doesn't need to be repeated.
 				row.Peer = ""
+				row.VRF = ""
 				row.SessionState = ""
 				row.Uptime = ""
 			} else if noUptime {
@@ -204,6 +209,7 @@ func PrintPeerStatesTable(w io.Writer, instances []agent.InstancePeerStatesExten
 		fmt.Fprintf(w, "%s\n", strings.Join([]string{
 			row.Instance,
 			row.Peer,
+			row.VRF,
 			row.SessionState,
 			row.Uptime,
 			row.Family,
@@ -221,12 +227,13 @@ func PrintPeerStatesDetailed(w io.Writer, instances []agent.InstancePeerStatesEx
 	for _, instance := range instances {
 		fmt.Fprintf(w, "Instance: %v\n", instance.Name)
 
-		slices.SortFunc(instance.Peers, func(a, b ossTypes.PeerState) int {
+		slices.SortFunc(instance.Peers, func(a, b entTypes.PeerStateExtended) int {
 			return strings.Compare(a.Name, b.Name)
 		})
 		for _, peer := range instance.Peers {
 			fmt.Fprintf(w, "  Peer: %v\n", peer.Name)
 			fmt.Fprintf(w, "    Address: %v\n", peer.Address)
+			fmt.Fprintf(w, "    VRF: %v\n", formatVRFDevice(peer.BindInterface))
 			fmt.Fprintf(w, "    Port: %v\n", peer.Port)
 			fmt.Fprintf(w, "    PeerAsn: %v\n", peer.PeerAsn)
 			fmt.Fprintf(w, "    LocalAsn: %v\n", peer.LocalAsn)

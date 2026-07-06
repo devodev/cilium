@@ -79,7 +79,7 @@ type InstanceGlobal struct {
 // InstancePeerStatesExtended holds peer states for a specific BGP instance.
 type InstancePeerStatesExtended struct {
 	Name  string
-	Peers []ossTypes.PeerState
+	Peers []types.PeerStateExtended
 }
 
 // InstanceRoutesExtended holds routes for a specific BGP instance.

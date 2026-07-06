@@ -216,11 +216,11 @@ status:
     - ip: 172.16.1.1
 
 -- bgp-peers-empty.expected --
-Instance   Peer   Session State   Uptime   Family   Received   Accepted   Advertised
+Instance   Peer   VRF   Session State   Uptime   Family   Received   Accepted   Advertised
 -- bgp-peers-discovered.expected --
-Instance   Peer         Session State   Uptime   Family         Received   Accepted   Advertised
-tor        gw-peer-v4   established     -        ipv4-unicast   0          0          2
-           gw-peer-v6   established     -        ipv4-unicast   0          0          2
+Instance   Peer         VRF         Session State   Uptime   Family         Received   Accepted   Advertised
+tor        gw-peer-v4   (default)   established     -        ipv4-unicast   0          0          2
+           gw-peer-v6   (default)   established     -        ipv4-unicast   0          0          2
 -- gobgp-routes-v4.expected --
 Prefix          NextHop       Attrs
 10.244.0.0/24   11.99.0.136   [{Origin: i} {AsPath: 65001}]

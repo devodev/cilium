@@ -178,10 +178,11 @@ func (g *GoBGPServer) GetPeerStateExtended(ctx context.Context, r *types.GetPeer
 			return
 		}
 
-		state := ossTypes.PeerState{}
+		state := types.PeerStateExtended{}
 
 		if peer.Transport != nil {
 			state.Port = int64(peer.Transport.RemotePort)
+			state.BindInterface = peer.Transport.BindInterface
 		}
 
 		if peer.Conf != nil {
