@@ -215,7 +215,7 @@ func (t *EnterpriseTest) WithIsovalentEgressGatewayPolicy(params IsovalentEgress
 		pl[i].Spec.EgressGroups = eg
 
 		// Set the excluded CIDRs
-		pl[i].Spec.ExcludedCIDRs = []isovalentv1.IPv4CIDR{}
+		pl[i].Spec.ExcludedCIDRs = []isovalentv1.CIDR{}
 
 		switch params.ExcludedCIDRs {
 		case ExternalNodeExcludedCIDRs:
@@ -224,7 +224,7 @@ func (t *EnterpriseTest) WithIsovalentEgressGatewayPolicy(params IsovalentEgress
 					continue
 				}
 
-				cidr := isovalentv1.IPv4CIDR(fmt.Sprintf("%s/32", nodeWithoutCiliumIP.IP))
+				cidr := isovalentv1.CIDR(fmt.Sprintf("%s/32", nodeWithoutCiliumIP.IP))
 				pl[i].Spec.ExcludedCIDRs = append(pl[i].Spec.ExcludedCIDRs, cidr)
 			}
 		}

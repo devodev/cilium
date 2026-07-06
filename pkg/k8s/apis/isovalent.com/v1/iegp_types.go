@@ -48,6 +48,11 @@ type IsovalentEgressGatewayPolicyList struct {
 	Items []IsovalentEgressGatewayPolicy `json:"items"`
 }
 
+// +kubebuilder:validation:Pattern=`^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\/([0-9]|[1-2][0-9]|3[0-2])$|^s*((([0-9A-Fa-f]{1,4}:){7}([0-9A-Fa-f]{1,4}|:))|(([0-9A-Fa-f]{1,4}:){6}(:[0-9A-Fa-f]{1,4}|((25[0-5]|2[0-4]d|1dd|[1-9]?d)(.(25[0-5]|2[0-4]d|1dd|[1-9]?d)){3})|:))|(([0-9A-Fa-f]{1,4}:){5}(((:[0-9A-Fa-f]{1,4}){1,2})|:((25[0-5]|2[0-4]d|1dd|[1-9]?d)(.(25[0-5]|2[0-4]d|1dd|[1-9]?d)){3})|:))|(([0-9A-Fa-f]{1,4}:){4}(((:[0-9A-Fa-f]{1,4}){1,3})|((:[0-9A-Fa-f]{1,4})?:((25[0-5]|2[0-4]d|1dd|[1-9]?d)(.(25[0-5]|2[0-4]d|1dd|[1-9]?d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){3}(((:[0-9A-Fa-f]{1,4}){1,4})|((:[0-9A-Fa-f]{1,4}){0,2}:((25[0-5]|2[0-4]d|1dd|[1-9]?d)(.(25[0-5]|2[0-4]d|1dd|[1-9]?d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){2}(((:[0-9A-Fa-f]{1,4}){1,5})|((:[0-9A-Fa-f]{1,4}){0,3}:((25[0-5]|2[0-4]d|1dd|[1-9]?d)(.(25[0-5]|2[0-4]d|1dd|[1-9]?d)){3}))|:))|(([0-9A-Fa-f]{1,4}:){1}(((:[0-9A-Fa-f]{1,4}){1,6})|((:[0-9A-Fa-f]{1,4}){0,4}:((25[0-5]|2[0-4]d|1dd|[1-9]?d)(.(25[0-5]|2[0-4]d|1dd|[1-9]?d)){3}))|:))|(:(((:[0-9A-Fa-f]{1,4}){1,7})|((:[0-9A-Fa-f]{1,4}){0,5}:((25[0-5]|2[0-4]d|1dd|[1-9]?d)(.(25[0-5]|2[0-4]d|1dd|[1-9]?d)){3}))|:)))(%.+)?s*(\/(12[0-8]|1[0-1][0-9]|[1-9][0-9]|[0-9]))$`
+// + The regex for the IPv6 CIDR range (second part of the OR) was taken from
+// + https://blog.markhatton.co.uk/2011/03/15/regular-expressions-for-ip-addresses-cidr-ranges-and-hostnames/`
+type CIDR string
+
 // +kubebuilder:validation:Pattern=`^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\/([0-9]|[1-2][0-9]|3[0-2])$`
 type IPv4CIDR string
 
@@ -58,7 +63,7 @@ type IsovalentEgressGatewayPolicySpec struct {
 
 	// DestinationCIDRs is a list of destination CIDRs for destination IP addresses.
 	// If a destination IP matches any one CIDR, it will be selected.
-	DestinationCIDRs []IPv4CIDR `json:"destinationCIDRs"`
+	DestinationCIDRs []CIDR `json:"destinationCIDRs"`
 
 	// ExcludedCIDRs is a list of destination CIDRs that will be excluded
 	// from the egress gateway redirection and SNAT logic.
@@ -66,7 +71,7 @@ type IsovalentEgressGatewayPolicySpec struct {
 	// effect.
 	//
 	// +kubebuilder:validation:Optional
-	ExcludedCIDRs []IPv4CIDR `json:"excludedCIDRs"`
+	ExcludedCIDRs []CIDR `json:"excludedCIDRs"`
 
 	// EgressCIDRs is a list of IPv4 CIDRs from which to allocate IPs to active gateways.
 	// Each active gateway is assigned a different IP.
@@ -76,6 +81,7 @@ type IsovalentEgressGatewayPolicySpec struct {
 
 	// EgressGroup represents a group of nodes which will act as egress
 	// gateway for the given policy.
+	// +kubebuilder:validation:MaxItems=64
 	EgressGroups []EgressGroup `json:"egressGroups"`
 
 	// AZAffinity controls the AZ affinity of the gateway nodes to the source pods and allows to select or prefer local (i.e. gateways in the same AZ of a given pod) gateways.
@@ -130,7 +136,8 @@ type EgressGroup struct {
 	// policy will use the first IPv4 assigned to the interface with the
 	// default route.
 	//
-	// +kubebuilder:validation:Format=ipv4
+	// +kubebuilder:validation:MaxLength=39
+	// +kubebuilder:validation:XValidation:rule="self == '' || isIP(self)",message="egressIP must be a valid IP address"
 	EgressIP string `json:"egressIP,omitempty"`
 
 	// MaxGatewayNodes indicates the maximum number of nodes in the node

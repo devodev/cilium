@@ -398,14 +398,14 @@ func newIEGP(params *policyParams) (*Policy, *PolicyConfig) {
 		policy.virtualIP = val == "true"
 	}
 
-	destinationCIDRs := []v1.IPv4CIDR{}
+	destinationCIDRs := []v1.CIDR{}
 	for _, destinationCIDR := range params.destinationCIDRs {
-		destinationCIDRs = append(destinationCIDRs, v1.IPv4CIDR(destinationCIDR))
+		destinationCIDRs = append(destinationCIDRs, v1.CIDR(destinationCIDR))
 	}
 
-	excludedCIDRs := []v1.IPv4CIDR{}
+	excludedCIDRs := []v1.CIDR{}
 	for _, excludedCIDR := range params.excludedCIDRs {
-		excludedCIDRs = append(excludedCIDRs, v1.IPv4CIDR(excludedCIDR))
+		excludedCIDRs = append(excludedCIDRs, v1.CIDR(excludedCIDR))
 	}
 
 	egressCIDRs := []v1.IPv4CIDR{}

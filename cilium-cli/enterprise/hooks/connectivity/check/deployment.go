@@ -740,7 +740,7 @@ func (ect *EnterpriseConnectivityTest) deployConnDisruptIEGP(ctx context.Context
 					},
 				},
 			},
-			DestinationCIDRs: []isovalentv1.IPv4CIDR{"0.0.0.0/0"},
+			DestinationCIDRs: []isovalentv1.CIDR{"0.0.0.0/0"},
 			EgressCIDRs:      ipv4CIDRs,
 			EgressGroups:     egressGroups,
 			AZAffinity:       "disabled",

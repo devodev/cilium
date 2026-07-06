@@ -1641,12 +1641,12 @@ func (in *IsovalentEgressGatewayPolicySpec) DeepCopyInto(out *IsovalentEgressGat
 	}
 	if in.DestinationCIDRs != nil {
 		in, out := &in.DestinationCIDRs, &out.DestinationCIDRs
-		*out = make([]IPv4CIDR, len(*in))
+		*out = make([]CIDR, len(*in))
 		copy(*out, *in)
 	}
 	if in.ExcludedCIDRs != nil {
 		in, out := &in.ExcludedCIDRs, &out.ExcludedCIDRs
-		*out = make([]IPv4CIDR, len(*in))
+		*out = make([]CIDR, len(*in))
 		copy(*out, *in)
 	}
 	if in.EgressCIDRs != nil {

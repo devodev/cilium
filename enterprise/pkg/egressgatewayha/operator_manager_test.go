@@ -2351,7 +2351,7 @@ func TestEgressCIDRConflictsDetection(t *testing.T) {
 						UID:  policy1UID,
 					},
 					Spec: v1.IsovalentEgressGatewayPolicySpec{
-						DestinationCIDRs: []v1.IPv4CIDR{destCIDR},
+						DestinationCIDRs: []v1.CIDR{destCIDR},
 						EgressCIDRs:      []v1.IPv4CIDR{},
 					},
 				},
@@ -2367,7 +2367,7 @@ func TestEgressCIDRConflictsDetection(t *testing.T) {
 						UID:  policy1UID,
 					},
 					Spec: v1.IsovalentEgressGatewayPolicySpec{
-						DestinationCIDRs: []v1.IPv4CIDR{destCIDR},
+						DestinationCIDRs: []v1.CIDR{destCIDR},
 						EgressCIDRs: []v1.IPv4CIDR{
 							v1.IPv4CIDR("10.100.255.48/30"),
 							v1.IPv4CIDR("10.100.255.48/30"),
@@ -2389,7 +2389,7 @@ func TestEgressCIDRConflictsDetection(t *testing.T) {
 						UID:  policy1UID,
 					},
 					Spec: v1.IsovalentEgressGatewayPolicySpec{
-						DestinationCIDRs: []v1.IPv4CIDR{destCIDR},
+						DestinationCIDRs: []v1.CIDR{destCIDR},
 						EgressCIDRs: []v1.IPv4CIDR{
 							v1.IPv4CIDR("10.100.255.48/30"),
 							v1.IPv4CIDR("10.100.255.49/30"),
@@ -2412,7 +2412,7 @@ func TestEgressCIDRConflictsDetection(t *testing.T) {
 						CreationTimestamp: metav1.NewTime(time.Now()),
 					},
 					Spec: v1.IsovalentEgressGatewayPolicySpec{
-						DestinationCIDRs: []v1.IPv4CIDR{destCIDR},
+						DestinationCIDRs: []v1.CIDR{destCIDR},
 						EgressCIDRs: []v1.IPv4CIDR{
 							v1.IPv4CIDR("10.100.255.48/30"),
 						},
@@ -2425,7 +2425,7 @@ func TestEgressCIDRConflictsDetection(t *testing.T) {
 						CreationTimestamp: metav1.NewTime(time.Now().Add(time.Second)),
 					},
 					Spec: v1.IsovalentEgressGatewayPolicySpec{
-						DestinationCIDRs: []v1.IPv4CIDR{destCIDR},
+						DestinationCIDRs: []v1.CIDR{destCIDR},
 						EgressCIDRs: []v1.IPv4CIDR{
 							v1.IPv4CIDR("10.100.255.49/30"),
 						},
@@ -2445,7 +2445,7 @@ func TestEgressCIDRConflictsDetection(t *testing.T) {
 						UID:  policy1UID,
 					},
 					Spec: v1.IsovalentEgressGatewayPolicySpec{
-						DestinationCIDRs: []v1.IPv4CIDR{destCIDR},
+						DestinationCIDRs: []v1.CIDR{destCIDR},
 						EgressCIDRs: []v1.IPv4CIDR{
 							v1.IPv4CIDR("10.100.255.48/30"),
 							v1.IPv4CIDR("10.100.255.49/30"),
@@ -2458,7 +2458,7 @@ func TestEgressCIDRConflictsDetection(t *testing.T) {
 						UID:  policy2UID,
 					},
 					Spec: v1.IsovalentEgressGatewayPolicySpec{
-						DestinationCIDRs: []v1.IPv4CIDR{destCIDR},
+						DestinationCIDRs: []v1.CIDR{destCIDR},
 						EgressCIDRs: []v1.IPv4CIDR{
 							v1.IPv4CIDR("10.100.255.49/30"),
 						},
