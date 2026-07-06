@@ -59,6 +59,8 @@ var CTMapsCell = cell.Group(
 		(*CTMaps).registerScriptCmds,
 		// Registers all live CT maps with the periodic CT GC
 		(*CTMaps).registerGC,
+		// Provide access to the CT maps via interface
+		(*CTMaps).registerGetter,
 	),
 )
 
@@ -219,6 +221,10 @@ func (c *CTMaps) registerScriptCmds(cfg privnetcfg.Config) hive.ScriptCmdsOut {
 	)
 }
 
+func (c *CTMaps) registerGetter() pnmaps.CTMaps {
+	return c
+}
+
 const (
 	mapPrefix = "cilium_privnet"
 
@@ -347,6 +353,51 @@ func ctKeyVal(networkID tables.NetworkID, m *ctmap.Map) *pnmaps.CTMapsKeyVal {
 		Key: pnmaps.CTMapsKey{NetworkID: uint32(networkID)},
 		Val: pnmaps.CTMapsValue{Fd: uint32(m.FD())},
 	}
+}
+
+// ActiveMapsForNetwork implements pnmaps.CTMaps
+func (c *CTMaps) ActiveMapsForNetwork(networkName string) []pnmaps.CTMap {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	var ctMap *ctMap
+	for _, m := range c.ctMaps {
+		if m.network == networkName {
+			ctMap = m
+			break
+		}
+	}
+
+	if ctMap == nil {
+		return nil
+	}
+
+	var activeMaps []pnmaps.CTMap
+	if ctMap.tcp4 != nil {
+		activeMaps = append(activeMaps, pnmaps.CTMap{
+			Config: ctmap.MapConfig{TCP: true, IPv6: false},
+			Map:    ctMap.tcp4,
+		})
+	}
+	if ctMap.any4 != nil {
+		activeMaps = append(activeMaps, pnmaps.CTMap{
+			Config: ctmap.MapConfig{TCP: false, IPv6: false},
+			Map:    ctMap.any4,
+		})
+	}
+	if ctMap.tcp6 != nil {
+		activeMaps = append(activeMaps, pnmaps.CTMap{
+			Config: ctmap.MapConfig{TCP: true, IPv6: true},
+			Map:    ctMap.tcp6,
+		})
+	}
+	if ctMap.any6 != nil {
+		activeMaps = append(activeMaps, pnmaps.CTMap{
+			Config: ctmap.MapConfig{TCP: false, IPv6: true},
+			Map:    ctMap.any6,
+		})
+	}
+	return activeMaps
 }
 
 // Update ensures the inner CT maps for the private network represented by obj are created, and upserted into the
