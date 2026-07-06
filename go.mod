@@ -425,3 +425,5 @@ tool (
 	k8s.io/code-generator/cmd/validation-gen
 	sigs.k8s.io/controller-tools/cmd/controller-gen
 )
+
+replace github.com/osrg/gobgp/v4 => github.com/osrg/gobgp/v4 v4.7.1-0.20260715120923-a31017415c8e

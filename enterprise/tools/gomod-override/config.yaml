@@ -1,6 +1,5 @@
 replaces:
-# Example:
-#- oldPath: github.com/osrg/gobgp/v3
-#  oldVersion: ""
-#  newPath: github.com/isovalent/gobgp/v3
-#  newVersion: v3.0.0-20260116195249-1eca87faca1a
+- oldPath: github.com/osrg/gobgp/v4
+  oldVersion: ""
+  newPath: github.com/osrg/gobgp/v4
+  newVersion: "v4.7.1-0.20260715120923-a31017415c8e"
