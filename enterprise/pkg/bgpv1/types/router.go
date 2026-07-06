@@ -69,6 +69,9 @@ type EnterpriseServerParameters struct {
 // EnterpriseBGPGlobal contains Enterprise BGP global startup parameters.
 type EnterpriseBGPGlobal struct {
 	ossTypes.BGPGlobal
+
+	// BindToDevice restricts the GoBGP listen socket to the Linux device.
+	BindToDevice string
 }
 
 type GetBGPExtendedResponse struct {

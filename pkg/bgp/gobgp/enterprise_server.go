@@ -42,9 +42,10 @@ func NewEnterpriseGoBGPServer(ctx context.Context, log *slog.Logger, params type
 
 	startReq := &gobgp.StartBgpRequest{
 		Global: &gobgp.Global{
-			Asn:        params.Global.ASN,
-			RouterId:   params.Global.RouterID,
-			ListenPort: params.Global.ListenPort,
+			Asn:          params.Global.ASN,
+			RouterId:     params.Global.RouterID,
+			ListenPort:   params.Global.ListenPort,
+			BindToDevice: params.Global.BindToDevice,
 
 			UseMultiplePaths: true, // CEE-specific
 		},
