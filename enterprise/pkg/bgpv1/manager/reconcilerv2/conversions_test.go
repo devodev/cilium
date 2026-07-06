@@ -24,13 +24,14 @@ import (
 )
 
 func TestToNeighbor(t *testing.T) {
-	table := []struct {
-		name         string
-		nodePeer     *v1.IsovalentBGPNodePeer
-		peerConfig   *v1.IsovalentBGPPeerConfigSpec
-		authPassword string
-		selfRRRole   v1.RouteReflectorRole
-		expected     *types.EnterpriseNeighbor
+	tests := []struct {
+		name          string
+		nodePeer      *v1.IsovalentBGPNodePeer
+		peerConfig    *v1.IsovalentBGPPeerConfigSpec
+		authPassword  string
+		selfRRRole    v1.RouteReflectorRole
+		bindInterface string
+		expected      *types.EnterpriseNeighbor
 	}{
 		{
 			name: "IPv4 Minimal",
@@ -97,6 +98,22 @@ func TestToNeighbor(t *testing.T) {
 						RemotePort: 1790,
 					},
 				},
+			},
+		},
+		{
+			name: "BindInterface",
+			nodePeer: &v1.IsovalentBGPNodePeer{
+				PeerAddress: ptr.To("fd00::1"),
+				PeerASN:     ptr.To(int64(64512)),
+			},
+			peerConfig:    &v1.IsovalentBGPPeerConfigSpec{},
+			bindInterface: "cvrf-100",
+			expected: &types.EnterpriseNeighbor{
+				Neighbor: ossTypes.Neighbor{
+					Address: netip.MustParseAddr("fd00::1"),
+					ASN:     64512,
+				},
+				BindInterface: "cvrf-100",
 			},
 		},
 		{
@@ -401,9 +418,9 @@ func TestToNeighbor(t *testing.T) {
 			},
 		},
 	}
-	for _, tt := range table {
+	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			neighbor := toEnterpriseNeighbor(tt.nodePeer, tt.peerConfig, tt.authPassword, tt.selfRRRole)
+			neighbor := toEnterpriseNeighbor(tt.nodePeer, tt.peerConfig, tt.authPassword, tt.selfRRRole, tt.bindInterface)
 			require.Equal(t, tt.expected, neighbor)
 		})
 	}

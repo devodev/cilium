@@ -207,5 +207,14 @@ func toGoBGPPeerExtended(n *types.EnterpriseNeighbor, oldPeer *gobgp.Peer, v4 bo
 	toGoBGPRouteReflector(n.RouteReflector, goBgpPeer)
 	toGoBGPAddPaths(n.AddPath, goBgpPeer)
 
+	if n.BindInterface != "" {
+		// ToGoBGPPeer may already have populated Transport (e.g. with the
+		// local address), so preserve it and only set the bind interface.
+		if goBgpPeer.Transport == nil {
+			goBgpPeer.Transport = &gobgp.Transport{}
+		}
+		goBgpPeer.Transport.BindInterface = n.BindInterface
+	}
+
 	return goBgpPeer
 }

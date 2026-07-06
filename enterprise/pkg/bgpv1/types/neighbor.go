@@ -22,6 +22,7 @@ type EnterpriseNeighbor struct {
 	ossTypes.Neighbor
 	RouteReflector *NeighborRouteReflector
 	AddPath        *NeighborAddPath
+	BindInterface  string
 }
 
 type NeighborRouteReflector struct {

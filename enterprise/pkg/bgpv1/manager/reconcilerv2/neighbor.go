@@ -308,7 +308,7 @@ func (r *NeighborReconciler) Reconcile(ctx context.Context, p EnterpriseReconcil
 	for _, n := range toUpdate {
 		l.Info("Updating peer", types.PeerLogField, n.Peer.Name)
 
-		if err := p.BGPInstance.Router.UpdateNeighborExtended(ctx, toEnterpriseNeighbor(n.Peer, n.Config, n.Password, selfRRRole)); err != nil {
+		if err := p.BGPInstance.Router.UpdateNeighborExtended(ctx, toEnterpriseNeighbor(n.Peer, n.Config, n.Password, selfRRRole, p.BGPInstance.Global.BindToDevice)); err != nil {
 			return fmt.Errorf("failed to update neigbhor %s in instance %s: %w", n.Peer.Name, p.DesiredConfig.Name, err)
 		}
 		// update metadata
@@ -319,7 +319,7 @@ func (r *NeighborReconciler) Reconcile(ctx context.Context, p EnterpriseReconcil
 	for _, n := range toCreate {
 		l.Info("Adding peer", types.PeerLogField, n.Peer.Name)
 
-		if err := p.BGPInstance.Router.AddNeighborExtended(ctx, toEnterpriseNeighbor(n.Peer, n.Config, n.Password, selfRRRole)); err != nil {
+		if err := p.BGPInstance.Router.AddNeighborExtended(ctx, toEnterpriseNeighbor(n.Peer, n.Config, n.Password, selfRRRole, p.BGPInstance.Global.BindToDevice)); err != nil {
 			return fmt.Errorf("failed to add neigbhor %s in instance %s: %w", n.Peer.Name, p.DesiredConfig.Name, err)
 		}
 		// update metadata

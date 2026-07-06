@@ -228,6 +228,50 @@ func TestToGoBGPPeerExtended(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "With BindInterface only",
+			neighbor: &types.EnterpriseNeighbor{
+				Neighbor: ossTypes.Neighbor{
+					Address: netip.MustParseAddr("1.2.3.4"),
+					ASN:     65001,
+				},
+				BindInterface: "cvrf-100",
+			},
+			want: &gobgp.Peer{
+				Conf: &gobgp.PeerConf{
+					NeighborAddress: "1.2.3.4",
+					PeerAsn:         65001,
+				},
+				AfiSafis: defaultAfiSafi,
+				Transport: &gobgp.Transport{
+					BindInterface: "cvrf-100",
+				},
+			},
+		},
+		{
+			name: "With BindInterface preserving existing Transport",
+			neighbor: &types.EnterpriseNeighbor{
+				Neighbor: ossTypes.Neighbor{
+					Address: netip.MustParseAddr("1.2.3.4"),
+					ASN:     65001,
+					Transport: &ossTypes.NeighborTransport{
+						LocalAddress: "5.6.7.8",
+					},
+				},
+				BindInterface: "cvrf-100",
+			},
+			want: &gobgp.Peer{
+				Conf: &gobgp.PeerConf{
+					NeighborAddress: "1.2.3.4",
+					PeerAsn:         65001,
+				},
+				AfiSafis: defaultAfiSafi,
+				Transport: &gobgp.Transport{
+					LocalAddress:  "5.6.7.8",
+					BindInterface: "cvrf-100",
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {

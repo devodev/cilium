@@ -44,12 +44,13 @@ func toNeighbor(np *v1.IsovalentBGPNodePeer, pc *v1.IsovalentBGPPeerConfigSpec, 
 // with Router API. The caller must ensure that the np, np.PeerAddress,
 // np.PeerASN and pc are not nil.
 
-func toEnterpriseNeighbor(np *v1.IsovalentBGPNodePeer, pc *v1.IsovalentBGPPeerConfigSpec, password string, selfRRRole v1.RouteReflectorRole) *types.EnterpriseNeighbor {
+func toEnterpriseNeighbor(np *v1.IsovalentBGPNodePeer, pc *v1.IsovalentBGPPeerConfigSpec, password string, selfRRRole v1.RouteReflectorRole, bindInterface string) *types.EnterpriseNeighbor {
 	neighbor := toNeighbor(np, pc, password)
 
 	eeNeighbor := &types.EnterpriseNeighbor{
 		Neighbor:       *neighbor,
 		RouteReflector: toRouteReflector(np.RouteReflector, selfRRRole),
+		BindInterface:  bindInterface,
 	}
 	eeNeighbor.AddPath = toNeighborAddpath(selfRRRole, eeNeighbor.RouteReflector)
 
