@@ -73,7 +73,7 @@ type GetRoutesExtendedResponse struct {
 // InstanceGlobal holds global BGP configuration for a specific BGP instance.
 type InstanceGlobal struct {
 	Name   string
-	Global ossTypes.BGPGlobal
+	Global types.EnterpriseBGPGlobal
 }
 
 // InstancePeerStatesExtended holds peer states for a specific BGP instance.

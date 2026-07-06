@@ -265,9 +265,9 @@ instance1   peer0   established     -        ipv4-unicast   1          1        
             peer1   established     -        ipv4-unicast   1          1          1
                                              ipv6-unicast   1          1          1
 -- bgp-globals.expected --
-Instance    ASN     Router ID   Listen Port
-instance0   65000   10.99.7.5   (disabled)
-instance1   65001   10.99.7.6   (disabled)
+Instance    ASN     Router ID   Listen Port   VRF
+instance0   65000   10.99.7.5   (disabled)    (default)
+instance1   65001   10.99.7.6   (disabled)    (default)
 -- bgp-routes-loc-ipv4-unicast.expected --
 Instance    Peer     Prefix          NextHop           Best   Age   Error
 instance0   (self)   10.244.0.0/24   0.0.0.0           true   -     -

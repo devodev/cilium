@@ -162,7 +162,10 @@ func (g *GoBGPServer) GetBGPExtended(ctx context.Context) (*types.GetBGPExtended
 	}
 
 	return &types.GetBGPExtendedResponse{
-		Global: res,
+		Global: types.EnterpriseBGPGlobal{
+			BGPGlobal:    res,
+			BindToDevice: bgpConfig.Global.BindToDevice,
+		},
 	}, nil
 }
 

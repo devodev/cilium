@@ -84,6 +84,7 @@ func PrintGlobalsTable(tw *tabwriter.Writer, instances []agent.InstanceGlobal) {
 		ASN        string
 		RouterID   string
 		ListenPort string
+		VRF        string
 	}
 
 	rows := make([]row, 0, len(instances)+1)
@@ -93,6 +94,7 @@ func PrintGlobalsTable(tw *tabwriter.Writer, instances []agent.InstanceGlobal) {
 			ASN:        strconv.FormatUint(uint64(instance.Global.ASN), 10),
 			RouterID:   instance.Global.RouterID,
 			ListenPort: formatListenPort(instance.Global.ListenPort),
+			VRF:        formatVRFDevice(instance.Global.BindToDevice),
 		})
 	}
 
@@ -105,6 +107,7 @@ func PrintGlobalsTable(tw *tabwriter.Writer, instances []agent.InstanceGlobal) {
 		ASN:        "ASN",
 		RouterID:   "Router ID",
 		ListenPort: "Listen Port",
+		VRF:        "VRF",
 	})
 
 	for _, row := range rows {
@@ -113,6 +116,7 @@ func PrintGlobalsTable(tw *tabwriter.Writer, instances []agent.InstanceGlobal) {
 			row.ASN,
 			row.RouterID,
 			row.ListenPort,
+			row.VRF,
 		}, "\t"))
 	}
 	tw.Flush()
@@ -123,4 +127,13 @@ func formatListenPort(port int32) string {
 		return "(disabled)"
 	}
 	return strconv.FormatInt(int64(port), 10)
+}
+
+// formatVRFDevice returns the VRF device the instance/peer is bound to, or
+// "(default)" if it is not bound to any device.
+func formatVRFDevice(device string) string {
+	if device == "" {
+		return "(default)"
+	}
+	return device
 }

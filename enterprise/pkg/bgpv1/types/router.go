@@ -92,7 +92,7 @@ type EnterpriseBGPVRF struct {
 }
 
 type GetBGPExtendedResponse struct {
-	Global ossTypes.BGPGlobal
+	Global EnterpriseBGPGlobal
 }
 
 type GetPeerStateExtendedRequest struct {
