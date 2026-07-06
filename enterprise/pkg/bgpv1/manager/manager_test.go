@@ -15,16 +15,20 @@ import (
 
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/hive/hivetest"
+	"github.com/cilium/statedb"
 	"github.com/stretchr/testify/require"
 
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/agent"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/manager/reconcilerv2"
+	"github.com/cilium/cilium/enterprise/pkg/vrf"
 	"github.com/cilium/cilium/pkg/bgp/gobgp"
 	ossManager "github.com/cilium/cilium/pkg/bgp/manager"
 	"github.com/cilium/cilium/pkg/bgp/manager/tables"
+	cmtypes "github.com/cilium/cilium/pkg/clustermesh/types"
 	"github.com/cilium/cilium/pkg/hive"
 	"github.com/cilium/cilium/pkg/metrics"
+	"github.com/cilium/cilium/pkg/node"
 )
 
 func TestNewBGPRouterManager(t *testing.T) {
@@ -61,9 +65,14 @@ func TestNewBGPRouterManager(t *testing.T) {
 
 			h := hive.New(
 				metrics.Metric(ossManager.NewBGPManagerMetrics),
+				cell.Config(cmtypes.DefaultClusterInfo),
+				node.LocalNodeStoreTestCell,
 				cell.Provide(
 					gobgp.NewEnterpriseRouterProvider,
 					tables.NewBGPReconcileErrorTable,
+					func(db *statedb.DB) (statedb.Table[vrf.VRF], error) {
+						return vrf.NewVRFTable(db)
+					},
 					func() config.Config {
 						return config.Config{
 							Enabled: tt.enterpriseEnabled,

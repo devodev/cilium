@@ -32,6 +32,7 @@ import (
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/manager/instance"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/manager/reconcilerv2"
 	entTypes "github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
+	"github.com/cilium/cilium/enterprise/pkg/vrf"
 	ossAgent "github.com/cilium/cilium/pkg/bgp/agent"
 	"github.com/cilium/cilium/pkg/bgp/api"
 	ossManager "github.com/cilium/cilium/pkg/bgp/manager"
@@ -43,6 +44,7 @@ import (
 	v1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
 	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/cilium/pkg/logging/logfields"
+	"github.com/cilium/cilium/pkg/node"
 	"github.com/cilium/cilium/pkg/option"
 	"github.com/cilium/cilium/pkg/time"
 )
@@ -61,6 +63,8 @@ type enterpriseBGPRouterManagerParams struct {
 	Metrics             *ossManager.BGPManagerMetrics
 	DB                  *statedb.DB
 	ReconcileErrorTable statedb.RWTable[*tables.BGPReconcileError]
+	VRFTable            statedb.Table[vrf.VRF]
+	LocalNodeStore      *node.LocalNodeStore
 	RouterProvider      entTypes.EnterpriseRouterProvider
 	Reconcilers         []reconcilerv2.EnterpriseConfigReconciler `group:"enterprise-bgp-config-reconciler"`
 	StateReconcilers    []reconcilerv2.EnterpriseStateReconciler  `group:"enterprise-bgp-state-reconciler"`
@@ -133,6 +137,8 @@ type BGPRouterManager struct {
 	// statedb tables
 	DB                  *statedb.DB
 	ReconcileErrorTable statedb.RWTable[*tables.BGPReconcileError]
+	VRFTable            statedb.Table[vrf.VRF]
+	LocalNodeStore      *node.LocalNodeStore
 
 	// running is set when the manager is running, and unset when it is stopped.
 	running bool
@@ -167,6 +173,8 @@ func NewBGPRouterManager(params enterpriseBGPRouterManagerParams) (agent.Enterpr
 		// statedb
 		DB:                  params.DB,
 		ReconcileErrorTable: params.ReconcileErrorTable,
+		VRFTable:            params.VRFTable,
+		LocalNodeStore:      params.LocalNodeStore,
 
 		// By default, do not destroy the GobGP router on Stop() as that causes sending Cease notification to peers,
 		// which terminates Graceful Restart progress. We set this to true only for tests, where GR is not needed
@@ -574,9 +582,19 @@ func (m *BGPRouterManager) reconcileEnterpriseInstances(ctx context.Context,
 	m.Lock()
 	defer m.Unlock()
 
+	rtxn := m.DB.ReadTxn()
+
+	getVRF := func(instance *v1.IsovalentBGPNodeInstance) (entTypes.EnterpriseBGPVRF, error) {
+		vrf, err := m.getVRF(ctx, rtxn, instance)
+		if err != nil {
+			return entTypes.EnterpriseBGPVRF{}, err
+		}
+		return vrf, nil
+	}
+
 	// use a reconcileDiff to compute which BgpServers must be created, removed
 	// and reconciled.
-	rd := newReconcileDiff(ciliumNode)
+	rd := newReconcileDiff(ciliumNode, getVRF)
 
 	if nodeObj == nil {
 		m.withdrawAll(ctx, rd)
@@ -602,7 +620,7 @@ func (m *BGPRouterManager) reconcileEnterpriseInstances(ctx context.Context,
 		m.withdraw(ctx, rd)
 	}
 	if len(rd.register) > 0 {
-		err = errors.Join(err, m.register(ctx, rd))
+		err = errors.Join(err, m.register(ctx, rtxn, rd))
 	}
 	if len(rd.reconcile) > 0 {
 		err = errors.Join(err, m.reconcile(ctx, rd))
@@ -627,7 +645,7 @@ func (m *BGPRouterManager) reconcileEnterpriseInstances(ctx context.Context,
 
 // register instantiates and configures BGP Instance(s) as instructed by the provided
 // work diff.
-func (m *BGPRouterManager) register(ctx context.Context, rd *reconcileDiff) error {
+func (m *BGPRouterManager) register(ctx context.Context, rtxn statedb.ReadTxn, rd *reconcileDiff) error {
 	var (
 		instancesWithError []string
 		lastErr            error
@@ -641,7 +659,7 @@ func (m *BGPRouterManager) register(ctx context.Context, rd *reconcileDiff) erro
 			lastErr = errors.New("unseen instance")
 			continue
 		}
-		if rErr := m.registerBGPInstance(ctx, config, rd.ciliumNode); rErr != nil {
+		if rErr := m.registerBGPInstance(ctx, rtxn, config, rd.ciliumNode); rErr != nil {
 			// we'll log the error and attempt to register the next instance.
 			m.logger.Debug("Error registering new BGP instance",
 				logfields.Error, rErr,
@@ -659,7 +677,9 @@ func (m *BGPRouterManager) register(ctx context.Context, rd *reconcileDiff) erro
 
 // registerBGPInstance encapsulates the logic for instantiating a
 // BGPInstance
-func (m *BGPRouterManager) registerBGPInstance(ctx context.Context,
+func (m *BGPRouterManager) registerBGPInstance(
+	ctx context.Context,
+	rtxn statedb.ReadTxn,
 	c *v1.IsovalentBGPNodeInstance,
 	ciliumNode *v2.CiliumNode) error {
 
@@ -679,6 +699,10 @@ func (m *BGPRouterManager) registerBGPInstance(ctx context.Context,
 	if err != nil {
 		return err
 	}
+	vrf, err := m.getVRF(ctx, rtxn, c)
+	if err != nil {
+		return err
+	}
 
 	globalConfig := entTypes.EnterpriseServerParameters{
 		Global: entTypes.EnterpriseBGPGlobal{
@@ -690,7 +714,10 @@ func (m *BGPRouterManager) registerBGPInstance(ctx context.Context,
 					AdvertiseInactiveRoutes: true,
 				},
 			},
+			BindToDevice:  vrf.DeviceName,
+			BindToIfindex: vrf.DeviceIfindex,
 		},
+		VRF:               vrf,
 		StateNotification: make(types.StateNotificationCh, 1),
 	}
 
@@ -723,6 +750,7 @@ func (m *BGPRouterManager) registerBGPInstance(ctx context.Context,
 		types.LocalASNLogField, localASN,
 		types.ListenPortLogField, localPort,
 		types.RouterIDLogField, routerID,
+		entTypes.VRFLogField, vrf.Name,
 	)
 
 	return err
@@ -1055,6 +1083,48 @@ func getLocalPort(config *v1.IsovalentBGPNodeInstance) (int32, error) {
 		return *config.LocalPort, nil
 	}
 	return int32(-1), nil
+}
+
+// getVRF resolves the VRF reference and returns EnterpriseBGPVRF
+func (m *BGPRouterManager) getVRF(ctx context.Context, rtxn statedb.ReadTxn, config *v1.IsovalentBGPNodeInstance) (entTypes.EnterpriseBGPVRF, error) {
+	if config.VRFRef == nil {
+		return entTypes.EnterpriseBGPVRF{}, nil
+	}
+
+	coreVRF, _, found := m.VRFTable.Get(rtxn, vrf.NameIndex.Query(config.VRFRef.Name))
+	if !found {
+		return entTypes.EnterpriseBGPVRF{}, fmt.Errorf("failed to find IsovalentCoreVRF %q referenced by instance %q", config.VRFRef.Name, config.Name)
+	}
+
+	// The VRF table holds all IsovalentCoreVRFs cluster-wide, but the VRF
+	// device is only created on nodes the VRF applies to. Reject a reference
+	// to a VRF that does not apply to this node rather than binding to a device
+	// that does not exist here.
+	localNode, err := m.LocalNodeStore.Get(ctx)
+	if err != nil {
+		return entTypes.EnterpriseBGPVRF{}, fmt.Errorf("failed to get local node: %w", err)
+	}
+	if !coreVRF.MatchesNode(localNode.Labels) {
+		return entTypes.EnterpriseBGPVRF{}, fmt.Errorf("IsovalentCoreVRF %q referenced by instance %q does not apply to this node", config.VRFRef.Name, config.Name)
+	}
+
+	// We need to get the actual VRF device to obtain ifindex. This is
+	// because the Linux SO_BINDTODEVICE option associates the socket with
+	// the ifindex instead of device name. Therefore, if the device is
+	// created with the same name but with different ifindex, the socket
+	// must be recreated. Unfortunately, neither the Linux kernel nor GoBGP
+	// takes care of this, so we need to do it ourselves.
+	link, err := safenetlink.LinkByName(fmt.Sprintf(vrf.CiliumVRFDeviceFMT, coreVRF.Table))
+	if err != nil {
+		return entTypes.EnterpriseBGPVRF{}, fmt.Errorf("failed to get VRF device: %w", err)
+	}
+
+	return entTypes.EnterpriseBGPVRF{
+		Name:          coreVRF.Name,
+		TableID:       coreVRF.Table,
+		DeviceName:    link.Attrs().Name,
+		DeviceIfindex: link.Attrs().Index,
+	}, nil
 }
 
 func toIsovalentBGPNodeConfig(in *v2.CiliumBGPNodeConfig) *v1.IsovalentBGPNodeConfig {

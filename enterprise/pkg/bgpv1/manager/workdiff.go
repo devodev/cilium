@@ -20,10 +20,14 @@ import (
 	v1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
 )
 
+// getVRFFn resolves the VRF devicea BGP instance is bound to
+type getVRFFn func(*v1.IsovalentBGPNodeInstance) (types.EnterpriseBGPVRF, error)
+
 type reconcileDiff struct {
 	seen map[string]*v1.IsovalentBGPNodeInstance
 
 	ciliumNode *v2.CiliumNode
+	getVRF     getVRFFn
 
 	register  []string
 	withdraw  []string
@@ -33,10 +37,11 @@ type reconcileDiff struct {
 
 // newReconcileDiff constructs a new *reconcileDiff with all internal structures
 // initialized.
-func newReconcileDiff(ciliumNode *v2.CiliumNode) *reconcileDiff {
+func newReconcileDiff(ciliumNode *v2.CiliumNode, getVRF getVRFFn) *reconcileDiff {
 	return &reconcileDiff{
 		seen:       make(map[string]*v1.IsovalentBGPNodeInstance),
 		ciliumNode: ciliumNode,
+		getVRF:     getVRF,
 		register:   []string{},
 		withdraw:   []string{},
 		reconcile:  []string{},
@@ -131,12 +136,19 @@ func (wd *reconcileDiff) ensureGlobal(desiredConfig *v1.IsovalentBGPNodeInstance
 		return nil, fmt.Errorf("failed to get router ID for instance %v: %w", desiredConfig.Name, err)
 	}
 
+	vrf, err := wd.getVRF(desiredConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get VRF device for instance %v: %w", desiredConfig.Name, err)
+	}
+
 	return &types.EnterpriseBGPGlobal{
 		BGPGlobal: ossTypes.BGPGlobal{
 			ASN:        uint32(localASN),
 			ListenPort: localPort,
 			RouterID:   routerID,
 		},
+		BindToDevice:  vrf.DeviceName,
+		BindToIfindex: vrf.DeviceIfindex,
 	}, nil
 }
 
@@ -144,7 +156,9 @@ func (wd *reconcileDiff) ensureGlobal(desiredConfig *v1.IsovalentBGPNodeInstance
 func (wd *reconcileDiff) requiresRecreate(existing *types.EnterpriseBGPGlobal, desired *types.EnterpriseBGPGlobal) bool {
 	return existing.ASN != desired.ASN ||
 		existing.ListenPort != desired.ListenPort ||
-		existing.RouterID != desired.RouterID
+		existing.RouterID != desired.RouterID ||
+		existing.BindToDevice != desired.BindToDevice ||
+		existing.BindToIfindex != desired.BindToIfindex
 }
 
 // withdrawDiff will populate the `withdraw` field of a reconcileDiff, indicating which

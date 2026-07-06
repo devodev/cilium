@@ -23,6 +23,15 @@ import (
 )
 
 func TestReconcileDiff(t *testing.T) {
+	dummyResolver := func(instance *v1.IsovalentBGPNodeInstance) (types.EnterpriseBGPVRF, error) {
+		return types.EnterpriseBGPVRF{
+			Name:          "dummy-vrf",
+			TableID:       1000,
+			DeviceName:    "cvrf-dummy-vrf",
+			DeviceIfindex: 123,
+		}, nil
+	}
+
 	t.Run("Register", func(t *testing.T) {
 		desired := &v1.IsovalentBGPNodeConfig{
 			Spec: v1.IsovalentBGPNodeSpec{
@@ -44,7 +53,7 @@ func TestReconcileDiff(t *testing.T) {
 			},
 		}
 
-		rd := newReconcileDiff(nil)
+		rd := newReconcileDiff(nil, dummyResolver)
 		err := rd.diff(map[string]*instance.EnterpriseBGPInstance{}, desired)
 		require.NoError(t, err, "diff() should not return an error even if one instance fails")
 		require.Equal(t, []string{"instance-ok"}, rd.register)
@@ -72,7 +81,7 @@ func TestReconcileDiff(t *testing.T) {
 			},
 		}
 
-		rd := newReconcileDiff(nil)
+		rd := newReconcileDiff(nil, dummyResolver)
 		err := rd.diff(map[string]*instance.EnterpriseBGPInstance{
 			"instance-ok": {
 				Global: types.EnterpriseBGPGlobal{
@@ -81,6 +90,8 @@ func TestReconcileDiff(t *testing.T) {
 						RouterID:   "10.0.0.1",
 						ListenPort: -1,
 					},
+					BindToDevice:  "cvrf-dummy-vrf",
+					BindToIfindex: 123,
 				},
 			},
 		}, desired)
@@ -110,15 +121,17 @@ func TestReconcileDiff(t *testing.T) {
 			},
 		}
 
-		rd := newReconcileDiff(nil)
+		rd := newReconcileDiff(nil, dummyResolver)
 		err := rd.diff(map[string]*instance.EnterpriseBGPInstance{
 			"instance-ok": {
 				Global: types.EnterpriseBGPGlobal{
 					BGPGlobal: ossTypes.BGPGlobal{
-						ASN:        65001,
+						ASN:        65000,
 						RouterID:   "10.0.0.1",
 						ListenPort: -1,
 					},
+					BindToDevice:  "cvrf-dummy-vrf",
+					BindToIfindex: 567,
 				},
 			},
 		}, desired)

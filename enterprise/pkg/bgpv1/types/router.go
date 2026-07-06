@@ -63,6 +63,7 @@ type EnterpriseRouterProvider interface {
 // EnterpriseServerParameters contains Enterprise BGP router startup parameters.
 type EnterpriseServerParameters struct {
 	Global            EnterpriseBGPGlobal
+	VRF               EnterpriseBGPVRF
 	StateNotification ossTypes.StateNotificationCh
 }
 
@@ -72,6 +73,22 @@ type EnterpriseBGPGlobal struct {
 
 	// BindToDevice restricts the GoBGP listen socket to the Linux device.
 	BindToDevice string
+
+	// BindToIfindex is an ifindex of the BindToDevice. This is used to
+	// detect the case that BIndToDevice is recreated with the same name.
+	// Linux's SO_BINDTODEVICE binds socket to the ifindex instead of the
+	// device name and doesn't take care of changing ifindex when the device
+	// is recreated. Therefore, we need to check if the ifindex of the
+	// device is changed and recreate the socket if it is changed.
+	BindToIfindex int
+}
+
+// EnterpriseBGPVRF holds the VRF information for the BGP instance.
+type EnterpriseBGPVRF struct {
+	Name          string
+	TableID       uint32
+	DeviceName    string
+	DeviceIfindex int
 }
 
 type GetBGPExtendedResponse struct {

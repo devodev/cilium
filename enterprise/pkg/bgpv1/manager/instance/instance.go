@@ -25,6 +25,7 @@ type EnterpriseBGPInstance struct {
 	CancelCtx           context.CancelFunc
 	Config              *v1.IsovalentBGPNodeInstance
 	Router              types.EnterpriseRouter
+	VRF                 types.EnterpriseBGPVRF
 	stateNotificationCh chan struct{}
 }
 
@@ -57,6 +58,7 @@ func NewEnterpriseBGPInstance(ctx context.Context, routerProvider types.Enterpri
 		CancelCtx:           cancel,
 		Config:              nil,
 		Router:              s,
+		VRF:                 params.VRF,
 		stateNotificationCh: params.StateNotification,
 	}, nil
 }

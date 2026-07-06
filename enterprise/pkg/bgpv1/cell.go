@@ -11,9 +11,12 @@
 package bgpv1
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/cilium/hive/cell"
+	"github.com/cilium/hive/job"
+	"github.com/cilium/statedb"
 
 	"github.com/cilium/cilium/enterprise/operator/pkg/bgpv2/config"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/agent"
@@ -22,6 +25,9 @@ import (
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/manager"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/manager/reconcilerv2"
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/metrics"
+	"github.com/cilium/cilium/enterprise/pkg/bgpv1/utils"
+	"github.com/cilium/cilium/enterprise/pkg/vrf"
+	"github.com/cilium/cilium/pkg/bgp/agent/signaler"
 	"github.com/cilium/cilium/pkg/bgp/gobgp"
 	"github.com/cilium/cilium/pkg/bgp/types"
 	"github.com/cilium/cilium/pkg/k8s"
@@ -78,6 +84,10 @@ var Cell = cell.Module(
 		// Register metrics collector
 		metrics.RegisterCollector,
 
+		// Re-signal BGP reconciliation upon VRF table changes so that
+		// instances referencing a VRF pick up the resolved bind device.
+		registerVRFTableNotifier,
+
 		// Raise error when OSS and enterprise BGP CPlane are both enabled
 		func(cfg config.Config, dc *option.DaemonConfig) error {
 			if cfg.Enabled && dc.BGPControlPlaneEnabled() {
@@ -87,3 +97,22 @@ var Cell = cell.Module(
 		},
 	),
 )
+
+// registerVRFTableNotifier signals the BGP Control Plane whenever the VRF table
+// changes, so that BGP instances referencing a VRF are re-reconciled once the
+// VRF (and its bind device) becomes available or changes.
+func registerVRFTableNotifier(
+	config config.Config,
+	jobGroup job.Group,
+	db *statedb.DB,
+	sig *signaler.BGPCPSignaler,
+	vrfTable statedb.Table[vrf.VRF],
+) {
+	if !config.Enabled {
+		return
+	}
+
+	jobGroup.Add(job.OneShot("enterprise-bgp-vrf-table-notifier", func(ctx context.Context, _ cell.Health) error {
+		return utils.SignalBGPUponTableEvents(ctx, db, vrfTable, sig, nil)
+	}))
+}
