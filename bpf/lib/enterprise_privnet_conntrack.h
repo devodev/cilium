@@ -214,7 +214,7 @@ privnet_ct_unknown_flow_ingress_ipv6(const struct __ctx_buff *ctx,
 	struct ipv6_ct_tuple tuple = {};
 	struct ct_state ct_state = {};
 	void *ct_map, *ct_map_any;
-	fraginfo_t fraginfo;
+	fraginfo_t fraginfo = 0;
 	__u32 monitor = 0;
 	int hdrlen;
 	int l4_off;
