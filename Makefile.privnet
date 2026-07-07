@@ -41,6 +41,9 @@ PRIVNET_FORKLIFT_VERSION ?= v2.12.1
 # renovate: datasource=github-releases depName=k8snetworkplumbingwg/multus-cni
 PRIVNET_MULTUS_VERSION ?= v4.3.0
 
+# renovate: datasource=github-releases depName=containernetworking/plugins
+PRIVNET_CNI_PLUGINS_VERSION ?= v1.9.1
+
 PRIVNET_DNS_SERVER ?= 8.8.8.8
 
 .PHONY: kind-privnet-all
@@ -98,6 +101,8 @@ kind-privnet-up:  ## Setup the privnet environment
 	# Label nodes so that in-cluster ILB can run on them
 	kind get nodes --name privnet-cluster | xargs -IX kubectl --context=kind-privnet-cluster label node X service.cilium.io/node=t1-t2
 
+	$(MAKE) kind-privnet-install-cni-plugins
+
 .PHONY: kind-privnet-down
 kind-privnet-down:  ## Tear down the privnet environment
 	PRIVNET_BRIDGE=privnet-sgmnts \
@@ -120,6 +125,24 @@ kind-privnet-ready:  ## Check the readiness of the privnet environment
 	$(QUIET) kind get clusters --quiet | grep --word-regexp --silent privnet-cluster
 	$(QUIET) kind get clusters --quiet | grep --word-regexp --silent privnet-inb0
 	$(QUIET) kind get clusters --quiet | grep --word-regexp --silent privnet-inb1
+
+
+.PHONY: kind-privnet-install-cni-plugins
+kind-privnet-install-cni-plugins:
+	set -eu -o pipefail; \
+	case "$$(uname -m)" in \
+		x86_64) arch=amd64 ;; \
+		aarch64|arm64) arch=arm64 ;; \
+		*) echo "unsupported arch: $$(uname -m)"; exit 1 ;; \
+	esac; \
+	tmpdir=$$(mktemp -d "$${TMPDIR:-/tmp}/privnet.XXXXXXXX"); \
+	trap 'rm -rf "$$tmpdir"' EXIT; \
+	curl --fail --location --silent --show-error --output-dir "$$tmpdir" --remote-name \
+		"https://github.com/containernetworking/plugins/releases/download/$(PRIVNET_CNI_PLUGINS_VERSION)/cni-plugins-linux-$$arch-$(PRIVNET_CNI_PLUGINS_VERSION).tgz{,.sha256}"; \
+	(cd "$$tmpdir" && sha256sum --check "cni-plugins-linux-$$arch-$(PRIVNET_CNI_PLUGINS_VERSION).tgz.sha256"); \
+	for node in $$(kind get nodes --name privnet-cluster); do \
+		docker exec -i "$$node" tar -xzf - -C /opt/cni/bin < "$$tmpdir/cni-plugins-linux-$$arch-$(PRIVNET_CNI_PLUGINS_VERSION).tgz"; \
+	done
 
 
 LOCAL_IMAGE_TAG_PRIVNET ?= privnet
