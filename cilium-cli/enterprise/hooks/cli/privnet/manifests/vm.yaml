@@ -191,15 +191,15 @@ stringData:
         dhcp4: true
         {{- if $iface.IPv6.IsValid }}
         addresses:
-          - {{ $iface.IPv6 }}/128
+          - {{ $iface.IPv6 }}
         {{- end }}
         {{- else }}
         addresses:
           {{- if $iface.IPv4.IsValid }}
-          - {{ $iface.IPv4 }}/32
+          - {{ $iface.IPv4 }}
           {{- end }}
           {{- if $iface.IPv6.IsValid }}
-          - {{ $iface.IPv6 }}/128
+          - {{ $iface.IPv6 }}
           {{- end }}
         {{- if $iface.DNSServer.IsValid }}
         nameservers:

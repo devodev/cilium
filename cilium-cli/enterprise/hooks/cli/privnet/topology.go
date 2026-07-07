@@ -146,8 +146,8 @@ func (vm DesiredVM) ToVMs() []VM {
 
 			NetName:   iface.Network,
 			NetSubnet: iface.Subnet,
-			NetIPv4:   iface.IPv4,
-			NetIPv6:   iface.IPv6,
+			NetIPv4:   iface.IPv4.Addr(),
+			NetIPv6:   iface.IPv6.Addr(),
 			NetMAC:    iface.MAC,
 		})
 	}
@@ -217,8 +217,8 @@ type Interface struct {
 	NAD string
 	MAC string
 
-	IPv4 netip.Addr
-	IPv6 netip.Addr
+	IPv4 netip.Prefix
+	IPv6 netip.Prefix
 
 	Routes []Route
 
@@ -234,8 +234,8 @@ func (i Interface) ToNetworkAttachment(idx uint) types.NetworkAttachment {
 		Network:   string(i.Network),
 		Subnet:    string(i.Subnet),
 		Interface: i.Name(idx),
-		IPv4:      i.IPv4,
-		IPv6:      i.IPv6,
+		IPv4:      i.IPv4.Addr(),
+		IPv6:      i.IPv6.Addr(),
 		MAC:       mac.MustParseMAC(i.MAC),
 	}
 }
@@ -515,8 +515,8 @@ var networkTopology = struct {
 				{
 					Network:   NetworkA,
 					NAD:       NADFor(NetworkA, SubnetName0),
-					IPv4:      netip.MustParseAddr("192.168.250.10"),
-					IPv6:      netip.MustParseAddr("fd10:0:250::10"),
+					IPv4:      netip.MustParsePrefix("192.168.250.10/32"),
+					IPv6:      netip.MustParsePrefix("fd10:0:250::10/128"),
 					Routes:    slices.Concat(newVMRoutes("0.0.0.0/0", 0), newVMRoutes("::/0", 0)),
 					DNSServer: netip.MustParseAddr("192.168.250.254"),
 					MAC:       "f2:54:1c:1f:84:94",
@@ -524,24 +524,24 @@ var networkTopology = struct {
 				{
 					Network: NetworkF,
 					NAD:     NADFor(NetworkF, SubnetName0),
-					IPv4:    netip.MustParseAddr("192.168.254.1"),
-					IPv6:    netip.MustParseAddr("fd10:0:254:1::1"),
+					IPv4:    netip.MustParsePrefix("192.168.254.1/32"),
+					IPv6:    netip.MustParsePrefix("fd10:0:254:1::1/128"),
 					Routes:  slices.Concat(newVMRoutes("192.168.254.0/27", 1), newVMRoutes("fd10:0:254:1::0/64", 1)),
 					MAC:     "f2:54:1c:1f:84:95",
 				},
 				{
 					Network: NetworkF,
 					NAD:     NADFor(NetworkF, SubnetName1),
-					IPv4:    netip.MustParseAddr("192.168.254.33"),
-					IPv6:    netip.MustParseAddr("fd10:0:254:2::33"),
+					IPv4:    netip.MustParsePrefix("192.168.254.33/32"),
+					IPv6:    netip.MustParsePrefix("fd10:0:254:2::33/128"),
 					Routes:  slices.Concat(newVMRoutes("192.168.254.32/27", 2), newVMRoutes("fd10:0:254:2::0/64", 2)),
 					MAC:     "f2:54:1c:1f:84:96",
 				},
 				{
 					Network: NetworkF,
 					NAD:     NADFor(NetworkF, SubnetName2),
-					IPv4:    netip.MustParseAddr("192.168.254.65"),
-					IPv6:    netip.MustParseAddr("fd10:0:254:3::65"),
+					IPv4:    netip.MustParsePrefix("192.168.254.65/32"),
+					IPv6:    netip.MustParsePrefix("fd10:0:254:3::65/128"),
 					Routes:  slices.Concat(newVMRoutes("192.168.254.64/27", 3), newVMRoutes("fd10:0:254:3::0/64", 3)),
 					MAC:     "f2:54:1c:1f:84:97",
 				},
@@ -555,8 +555,8 @@ var networkTopology = struct {
 				{
 					Network:   NetworkA,
 					NAD:       NADFor(NetworkA, SubnetName0),
-					IPv4:      netip.MustParseAddr("192.168.250.20"),
-					IPv6:      netip.MustParseAddr("fd10:0:250::20"),
+					IPv4:      netip.MustParsePrefix("192.168.250.20/32"),
+					IPv6:      netip.MustParsePrefix("fd10:0:250::20/128"),
 					Routes:    slices.Concat(newVMRoutes("0.0.0.0/0", 0), newVMRoutes("::/0", 0)),
 					DNSServer: netip.MustParseAddr("192.168.250.254"),
 					MAC:       "de:a9:fd:7d:af:bf",
@@ -564,8 +564,8 @@ var networkTopology = struct {
 				{
 					Network: NetworkF,
 					NAD:     NADFor(NetworkF, SubnetName0),
-					IPv4:    netip.MustParseAddr("192.168.254.2"),
-					IPv6:    netip.MustParseAddr("fd10:0:254:1::2"),
+					IPv4:    netip.MustParsePrefix("192.168.254.2/32"),
+					IPv6:    netip.MustParsePrefix("fd10:0:254:1::2/128"),
 					Routes:  slices.Concat(newVMRoutes("192.168.254.0/27", 1), newVMRoutes("fd10:0:254:1::0/64", 1)),
 					MAC:     "de:a9:fd:7d:af:be",
 				},
@@ -580,8 +580,8 @@ var networkTopology = struct {
 				{
 					Network:   NetworkA,
 					NAD:       NADFor(NetworkA, SubnetName0),
-					IPv4:      netip.MustParseAddr("192.168.250.21"),
-					IPv6:      netip.MustParseAddr("fd10:0:250::21"),
+					IPv4:      netip.MustParsePrefix("192.168.250.21/32"),
+					IPv6:      netip.MustParsePrefix("fd10:0:250::21/128"),
 					Routes:    slices.Concat(newVMRoutes("0.0.0.0/0", 0), newVMRoutes("::/0", 0)),
 					DNSServer: netip.MustParseAddr("192.168.250.254"),
 					MAC:       "be:68:f6:fc:6a:4a",
@@ -597,7 +597,7 @@ var networkTopology = struct {
 				{
 					Network:   NetworkA,
 					NAD:       NADFor(NetworkA, SubnetName0),
-					IPv4:      netip.MustParseAddr("192.168.250.23"),
+					IPv4:      netip.MustParsePrefix("192.168.250.23/32"),
 					Routes:    newVMRoutes("0.0.0.0/0", 0),
 					DNSServer: netip.MustParseAddr("192.168.250.254"),
 					MAC:       "be:68:f6:fc:7a:2c",
@@ -613,7 +613,7 @@ var networkTopology = struct {
 				{
 					Network:   NetworkA,
 					NAD:       NADFor(NetworkA, SubnetName0),
-					IPv6:      netip.MustParseAddr("fd10:0:250::24"),
+					IPv6:      netip.MustParsePrefix("fd10:0:250::24/128"),
 					Routes:    newVMRoutes("::/0", 0),
 					DNSServer: netip.MustParseAddr("192.168.250.254"),
 					MAC:       "be:68:a1:3c:6a:4a",
@@ -631,8 +631,8 @@ var networkTopology = struct {
 					Network:   NetworkB,
 					Subnet:    SubnetName1,
 					NAD:       NADFor(NetworkB, SubnetName1),
-					IPv4:      netip.MustParseAddr("0.0.0.0"), /* zero or missing IPv4 signals use of DHCP */
-					IPv6:      netip.MustParseAddr("fd10:0:253::15"),
+					IPv4:      netip.MustParsePrefix("0.0.0.0/0"), /* zero IPv4 prefix signals use of DHCP */
+					IPv6:      netip.MustParsePrefix("fd10:0:253::15/128"),
 					Routes:    newVMRoutes("::/0", 0),
 					DNSServer: netip.MustParseAddr("192.168.253.254"),
 					MAC:       "02:00:00:e6:bb:fe",
@@ -641,8 +641,8 @@ var networkTopology = struct {
 					Network:   NetworkA,
 					Subnet:    SubnetName0,
 					NAD:       NADFor(NetworkA, SubnetName0),
-					IPv4:      netip.MustParseAddr("0.0.0.0"), /* zero or missing IPv4 signals use of DHCP */
-					IPv6:      netip.MustParseAddr("fd10:0:250::15"),
+					IPv4:      netip.MustParsePrefix("0.0.0.0/0"), /* zero IPv4 prefix signals use of DHCP */
+					IPv6:      netip.MustParsePrefix("fd10:0:250::15/128"),
 					Routes:    newVMRoutes("fd10:0:250::/64", 1),
 					DNSServer: netip.MustParseAddr("192.168.250.254"),
 					MAC:       "02:00:00:e6:bb:ff",
@@ -657,8 +657,8 @@ var networkTopology = struct {
 				{
 					Network:   NetworkB,
 					NAD:       NADFor(NetworkB, SubnetName0),
-					IPv4:      netip.MustParseAddr("192.168.251.10"),
-					IPv6:      netip.MustParseAddr("fd10:0:251::10"),
+					IPv4:      netip.MustParsePrefix("192.168.251.10/32"),
+					IPv6:      netip.MustParsePrefix("fd10:0:251::10/128"),
 					Routes:    slices.Concat(newVMRoutes("0.0.0.0/0", 0), newVMRoutes("::/0", 0)),
 					DNSServer: netip.MustParseAddr("192.168.251.254"),
 					MAC:       "42:f9:eb:33:4d:54",
@@ -672,8 +672,8 @@ var networkTopology = struct {
 				{
 					Network:   NetworkB,
 					NAD:       NADFor(NetworkB, SubnetName0),
-					IPv4:      netip.MustParseAddr("192.168.251.22"),
-					IPv6:      netip.MustParseAddr("fd10:0:251::22"),
+					IPv4:      netip.MustParsePrefix("192.168.251.22/32"),
+					IPv6:      netip.MustParsePrefix("fd10:0:251::22/128"),
 					Routes:    slices.Concat(newVMRoutes("0.0.0.0/0", 0), newVMRoutes("::/0", 0)),
 					DNSServer: netip.MustParseAddr("192.168.251.254"),
 					MAC:       "0e:13:85:69:e9:f7",
@@ -681,8 +681,8 @@ var networkTopology = struct {
 				{
 					Network: NetworkF,
 					NAD:     NADFor(NetworkF, SubnetName1),
-					IPv4:    netip.MustParseAddr("192.168.254.34"),
-					IPv6:    netip.MustParseAddr("fd10:0:254:2::34"),
+					IPv4:    netip.MustParsePrefix("192.168.254.34/32"),
+					IPv6:    netip.MustParsePrefix("fd10:0:254:2::34/128"),
 					Routes:  slices.Concat(newVMRoutes("192.168.254.32/27", 1), newVMRoutes("fd10:0:254:2::0/64", 1)),
 					MAC:     "0e:13:85:69:e9:f8",
 				},
@@ -696,8 +696,8 @@ var networkTopology = struct {
 				{
 					Network:   NetworkB,
 					NAD:       NADFor(NetworkB, SubnetName1),
-					IPv4:      netip.MustParseAddr("192.168.253.10"),
-					IPv6:      netip.MustParseAddr("fd10:0:253::10"),
+					IPv4:      netip.MustParsePrefix("192.168.253.10/32"),
+					IPv6:      netip.MustParsePrefix("fd10:0:253::10/128"),
 					DNSServer: netip.MustParseAddr("192.168.253.254"),
 					MAC:       "42:f9:eb:33:1a:83",
 				},
@@ -711,8 +711,8 @@ var networkTopology = struct {
 				{
 					Network:   NetworkC,
 					NAD:       NADFor(NetworkC, SubnetName0),
-					IPv4:      netip.MustParseAddr("192.168.252.10"),
-					IPv6:      netip.MustParseAddr("fd10:0:252::10"),
+					IPv4:      netip.MustParsePrefix("192.168.252.10/32"),
+					IPv6:      netip.MustParsePrefix("fd10:0:252::10/128"),
 					DNSServer: netip.MustParseAddr("192.168.252.254"),
 					MAC:       "52:1f:62:0a:ff:07",
 				},
@@ -726,7 +726,7 @@ var networkTopology = struct {
 				{
 					Network:   NetworkC,
 					NAD:       NADFor(NetworkC, SubnetName0),
-					IPv4:      netip.MustParseAddr("192.168.252.12"),
+					IPv4:      netip.MustParsePrefix("192.168.252.12/32"),
 					DNSServer: netip.MustParseAddr("192.168.252.254"),
 					MAC:       "52:1f:62:04:1c:c7",
 				},
@@ -741,7 +741,7 @@ var networkTopology = struct {
 				{
 					Network:   NetworkC,
 					NAD:       NADFor(NetworkC, SubnetName0),
-					IPv6:      netip.MustParseAddr("fd10:0:252::12"),
+					IPv6:      netip.MustParsePrefix("fd10:0:252::12/128"),
 					DNSServer: netip.MustParseAddr("192.168.252.254"),
 					MAC:       "52:1f:61:04:4c:a7",
 				},
@@ -755,16 +755,16 @@ var networkTopology = struct {
 			Interfaces: []Interface{
 				{
 					Network:   NetworkC,
-					IPv4:      netip.MustParseAddr("192.168.252.22"),
-					IPv6:      netip.MustParseAddr("fd10:0:252::22"),
+					IPv4:      netip.MustParsePrefix("192.168.252.22/32"),
+					IPv6:      netip.MustParsePrefix("fd10:0:252::22/128"),
 					DNSServer: netip.MustParseAddr("192.168.252.254"),
 					MAC:       "5e:ae:22:a7:37:87",
 				},
 				{
 					Network: NetworkF,
 					NAD:     NADFor(NetworkF, SubnetName2),
-					IPv4:    netip.MustParseAddr("192.168.254.66"),
-					IPv6:    netip.MustParseAddr("fd10:0:254:3::66"),
+					IPv4:    netip.MustParsePrefix("192.168.254.66/32"),
+					IPv6:    netip.MustParsePrefix("fd10:0:254:3::66/128"),
 					Routes:  newVMRoutes("fd10:0:254:3::0/64", 1),
 					MAC:     "5e:ae:22:a7:37:88",
 				},
@@ -778,8 +778,8 @@ var networkTopology = struct {
 			Interfaces: []Interface{
 				{
 					Network:   NetworkD,
-					IPv4:      netip.MustParseAddr("192.168.252.10"),
-					IPv6:      netip.MustParseAddr("fd10:0:252::10"),
+					IPv4:      netip.MustParsePrefix("192.168.252.10/32"),
+					IPv6:      netip.MustParsePrefix("fd10:0:252::10/128"),
 					DNSServer: netip.MustParseAddr("192.168.252.254"),
 					MAC:       "d2:32:c6:44:58:86",
 				},
@@ -795,8 +795,8 @@ var networkTopology = struct {
 					Network:   NetworkE,
 					Subnet:    SubnetName0,
 					NAD:       NADFor(NetworkE, SubnetName0),
-					IPv4:      netip.MustParseAddr("0.0.0.0"), /* zero or missing IPv4 signals use of DHCP */
-					IPv6:      netip.MustParseAddr("fd10:0:10::15"),
+					IPv4:      netip.MustParsePrefix("0.0.0.0/0"), /* zero IPv4 prefix signals use of DHCP */
+					IPv6:      netip.MustParsePrefix("fd10:0:10::15/128"),
 					Routes:    newVMRoutes("::/0", 0),
 					DNSServer: netip.MustParseAddr("192.168.10.254"),
 					MAC:       "02:42:ac:11:00:02",
@@ -812,8 +812,8 @@ var networkTopology = struct {
 				{
 					Network:   NetworkE,
 					NAD:       NADFor(NetworkE, SubnetName0),
-					IPv4:      netip.MustParseAddr("192.168.10.10"),
-					IPv6:      netip.MustParseAddr("fd10:0:10::10"),
+					IPv4:      netip.MustParsePrefix("192.168.10.10/32"),
+					IPv6:      netip.MustParsePrefix("fd10:0:10::10/128"),
 					DNSServer: netip.MustParseAddr("192.168.10.254"),
 					MAC:       "4e:7c:b2:91:d3:08",
 				},
@@ -829,8 +829,8 @@ var networkTopology = struct {
 				{
 					Network:   NetworkE,
 					NAD:       NADFor(NetworkE, SubnetName0),
-					IPv4:      netip.MustParseAddr("192.168.10.21"),
-					IPv6:      netip.MustParseAddr("fd10:0:10::21"),
+					IPv4:      netip.MustParsePrefix("192.168.10.21/32"),
+					IPv6:      netip.MustParsePrefix("fd10:0:10::21/128"),
 					DNSServer: netip.MustParseAddr("192.168.10.254"),
 					MAC:       "a6:f1:3e:c4:58:2b",
 				},
