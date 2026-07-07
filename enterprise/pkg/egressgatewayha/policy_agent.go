@@ -382,6 +382,16 @@ func deviceGetFirstAdresses(dev *tables.Device) (netip.Addr, netip.Addr) {
 	return firstIPv4, firstIPv6
 }
 
+func getDeviceWithAddress(manager *Manager, addr netip.Addr) *tables.Device {
+	for dev := range manager.deviceTable.All(manager.db.ReadTxn()) {
+		if dev.HasIP(addr) {
+			return dev
+		}
+	}
+
+	return nil
+}
+
 // deriveFromGroupConfig retrieves all the missing gateway configuration data
 // (such as egress IP or interface) given a policy group config
 func (gwc *gatewayConfig) deriveFromGroupConfig(manager *Manager, logger *slog.Logger, gc *groupConfig) error {
@@ -422,12 +432,19 @@ func (gwc *gatewayConfig) deriveFromGroupConfig(manager *Manager, logger *slog.L
 		// If the group config specifies an egress IP, use the interface with that IP as egress
 		// interface
 		egressIP4 = gc.egressIP
+
+		dev := getDeviceWithAddress(manager, gc.egressIP)
+		if dev != nil {
+			gwc.ifaceName = dev.Name
+		} else {
+			gwc.ifaceName, err = netdevice.GetIfaceWithIPv4Address(gc.egressIP)
+			if err != nil {
+				return fmt.Errorf("failed to retrieve interface with egress IP: %w", err)
+			}
+		}
+
 		// Don't apply ifindex-based BPF forwarding, and instead defer to IP routing:
 		gwc.egressIfindex = 0
-		gwc.ifaceName, err = netdevice.GetIfaceWithIPv4Address(gc.egressIP)
-		if err != nil {
-			return fmt.Errorf("failed to retrieve interface with egress IP: %w", err)
-		}
 	default:
 		// If the group config doesn't specify any egress IP or interface, use
 		// the interface with the IPv4 default route

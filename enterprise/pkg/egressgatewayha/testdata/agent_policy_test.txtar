@@ -31,6 +31,20 @@ db/cmp --timeout=10s policy-config policyconfig.expected.2
 egressha/policy-maps-dump policymap.actual
 * cmp policymap.actual policymap.expected.2
 
+# Update the `interface` field in the IEGP, and validate that this is reflected in the agent state.
+# This also covers the support for interface altnames.
+cp policy1_2.yaml policy1_3.yaml
+sed '    interface: eth1-alt' '    egressIP: 10.10.0.1' policy1_3.yaml
+k8s/update policy1_3.yaml
+
+# Wait and check for in memory state
+db/show policy-config --columns ID,Endpoints,Generation,IsGateway,Interface,Ifindex,EgressIP,Groups
+db/cmp --timeout=10s policy-config policyconfig.expected.3
+
+# Check that manager realizes expected bpf map state.
+egressha/policy-maps-dump policymap.actual
+* cmp policymap.actual policymap.expected.3
+
 -- policyconfig.expected.1 --
 ID        Endpoints       Generation   IsGateway   Interface   Ifindex     EgressIP    Groups
 policy1   [10.244.3.91]   1            true        eth0        1           10.10.0.1   [active=[172.18.0.3],healthy=[172.18.0.3]]
@@ -41,6 +55,11 @@ ID        Endpoints       Generation   IsGateway   Interface   Ifindex     Egres
 policy1   [10.244.3.91]   1            true        eth1        2           10.10.0.2   [active=[172.18.0.3],healthy=[172.18.0.3]]
 -- policymap.expected.2 --
 source_ip=10.244.3.91 dest_cidr=0.0.0.0 egress_ip=10.10.0.2 egress_ifindex=2 gateway_ips=[172.18.0.3]
+-- policyconfig.expected.3 --
+ID        Endpoints       Generation   IsGateway   Interface   Ifindex     EgressIP    Groups
+policy1   [10.244.3.91]   1            true        eth0        0           10.10.0.1   [active=[172.18.0.3],healthy=[172.18.0.3]]
+-- policymap.expected.3 --
+source_ip=10.244.3.91 dest_cidr=0.0.0.0 egress_ip=10.10.0.1 egress_ifindex=0 gateway_ips=[172.18.0.3]
 -- node1.yaml --
 apiVersion: v1
 kind: Node
