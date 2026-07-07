@@ -444,6 +444,12 @@ kind-privnet-deploy-external-endpoints: kind-privnet-test-namespace  ## Create t
 	$(call privnet_inb_extep,"privnet-vm-network-c1","network-c","kind-privnet-inb1")
 	$(call privnet_inb_extep,"privnet-vm-network-d1","network-d","kind-privnet-inb1")
 
+.PHONY: kind-privnet-deploy-nad-bridge
+kind-privnet-deploy-nad-bridge: kind-privnet-test-namespace  ## Create the Multus NAD targeting the L2 bridge
+	NAME=bridge BRIDGE=br0 VLAN=10 \
+		envsubst < $(ROOT_DIR)/contrib/testing/privnet/nad-bridge.yaml.tmpl | \
+			kubectl --context kind-privnet-cluster apply -f - -n $(PRIVNET_TEST_NAMESPACE)
+
 define kind_privnet_test_run_load_image
 	$(call privnet_pull_image,$(1))
 	$(call privnet_load_images,privnet-cluster,$(1))
@@ -499,7 +505,7 @@ kind-privnet-test-run:  ## Run the connectivity tests
 	fi
 
 .PHONY: kind-privnet-test
-kind-privnet-test: kind-privnet-deploy-external-endpoints kind-privnet-deploy-forklift-resources kind-privnet-test-run  ## Setup the dependencies and run the connectivity tests
+kind-privnet-test: kind-privnet-deploy-external-endpoints kind-privnet-deploy-forklift-resources kind-privnet-deploy-nad-bridge kind-privnet-test-run  ## Setup the dependencies and run the connectivity tests
 
 .PHONY: kind-privnet-test-undeploy
 kind-privnet-test-undeploy:  ## Undeploy the test applications from the clusters

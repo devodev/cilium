@@ -1,0 +1,16 @@
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: ${NAME}
+spec:
+  config: |-
+    {
+      "cniVersion": "1.0.0",
+      "name": "${NAME}",
+      "type": "bridge",
+      "bridge": "${BRIDGE}",
+      "vlan": ${VLAN},
+      "ipam": {
+        "type": "static"
+      }
+    }
