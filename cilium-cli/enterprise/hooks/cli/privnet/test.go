@@ -29,6 +29,7 @@ import (
 	"text/template"
 	"time"
 
+	multusv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -396,7 +397,7 @@ func (t *TestRun) renderClusterVMs(vms []DesiredVM) ([]k8s.Object, error) {
 			MockVMImage:     t.params.MockVMImage,
 			ScriptConfigMap: echoServerConfigMapName,
 			ServePort:       EchoServerPort,
-			NeedsAnnotation: !t.webhookEnabled || vm.ID == "",
+			NeedsAnnotation: (!t.webhookEnabled || vm.ID == "") && vm.Kind != VMKindBridge,
 			PlanID:          t.webhookPlanID,
 		}
 
@@ -1036,12 +1037,39 @@ func renderTemplate(templ string, data any) (string, error) {
 			out, err := json.MarshalIndent(attachments, "", "  ")
 			return string(out), err
 		},
-		"formatMultusNetworks": func(ifaces []Interface) (out string) {
+		"formatMultusNetworks": func(ifaces []Interface, kind VMKind) (out string, err error) {
+			if kind == VMKindBridge {
+				var nses []multusv1.NetworkSelectionElement
+
+				// In case of fake VMs of type Bridge, we leave the primary interface
+				// (not included in the ifaces list) attached to the vanilla pod network,
+				// and connect all provided interfaces as secondaries through Multus.
+				for idx, iface := range ifaces {
+					nses = append(nses, multusv1.NetworkSelectionElement{
+						Name:             iface.NAD,
+						InterfaceRequest: iface.Name(uint(idx + 1)),
+						MacRequest:       iface.MAC,
+						IPRequest: cslices.Map(
+							slices.DeleteFunc(
+								[]netip.Prefix{iface.IPv4, iface.IPv6},
+								func(addr netip.Prefix) bool { return !addr.IsValid() },
+							),
+							func(addr netip.Prefix) string { return addr.String() },
+						),
+					})
+				}
+
+				o, err := json.MarshalIndent(nses, "", "  ")
+				return string(o), err
+			}
+
+			// The first interface is the primary one, directly attached to the
+			// target private network without using Multus; hence, we skip it here.
 			for idx, iface := range ifaces[1:] {
 				out += fmt.Sprintf("%s@%s,", iface.NAD, iface.Name(uint(idx+1)))
 			}
 
-			return strings.TrimRight(out, ",")
+			return strings.TrimRight(out, ","), nil
 		},
 	}).Parse(templ)
 	if err != nil {

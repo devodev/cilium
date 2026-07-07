@@ -129,6 +129,8 @@ func newCmdPrivNetTest() *cobra.Command {
 			vmEchoOtherE := t.VM(privnet.NetworkE, privnet.EchoOtherVM(privnet.NetworkE))
 			vmUnknownE1 := t.UnknownVM(privnet.NetworkE, privnet.FakeVM(privnet.NetworkE).WithID(1))
 			vmUnknownE2 := t.UnknownVM(privnet.NetworkE, privnet.FakeVM(privnet.NetworkE).WithID(2))
+			vmBridgeE := t.VM(privnet.NetworkE, privnet.L2EchoVM(privnet.NetworkE))
+			vmBridgeOtherE := t.VM(privnet.NetworkE, privnet.L2EchoOtherVM(privnet.NetworkE))
 
 			// DHCP validation for network-a and network-b via inb0.
 			for idx, net := range []privnet.NetworkName{privnet.NetworkB, privnet.NetworkA} {
@@ -235,6 +237,9 @@ func newCmdPrivNetTest() *cobra.Command {
 			// Connectivity to unknown-vms on same network.
 			t.Run(ctx, privnet.NewClientToEcho(t, vmClientDHCPE, vmUnknownE1), privnet.ExpectationOK)
 			t.Run(ctx, privnet.NewClientToEcho(t, vmClientDHCPE, vmUnknownE2), privnet.ExpectationOK)
+			// Connectivity to VMs hosted on the cluster and attached to the same L2 bridge
+			t.Run(ctx, privnet.NewClientToEcho(t, vmClientDHCPE, vmBridgeE), privnet.ExpectationOK)
+			t.Run(ctx, privnet.NewClientToEcho(t, vmClientDHCPE, vmBridgeOtherE), privnet.ExpectationOK)
 			// Connectivity to external target via default gateway.
 			t.Run(ctx, privnet.NewClientToWorld(t, vmClientDHCPE, externalTarget), privnet.ExpectationOK)
 
@@ -385,7 +390,10 @@ func newCmdPrivNetTest() *cobra.Command {
 			// Network E (local-access) tests with policy.
 			//
 			t.ApplyPolicies(ctx,
-				t.PolicyFor(vmClientDHCPE, "allow-egress-cidr.yaml", privnet.WithPolicyCIDRsForVM(vmUnknownE2)),
+				t.PolicyFor(vmClientDHCPE, "allow-egress-cidr.yaml",
+					privnet.WithPolicyCIDRsForVM(vmUnknownE2),
+					privnet.WithPolicyCIDRsForVM(vmBridgeOtherE),
+				),
 				t.PolicyFor(vmEchoOtherE, "allow-ingress-cidr.yaml", privnet.WithPolicyCIDRsForVM(vmUnknownE1)),
 			)
 
@@ -395,6 +403,11 @@ func newCmdPrivNetTest() *cobra.Command {
 			t.Run(ctx, privnet.NewClientToEcho(t, vmClientDHCPE, vmUnknownE1), privnet.ExpectationCurlTimeout)
 			// egress denied by toCIDR (external target not in allowed CIDR)
 			t.Run(ctx, privnet.NewClientToWorld(t, vmClientDHCPE, externalTarget), privnet.ExpectationCurlTimeout)
+
+			// egress denied by toCIDR (vmBridgeE not in allowed CIDR)
+			t.Run(ctx, privnet.NewClientToEcho(t, vmClientDHCPE, vmBridgeE), privnet.ExpectationCurlTimeout)
+			// egress allowed by toCIDR (vmBridgeOtherE in allowed CIDR)
+			t.Run(ctx, privnet.NewClientToEcho(t, vmClientDHCPE, vmBridgeOtherE), privnet.ExpectationOK)
 
 			// ingress allowed by fromCIDR (vmUnknownE1 in allowed CIDR)
 			t.Run(ctx, privnet.NewClientToEcho(t, vmUnknownE1, vmEchoOtherE), privnet.ExpectationOK)

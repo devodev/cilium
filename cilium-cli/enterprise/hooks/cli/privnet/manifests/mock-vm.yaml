@@ -21,14 +21,17 @@ spec:
         kubevirt.io: virt-launcher
         vm.kubevirt.io/name: {{ .Name }}
       annotations:
+        {{- if .NeedsAnnotation }}
         privnet.isovalent.com/network-attachment: |-
           {{ formatPrimaryNetworkAttachment .Interfaces | indent 10 }}
         {{- with ( formatSecondaryNetworkAttachments .Interfaces ) }}
         privnet.isovalent.com/secondary-network-attachments: |-
           {{ . | indent 10 }}
         {{- end }}
-        {{- with ( formatMultusNetworks .Interfaces ) }}
-        k8s.v1.cni.cncf.io/networks: {{ . }}
+        {{- end }}
+        {{- with ( formatMultusNetworks .Interfaces .Kind ) }}
+        k8s.v1.cni.cncf.io/networks: |-
+          {{ . | indent 10 }}
         {{- end }}
     spec:
   {{- if .Affinity.Type }}

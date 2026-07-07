@@ -20,6 +20,9 @@ import (
 	"github.com/cilium/cilium/pkg/mac"
 )
 
+// NADBridge is the name of the NetworkAttachmentDefinition targeting the L2 bridge.
+const NADBridge = "bridge"
+
 type INBInfo struct {
 	NodeAttachments []NodeAttachment
 	ClusterName     string
@@ -45,6 +48,7 @@ var (
 	VMKindSecondary VMKind = "secondary"
 	VMKindExtern    VMKind = "extern"
 	VMKindUnknown   VMKind = "unknown"
+	VMKindBridge    VMKind = "bridge"
 )
 
 type VMName string
@@ -75,6 +79,14 @@ func EchoVM(network NetworkName) VMName {
 
 func EchoOtherVM(network NetworkName) VMName {
 	return VMName(fmt.Sprintf("echo-other-node-%s", network))
+}
+
+func L2EchoVM(network NetworkName) VMName {
+	return VMName(fmt.Sprintf("echo-same-node-l2-%s", network))
+}
+
+func L2EchoOtherVM(network NetworkName) VMName {
+	return VMName(fmt.Sprintf("echo-other-node-l2-%s", network))
 }
 
 // FakeVM returns the VMName prefix of a "fake VM" container declared
@@ -837,6 +849,38 @@ var networkTopology = struct {
 			},
 			Affinity: VMAffinity{OtherNode, VMName("client-dhcp-network-e")},
 			Kind:     VMKindEcho,
+			Mock:     true,
+		},
+		{
+			Name: L2EchoVM(NetworkE),
+			Interfaces: []Interface{
+				{
+					Network:   NetworkE,
+					NAD:       NADBridge,
+					IPv4:      netip.MustParsePrefix("192.168.10.31/24"),
+					IPv6:      netip.MustParsePrefix("fd10:0:10::31/64"),
+					DNSServer: netip.MustParseAddr("192.168.10.254"),
+					MAC:       "5a:c2:cd:bc:fe:31",
+				},
+			},
+			Affinity: VMAffinity{SameNode, VMName("client-dhcp-network-e")},
+			Kind:     VMKindBridge,
+			Mock:     true,
+		},
+		{
+			Name: L2EchoOtherVM(NetworkE),
+			Interfaces: []Interface{
+				{
+					Network:   NetworkE,
+					NAD:       NADBridge,
+					IPv4:      netip.MustParsePrefix("192.168.10.32/24"),
+					IPv6:      netip.MustParsePrefix("fd10:0:10::32/64"),
+					DNSServer: netip.MustParseAddr("192.168.10.254"),
+					MAC:       "5a:c2:cd:bc:fe:32",
+				},
+			},
+			Affinity: VMAffinity{OtherNode, VMName("client-dhcp-network-e")},
+			Kind:     VMKindBridge,
 			Mock:     true,
 		},
 	},
