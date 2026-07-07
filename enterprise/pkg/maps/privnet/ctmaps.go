@@ -18,6 +18,7 @@ import (
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/statedb/reconciler"
 
+	"github.com/cilium/cilium/api/v1/models"
 	privnetcfg "github.com/cilium/cilium/enterprise/pkg/privnet/config"
 	"github.com/cilium/cilium/pkg/bpf"
 	"github.com/cilium/cilium/pkg/datapath/linux/config/defines"
@@ -157,9 +158,26 @@ type (
 	CTMapsMapAny6 Map[*CTMapsKeyVal]
 )
 
+type CTMap interface {
+	Name() string
+	FD() int
+
+	OpenOrCreate() error
+	Close() error
+	UnpinIfExists() error
+
+	Update(bpf.MapKey, bpf.MapValue) error
+	Delete(bpf.MapKey) error
+	Flush(_, _ func(ctmap.GCEvent)) int
+
+	DumpEntriesWithTimeDiff(*models.ClockSource) (string, error)
+
+	bpf.IterableMap
+}
+
 type CTMapWithConfig struct {
 	Config ctmap.MapConfig
-	Map    *ctmap.Map
+	Map    CTMap
 }
 
 type CTMaps interface {

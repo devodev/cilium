@@ -318,7 +318,7 @@ func (s *service) collectPrivnetCT(ctx context.Context, ctMap pnmaps.CTMapWithCo
 func collectCTEntries[T any, PT ctKey[T]](ctx context.Context,
 	kind api.CTMapKind,
 	ctTime *ctTimestampConverter,
-	ctMap *ctmap.Map,
+	ctMap pnmaps.CTMap,
 	pip netip.Addr,
 ) ([]*api.CTRecord, error) {
 	ctNow, err := ctTime.ctNow()
@@ -327,7 +327,7 @@ func collectCTEntries[T any, PT ctKey[T]](ctx context.Context,
 	}
 
 	var records []*api.CTRecord
-	iter := bpf.NewBatchIterator[T, ctmap.CtEntry, PT, *ctmap.CtEntry](&ctMap.Map)
+	iter := bpf.NewBatchIterator[T, ctmap.CtEntry, PT, *ctmap.CtEntry](ctMap)
 	for k, v := range iter.IterateAll(ctx) {
 		if k.GetSourceAddr() == pip || k.GetDestAddr() == pip {
 			lifetime := ctTime.toDuration(ctNow, v.Lifetime)

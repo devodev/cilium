@@ -39,6 +39,8 @@ import (
 	"github.com/cilium/cilium/pkg/maps/timestamp"
 )
 
+type CTMapFactory func(name string, cfg ctmap.MapConfig, opts ...ctmap.MapOption) pnmaps.CTMap
+
 var CTMapsCell = cell.Group(
 	cell.ProvidePrivate(
 		// Provides the ReadWrite ConnTrackMap table.
@@ -46,6 +48,9 @@ var CTMapsCell = cell.Group(
 
 		// Provides the main struct for the CT map of maps reconciler
 		newCTMaps,
+
+		// Provides the pnmaps.CTMap factory, so that it can be overwritten by tests.
+		newDefaultCTMapFactory,
 	),
 
 	cell.Invoke(
@@ -77,7 +82,8 @@ var CTMapsCell = cell.Group(
 type CTMaps struct {
 	mu lock.Mutex
 
-	ctMaps map[tables.NetworkID]*ctMap
+	factory CTMapFactory
+	ctMaps  map[tables.NetworkID]*ctMap
 
 	tcp4    pnmaps.CTMapsMapTCP4
 	tcp4Ops reconciler.Operations[*pnmaps.CTMapsKeyVal]
@@ -95,13 +101,16 @@ type CTMaps struct {
 func newCTMaps(in struct {
 	cell.In
 
+	Factory CTMapFactory
+
 	TCP4 pnmaps.CTMapsMapTCP4
 	Any4 pnmaps.CTMapsMapAny4
 	TCP6 pnmaps.CTMapsMapTCP6
 	Any6 pnmaps.CTMapsMapAny6
 }) *CTMaps {
 	return &CTMaps{
-		ctMaps: make(map[tables.NetworkID]*ctMap),
+		factory: in.Factory,
+		ctMaps:  make(map[tables.NetworkID]*ctMap),
 
 		tcp4:    in.TCP4,
 		tcp4Ops: in.TCP4.Ops(),
@@ -234,7 +243,7 @@ const (
 	mapSuffixAny6 = "_ct_any6_global"
 )
 
-func mapName(cfg ctmap.MapConfig, networkID uint16) string {
+func mapName(cfg ctmap.MapConfig, networkID tables.NetworkID) string {
 	switch {
 	case cfg.IPv6 && cfg.TCP:
 		return fmt.Sprintf("%s_%05d%s", mapPrefix, networkID, mapSuffixTCP6)
@@ -249,48 +258,54 @@ func mapName(cfg ctmap.MapConfig, networkID uint16) string {
 	}
 }
 
-func createGlobalCTMap(cfg ctmap.MapConfig, networkID uint16) (*ctmap.Map, error) {
-	m := ctmap.NewGlobalMap(mapName(cfg, networkID), cfg, ctmap.WithNetworkID(uint32(networkID)))
-	return m, m.OpenOrCreate()
+func newDefaultCTMapFactory() CTMapFactory {
+	return func(name string, cfg ctmap.MapConfig, opts ...ctmap.MapOption) pnmaps.CTMap {
+		return ctmap.NewGlobalMap(name, cfg, opts...)
+	}
 }
 
 type ctMap struct {
 	network string
 
-	tcp4 *ctmap.Map
-	any4 *ctmap.Map
-	tcp6 *ctmap.Map
-	any6 *ctmap.Map
+	tcp4 pnmaps.CTMap
+	any4 pnmaps.CTMap
+	tcp6 pnmaps.CTMap
+	any6 pnmaps.CTMap
 }
 
 // createCTMap creates the CT maps for a given network. We create these maps as soon as the network
 // is created, to ensure the map exists when an endpoint using it is created.
-func (c *CTMaps) createCTMap(networkName string, networkID uint16) (*ctMap, error) {
+func (c *CTMaps) createCTMap(networkName string, networkID tables.NetworkID) (*ctMap, error) {
 	m := &ctMap{
 		network: networkName,
 	}
 
+	openOrCreate := func(cfg ctmap.MapConfig) (pnmaps.CTMap, error) {
+		ctm := c.factory(mapName(cfg, networkID), cfg, ctmap.WithNetworkID(uint32(networkID)))
+		return ctm, ctm.OpenOrCreate()
+	}
+
 	var err error
 	if c.tcp4.Enabled() {
-		m.tcp4, err = createGlobalCTMap(ctmap.MapConfig{TCP: true, IPv6: false}, networkID)
+		m.tcp4, err = openOrCreate(ctmap.MapConfig{TCP: true, IPv6: false})
 		if err != nil {
 			return nil, fmt.Errorf("error creating tcp4 CT map: %w", err)
 		}
 	}
 	if c.any4.Enabled() {
-		m.any4, err = createGlobalCTMap(ctmap.MapConfig{TCP: false, IPv6: false}, networkID)
+		m.any4, err = openOrCreate(ctmap.MapConfig{TCP: false, IPv6: false})
 		if err != nil {
 			return nil, fmt.Errorf("error creating any4 CT map: %w", err)
 		}
 	}
 	if c.tcp6.Enabled() {
-		m.tcp6, err = createGlobalCTMap(ctmap.MapConfig{TCP: true, IPv6: true}, networkID)
+		m.tcp6, err = openOrCreate(ctmap.MapConfig{TCP: true, IPv6: true})
 		if err != nil {
 			return nil, fmt.Errorf("error creating tcp6 CT map: %w", err)
 		}
 	}
 	if c.any6.Enabled() {
-		m.any6, err = createGlobalCTMap(ctmap.MapConfig{TCP: false, IPv6: true}, networkID)
+		m.any6, err = openOrCreate(ctmap.MapConfig{TCP: false, IPv6: true})
 		if err != nil {
 			return nil, fmt.Errorf("error creating any6 CT map: %w", err)
 		}
@@ -306,7 +321,7 @@ func (c *CTMaps) upsertCTMapLocked(networkName tables.NetworkName, networkID tab
 	}
 
 	var err error
-	m, err = c.createCTMap(string(networkName), uint16(networkID))
+	m, err = c.createCTMap(string(networkName), networkID)
 	if err != nil {
 		return nil, err
 	}
@@ -321,7 +336,7 @@ func (c *CTMaps) deleteCTMapLocked(networkID tables.NetworkID) error {
 		return nil
 	}
 
-	unpinIfExistsAndEnabled := func(m *ctmap.Map) error {
+	unpinIfExistsAndEnabled := func(m pnmaps.CTMap) error {
 		if m == nil {
 			return nil
 		}
@@ -348,7 +363,7 @@ func (c *CTMaps) pruneCTMapsLocked(alive sets.Set[tables.NetworkID]) error {
 	return err
 }
 
-func ctKeyVal(networkID tables.NetworkID, m *ctmap.Map) *pnmaps.CTMapsKeyVal {
+func ctKeyVal(networkID tables.NetworkID, m pnmaps.CTMap) *pnmaps.CTMapsKeyVal {
 	return &pnmaps.CTMapsKeyVal{
 		Key: pnmaps.CTMapsKey{NetworkID: uint32(networkID)},
 		Val: pnmaps.CTMapsValue{Fd: uint32(m.FD())},
@@ -414,7 +429,7 @@ func (c *CTMaps) Update(ctx context.Context, txn statedb.ReadTxn, revision state
 	updateEntry := func(
 		name string,
 		outerMap pnmaps.Map[*pnmaps.CTMapsKeyVal],
-		innerMap *ctmap.Map,
+		innerMap pnmaps.CTMap,
 		ops reconciler.Operations[*pnmaps.CTMapsKeyVal],
 	) error {
 		if !outerMap.Enabled() {
@@ -452,7 +467,7 @@ func (c *CTMaps) Delete(ctx context.Context, txn statedb.ReadTxn, revision state
 	deleteEntry := func(
 		name string,
 		outerMap pnmaps.Map[*pnmaps.CTMapsKeyVal],
-		innerMap *ctmap.Map,
+		innerMap pnmaps.CTMap,
 		ops reconciler.Operations[*pnmaps.CTMapsKeyVal],
 	) error {
 		if !outerMap.Enabled() {
@@ -565,15 +580,15 @@ func (c *CTMaps) listCTMapPairs() []ctmap.MapPair {
 	for _, m := range c.ctMaps {
 		if c.tcp4.Enabled() && c.any4.Enabled() {
 			result = append(result, ctmap.MapPair{
-				TCP:    m.tcp4,
-				Any:    m.any4,
+				TCP:    m.tcp4.(*ctmap.Map),
+				Any:    m.any4.(*ctmap.Map),
 				IsOpen: true,
 			})
 		}
 		if c.tcp6.Enabled() && c.any6.Enabled() {
 			result = append(result, ctmap.MapPair{
-				TCP:    m.tcp6,
-				Any:    m.any6,
+				TCP:    m.tcp6.(*ctmap.Map),
+				Any:    m.any6.(*ctmap.Map),
 				IsOpen: true,
 			})
 		}
@@ -593,7 +608,7 @@ func (c *CTMaps) sortedCTMaps() []*ctMap {
 }
 
 // getMap returns an inner CT map by network name and map type ("tcp4", "any4", "tcp6", or "any6).
-func (c *CTMaps) getMap(network string, mapType string) (*ctmap.Map, error) {
+func (c *CTMaps) getMap(network string, mapType string) (pnmaps.CTMap, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -608,7 +623,7 @@ func (c *CTMaps) getMap(network string, mapType string) (*ctmap.Map, error) {
 		return nil, fmt.Errorf("unknown network %q", network)
 	}
 
-	var m *ctmap.Map
+	var m pnmaps.CTMap
 	switch mapType {
 	case "tcp4":
 		m = ct.tcp4
@@ -736,7 +751,7 @@ func showInnerMapCmd(c *CTMaps) script.Cmd {
 					return stdout, stderr, err
 				}
 
-				stdout, err = ctmap.DumpEntriesWithTimeDiff(m, timestamp.GetClockSourceFromOptions())
+				stdout, err = m.DumpEntriesWithTimeDiff(timestamp.GetClockSourceFromOptions())
 				return stdout, stderr, err
 			}, nil
 		},

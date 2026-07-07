@@ -77,8 +77,8 @@ type controller struct {
 	controllerParams
 }
 
-func (c *controller) ctMaps(network string) map[api.CTMapKind]*ctmap.Map {
-	ctMaps := make(map[api.CTMapKind]*ctmap.Map)
+func (c *controller) ctMaps(network string) map[api.CTMapKind]pnmaps.CTMap {
+	ctMaps := make(map[api.CTMapKind]pnmaps.CTMap)
 	for _, ctMap := range c.GlobalCT.ActiveMaps() {
 		switch ctMap.Name() {
 		case ctmap.MapNameTCP4Global:
@@ -158,7 +158,7 @@ type migrator struct {
 	log *slog.Logger
 
 	ctTime *ctTimestampConverter
-	ctMaps map[api.CTMapKind]*ctmap.Map
+	ctMaps map[api.CTMapKind]pnmaps.CTMap
 }
 
 func (m *migrator) run(ctx context.Context, health cell.Health) error {
