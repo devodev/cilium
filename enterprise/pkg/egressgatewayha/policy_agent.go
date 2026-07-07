@@ -363,13 +363,30 @@ func fetchLinkInfo(manager *Manager, name string) (ifaceName string, ifaceIndex 
 	return iface.Attrs().Name, iface.Attrs().Index, iface.Type(), nil
 }
 
+func deviceGetFirstAdresses(dev *tables.Device) (netip.Addr, netip.Addr) {
+	var firstIPv4, firstIPv6 netip.Addr
+
+	for _, addr := range dev.Addrs {
+		if addr.Addr.Is4() && !firstIPv4.IsValid() {
+			firstIPv4 = addr.Addr
+		}
+		if addr.Addr.Is6() && !firstIPv6.IsValid() {
+			firstIPv6 = addr.Addr
+		}
+
+		if firstIPv4.IsValid() && firstIPv6.IsValid() {
+			break
+		}
+	}
+
+	return firstIPv4, firstIPv6
+}
+
 // deriveFromGroupConfig retrieves all the missing gateway configuration data
 // (such as egress IP or interface) given a policy group config
 func (gwc *gatewayConfig) deriveFromGroupConfig(manager *Manager, logger *slog.Logger, gc *groupConfig) error {
 	var err error
 	var egressIP4 netip.Addr
-	var ifaceType string
-	var ifaceIndex int
 
 	gwc.egressIP = EgressIPNotFoundIPv4
 
@@ -378,16 +395,28 @@ func (gwc *gatewayConfig) deriveFromGroupConfig(manager *Manager, logger *slog.L
 		// If the group config specifies an interface, use the first IPv4 assigned to that
 		// interface as egress IP
 
-		gwc.ifaceName, ifaceIndex, ifaceType, err = fetchLinkInfo(manager, gc.iface)
-		if err != nil {
-			return fmt.Errorf("failed to retrieve link info for egress interface %s: %w", gc.iface, err)
-		}
+		dev, _, found := manager.deviceTable.Get(manager.db.ReadTxn(), tables.DeviceByName(gc.iface))
+		if found {
+			gwc.egressIfindex = manager.ifindexResolver(dev.Index, dev.Type)
+			gwc.ifaceName = dev.Name
 
-		gwc.egressIfindex = manager.ifindexResolver(ifaceIndex, ifaceType)
+			egressIP4, _ = deviceGetFirstAdresses(dev)
+			if !egressIP4.IsValid() {
+				return fmt.Errorf("failed to retrieve IPv4 address for egress interface")
+			}
+		} else {
+			iface, err := safenetlink.LinkByName(gc.iface)
+			if err != nil {
+				return fmt.Errorf("failed to retrieve egress interface %s: %w", gc.iface, err)
+			}
 
-		egressIP4, err = netdevice.GetIfaceFirstIPv4Address(gwc.ifaceName)
-		if err != nil {
-			return fmt.Errorf("failed to retrieve IPv4 address for egress interface: %w", err)
+			gwc.egressIfindex = manager.ifindexResolver(iface.Attrs().Index, iface.Type())
+			gwc.ifaceName = iface.Attrs().Name
+
+			egressIP4, err = netdevice.GetIfaceFirstIPv4Address(gwc.ifaceName)
+			if err != nil {
+				return fmt.Errorf("failed to retrieve IPv4 address for egress interface: %w", err)
+			}
 		}
 	case gc.egressIP.IsValid():
 		// If the group config specifies an egress IP, use the interface with that IP as egress
