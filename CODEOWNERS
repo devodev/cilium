@@ -881,6 +881,7 @@ Makefile* @cilium/build
 /bpf/tests/*egressgw_standalone_*.c @isovalent/egress-gateway
 /bpf/tests/enterprise_privnet_common.h @isovalent/private-networking
 /bpf/tests/enterprise_vxlan_helpers_tests.c @isovalent/cilium-datapath
+/bpf/tests/enterprise_vrf_egress_redirect.c @isovalent/cilium-datapath
 /bpf/tests/enterprise_encryption_policy_tests.h @isovalent/encryption
 /bpf/tests/enterprise_tc_encryption_policy_fallback_encrypt.c @isovalent/encryption
 /bpf/tests/enterprise_tc_encryption_policy_fallback_plaintext.c @isovalent/encryption
@@ -900,6 +901,7 @@ Makefile* @cilium/build
 /bpf/tests/enterprise_tc_privnet_evpn_egress_disabled_tests.c @isovalent/traffic-engineering
 /bpf/tests/lib/enterprise_encryption_policy.h @isovalent/encryption
 /bpf/tests/scapy/enterprise_pkt_defs.py @isovalent/cilium-datapath
+/bpf/tests/scapy/enterprise_vrf_egress_redirect.py @isovalent/cilium-datapath
 /bpf/tests/scapy/enterprise_privnet_pkt_defs.py @isovalent/private-networking
 /bugtool/cmd/enterprise_* @isovalent/cli
 /cilium-cli/Makefile.override @isovalent/cli
