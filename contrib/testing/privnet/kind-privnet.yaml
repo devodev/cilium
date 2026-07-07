@@ -1,6 +1,8 @@
 bpf:
   masquerade: true
   monitorAggregation: medium
+  vlanBypass:
+  - 0
 
 clustermesh:
   apiserver:
@@ -33,6 +35,7 @@ debug:
 devices:
   - eth+
   - dp0
+  - br+
 
 enterprise:
   featureGate:

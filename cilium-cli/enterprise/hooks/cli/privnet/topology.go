@@ -484,7 +484,7 @@ var networkTopology = struct {
 					Kind:    VMKindUnknown,
 				},
 			},
-			NodeAttachments: []NodeAttachment{{Interface: "eth1", VlanID: 10}},
+			NodeAttachments: []NodeAttachment{{Interface: "br0", VlanID: 10}},
 		},
 		NetworkF: {
 			Prefixes: []Subnet{

@@ -199,7 +199,7 @@ jobs:
             --set cni.confPath=/etc/cni/net.d/delegates \
             --set enterprise.privateNetworks.mode=local-access \
             --set enterprise.privateNetworks.networkAttachmentDefinitions.enabled=true \
-            --set devices={eth+} \
+            --set devices='{eth+,br+}' \
             --set bpf.vlanBypass={0} \
           "
 
