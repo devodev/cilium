@@ -30,7 +30,6 @@ import (
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/maps/ctmap"
 	cslices "github.com/cilium/cilium/pkg/slices"
-	"github.com/cilium/cilium/pkg/u8proto"
 )
 
 type pipRewriteParams struct {
@@ -286,51 +285,6 @@ func (p *pipRewriteOps) rewritePIPs(ctx context.Context, tasks iter.Seq[tables.M
 	}
 
 	return err
-}
-
-// ctKey is an IP family agnostic interface to read CT key addresses
-type ctKey[T any] interface {
-	bpf.MapKey
-	GetDestAddr() netip.Addr
-	GetSourceAddr() netip.Addr
-	GetDestPort() uint16
-	GetSourcePort() uint16
-	GetNextHeader() u8proto.U8proto
-	GetFlags() uint8
-	*T
-}
-
-// ctKeyWritable is an IP family agnostic interface to read and write the CT key addresses
-type ctKeyWritable[T any] interface {
-	ctKey[T]
-	SetDestAddr(addr netip.Addr)
-	SetSourceAddr(addr netip.Addr)
-}
-
-// ctKey4 wraps ctmap.CtKey4Global to implement the ctKeyWritable interface
-type ctKey4 struct {
-	ctmap.CtKey4Global
-}
-
-func (c *ctKey4) SetSourceAddr(addr netip.Addr) {
-	c.SourceAddr.FromAddr(addr)
-}
-
-func (c *ctKey4) SetDestAddr(addr netip.Addr) {
-	c.DestAddr.FromAddr(addr)
-}
-
-// ctKey6 wraps ctmap.CtKey6Global to implement the ctKeyWritable interface
-type ctKey6 struct {
-	ctmap.CtKey6Global
-}
-
-func (c *ctKey6) SetSourceAddr(addr netip.Addr) {
-	c.SourceAddr.FromAddr(addr)
-}
-
-func (c *ctKey6) SetDestAddr(addr netip.Addr) {
-	c.DestAddr.FromAddr(addr)
 }
 
 // rewriteCTMap takes a list of PIP pairs and replaces all occurrences of oldPIP with newPIP in the provided
