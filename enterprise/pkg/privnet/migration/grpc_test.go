@@ -25,12 +25,24 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/cilium/cilium/api/v1/models"
+	"github.com/cilium/cilium/enterprise/pkg/maps/privnet"
 	api "github.com/cilium/cilium/enterprise/pkg/privnet/grpc/api/v1"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/tables"
 	testTypes "github.com/cilium/cilium/enterprise/pkg/privnet/tests/types"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/types"
 	"github.com/cilium/cilium/pkg/mac"
+	"github.com/cilium/cilium/pkg/maps/ctmap"
 )
+
+type fakeCTMaps struct{}
+
+func (f *fakeCTMaps) ActiveMaps() []*ctmap.Map {
+	return nil // cannot mock CT maps in non-privileged tests
+}
+
+func (f *fakeCTMaps) ActiveMapsForNetwork(networkName string) []privnet.CTMap {
+	return nil // cannot mock CT maps in non-privileged tests
+}
 
 func TestClientServer(t *testing.T) {
 	srv := grpc.NewServer()
@@ -40,6 +52,10 @@ func TestClientServer(t *testing.T) {
 
 	network := tables.NetworkName("blue")
 	mac := mac.MustParseMAC("02:00:01:e6:bb:ff")
+
+	ct := &fakeCTMaps{}
+	ctTime, err := newCTTimestampConverter()
+	require.NoError(t, err)
 
 	epm := testTypes.NewFakeEPM(testTypes.NewFakeEndpointEventObserver())
 	_, err = epm.RestoreEndpoint(t.Context(), &models.EndpointChangeRequest{
@@ -82,6 +98,9 @@ func TestClientServer(t *testing.T) {
 		db:        db,
 		leases:    leases,
 		endpoints: epm,
+		ctTime:    ctTime,
+		globalCT:  ct,
+		privnetCT: ct,
 	}
 	api.RegisterMigrationServer(srv, apiService)
 	t.Cleanup(srv.Stop)

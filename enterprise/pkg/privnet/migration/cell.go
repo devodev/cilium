@@ -31,6 +31,7 @@ var Cell = cell.Module(
 	),
 	cell.ProvidePrivate(
 		newService,
+		newCTTimestampConverter,
 		tables.NewMigrationPIPRewriteTable,
 	),
 	cell.Provide(
