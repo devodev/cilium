@@ -52,17 +52,35 @@ func (m MigrationPIPRewrite) SetStatus(status reconciler.Status) MigrationPIPRew
 	return m
 }
 
+type MigrationPIPRewriteKey string
+
+func (m MigrationPIPRewriteKey) Key() index.Key {
+	return index.String(string(m))
+}
+
+func newMigrationPIPRewriteKey(entry MapEntryKey, oldPIP netip.Addr) MigrationPIPRewriteKey {
+	return MigrationPIPRewriteKey(string(entry) + indexDelimiter + oldPIP.String())
+}
+
+func newMigrationPIPRewriteKeyFromEntry(entry MapEntryKey) MigrationPIPRewriteKey {
+	return MigrationPIPRewriteKey(string(entry) + indexDelimiter)
+}
+
 var (
-	migrationPIPRewritePrimaryIndex = statedb.Index[MigrationPIPRewrite, MapEntryKey]{
+	migrationPIPRewritePrimaryIndex = statedb.Index[MigrationPIPRewrite, MigrationPIPRewriteKey]{
 		Name: "key",
 		FromObject: func(obj MigrationPIPRewrite) index.KeySet {
-			return index.NewKeySet(obj.MapEntry.Key())
+			return index.NewKeySet(newMigrationPIPRewriteKey(obj.MapEntry, obj.OldPIP).Key())
 		},
-		FromKey:    MapEntryKey.Key,
+		FromKey:    MigrationPIPRewriteKey.Key,
 		FromString: index.FromString,
 		Unique:     true,
 	}
 )
+
+func MigrationPIPRewriteByMapEntry(entry MapEntryKey) statedb.Query[MigrationPIPRewrite] {
+	return migrationPIPRewritePrimaryIndex.Query(newMigrationPIPRewriteKeyFromEntry(entry))
+}
 
 func NewMigrationPIPRewriteTable(db *statedb.DB) (statedb.RWTable[MigrationPIPRewrite], error) {
 	return statedb.NewTable(

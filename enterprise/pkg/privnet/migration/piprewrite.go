@@ -130,7 +130,9 @@ func (p *pipRewrite) watchPIPChanges(ctx context.Context, health cell.Health) er
 			// PIP became inactive, remove any completed or pending rewrites
 			mapentryKey := change.Object.Key()
 			if change.Deleted {
-				p.Rewrites.Delete(wtxn, tables.MigrationPIPRewrite{MapEntry: mapentryKey})
+				for obj := range p.Rewrites.Prefix(wtxn, tables.MigrationPIPRewriteByMapEntry(mapentryKey)) {
+					p.Rewrites.Delete(wtxn, obj)
+				}
 				continue
 			}
 
