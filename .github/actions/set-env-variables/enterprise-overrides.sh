@@ -15,6 +15,7 @@ echo "ARTIFACTORY_DEV=$ARTIFACTORY_DEV" >> $GITHUB_ENV
 echo "BACKUP_REGISTRY=$BACKUP_REGISTRY" >> $GITHUB_ENV
 echo "ORGANIZATION=isovalent-staging" >> $GITHUB_ENV
 echo "ORGANIZATION_DEV=isovalent-dev" >> $GITHUB_ENV
+echo "ORGANIZATION_STAGING=isovalent-staging-docker" >> $GITHUB_ENV
 echo "QUAY_ORGANIZATION=isovalent-staging" >> "$GITHUB_ENV"
 echo "QUAY_ORGANIZATION_DEV=isovalent-dev" >> "$GITHUB_ENV"
 echo "ARTIFACTORY_ORGANIZATION_DEV=isovalent-eng-docker" >> $GITHUB_ENV
