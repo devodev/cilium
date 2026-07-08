@@ -12,6 +12,7 @@ package tests
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
 	"maps"
 	"net/netip"
@@ -57,6 +58,7 @@ type ctMapsRegistry struct {
 	mu lock.RWMutex
 
 	registry map[string]*ctMap
+	failures lock.Map[string, struct{}]
 	nextFD   int
 }
 
@@ -84,6 +86,11 @@ func (r *ctMapsRegistry) new(name string, cfg ctmap.MapConfig, _ ...ctmap.MapOpt
 			name: name,
 			cfg:  cfg,
 			fd:   r.nextFD,
+
+			shouldFail: func() bool {
+				_, fail := r.failures.Load(name)
+				return fail
+			},
 		}
 
 		r.registry[name] = ctm
@@ -125,10 +132,12 @@ func (r *ctMapsRegistry) activeMapsMatching(pattern string) (out []pnmaps.CTMapW
 func (r *ctMapsRegistry) commands() hive.ScriptCmdsOut {
 	return hive.NewScriptCmds(
 		map[string]script.Cmd{
-			"privnet/ct-maps-registry/list":       r.dump(),
-			"privnet/ct-maps-registry/map/show":   r.showMap(),
-			"privnet/ct-maps-registry/map/upsert": r.upsertTuple(),
-			"privnet/ct-maps-registry/map/delete": r.deleteTuple(),
+			"privnet/ct-maps-registry/list":             r.dump(),
+			"privnet/ct-maps-registry/inject-failure":   r.injectFailure(),
+			"privnet/ct-maps-registry/withdraw-failure": r.withdrawFailure(),
+			"privnet/ct-maps-registry/map/show":         r.showMap(),
+			"privnet/ct-maps-registry/map/upsert":       r.upsertTuple(),
+			"privnet/ct-maps-registry/map/delete":       r.deleteTuple(),
 		},
 	)
 }
@@ -173,6 +182,38 @@ func (r *ctMapsRegistry) dump() script.Cmd {
 
 				return b.String(), "", nil
 			}, nil
+		},
+	)
+}
+
+func (r *ctMapsRegistry) injectFailure() script.Cmd {
+	return script.Command(
+		script.CmdUsage{
+			Summary: "Inject a failure when opening the map(s)",
+			Args:    "map...",
+		},
+		func(s *script.State, args ...string) (script.WaitFunc, error) {
+			for _, name := range args {
+				r.failures.Store(name, struct{}{})
+			}
+
+			return nil, nil
+		},
+	)
+}
+
+func (r *ctMapsRegistry) withdrawFailure() script.Cmd {
+	return script.Command(
+		script.CmdUsage{
+			Summary: "Withdraw a failure when opening the map(s)",
+			Args:    "map...",
+		},
+		func(s *script.State, args ...string) (script.WaitFunc, error) {
+			for _, name := range args {
+				r.failures.Delete(name)
+			}
+
+			return nil, nil
 		},
 	)
 }
@@ -404,6 +445,8 @@ type ctMap struct {
 	fd   int
 	cfg  ctmap.MapConfig
 
+	shouldFail func() bool
+
 	pinned atomic.Bool
 	opened atomic.Bool
 
@@ -421,6 +464,10 @@ func (c *ctMap) UnpinIfExists() error {
 }
 
 func (c *ctMap) OpenOrCreate() error {
+	if c.shouldFail() {
+		return errors.New("hit the bomb")
+	}
+
 	if c.opened.Swap(true) {
 		// Strictly validate that we don't attempt to open the same map twice,
 		// even though it would be legitimate against the same instance (no-op).

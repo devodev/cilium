@@ -63,13 +63,37 @@ privnet/maps-dump privnet_ct_any4_global
 privnet/maps-dump privnet_ct_any6_global
 * cmp stdout ct_any6_global.v3.txt
 
-# Create it back...
+# Create it back, but simulate a failure when creating the maps...
+privnet/ct-maps-registry/inject-failure cilium_privnet_00004_ct_any4_global
 k8s/add icpn-2.yaml
 
 # ... and check that it gets reflected into the ctmaps table,
 db/cmp privnet-ctmaps ctmaps.v4.table
 
-# ... and that the corresponding CT maps are created,
+# ... and that the error is bubbled up by the reconciler,
+db/get privnet-ctmaps 4 -o ctmaps.united-firefly.actual
+* grep -q 'hit the bomb' ctmaps.united-firefly.actual
+
+# ... and that the failing maps got closed and unpinned (we need to enable
+# retries as we may hit the exact instant in which a map was created, before
+# it is deleted again afterwards),
+privnet/ct-maps-registry/list
+* cmp stdout registry.v3.txt
+
+# ... and that the maps of maps have not been modified.
+privnet/maps-dump privnet_ct4_global
+cmp stdout ct4_global.v3.txt
+privnet/maps-dump privnet_ct6_global
+cmp stdout ct6_global.v3.txt
+privnet/maps-dump privnet_ct_any4_global
+cmp stdout ct_any4_global.v3.txt
+privnet/maps-dump privnet_ct_any6_global
+cmp stdout ct_any6_global.v3.txt
+
+# Withdraw the simulated failure...
+privnet/ct-maps-registry/withdraw-failure cilium_privnet_00004_ct_any4_global
+
+# ... and assert that the corresponding CT maps are created,
 privnet/ct-maps-registry/list
 * cmp stdout registry.v4.txt
 

@@ -319,6 +319,19 @@ func (c *CTMaps) createCTMap(networkName string, networkID tables.NetworkID) (*c
 	}
 
 	var err error
+	defer func() {
+		if err == nil {
+			return
+		}
+
+		// Unpin and close all previously opened maps, in case of errors. We
+		// ignore all errors as best effort, and to not shadow the actual failure.
+		for _, ctm := range m.all() {
+			_ = ctm.UnpinIfExists()
+			_ = ctm.Close()
+		}
+	}()
+
 	if c.tcp4.Enabled() {
 		m.tcp4, err = openOrCreate(ctmap.MapConfig{TCP: true, IPv6: false})
 		if err != nil {
