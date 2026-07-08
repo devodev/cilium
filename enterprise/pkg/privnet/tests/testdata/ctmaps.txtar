@@ -49,8 +49,7 @@ k8s/delete icpn-2.yaml
 # ... and check that it gets removed from the ctmaps table,
 db/cmp privnet-ctmaps ctmaps.v3.table
 
-# ... and that the corresponding CT maps are removed.
-# This test highlights that the maps are never closed when unpinned.
+# ... and that the corresponding CT maps are removed,
 privnet/ct-maps-registry/list
 * cmp stdout registry.v3.txt
 
@@ -171,10 +170,6 @@ cilium_privnet_00001_ct4_global      (0x05) - IPv4: true , TCP: true  - pinned,o
 cilium_privnet_00001_ct6_global      (0x07) - IPv4: false, TCP: true  - pinned,open
 cilium_privnet_00001_ct_any4_global  (0x06) - IPv4: true , TCP: false - pinned,open
 cilium_privnet_00001_ct_any6_global  (0x08) - IPv4: false, TCP: false - pinned,open
-cilium_privnet_00002_ct4_global      (0x09) - IPv4: true , TCP: true  - open
-cilium_privnet_00002_ct6_global      (0x0b) - IPv4: false, TCP: true  - open
-cilium_privnet_00002_ct_any4_global  (0x0a) - IPv4: true , TCP: false - open
-cilium_privnet_00002_ct_any6_global  (0x0c) - IPv4: false, TCP: false - open
 cilium_privnet_00003_ct4_global      (0x0d) - IPv4: true , TCP: true  - pinned,open
 cilium_privnet_00003_ct6_global      (0x0f) - IPv4: false, TCP: true  - pinned,open
 cilium_privnet_00003_ct_any4_global  (0x0e) - IPv4: true , TCP: false - pinned,open
@@ -186,10 +181,6 @@ cilium_privnet_00001_ct4_global      (0x05) - IPv4: true , TCP: true  - pinned,o
 cilium_privnet_00001_ct6_global      (0x07) - IPv4: false, TCP: true  - pinned,open
 cilium_privnet_00001_ct_any4_global  (0x06) - IPv4: true , TCP: false - pinned,open
 cilium_privnet_00001_ct_any6_global  (0x08) - IPv4: false, TCP: false - pinned,open
-cilium_privnet_00002_ct4_global      (0x09) - IPv4: true , TCP: true  - open
-cilium_privnet_00002_ct6_global      (0x0b) - IPv4: false, TCP: true  - open
-cilium_privnet_00002_ct_any4_global  (0x0a) - IPv4: true , TCP: false - open
-cilium_privnet_00002_ct_any6_global  (0x0c) - IPv4: false, TCP: false - open
 cilium_privnet_00003_ct4_global      (0x0d) - IPv4: true , TCP: true  - pinned,open
 cilium_privnet_00003_ct6_global      (0x0f) - IPv4: false, TCP: true  - pinned,open
 cilium_privnet_00003_ct_any4_global  (0x0e) - IPv4: true , TCP: false - pinned,open

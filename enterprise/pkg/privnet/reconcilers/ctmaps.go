@@ -344,6 +344,8 @@ func (c *CTMaps) deleteCTMapLocked(networkID tables.NetworkID) error {
 		if m == nil {
 			return nil
 		}
+
+		_ = m.Close()
 		return m.UnpinIfExists()
 	}
 
