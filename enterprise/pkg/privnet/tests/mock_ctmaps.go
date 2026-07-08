@@ -11,20 +11,31 @@
 package tests
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"maps"
 	"net/netip"
+	"os"
 	"reflect"
 	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 
+	"github.com/cilium/ebpf"
 	"github.com/cilium/hive"
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/hive/script"
+	"github.com/spf13/pflag"
+	"golang.org/x/sys/unix"
 
+	"github.com/cilium/cilium/api/v1/models"
+	pnmaps "github.com/cilium/cilium/enterprise/pkg/maps/privnet"
+	"github.com/cilium/cilium/enterprise/pkg/privnet/reconcilers"
+	"github.com/cilium/cilium/pkg/bpf"
+	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/cilium/pkg/maps/ctmap"
 	"github.com/cilium/cilium/pkg/testutils"
 	"github.com/cilium/cilium/pkg/tuple"
@@ -48,6 +59,108 @@ func mockCTMaps(t testing.TB) cell.Cell {
 				)
 			},
 		),
+
+		cell.ProvidePrivate(newCTMapsRegistry),
+		cell.DecorateAll((*ctMapsRegistry).factory),
+		cell.Provide((*ctMapsRegistry).commands),
+	)
+}
+
+type ctMapsRegistry struct {
+	mu lock.RWMutex
+
+	registry map[string]*ctMap
+	nextFD   int
+}
+
+func newCTMapsRegistry() *ctMapsRegistry {
+	var registry = ctMapsRegistry{
+		registry: make(map[string]*ctMap),
+		nextFD:   1,
+	}
+
+	registry.new(ctmap.MapNameTCP4Global, ctmap.MapConfig{TCP: true, IPv6: false})
+	registry.new(ctmap.MapNameAny4Global, ctmap.MapConfig{TCP: false, IPv6: false})
+	registry.new(ctmap.MapNameTCP6Global, ctmap.MapConfig{TCP: true, IPv6: true})
+	registry.new(ctmap.MapNameAny6Global, ctmap.MapConfig{TCP: false, IPv6: true})
+
+	return &registry
+}
+
+func (r *ctMapsRegistry) new(name string, cfg ctmap.MapConfig, _ ...ctmap.MapOption) pnmaps.CTMap {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	ctm, ok := r.registry[name]
+	if !ok {
+		ctm = &ctMap{
+			name: name,
+			cfg:  cfg,
+			fd:   r.nextFD,
+		}
+
+		r.registry[name] = ctm
+		r.nextFD++
+	}
+
+	if ctm.cfg != cfg {
+		panic(fmt.Sprintf("Mismatching configuration for map %s", name))
+	}
+
+	return ctm
+}
+
+func (r *ctMapsRegistry) factory() reconcilers.CTMapFactory { return r.new }
+
+func (r *ctMapsRegistry) commands() hive.ScriptCmdsOut {
+	return hive.NewScriptCmds(
+		map[string]script.Cmd{
+			"privnet/ct-maps-registry/list": r.dump(),
+		},
+	)
+}
+
+func (r *ctMapsRegistry) dump() script.Cmd {
+	return script.Command(
+		script.CmdUsage{
+			Summary: "List the maps contained in the registry",
+			Flags: func(fs *pflag.FlagSet) {
+				fs.StringP("out", "o", "", "File to write to instead of stdout")
+			},
+		},
+		func(s *script.State, args ...string) (script.WaitFunc, error) {
+			outfile, err := s.Flags.GetString("out")
+			if err != nil {
+				return nil, fmt.Errorf("reading out flag: %w", err)
+			}
+
+			return func(*script.State) (stdout, stderr string, err error) {
+				r.mu.RLock()
+				defer r.mu.RUnlock()
+
+				var b strings.Builder
+				for _, name := range slices.Sorted(maps.Keys(r.registry)) {
+					var (
+						ctm   = r.registry[name]
+						flags = ctm.flags()
+					)
+
+					if len(flags) == 0 {
+						// Closed and unpinned, hence skip.
+						continue
+					}
+
+					fmt.Fprintf(&b, "%-36s (%#02x) - IPv4: %-5t, TCP: %-5t - %s\n",
+						ctm.name, ctm.fd, !ctm.cfg.IPv6, ctm.cfg.TCP, strings.Join(flags, ","))
+				}
+
+				if outfile != "" {
+					return "", "", os.WriteFile(s.Path(outfile), []byte(b.String()), 0644)
+				}
+
+				return b.String(), "", nil
+			}, nil
+		},
 	)
 }
 
@@ -315,4 +428,135 @@ func (f *fakeCTMaps) deleteTuple() script.Cmd {
 			}, nil
 		},
 	)
+}
+
+type ctMap struct {
+	name string
+	fd   int
+	cfg  ctmap.MapConfig
+
+	pinned atomic.Bool
+	opened atomic.Bool
+
+	entries lock.Map[string, ctmap.CtMapRecord]
+}
+
+func (c *ctMap) Name() string       { return c.name }
+func (c *ctMap) FD() int            { return c.fd }
+func (c *ctMap) Type() ebpf.MapType { return ebpf.LRUHash }
+func (c *ctMap) MaxEntries() uint32 { return 4096 }
+
+func (c *ctMap) UnpinIfExists() error {
+	c.pinned.Store(false)
+	return nil
+}
+
+func (c *ctMap) OpenOrCreate() error {
+	if c.opened.Swap(true) {
+		// Strictly validate that we don't attempt to open the same map twice,
+		// even though it would be legitimate against the same instance (no-op).
+		// However, it may also indicate that are attempting to keep two
+		// references to the same map.
+		panic("Attempting to open an already open map")
+	}
+
+	c.pinned.Store(true)
+	return nil
+}
+
+func (c *ctMap) Close() error {
+	c.opened.Store(false)
+	return nil
+}
+
+func (c *ctMap) Update(key bpf.MapKey, val bpf.MapValue) error {
+	c.entries.Store(key.String(), ctmap.CtMapRecord{
+		Key: key.(ctmap.CtKey), Value: *(val.(*ctmap.CtEntry)),
+	})
+	return nil
+}
+
+func (c *ctMap) Delete(key bpf.MapKey) error {
+	c.entries.Delete(key.String())
+	return nil
+}
+
+func (c *ctMap) BatchLookup(_ *ebpf.MapBatchCursor, keysOut any, valuesOut any, _ *ebpf.BatchOptions) (int, error) {
+	var (
+		keys  = reflect.ValueOf(keysOut)
+		vals  = reflect.ValueOf(valuesOut)
+		count int
+		err   error
+	)
+
+	// Try to assign src to dst, or to any of its fields. This is required because
+	// [migration.ctKey{4,6}] embed [ctmap.CtKey{4,6}Global].
+	var assignOrEmbed = func(dst, src reflect.Value) {
+		if src.Type().AssignableTo(dst.Type()) {
+			dst.Set(src)
+			return
+		}
+
+		if dst.Kind() == reflect.Struct {
+			for _, f := range dst.Fields() {
+				if src.Type().AssignableTo(f.Type()) {
+					f.Set(src)
+					return
+				}
+			}
+		}
+
+		panic(fmt.Errorf("cannot assign %s to %s (or any of its fields)", src.Type(), dst.Type()))
+	}
+
+	// We cannot track pagination, because the cursor has only unexported fields.
+	// Hence, we always attempt to return the full snapshot, under the assumption
+	// that it should always fit in case of test data (and we return an error if
+	// it doesn't).
+	c.entries.Range(func(_ string, record ctmap.CtMapRecord) bool {
+		if count > keys.Len() {
+			count, err = 0, unix.ENOSPC
+			return false
+		}
+
+		// record.Key is an interface holding a *ctmap.CtKey{4,6}Global.
+		assignOrEmbed(keys.Index(count), reflect.ValueOf(record.Key).Elem())
+		vals.Index(count).Set(reflect.ValueOf(record.Value))
+
+		count++
+		return true
+	})
+
+	// ebpf.ErrKeyNotExist signals that iteration completed.
+	return count, cmp.Or(err, ebpf.ErrKeyNotExist)
+}
+
+func (c *ctMap) DumpEntriesWithTimeDiff(clockSource *models.ClockSource) (string, error) {
+	var sb strings.Builder
+
+	c.entries.Range(func(_ string, record ctmap.CtMapRecord) bool {
+		record.Key.ToHost().Dump(&sb, true)
+		sb.WriteString(record.Value.String())
+		return true
+	})
+
+	return sb.String(), nil
+}
+
+func (c *ctMap) Flush(_ func(ctmap.GCEvent), _ func(ctmap.GCEvent)) int {
+	panic("unimplemented")
+}
+
+func (c *ctMap) flags() []string {
+	var flags []string
+
+	if c.pinned.Load() {
+		flags = append(flags, "pinned")
+	}
+
+	if c.opened.Load() {
+		flags = append(flags, "open")
+	}
+
+	return flags
 }

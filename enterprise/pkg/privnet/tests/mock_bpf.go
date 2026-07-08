@@ -48,38 +48,38 @@ func mockBPFMapCell(t testing.TB) cell.Cell {
 		cell.Provide(
 			newFakeBPFMapRegistry,
 			registerFakeBPFMap(
-				pnmaps.PIPMapName, 512000, true,
+				pnmaps.PIPMapName, 512000,
 				&pnmaps.PIPKeyVal{
 					Key: pnmaps.NewPIPKey(netip.MustParsePrefix("172.16.1.1/32")),
 					Val: pnmaps.NewPIPVal(0xff, netip.MustParseAddr("172.16.2.1")),
 				},
 			),
 			registerFakeBPFMap(
-				pnmaps.FIBMapName, 512000, true,
+				pnmaps.FIBMapName, 512000,
 				&pnmaps.FIBKeyVal{
 					Key: pnmaps.NewFIBKey(5, 6, 0, netip.MustParsePrefix("172.16.2.1/32")),
 					Val: pnmaps.NewFIBVal(netip.MustParseAddr("172.16.1.1"), types.MACAddr{}, tables.MapEntryTypeEndpoint, 0x0, 0, vni.MustFromUint32(0), 0, 0),
 				},
 			),
 			registerFakeBPFMap(
-				pnmaps.DevicesMapName, 16384, true,
+				pnmaps.DevicesMapName, 16384,
 				&pnmaps.DeviceKeyVal{
 					Key: pnmaps.NewDeviceKey(1),
 					Val: pnmaps.NewDeviceVal(0x42, pnmaps.DeviceValTypeLxc, netip.MustParseAddr("172.16.1.1"), netip.MustParseAddr("2001::1")),
 				},
 			),
 			registerFakeBPFMap(
-				pnmaps.SubnetsMapName, 16384, true,
+				pnmaps.SubnetsMapName, 16384,
 				&pnmaps.SubnetKeyVal{
 					Key: pnmaps.NewSubnetKey(0xfe, netip.MustParsePrefix("10.0.255.0/24")),
 					Val: pnmaps.NewSubnetVal(0xfd),
 				},
 			),
 			registerFakeBPFMap[*pnmaps.ARPSenderKeyVal](
-				pnmaps.ARPSenderMapName, 16384, true,
+				pnmaps.ARPSenderMapName, 16384,
 			),
 			registerFakeBPFMap[*pnmaps.CIDRIdentityKeyVal](
-				pnmaps.CIDRIdentityMapName, 128000, true,
+				pnmaps.CIDRIdentityMapName, 128000,
 				&pnmaps.CIDRIdentityKeyVal{
 					Key: pnmaps.NewCIDRIdentityKey(netip.MustParsePrefix("10.0.0.0/24")),
 					Val: pnmaps.NewCIDRIdentityVal(16777230),
@@ -93,32 +93,28 @@ func mockBPFMapCell(t testing.TB) cell.Cell {
 				return registerFakeBPFMap[*pnmaps.CTMapsKeyVal](
 					pnmaps.CTMapsMapName(ctmap.MapConfig{TCP: true, IPv6: false}),
 					16384,
-					false, // disable these CT map maps as their reconciler requires root
 				)(f)
 			},
 			func(f *fakeBPFMapRegistry) pnmaps.CTMapsMapAny4 {
 				return registerFakeBPFMap[*pnmaps.CTMapsKeyVal](
 					pnmaps.CTMapsMapName(ctmap.MapConfig{TCP: false, IPv6: false}),
 					16384,
-					false,
 				)(f)
 			},
 			func(f *fakeBPFMapRegistry) pnmaps.CTMapsMapTCP6 {
 				return registerFakeBPFMap[*pnmaps.CTMapsKeyVal](
 					pnmaps.CTMapsMapName(ctmap.MapConfig{TCP: true, IPv6: true}),
 					16384,
-					false,
 				)(f)
 			},
 			func(f *fakeBPFMapRegistry) pnmaps.CTMapsMapAny6 {
 				return registerFakeBPFMap[*pnmaps.CTMapsKeyVal](
 					pnmaps.CTMapsMapName(ctmap.MapConfig{TCP: false, IPv6: true}),
 					16384,
-					false,
 				)(f)
 			},
 			registerFakeBPFMap[*extepspolicy.KeyVal](
-				extepspolicy.MapName, 128, true,
+				extepspolicy.MapName, 128,
 			),
 		),
 
@@ -149,21 +145,18 @@ func newFakeBPFMapRegistry() *fakeBPFMapRegistry {
 type fakeBPFMap[Obj pnmaps.KeyValue] struct {
 	name       string
 	maxEntries uint32
-	enabled    bool
 	entries    lock.Map[string, Obj]
 }
 
 func registerFakeBPFMap[Obj pnmaps.KeyValue](
 	name string,
 	maxEntries uint32,
-	enabled bool,
 	existing ...Obj,
 ) func(registry *fakeBPFMapRegistry) pnmaps.Map[Obj] {
 	m := &fakeBPFMap[Obj]{
 		name:       name,
 		maxEntries: maxEntries,
 		entries:    lock.Map[string, Obj]{},
-		enabled:    enabled,
 	}
 	for _, obj := range existing {
 		m.entries.Store(obj.MapKey().String(), obj)
@@ -191,7 +184,7 @@ func (f *fakeBPFMap[Obj]) MaxEntries() uint32 {
 
 // Enabled implements pnmaps.Map[Obj]
 func (f *fakeBPFMap[Obj]) Enabled() bool {
-	return f.enabled
+	return true
 }
 
 // Ops implements pnmaps.Map[Obj]

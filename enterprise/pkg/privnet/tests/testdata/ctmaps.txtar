@@ -1,0 +1,266 @@
+#! --private-networks-enabled
+
+hive start
+db/initialized private-networks privnet-ctmaps
+
+# Add two private networks...
+k8s/add icpn-1.yaml icpn-2.yaml
+
+# ... and check that they are reflected into the ctmaps table,
+db/cmp privnet-ctmaps ctmaps.v1.table
+
+# ... and that the expected CT maps have been created,
+privnet/ct-maps-registry/list
+* cmp stdout registry.v1.txt
+
+# ... and that the maps of maps have been populated correctly.
+privnet/maps-dump privnet_ct4_global
+* cmp stdout ct4_global.v1.txt
+privnet/maps-dump privnet_ct6_global
+* cmp stdout ct6_global.v1.txt
+privnet/maps-dump privnet_ct_any4_global
+* cmp stdout ct_any4_global.v1.txt
+privnet/maps-dump privnet_ct_any6_global
+* cmp stdout ct_any6_global.v1.txt
+
+# Add one more private network...
+k8s/add icpn-3.yaml
+
+# ... and check that it gets reflected into the ctmaps table,
+db/show privnet-ctmaps ctmaps.v2.table
+
+# ... and that the expected CT maps are created,
+privnet/ct-maps-registry/list
+* cmp stdout registry.v2.txt
+
+# ... and that the maps of maps are updated correctly.
+privnet/maps-dump privnet_ct4_global
+* cmp stdout ct4_global.v2.txt
+privnet/maps-dump privnet_ct6_global
+* cmp stdout ct6_global.v2.txt
+privnet/maps-dump privnet_ct_any4_global
+* cmp stdout ct_any4_global.v2.txt
+privnet/maps-dump privnet_ct_any6_global
+* cmp stdout ct_any6_global.v2.txt
+
+# Delete one private network...
+k8s/delete icpn-2.yaml
+
+# ... and check that it gets removed from the ctmaps table,
+db/cmp privnet-ctmaps ctmaps.v3.table
+
+# ... and that the corresponding CT maps are removed.
+# This test highlights that the maps are never closed when unpinned.
+privnet/ct-maps-registry/list
+* cmp stdout registry.v3.txt
+
+# ... and that the maps of maps are updated correctly.
+privnet/maps-dump privnet_ct4_global
+* cmp stdout ct4_global.v3.txt
+privnet/maps-dump privnet_ct6_global
+* cmp stdout ct6_global.v3.txt
+privnet/maps-dump privnet_ct_any4_global
+* cmp stdout ct_any4_global.v3.txt
+privnet/maps-dump privnet_ct_any6_global
+* cmp stdout ct_any6_global.v3.txt
+
+# Create it back...
+k8s/add icpn-2.yaml
+
+# ... and check that it gets reflected into the ctmaps table,
+db/cmp privnet-ctmaps ctmaps.v4.table
+
+# ... and that the corresponding CT maps are created,
+privnet/ct-maps-registry/list
+* cmp stdout registry.v4.txt
+
+# ... and that the maps of maps are updated correctly.
+privnet/maps-dump privnet_ct4_global
+* cmp stdout ct4_global.v4.txt
+privnet/maps-dump privnet_ct6_global
+* cmp stdout ct6_global.v4.txt
+privnet/maps-dump privnet_ct_any4_global
+* cmp stdout ct_any4_global.v4.txt
+privnet/maps-dump privnet_ct_any6_global
+* cmp stdout ct_any6_global.v4.txt
+
+# ---
+
+-- icpn-1.yaml --
+apiVersion: isovalent.com/v1alpha1
+kind: ClusterwidePrivateNetwork
+metadata:
+  name: direct-maggot
+spec:
+  subnets:
+  - name: default
+    cidrv4: 192.168.250.0/24
+
+-- icpn-2.yaml --
+apiVersion: isovalent.com/v1alpha1
+kind: ClusterwidePrivateNetwork
+metadata:
+  name: united-firefly
+spec:
+  subnets:
+  - name: default
+    cidrv4: 192.168.251.0/24
+
+-- icpn-3.yaml --
+apiVersion: isovalent.com/v1alpha1
+kind: ClusterwidePrivateNetwork
+metadata:
+  name: knowing-turtle
+spec:
+  subnets:
+  - name: default
+    cidrv4: 192.168.252.0/24
+
+
+-- ctmaps.v1.table --
+Network          NetworkID
+direct-maggot    0x1
+united-firefly   0x2
+
+-- ctmaps.v2.table --
+Network          NetworkID
+direct-maggot    0x1
+united-firefly   0x2
+knowing-turtle   0x3
+
+-- ctmaps.v3.table --
+Network          NetworkID
+direct-maggot    0x1
+knowing-turtle   0x3
+
+-- ctmaps.v4.table --
+Network          NetworkID
+direct-maggot    0x1
+knowing-turtle   0x3
+united-firefly   0x4
+
+
+-- registry.v1.txt --
+cilium_privnet_00001_ct4_global      (0x05) - IPv4: true , TCP: true  - pinned,open
+cilium_privnet_00001_ct6_global      (0x07) - IPv4: false, TCP: true  - pinned,open
+cilium_privnet_00001_ct_any4_global  (0x06) - IPv4: true , TCP: false - pinned,open
+cilium_privnet_00001_ct_any6_global  (0x08) - IPv4: false, TCP: false - pinned,open
+cilium_privnet_00002_ct4_global      (0x09) - IPv4: true , TCP: true  - pinned,open
+cilium_privnet_00002_ct6_global      (0x0b) - IPv4: false, TCP: true  - pinned,open
+cilium_privnet_00002_ct_any4_global  (0x0a) - IPv4: true , TCP: false - pinned,open
+cilium_privnet_00002_ct_any6_global  (0x0c) - IPv4: false, TCP: false - pinned,open
+-- EOR --
+
+-- registry.v2.txt --
+cilium_privnet_00001_ct4_global      (0x05) - IPv4: true , TCP: true  - pinned,open
+cilium_privnet_00001_ct6_global      (0x07) - IPv4: false, TCP: true  - pinned,open
+cilium_privnet_00001_ct_any4_global  (0x06) - IPv4: true , TCP: false - pinned,open
+cilium_privnet_00001_ct_any6_global  (0x08) - IPv4: false, TCP: false - pinned,open
+cilium_privnet_00002_ct4_global      (0x09) - IPv4: true , TCP: true  - pinned,open
+cilium_privnet_00002_ct6_global      (0x0b) - IPv4: false, TCP: true  - pinned,open
+cilium_privnet_00002_ct_any4_global  (0x0a) - IPv4: true , TCP: false - pinned,open
+cilium_privnet_00002_ct_any6_global  (0x0c) - IPv4: false, TCP: false - pinned,open
+cilium_privnet_00003_ct4_global      (0x0d) - IPv4: true , TCP: true  - pinned,open
+cilium_privnet_00003_ct6_global      (0x0f) - IPv4: false, TCP: true  - pinned,open
+cilium_privnet_00003_ct_any4_global  (0x0e) - IPv4: true , TCP: false - pinned,open
+cilium_privnet_00003_ct_any6_global  (0x10) - IPv4: false, TCP: false - pinned,open
+-- EOR --
+
+-- registry.v3.txt --
+cilium_privnet_00001_ct4_global      (0x05) - IPv4: true , TCP: true  - pinned,open
+cilium_privnet_00001_ct6_global      (0x07) - IPv4: false, TCP: true  - pinned,open
+cilium_privnet_00001_ct_any4_global  (0x06) - IPv4: true , TCP: false - pinned,open
+cilium_privnet_00001_ct_any6_global  (0x08) - IPv4: false, TCP: false - pinned,open
+cilium_privnet_00002_ct4_global      (0x09) - IPv4: true , TCP: true  - open
+cilium_privnet_00002_ct6_global      (0x0b) - IPv4: false, TCP: true  - open
+cilium_privnet_00002_ct_any4_global  (0x0a) - IPv4: true , TCP: false - open
+cilium_privnet_00002_ct_any6_global  (0x0c) - IPv4: false, TCP: false - open
+cilium_privnet_00003_ct4_global      (0x0d) - IPv4: true , TCP: true  - pinned,open
+cilium_privnet_00003_ct6_global      (0x0f) - IPv4: false, TCP: true  - pinned,open
+cilium_privnet_00003_ct_any4_global  (0x0e) - IPv4: true , TCP: false - pinned,open
+cilium_privnet_00003_ct_any6_global  (0x10) - IPv4: false, TCP: false - pinned,open
+-- EOR --
+
+-- registry.v4.txt --
+cilium_privnet_00001_ct4_global      (0x05) - IPv4: true , TCP: true  - pinned,open
+cilium_privnet_00001_ct6_global      (0x07) - IPv4: false, TCP: true  - pinned,open
+cilium_privnet_00001_ct_any4_global  (0x06) - IPv4: true , TCP: false - pinned,open
+cilium_privnet_00001_ct_any6_global  (0x08) - IPv4: false, TCP: false - pinned,open
+cilium_privnet_00002_ct4_global      (0x09) - IPv4: true , TCP: true  - open
+cilium_privnet_00002_ct6_global      (0x0b) - IPv4: false, TCP: true  - open
+cilium_privnet_00002_ct_any4_global  (0x0a) - IPv4: true , TCP: false - open
+cilium_privnet_00002_ct_any6_global  (0x0c) - IPv4: false, TCP: false - open
+cilium_privnet_00003_ct4_global      (0x0d) - IPv4: true , TCP: true  - pinned,open
+cilium_privnet_00003_ct6_global      (0x0f) - IPv4: false, TCP: true  - pinned,open
+cilium_privnet_00003_ct_any4_global  (0x0e) - IPv4: true , TCP: false - pinned,open
+cilium_privnet_00003_ct_any6_global  (0x10) - IPv4: false, TCP: false - pinned,open
+cilium_privnet_00004_ct4_global      (0x11) - IPv4: true , TCP: true  - pinned,open
+cilium_privnet_00004_ct6_global      (0x13) - IPv4: false, TCP: true  - pinned,open
+cilium_privnet_00004_ct_any4_global  (0x12) - IPv4: true , TCP: false - pinned,open
+cilium_privnet_00004_ct_any6_global  (0x14) - IPv4: false, TCP: false - pinned,open
+-- EOR --
+
+
+-- ct4_global.v1.txt --
+0x1 -> fd=5
+0x2 -> fd=9
+-- ct6_global.v1.txt --
+0x1 -> fd=7
+0x2 -> fd=11
+-- ct_any4_global.v1.txt --
+0x1 -> fd=6
+0x2 -> fd=10
+-- ct_any6_global.v1.txt --
+0x1 -> fd=8
+0x2 -> fd=12
+-- EOR --
+
+-- ct4_global.v2.txt --
+0x1 -> fd=5
+0x2 -> fd=9
+0x3 -> fd=13
+-- ct6_global.v2.txt --
+0x1 -> fd=7
+0x2 -> fd=11
+0x3 -> fd=15
+-- ct_any4_global.v2.txt --
+0x1 -> fd=6
+0x2 -> fd=10
+0x3 -> fd=14
+-- ct_any6_global.v2.txt --
+0x1 -> fd=8
+0x2 -> fd=12
+0x3 -> fd=16
+-- EOR --
+
+-- ct4_global.v3.txt --
+0x1 -> fd=5
+0x3 -> fd=13
+-- ct6_global.v3.txt --
+0x1 -> fd=7
+0x3 -> fd=15
+-- ct_any4_global.v3.txt --
+0x1 -> fd=6
+0x3 -> fd=14
+-- ct_any6_global.v3.txt --
+0x1 -> fd=8
+0x3 -> fd=16
+-- EOR --
+
+-- ct4_global.v4.txt --
+0x1 -> fd=5
+0x3 -> fd=13
+0x4 -> fd=17
+-- ct6_global.v4.txt --
+0x1 -> fd=7
+0x3 -> fd=15
+0x4 -> fd=19
+-- ct_any4_global.v4.txt --
+0x1 -> fd=6
+0x3 -> fd=14
+0x4 -> fd=18
+-- ct_any6_global.v4.txt --
+0x1 -> fd=8
+0x3 -> fd=16
+0x4 -> fd=20
+-- EOR --
