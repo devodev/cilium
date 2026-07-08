@@ -35,6 +35,6 @@ var (
 		// renovate: datasource=docker
 		"VMImage": "quay.io/kubevirt/alpine-with-test-tooling-container-disk:v1.8.4@sha256:a6f3d9ffffa7d1e4cd19aa80aae21abfc09dd289db854b4098c7ed2e14e21b55",
 		// renovate: datasource=docker
-		"MockVMImage": "ghcr.io/nicolaka/netshoot:v0.15@sha256:47b907d662d139d1e2f22bfe14f4efca1e3f1feed283572f47c970c780c03b61",
+		"MockVMImage": "ghcr.io/nicolaka/netshoot:v0.16@sha256:b09d9b21381f47a79b3cbcb30da25266dc17186ea00ae65e99fdc51396f48e70",
 	}
 )
