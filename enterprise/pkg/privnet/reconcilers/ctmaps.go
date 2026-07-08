@@ -103,6 +103,8 @@ type CTMaps struct {
 func newCTMaps(in struct {
 	cell.In
 
+	Lifecycle cell.Lifecycle
+
 	Global  ctmap.CTMaps
 	Factory CTMapFactory
 
@@ -111,7 +113,7 @@ func newCTMaps(in struct {
 	TCP6 pnmaps.CTMapsMapTCP6
 	Any6 pnmaps.CTMapsMapAny6
 }) *CTMaps {
-	return &CTMaps{
+	var maps = &CTMaps{
 		global:  in.Global,
 		factory: in.Factory,
 		ctMaps:  make(map[tables.NetworkID]*ctMap),
@@ -125,6 +127,26 @@ func newCTMaps(in struct {
 		any6:    in.Any6,
 		any6Ops: in.Any6.Ops(),
 	}
+
+	in.Lifecycle.Append(
+		cell.Hook{
+			OnStop: func(cell.HookContext) error {
+				maps.mu.Lock()
+				defer maps.mu.Unlock()
+
+				for _, m := range maps.ctMaps {
+					for _, ctm := range m.all() {
+						_ = ctm.Close()
+					}
+				}
+
+				maps.ctMaps = nil
+				return nil
+			},
+		},
+	)
+
+	return maps
 }
 
 func (c *CTMaps) registerDerive(in struct {
@@ -275,6 +297,13 @@ type ctMap struct {
 	any4 pnmaps.CTMap
 	tcp6 pnmaps.CTMap
 	any6 pnmaps.CTMap
+}
+
+func (m *ctMap) all() []pnmaps.CTMap {
+	return slices.DeleteFunc(
+		[]pnmaps.CTMap{m.tcp4, m.tcp6, m.any4, m.any6},
+		func(ctm pnmaps.CTMap) bool { return ctm == nil },
+	)
 }
 
 // createCTMap creates the CT maps for a given network. We create these maps as soon as the network

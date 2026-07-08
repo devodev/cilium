@@ -83,6 +83,23 @@ privnet/maps-dump privnet_ct_any4_global
 privnet/maps-dump privnet_ct_any6_global
 * cmp stdout ct_any6_global.v4.txt
 
+# Stop the hive...
+hive stop
+
+# ... validate that the maps are closed (but not unpinned),
+privnet/ct-maps-registry/list
+cmp stdout registry.stopped.txt
+
+# ... and that the maps of maps have not been changed.
+privnet/maps-dump privnet_ct4_global
+cmp stdout ct4_global.v4.txt
+privnet/maps-dump privnet_ct6_global
+cmp stdout ct6_global.v4.txt
+privnet/maps-dump privnet_ct_any4_global
+cmp stdout ct_any4_global.v4.txt
+privnet/maps-dump privnet_ct_any6_global
+cmp stdout ct_any6_global.v4.txt
+
 # ---
 
 -- icpn-1.yaml --
@@ -189,6 +206,21 @@ cilium_privnet_00004_ct4_global      (0x11) - IPv4: true , TCP: true  - pinned,o
 cilium_privnet_00004_ct6_global      (0x13) - IPv4: false, TCP: true  - pinned,open
 cilium_privnet_00004_ct_any4_global  (0x12) - IPv4: true , TCP: false - pinned,open
 cilium_privnet_00004_ct_any6_global  (0x14) - IPv4: false, TCP: false - pinned,open
+-- EOR --
+
+-- registry.stopped.txt --
+cilium_privnet_00001_ct4_global      (0x05) - IPv4: true , TCP: true  - pinned
+cilium_privnet_00001_ct6_global      (0x07) - IPv4: false, TCP: true  - pinned
+cilium_privnet_00001_ct_any4_global  (0x06) - IPv4: true , TCP: false - pinned
+cilium_privnet_00001_ct_any6_global  (0x08) - IPv4: false, TCP: false - pinned
+cilium_privnet_00003_ct4_global      (0x0d) - IPv4: true , TCP: true  - pinned
+cilium_privnet_00003_ct6_global      (0x0f) - IPv4: false, TCP: true  - pinned
+cilium_privnet_00003_ct_any4_global  (0x0e) - IPv4: true , TCP: false - pinned
+cilium_privnet_00003_ct_any6_global  (0x10) - IPv4: false, TCP: false - pinned
+cilium_privnet_00004_ct4_global      (0x11) - IPv4: true , TCP: true  - pinned
+cilium_privnet_00004_ct6_global      (0x13) - IPv4: false, TCP: true  - pinned
+cilium_privnet_00004_ct_any4_global  (0x12) - IPv4: true , TCP: false - pinned
+cilium_privnet_00004_ct_any6_global  (0x14) - IPv4: false, TCP: false - pinned
 -- EOR --
 
 
