@@ -92,7 +92,7 @@ jobs:
   installation-and-connectivity:
     name: Installation and Connectivity Test
     needs: [wait-for-images]
-    runs-on: [self-hosted, ubuntu-2404-nv-8cores-32gb]
+    runs-on: ${{ vars.GH_RUNNER_NV_8CORES_32GB_AMD64 }}
     timeout-minutes: 60
     env:
       job_name: 'Installation and Connectivity Test'
