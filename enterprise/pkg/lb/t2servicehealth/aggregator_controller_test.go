@@ -19,7 +19,7 @@ import (
 
 	"github.com/cilium/cilium/enterprise/pkg/lb/envoyhealthcheck"
 	"github.com/cilium/cilium/pkg/ciliumenvoyconfig"
-	"github.com/cilium/cilium/pkg/envoy"
+	"github.com/cilium/cilium/pkg/envoy/xds"
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	"github.com/cilium/cilium/pkg/loadbalancer"
 	"github.com/cilium/cilium/pkg/time"
@@ -32,10 +32,10 @@ func TestComputeServiceHealthRows(t *testing.T) {
 		Name:             k8sTypes.NamespacedName{Namespace: "default", Name: "test"},
 		SelectsLocalNode: true,
 		Spec:             &ciliumv2.CiliumEnvoyConfigSpec{},
-		Resources: envoy.Resources{
-			Clusters: []*envoy_config_cluster_v3.Cluster{
-				{Name: "backend_cluster_backend-a"},
-				{Name: "backend_cluster_backend-b"},
+		Resources: xds.Resources{
+			Clusters: map[string]*envoy_config_cluster_v3.Cluster{
+				"backend_cluster_backend-a": {Name: "backend_cluster_backend-a"},
+				"backend_cluster_backend-b": {Name: "backend_cluster_backend-b"},
 			},
 		},
 	}
@@ -64,10 +64,10 @@ func TestComputeServiceHealthRowsFailsClosedWhenClusterHasNoEvents(t *testing.T)
 		Name:             k8sTypes.NamespacedName{Namespace: "default", Name: "test"},
 		SelectsLocalNode: true,
 		Spec:             &ciliumv2.CiliumEnvoyConfigSpec{},
-		Resources: envoy.Resources{
-			Clusters: []*envoy_config_cluster_v3.Cluster{
-				{Name: "backend_cluster_backend-a"},
-				{Name: "backend_cluster_backend-b"},
+		Resources: xds.Resources{
+			Clusters: map[string]*envoy_config_cluster_v3.Cluster{
+				"backend_cluster_backend-a": {Name: "backend_cluster_backend-a"},
+				"backend_cluster_backend-b": {Name: "backend_cluster_backend-b"},
 			},
 		},
 	}
@@ -89,9 +89,9 @@ func TestComputeServiceHealthRowsFailsClosedWhenNodeUnschedulable(t *testing.T) 
 		Name:             k8sTypes.NamespacedName{Namespace: "default", Name: "test"},
 		SelectsLocalNode: true,
 		Spec:             &ciliumv2.CiliumEnvoyConfigSpec{},
-		Resources: envoy.Resources{
-			Clusters: []*envoy_config_cluster_v3.Cluster{
-				{Name: "backend_cluster_backend-a"},
+		Resources: xds.Resources{
+			Clusters: map[string]*envoy_config_cluster_v3.Cluster{
+				"backend_cluster_backend-a": {Name: "backend_cluster_backend-a"},
 			},
 		},
 	}

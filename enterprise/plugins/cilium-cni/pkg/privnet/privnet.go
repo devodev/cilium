@@ -232,7 +232,7 @@ func (h *addHooks) OnInterfaceConfigReady(state *cmd.CmdState, ep *models.Endpoi
 	// Disable the configuration of the legacy endpoint identifiers for secondary interfaces,
 	// to prevent conflicts as they would not be unique in case of multi-NIC pods.
 	if h.ifname != "eth0" {
-		ep.DisableLegacyIdentifiers = true
+		ep.IsSecondaryInterface = true
 	}
 
 	return nil

@@ -12,6 +12,7 @@ import (
 	envoy_config_core_v3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	envoy_extensions_tls_v3 "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
 
+	"github.com/cilium/cilium/pkg/envoy/xds"
 	"github.com/cilium/cilium/pkg/k8s/resource"
 	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 	"github.com/cilium/cilium/pkg/logging/logfields"
@@ -96,11 +97,13 @@ func (r *secretSyncer) upsertK8sSecretV1(ctx context.Context, secret *slim_corev
 		return nil
 	}
 
-	resource := Resources{
-		Secrets: []*envoy_extensions_tls_v3.Secret{envoySecret},
+	resource := xds.Resources{
+		Secrets: map[string]*envoy_extensions_tls_v3.Secret{
+			getEnvoySecretName(secret.GetNamespace(), secret.GetName()): envoySecret,
+		},
 	}
 	// UpsertEnvoyResources does not Wait for an Envoy response when only Secrets are upserted.
-	return r.envoyXdsServer.UpsertEnvoyResources(ctx, resource)
+	return r.envoyXdsServer.UpsertEnvoyResources(ctx, resource, nil)
 }
 
 // deleteK8sSecretV1 makes sure the related secret values in Envoy SDS is removed.
@@ -108,17 +111,17 @@ func (r *secretSyncer) deleteK8sSecretV1(ctx context.Context, key resource.Key) 
 	if len(key.Namespace) == 0 || len(key.Name) == 0 {
 		return errors.New("key has empty namespace and/or name")
 	}
-
-	resource := Resources{
-		Secrets: []*envoy_extensions_tls_v3.Secret{
-			{
+	secretName := getEnvoySecretName(key.Namespace, key.Name)
+	resource := xds.Resources{
+		Secrets: map[string]*envoy_extensions_tls_v3.Secret{
+			secretName: {
 				// For deletion, only the name is required.
-				Name: getEnvoySecretName(key.Namespace, key.Name),
+				Name: secretName,
 			},
 		},
 	}
 	// DeleteEnvoyResources does not Wait for an Envoy response when only Secrets are deleted.
-	return r.envoyXdsServer.DeleteEnvoyResources(ctx, resource)
+	return r.envoyXdsServer.DeleteEnvoyResources(ctx, resource, nil)
 }
 
 // k8sToEnvoySecret converts k8s secret object to envoy TLS secret object

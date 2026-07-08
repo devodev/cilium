@@ -45,30 +45,30 @@ func (r *mockXDSServer) Reset() {
 	r.nrOfDeletions = 0
 }
 
-func (r *mockXDSServer) UpdateEnvoyResources(ctx context.Context, old envoy.Resources, new envoy.Resources) error {
+func (r *mockXDSServer) UpdateEnvoyResources(ctx context.Context, old xds.Resources, new xds.Resources, _ *completion.WaitGroup) error {
 	r.nrOfUpdates++
 	return nil
 }
 
-func (r *mockXDSServer) DeleteEnvoyResources(ctx context.Context, resources envoy.Resources) error {
+func (r *mockXDSServer) DeleteEnvoyResources(ctx context.Context, resources xds.Resources, _ *completion.WaitGroup) error {
 	r.nrOfDeletions++
 	return nil
 }
 
-func (r *mockXDSServer) UpsertEnvoyResources(ctx context.Context, resources envoy.Resources) error {
+func (r *mockXDSServer) UpsertEnvoyResources(ctx context.Context, resources xds.Resources, _ *completion.WaitGroup) error {
 	r.nrOfUpserts++
 	return nil
 }
 
-func (*mockXDSServer) AddListener(name string, kind policy.L7ParserType, port uint16, isIngress bool, mayUseOriginalSourceAddr bool, wg *completion.WaitGroup, cb func(err error)) error {
+func (*mockXDSServer) AddListener(ctx context.Context, name string, kind policy.L7ParserType, port uint16, isIngress bool, mayUseOriginalSourceAddr bool, wg *completion.WaitGroup, cb func(err error)) error {
 	panic("unimplemented")
 }
 
-func (*mockXDSServer) AddAdminListener(port uint16, wg *completion.WaitGroup) {
+func (*mockXDSServer) AddAdminListener(ctx context.Context, port uint16, wg *completion.WaitGroup) {
 	panic("unimplemented")
 }
 
-func (*mockXDSServer) AddMetricsListener(port uint16, wg *completion.WaitGroup) {
+func (*mockXDSServer) AddMetricsListener(ctx context.Context, port uint16, wg *completion.WaitGroup) {
 	panic("unimplemented")
 }
 
@@ -80,16 +80,16 @@ func (s *mockXDSServer) RemoveAllNetworkPolicies() {
 	panic("unimplemented")
 }
 
-func (s *mockXDSServer) RemoveListener(name string, wg *completion.WaitGroup) xds.AckingResourceMutatorRevertFunc {
+func (s *mockXDSServer) RemoveListener(ctx context.Context, name string, wg *completion.WaitGroup) xds.AckingResourceMutatorRevertFunc {
 	panic("unimplemented")
 }
 
-func (s *mockXDSServer) RemoveNetworkPolicy(ep endpoint.EndpointInfoSource) {
+func (s *mockXDSServer) RemoveNetworkPolicy(ctx context.Context, ep endpoint.EndpointInfoSource) {
 	s.nrOfDeletions++
 	delete(s.policies, ep.GetPolicyNames()[0])
 }
 
-func (s *mockXDSServer) UpdateNetworkPolicy(ep endpoint.EndpointUpdater, policy *policy.EndpointPolicy, wg *completion.WaitGroup) (error, revert.RevertFunc, revert.FinalizeFunc) {
+func (s *mockXDSServer) UpdateNetworkPolicy(ctx context.Context, ep endpoint.EndpointUpdater, policy *policy.EndpointPolicy, wg *completion.WaitGroup) (error, revert.RevertFunc, revert.FinalizeFunc) {
 	s.nrOfUpdates++
 	s.policies[ep.GetPolicyNames()[0]] = policy
 	return nil, func() error { return nil }, nil

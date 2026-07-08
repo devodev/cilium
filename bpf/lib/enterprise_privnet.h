@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "common.h"
 #include "arp.h"
 #include "auxvars.h"
 #include "conntrack.h"

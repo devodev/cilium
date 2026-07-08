@@ -148,7 +148,7 @@ func (p *recordingEndpointProxy) CreateOrUpdateRedirect(ctx context.Context, l4 
 
 func (p *recordingEndpointProxy) RemoveRedirect(id string) {}
 
-func (p *recordingEndpointProxy) UpdateNetworkPolicy(ep proxyendpoint.EndpointUpdater, epp *policy.EndpointPolicy, wg *completion.WaitGroup) (error, revert.RevertFunc, revert.FinalizeFunc) {
+func (p *recordingEndpointProxy) UpdateNetworkPolicy(ctx context.Context, ep proxyendpoint.EndpointUpdater, epp *policy.EndpointPolicy, wg *completion.WaitGroup) (error, revert.RevertFunc, revert.FinalizeFunc) {
 	endpointID := ep.GetID()
 
 	p.mu.Lock()
@@ -181,7 +181,8 @@ func (p *recordingEndpointProxy) UpdateNetworkPolicy(ep proxyendpoint.EndpointUp
 		}
 }
 
-func (p *recordingEndpointProxy) RemoveNetworkPolicy(ep proxyendpoint.EndpointInfoSource) {}
+func (p *recordingEndpointProxy) RemoveNetworkPolicy(ctx context.Context, ep proxyendpoint.EndpointInfoSource) {
+}
 
 func (p *recordingEndpointProxy) UpdateSDP(rules map[identity.NumericIdentity]policy.SelectorPolicy) {
 }
@@ -320,9 +321,7 @@ func TestUpdatePolicyMapsRevertsDeferredNetworkPolicyCallbacksAfterProxyWaitFail
 
 	errCh := make(chan error, 1)
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
-		errCh <- mgr.UpdatePolicyMaps(ctx)
+		errCh <- mgr.UpdatePolicyMaps(t.Context())
 	}()
 
 	proxy.waitForUpdates(t)
@@ -332,7 +331,6 @@ func TestUpdatePolicyMapsRevertsDeferredNetworkPolicyCallbacksAfterProxyWaitFail
 
 	err := <-errCh
 	require.Error(t, err)
-	require.ErrorContains(t, err, "proxy updates failed")
 	require.Equal(t, 1, proxy.revertCount(ep1.GetID()))
 	require.Equal(t, 1, proxy.revertCount(ep2.GetID()))
 	require.Equal(t, 0, proxy.finalizeCount(ep1.GetID()))

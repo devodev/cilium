@@ -56,6 +56,14 @@
 /bpf/lib/wireguard.h @isovalent/encryption @isovalent/cni
 /bpf/Makefile* @isovalent/networking-framework
 /bpf/node_config.h @isovalent/networking-framework
+/bpf/tests/lib/egressgw* @isovalent/cni @isovalent/egress-gateway
+/bpf/tests/lib/endpoint.h @isovalent/cni @isovalent/policy-identity-networking
+/bpf/tests/lib/ipcache.h @isovalent/cni @isovalent/policy-identity-networking
+/bpf/tests/lib/ipsec.h @isovalent/cni @isovalent/encryption
+/bpf/tests/lib/lb.h @isovalent/cni @isovalent/isovalent-loadbalancer
+/bpf/tests/lib/metrics.h @isovalent/cni
+/bpf/tests/lib/policy.h @isovalent/cni @isovalent/policy-identity-networking
+/bpf/tests/network_policy.c @isovalent/cni @isovalent/policy-identity-networking
 /bugtool/ @isovalent/ci-structure
 /cilium-dbg/ @isovalent/ci-structure
 /cilium-dbg/cmd/encrypt* @isovalent/encryption @isovalent/ci-structure

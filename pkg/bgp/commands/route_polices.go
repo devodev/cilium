@@ -51,7 +51,7 @@ func BGPRoutePoliciesCmd(bgpMgr agent.BGPRouterManager) script.Cmd {
 				}
 				tw := getCmdTabWriter(w)
 
-				PrintBGPRoutePoliciesTable(tw, res.Instances)
+				PrintRoutePoliciesTable(tw, res.Instances)
 				tw.Flush()
 
 				return buf.String(), "", err
@@ -60,12 +60,13 @@ func BGPRoutePoliciesCmd(bgpMgr agent.BGPRouterManager) script.Cmd {
 	)
 }
 
-// PrintBGPRoutePoliciesTable prints table of provided BGP route policies in the provided tab writer.
-func PrintBGPRoutePoliciesTable(tw *tabwriter.Writer, instances []agent.InstanceRoutePolicies) {
+// PrintRoutePoliciesTable prints table of provided BGP route policies in the provided tab writer.
+func PrintRoutePoliciesTable(tw *tabwriter.Writer, instances []agent.InstanceRoutePolicies) {
 	type row struct {
 		Instance      string
 		PolicyName    string
 		Type          string
+		StatementName string
 		MatchPeers    string
 		MatchFamilies string
 		MatchPrefixes string
@@ -82,6 +83,7 @@ func PrintBGPRoutePoliciesTable(tw *tabwriter.Writer, instances []agent.Instance
 					Instance:      instance.Name,
 					PolicyName:    policy.Name,
 					Type:          policy.Type.String(),
+					StatementName: stmt.Name,
 					MatchPeers:    formatMatchNeighbors(stmt.Conditions.MatchNeighbors),
 					MatchFamilies: formatFamilies(stmt.Conditions.MatchFamilies),
 					MatchPrefixes: formatMatchPrefixes(stmt.Conditions.MatchPrefixes),
@@ -92,19 +94,22 @@ func PrintBGPRoutePoliciesTable(tw *tabwriter.Writer, instances []agent.Instance
 		}
 	}
 
-	// Sort by Instance, PolicyName
-	slices.SortFunc(rows, func(a, b row) int {
-		c := strings.Compare(a.Instance, b.Instance)
-		if c != 0 {
-			return c
+	// Sort by Instance, PolicyName and Type. Preserve configured statement order as they are evaluated sequentially.
+	slices.SortStableFunc(rows, func(a, b row) int {
+		if cmp := strings.Compare(a.Instance, b.Instance); cmp != 0 {
+			return cmp
 		}
-		return strings.Compare(a.PolicyName, b.PolicyName)
+		if cmp := strings.Compare(a.PolicyName, b.PolicyName); cmp != 0 {
+			return cmp
+		}
+		return strings.Compare(a.Type, b.Type)
 	})
 
 	rows = slices.Insert(rows, 0, row{
 		Instance:      "Instance",
 		PolicyName:    "Policy Name",
 		Type:          "Type",
+		StatementName: "Statement Name",
 		MatchPeers:    "Match Peers",
 		MatchFamilies: "Match Families",
 		MatchPrefixes: "Match Prefixes (Min..Max Len)",
@@ -112,19 +117,31 @@ func PrintBGPRoutePoliciesTable(tw *tabwriter.Writer, instances []agent.Instance
 		PathActions:   "Path Actions",
 	})
 
+	var prevRow row
 	for _, row := range rows {
+		printRow := row
+		if printRow.Instance == prevRow.Instance {
+			printRow.Instance = ""
+		}
+		if printRow.Instance == "" && printRow.PolicyName == prevRow.PolicyName {
+			printRow.PolicyName = ""
+		}
+		if printRow.Instance == "" && printRow.PolicyName == "" && printRow.Type == prevRow.Type {
+			printRow.Type = ""
+		}
 		fmt.Fprintf(tw, "%s\n", strings.Join([]string{
-			row.Instance,
-			row.PolicyName,
-			row.Type,
-			row.MatchPeers,
-			row.MatchFamilies,
-			row.MatchPrefixes,
-			row.RIBAction,
-			row.PathActions,
+			printRow.Instance,
+			printRow.PolicyName,
+			printRow.Type,
+			printRow.StatementName,
+			printRow.MatchPeers,
+			printRow.MatchFamilies,
+			printRow.MatchPrefixes,
+			printRow.RIBAction,
+			printRow.PathActions,
 		}, "\t"))
+		prevRow = row
 	}
-
 }
 
 func formatMatchNeighbors(match *types.RoutePolicyNeighborMatch) string {

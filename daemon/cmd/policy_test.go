@@ -33,6 +33,7 @@ import (
 	"github.com/cilium/cilium/pkg/endpoint/regeneration"
 	endpointtypes "github.com/cilium/cilium/pkg/endpoint/types"
 	"github.com/cilium/cilium/pkg/envoy"
+	envoyutil "github.com/cilium/cilium/pkg/envoy/util"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/labels"
 	"github.com/cilium/cilium/pkg/option"
@@ -179,7 +180,7 @@ var (
 // getXDSNetworkPolicies returns the representation of the xDS network policies
 // as a map of IP addresses to NetworkPolicy objects
 func (ds *DaemonSuite) getXDSNetworkPolicies(t *testing.T, resourceNames []string) map[string]*cilium.NetworkPolicy {
-	socketPath := filepath.Join(envoy.GetSocketDir(option.Config.RunDir), "xds.sock")
+	socketPath := filepath.Join(envoyutil.GetSocketDir(option.Config.RunDir), "xds.sock")
 	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
 

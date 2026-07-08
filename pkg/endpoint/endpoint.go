@@ -142,6 +142,8 @@ type Endpoint struct {
 	policyRepo    policy.PolicyRepository
 	policyFetcher compute.PolicyRecomputer
 
+	ipcache IPCache
+
 	// kvstoreSyncher updates the kvstore (e.g., etcd) with up-to-date
 	// information about endpoints. Initialized by manager.expose.
 	kvstoreSyncher *ipcache.IPIdentitySynchronizer
@@ -181,10 +183,10 @@ type Endpoint struct {
 	// with the source endpoints IP should egress when that traffic is not masqueraded.
 	parentIfIndex int
 
-	// disableLegacyIdentifiers disables lookup using legacy endpoint identifiers
-	// (container id, pod name) for this endpoint.
+	// isSecondaryInterface reports whether this endpoint represents a seondary interface in
+	// case of more than once interface per pod.
 	// Immutable after Endpoint creation.
-	disableLegacyIdentifiers bool
+	isSecondaryInterface bool
 
 	// labels is the endpoint's label configuration
 	labels labels.OpLabels
@@ -481,6 +483,11 @@ func (e *Endpoint) Close() {
 	}
 }
 
+// IPCache defines the subset of ipcache.IPCache methods used by the endpoint.
+type IPCache interface {
+	GetMetadataLabels(ip netip.Addr) labels.Labels
+}
+
 type DNSRulesAPI interface {
 	// GetDNSRules creates a fresh copy of DNS rules that can be used when
 	// endpoint is restored on a restart.
@@ -599,6 +606,7 @@ func createEndpoint(
 		policyMapFactory:   p.PolicyMapFactory,
 		policyRepo:         p.PolicyRepo,
 		policyFetcher:      p.PolicyFetcher,
+		ipcache:            p.IPCache,
 		ID:                 ID,
 		createdAt:          time.Now(),
 		proxy:              proxy,
@@ -1240,6 +1248,15 @@ func (e *Endpoint) replaceNonGeneratedIdentityLabels(sourceFilter string, l labe
 type DeleteConfig struct {
 	NoIPRelease       bool
 	NoIdentityRelease bool
+
+	// EndpointOwnsIP reports whether the given IP is still owned by the
+	// endpoint being deleted. It guards the per-endpoint routing rule
+	// teardown against a stale delete: in ENI/Azure IPAM mode the rules are
+	// keyed solely by IP address, so a late teardown for an IP that has since
+	// been reused by another endpoint would otherwise strip the live owner's
+	// rules, silently breaking its egress. When nil, the check is skipped and
+	// rules are always deleted.
+	EndpointOwnsIP func(ip netip.Addr) bool
 }
 
 // leaveLocked removes the endpoint's directory from the system. Must be called
@@ -1447,11 +1464,12 @@ func (e *Endpoint) SetMac(mac mac.MAC) {
 	e.mac = mac
 }
 
-// GetDisableLegacyIdentifiers returns the endpoint's disableLegacyIdentifiers.
-func (e *Endpoint) GetDisableLegacyIdentifiers() bool {
+// IsSecondaryInterface reports whether this endpoint represents a seondary interface in
+// case of more than once interface per pod.
+func (e *Endpoint) IsSecondaryInterface() bool {
 	e.unconditionalRLock()
 	defer e.runlock()
-	return e.disableLegacyIdentifiers
+	return e.isSecondaryInterface
 }
 
 func (e *Endpoint) setState(toState State, reason string) bool {
@@ -2227,6 +2245,18 @@ func (e *Endpoint) identityResolutionIsObsolete(myChangeRev int) bool {
 	return myChangeRev != e.identityRevision
 }
 
+// ForceUpdateCIDRLabels triggers a re-evaluation of the endpoint's CIDR labels
+// and runs the identity resolver to update its security identity if needed.
+func (e *Endpoint) ForceUpdateCIDRLabels(ctx context.Context) {
+	if err := e.lockAlive(); err != nil {
+		return
+	}
+	e.identityRevision++
+	e.unlock()
+
+	e.runIdentityResolver(ctx, false, 0)
+}
+
 // runIdentityResolver resolves the numeric identity for the set of labels that
 // are currently configured on the endpoint.
 //
@@ -2286,12 +2316,57 @@ func (e *Endpoint) runIdentityResolver(ctx context.Context, blocking bool, updat
 	return regenTriggered
 }
 
+// computeCIDRLabelsRLocked should be called with a lock held on the Endpoint.
+func (e *Endpoint) computeCIDRLabelsRLocked() labels.Labels {
+	newCIDRLabels := labels.Labels{}
+	if !option.Config.PolicyCIDRMatchesPods() || e.ipcache == nil {
+		return newCIDRLabels
+	}
+
+	for _, ip := range []netip.Addr{e.IPv4, e.IPv6} {
+		if !ip.IsValid() {
+			continue
+		}
+		hasCIDR := false
+		// Filter labels retrieved from the IPCache. We only match and propagate
+		// CIDR and CIDRGroup labels (source=cidr or source=cidrgroup). Other metadata
+		// labels (such as reserved:world or FQDN labels) are ignored.
+		for _, lbl := range e.ipcache.GetMetadataLabels(ip) {
+			if lbl.Source == labels.LabelSourceCIDR || lbl.Source == labels.LabelSourceCIDRGroup {
+				newCIDRLabels[lbl.GetExtendedKey()] = lbl
+				if lbl.Source == labels.LabelSourceCIDR {
+					hasCIDR = true
+				}
+			}
+		}
+		if !hasCIDR {
+			var wildcard string
+			if ip.Is4() {
+				wildcard = "cidr:0.0.0.0/0"
+			} else {
+				wildcard = "cidr:::/0"
+			}
+			lbl := labels.ParseLabel(wildcard)
+			newCIDRLabels[lbl.GetExtendedKey()] = lbl
+		}
+	}
+
+	return newCIDRLabels
+}
+
 func (e *Endpoint) identityLabelsChanged(ctx context.Context) (regenTriggered bool, err error) {
 	// e.setState() called below, can't take a read lock.
 	if err := e.lockAlive(); err != nil {
 		return false, err
 	}
 	newLabels := e.labels.IdentityLabels()
+
+	if !newLabels.IsReserved() {
+		newLabels.RemoveFromSource(labels.LabelSourceCIDR)
+		newLabels.RemoveFromSource(labels.LabelSourceCIDRGroup)
+		maps.Copy(newLabels, e.computeCIDRLabelsRLocked())
+	}
+
 	myChangeRev := e.identityRevision
 	scopedLog := e.getLogger().With(
 		logfields.IdentityLabels, newLabels,
@@ -2655,16 +2730,30 @@ func (e *Endpoint) Delete(conf DeleteConfig) []error {
 		// This is a best-effort attempt to cleanup. We expect there to be one
 		// ingress rule and multiple egress rules. If we find more rules than
 		// expected, we delete all rules referring to a per-ENI routing table ID.
-		if e.IPv4.IsValid() {
-			if err := linuxrouting.Delete(e.getLogger(), e.IPv4); err != nil {
+		//
+		// The routing rules are keyed solely by IP address, so a stale teardown
+		// for an IP that has since been reused by another endpoint would strip
+		// the live owner's rules. Guard against that by only deleting the rules
+		// if this endpoint still owns the IP.
+		deleteRoutingRules := func(ip netip.Addr) {
+			if conf.EndpointOwnsIP != nil && !conf.EndpointOwnsIP(ip) {
+				e.getLogger().Info(
+					"Skipping deletion of endpoint routing rules: IP is no longer owned by this endpoint",
+					logfields.IPAddr, ip,
+				)
+				return
+			}
+			if err := linuxrouting.Delete(e.getLogger(), ip); err != nil {
 				errs = append(errs, fmt.Errorf("unable to delete endpoint routing rules: %w", err))
 			}
 		}
 
+		if e.IPv4.IsValid() {
+			deleteRoutingRules(e.IPv4)
+		}
+
 		if e.IPv6.IsValid() {
-			if err := linuxrouting.Delete(e.getLogger(), e.IPv6); err != nil {
-				errs = append(errs, fmt.Errorf("unable to delete endpoint routing rules: %w", err))
-			}
+			deleteRoutingRules(e.IPv6)
 		}
 	}
 

@@ -19,12 +19,12 @@ require (
 	github.com/cilium/charts v0.0.0-20260616122432-1c427957de0a
 	github.com/cilium/coverbee v0.3.3-0.20240723084546-664438750fce
 	github.com/cilium/dns v1.1.51-0.20240603182237-af788769786a
-	github.com/cilium/ebpf v0.21.0
+	github.com/cilium/ebpf v0.22.0
 	github.com/cilium/endpointslice-controller v0.0.0-20250410163339-ffb33e27879c
 	github.com/cilium/fake v0.7.0
 	github.com/cilium/hive v1.0.4
 	github.com/cilium/lumberjack/v2 v2.4.2
-	github.com/cilium/proxy v0.0.0-20260508102643-7c2f6580d32e
+	github.com/cilium/proxy v0.0.0-20260701124752-9c14fdc485a1
 	github.com/cilium/statedb v0.8.2
 	github.com/cilium/stream v0.0.1
 	github.com/cilium/workerpool v1.4.0
@@ -81,7 +81,7 @@ require (
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/ginkgo/v2 v2.28.1
 	github.com/onsi/gomega v1.40.0
-	github.com/osrg/gobgp/v4 v4.6.0
+	github.com/osrg/gobgp/v4 v4.6.1-0.20260630022313-d6dee8360046
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2
 	github.com/prometheus-community/pro-bing v0.9.0
@@ -142,8 +142,8 @@ require (
 	k8s.io/metrics v0.36.2
 	k8s.io/utils v0.0.0-20260617174310-a95e086a2553
 	sigs.k8s.io/controller-runtime v0.24.1
-	sigs.k8s.io/gateway-api v1.5.1
-	sigs.k8s.io/gateway-api/conformance v1.5.1
+	sigs.k8s.io/gateway-api v1.6.0
+	sigs.k8s.io/gateway-api/conformance v1.6.0
 	sigs.k8s.io/mcs-api v0.5.1-0.20260611073251-db147c3e167e
 	sigs.k8s.io/mcs-api/conformance v0.5.1-0.20260611073251-db147c3e167e
 	sigs.k8s.io/mcs-api/controllers v0.5.1-0.20260611073251-db147c3e167e
@@ -363,7 +363,7 @@ require (
 	golang.org/x/telemetry v0.0.0-20260610154732-fb80ec83bdd9 // indirect
 	golang.zx2c4.com/wireguard v0.0.0-20231211153847-12269c276173 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.5.0 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20260504160031-60b97b32f348 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
@@ -373,7 +373,7 @@ require (
 	k8s.io/apiserver v0.36.2 // indirect
 	k8s.io/code-generator v0.36.2 // indirect
 	k8s.io/gengo/v2 v2.0.0-20250922181213-ec3ebc5fd46b // indirect
-	k8s.io/kube-openapi v0.0.0-20260427204847-8949caaa1199 // indirect
+	k8s.io/kube-openapi v0.0.0-20260501160325-927ab1f70cd6 // indirect
 	k8s.io/streaming v0.36.2 // indirect
 	kubevirt.io/containerized-data-importer-api v1.63.1 // indirect
 	kubevirt.io/controller-lifecycle-operator-sdk/api v0.0.0-20220329064328-f3cc58c6ed90 // indirect

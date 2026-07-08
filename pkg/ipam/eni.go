@@ -172,15 +172,18 @@ func autoDetectENINativeRoutingCIDR(
 ) {
 	if nativeCIDR := conf.IPv4NativeRoutingCIDR; nativeCIDR != nil {
 		native, ok := netipx.FromStdIPNet(nativeCIDR.IPNet)
-		// Validate that the configured native routing CIDR contains the VPC CIDR.
-		if ok && native.Bits() <= primaryCIDR.Bits() && native.Contains(primaryCIDR.Addr()) {
+		// Accept the configured native routing CIDR as long as it overlaps the
+		// VPC primary CIDR, i.e. it is the VPC CIDR, a subnet of it (e.g. a
+		// single availability-zone subnet, used to masquerade cross-subnet
+		// traffic), or a supernet of it.
+		if ok && iputil.LaminarCIDRsOverlap(native, primaryCIDR) {
 			logger.Info(
-				"Native routing CIDR contains VPC CIDR, ignoring autodetected VPC CIDR.",
+				"Native routing CIDR overlaps VPC CIDR, ignoring autodetected VPC CIDR.",
 				logfields.VPCCIDR, primaryCIDR,
 				option.IPv4NativeRoutingCIDR, nativeCIDR,
 			)
 		} else {
-			logging.Fatal(logger, "Configured native routing CIDR does not contain VPC CIDR",
+			logging.Fatal(logger, "Configured native routing CIDR does not overlap VPC CIDR",
 				logfields.VPCCIDR, primaryCIDR,
 				option.IPv4NativeRoutingCIDR, nativeCIDR,
 			)
@@ -492,8 +495,13 @@ func buildENIAllocationResult(
 		}
 
 		// Add manually configured Native Routing CIDR
-		if conf.IPv4NativeRoutingCIDR != nil {
+		if conf.IPv4NativeRoutingCIDR != nil && conf.EnableIPv4 {
 			if p, ok := netipx.FromStdIPNet(conf.IPv4NativeRoutingCIDR.IPNet); ok {
+				result.CIDRs = append(result.CIDRs, p)
+			}
+		}
+		if conf.IPv6NativeRoutingCIDR != nil && conf.EnableIPv6 {
+			if p, ok := netipx.FromStdIPNet(conf.IPv6NativeRoutingCIDR.IPNet); ok {
 				result.CIDRs = append(result.CIDRs, p)
 			}
 		}
@@ -511,10 +519,16 @@ func buildENIAllocationResult(
 			}
 		}
 
-		if eni.Subnet.CIDR.IsValid() {
-			// AWS reserves the first subnet IP for the gateway.
-			// Ref: https://docs.aws.amazon.com/vpc/latest/userguide/VPC_Route_Tables.html
-			result.GatewayIP = eni.Subnet.CIDR.Addr().Next()
+		if allocatedAddr.Is4() {
+			if eni.Subnet.CIDR.IsValid() {
+				// AWS reserves the first subnet IP for the gateway.
+				// Ref: https://docs.aws.amazon.com/vpc/latest/userguide/VPC_Route_Tables.html
+				result.GatewayIP = eni.Subnet.CIDR.Addr().Next()
+			}
+		} else {
+			// On AWS/VPC, the subnet gateway can always be reached at FE80:EC2::1
+			// https://aws.amazon.com/about-aws/whats-new/2022/11/ipv6-subnet-default-gateway-router-multiple-addresses/
+			result.GatewayIP = netip.MustParseAddr("fe80:ec2::1")
 		}
 		result.InterfaceNumber = strconv.Itoa(eni.Number)
 
@@ -534,7 +548,7 @@ func eniContainsIP(eni awsTypes.ENI, addr netip.Addr) bool {
 		return true
 	}
 
-	for _, prefix := range eni.Prefixes {
+	for _, prefix := range slices.Concat(eni.Prefixes, eni.IPv6Prefixes) {
 		if !prefix.IsValid() {
 			continue
 		}
@@ -579,6 +593,8 @@ var eniPoolAccessor = PoolSpecAccessors{
 					prefixes = append(prefixes, p.Prefix)
 				}
 			}
+
+			cidrs = append(cidrs, eni.IPv6Prefixes...)
 
 			// In parseENI (pkg/aws/api), we currently use PrefixToIps to flatten each prefixes
 			// into 16 individual IPs and append those IPs to the ENI Addresses field.

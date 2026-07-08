@@ -17,6 +17,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"k8s.io/apimachinery/pkg/util/sets"
 
+	"github.com/cilium/cilium/pkg/completion"
 	"github.com/cilium/cilium/pkg/envoy"
 	"github.com/cilium/cilium/pkg/envoy/xds"
 	"github.com/cilium/cilium/pkg/loadbalancer"
@@ -58,7 +59,7 @@ func (ops *envoyOps) Delete(ctx context.Context, _ statedb.ReadTxn, _ statedb.Re
 	if prev := res.ReconciledResources; prev != nil {
 		// Perform the deletion with the resources that were last successfully reconciled
 		// instead of whatever the latest one is (which would have not been pushed to Envoy).
-		err = ops.xds.DeleteEnvoyResources(ctx, *prev)
+		err = ops.xds.DeleteEnvoyResources(ctx, *prev, nil)
 
 		for _, listener := range prev.Listeners {
 			ops.portAllocator.ReleaseProxyPort(listener.Name)
@@ -111,13 +112,30 @@ func isPortBindingError(err error) bool {
 		strings.Contains(errStr, "eaddrinuse")
 }
 
+func (ops *envoyOps) updateEnvoyResources(ctx context.Context, prevResources, resources xds.Resources) error {
+	if len(resources.PortAllocationCallbacks) == 0 {
+		return ops.xds.UpdateEnvoyResources(ctx, prevResources, resources, nil)
+	}
+
+	// Port allocation callbacks are fired by the xDS N/ACK path, but only if there is a wait
+	// group. We also need to wait to find out if the allocated port failed to bind so that the
+	// caller may try again with a different port.
+	wg := completion.NewWaitGroup(ctx)
+	err := ops.xds.UpdateEnvoyResources(ctx, prevResources, resources, wg)
+	if err != nil {
+		wg.Cancel()
+		return err
+	}
+	return wg.Wait()
+}
+
 // retryWithNewPorts reallocates dynamically allocated ports and retries UpdateEnvoyResources.
-func (ops *envoyOps) retryWithNewPorts(ctx context.Context, prevResources, resources envoy.Resources) (envoy.Resources, error) {
-	newListeners := make([]*envoy_config_listener.Listener, 0, len(resources.Listeners))
+func (ops *envoyOps) retryWithNewPorts(ctx context.Context, prevResources, resources xds.Resources) (xds.Resources, error) {
+	newListeners := make(map[string]*envoy_config_listener.Listener, 0)
 
 	for _, listener := range resources.Listeners {
 		if listener.GetInternalListener() != nil {
-			newListeners = append(newListeners, listener)
+			newListeners[listener.Name] = listener
 			continue
 		}
 
@@ -143,14 +161,14 @@ func (ops *envoyOps) retryWithNewPorts(ctx context.Context, prevResources, resou
 				return ops.portAllocator.AckProxyPortWithReference(ctx, listenerName)
 			}
 
-			newListeners = append(newListeners, clonedListener)
+			newListeners[clonedListener.Name] = clonedListener
 		} else {
-			newListeners = append(newListeners, listener)
+			newListeners[listener.Name] = listener
 		}
 	}
 
 	resources.Listeners = newListeners
-	err := ops.xds.UpdateEnvoyResources(ctx, prevResources, resources)
+	err := ops.updateEnvoyResources(ctx, prevResources, resources)
 	return resources, err
 }
 
@@ -161,7 +179,7 @@ func (ops *envoyOps) Update(ctx context.Context, txn statedb.ReadTxn, _ statedb.
 	ctx, cancel := context.WithTimeout(ctx, ops.config.EnvoyConfigTimeout)
 	defer cancel()
 
-	var prevResources envoy.Resources
+	var prevResources xds.Resources
 	if res.ReconciledResources != nil {
 		prevResources = *res.ReconciledResources
 
@@ -182,7 +200,7 @@ func (ops *envoyOps) Update(ctx context.Context, txn statedb.ReadTxn, _ statedb.
 		}
 	}
 
-	err := ops.xds.UpdateEnvoyResources(ctx, prevResources, resources)
+	err := ops.updateEnvoyResources(ctx, prevResources, resources)
 
 	if err != nil && isPortBindingError(err) {
 		hasDynamicallyAllocatedPorts := false
@@ -295,8 +313,8 @@ func newPolicyTrigger(log *slog.Logger, updater *policy.Updater) policyTrigger {
 }
 
 type resourceMutator interface {
-	DeleteEnvoyResources(context.Context, envoy.Resources) error
-	UpdateEnvoyResources(context.Context, envoy.Resources, envoy.Resources) error
+	DeleteEnvoyResources(ctx context.Context, resources xds.Resources, waitGroup *completion.WaitGroup) error
+	UpdateEnvoyResources(ctx context.Context, old xds.Resources, new xds.Resources, waitGroup *completion.WaitGroup) error
 }
 
 type policyTrigger interface {

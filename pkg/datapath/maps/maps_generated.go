@@ -38,14 +38,14 @@ func LoadMapSpecs() (map[string]*ebpf.MapSpec, error) {
 //
 // Extend dpgen/acronyms.txt if any identifiers are incorrectly capitalized.
 const (
-	CILIUMLBFLOWLOGERRORSMAP            = "CILIUM_LB_FLOW_LOG_ERRORS_MAP"
-	CILIUMLBFLOWLOGL21MAP               = "CILIUM_LB_FLOW_LOG_L2_1_MAP"
-	CILIUMLBFLOWLOGL22MAP               = "CILIUM_LB_FLOW_LOG_L2_2_MAP"
-	CILIUMLBFLOWLOGTABLEMAP             = "CILIUM_LB_FLOW_LOG_TABLE_MAP"
-	CILIUMLBFLOWLOGV41MAP               = "CILIUM_LB_FLOW_LOG_V4_1_MAP"
-	CILIUMLBFLOWLOGV42MAP               = "CILIUM_LB_FLOW_LOG_V4_2_MAP"
-	CILIUMLBFLOWLOGV61MAP               = "CILIUM_LB_FLOW_LOG_V6_1_MAP"
-	CILIUMLBFLOWLOGV62MAP               = "CILIUM_LB_FLOW_LOG_V6_2_MAP"
+	CiliumLBFlowLogErrorsMap            = "CILIUM_LB_FLOW_LOG_ERRORS_MAP"
+	CiliumLBFlowLogL21Map               = "CILIUM_LB_FLOW_LOG_L2_1_MAP"
+	CiliumLBFlowLogL22Map               = "CILIUM_LB_FLOW_LOG_L2_2_MAP"
+	CiliumLBFlowLogTableMap             = "CILIUM_LB_FLOW_LOG_TABLE_MAP"
+	CiliumLBFlowLogV41Map               = "CILIUM_LB_FLOW_LOG_V4_1_MAP"
+	CiliumLBFlowLogV42Map               = "CILIUM_LB_FLOW_LOG_V4_2_MAP"
+	CiliumLBFlowLogV61Map               = "CILIUM_LB_FLOW_LOG_V6_1_MAP"
+	CiliumLBFlowLogV62Map               = "CILIUM_LB_FLOW_LOG_V6_2_MAP"
 	CiliumAuthMap                       = "cilium_auth_map"
 	CiliumCallPolicy                    = "cilium_call_policy"
 	CiliumCalls                         = "cilium_calls"
@@ -158,9 +158,9 @@ const (
 	CiliumXDPScratch                    = "cilium_xdp_scratch"
 )
 
-func newCILIUMLBFLOWLOGERRORSMAPSpec(btf *btf.Spec) *ebpf.MapSpec {
+func newCiliumLBFlowLogErrorsMapSpec(btf *btf.Spec) *ebpf.MapSpec {
 	return &ebpf.MapSpec{
-		Name:       CILIUMLBFLOWLOGERRORSMAP,
+		Name:       CiliumLBFlowLogErrorsMap,
 		Type:       ebpf.PerCPUArray,
 		KeySize:    4,
 		Key:        anyTypeByName(btf, "int"),
@@ -172,9 +172,9 @@ func newCILIUMLBFLOWLOGERRORSMAPSpec(btf *btf.Spec) *ebpf.MapSpec {
 	}
 }
 
-func newCILIUMLBFLOWLOGL21MAPSpec(btf *btf.Spec) *ebpf.MapSpec {
+func newCiliumLBFlowLogL21MapSpec(btf *btf.Spec) *ebpf.MapSpec {
 	return &ebpf.MapSpec{
-		Name:       CILIUMLBFLOWLOGL21MAP,
+		Name:       CiliumLBFlowLogL21Map,
 		Type:       ebpf.PerCPUHash,
 		KeySize:    20,
 		Key:        anyTypeByName(btf, "fl_key_l2"),
@@ -186,9 +186,9 @@ func newCILIUMLBFLOWLOGL21MAPSpec(btf *btf.Spec) *ebpf.MapSpec {
 	}
 }
 
-func newCILIUMLBFLOWLOGL22MAPSpec(btf *btf.Spec) *ebpf.MapSpec {
+func newCiliumLBFlowLogL22MapSpec(btf *btf.Spec) *ebpf.MapSpec {
 	return &ebpf.MapSpec{
-		Name:       CILIUMLBFLOWLOGL22MAP,
+		Name:       CiliumLBFlowLogL22Map,
 		Type:       ebpf.PerCPUHash,
 		KeySize:    20,
 		Key:        anyTypeByName(btf, "fl_key_l2"),
@@ -200,9 +200,9 @@ func newCILIUMLBFLOWLOGL22MAPSpec(btf *btf.Spec) *ebpf.MapSpec {
 	}
 }
 
-func newCILIUMLBFLOWLOGTABLEMAPSpec(btf *btf.Spec) *ebpf.MapSpec {
+func newCiliumLBFlowLogTableMapSpec(btf *btf.Spec) *ebpf.MapSpec {
 	return &ebpf.MapSpec{
-		Name:       CILIUMLBFLOWLOGTABLEMAP,
+		Name:       CiliumLBFlowLogTableMap,
 		Type:       ebpf.Array,
 		KeySize:    4,
 		Key:        anyTypeByName(btf, "int"),
@@ -214,9 +214,9 @@ func newCILIUMLBFLOWLOGTABLEMAPSpec(btf *btf.Spec) *ebpf.MapSpec {
 	}
 }
 
-func newCILIUMLBFLOWLOGV41MAPSpec(btf *btf.Spec) *ebpf.MapSpec {
+func newCiliumLBFlowLogV41MapSpec(btf *btf.Spec) *ebpf.MapSpec {
 	return &ebpf.MapSpec{
-		Name:       CILIUMLBFLOWLOGV41MAP,
+		Name:       CiliumLBFlowLogV41Map,
 		Type:       ebpf.PerCPUHash,
 		KeySize:    20,
 		Key:        anyTypeByName(btf, "fl_key_v4"),
@@ -228,9 +228,9 @@ func newCILIUMLBFLOWLOGV41MAPSpec(btf *btf.Spec) *ebpf.MapSpec {
 	}
 }
 
-func newCILIUMLBFLOWLOGV42MAPSpec(btf *btf.Spec) *ebpf.MapSpec {
+func newCiliumLBFlowLogV42MapSpec(btf *btf.Spec) *ebpf.MapSpec {
 	return &ebpf.MapSpec{
-		Name:       CILIUMLBFLOWLOGV42MAP,
+		Name:       CiliumLBFlowLogV42Map,
 		Type:       ebpf.PerCPUHash,
 		KeySize:    20,
 		Key:        anyTypeByName(btf, "fl_key_v4"),
@@ -242,9 +242,9 @@ func newCILIUMLBFLOWLOGV42MAPSpec(btf *btf.Spec) *ebpf.MapSpec {
 	}
 }
 
-func newCILIUMLBFLOWLOGV61MAPSpec(btf *btf.Spec) *ebpf.MapSpec {
+func newCiliumLBFlowLogV61MapSpec(btf *btf.Spec) *ebpf.MapSpec {
 	return &ebpf.MapSpec{
-		Name:       CILIUMLBFLOWLOGV61MAP,
+		Name:       CiliumLBFlowLogV61Map,
 		Type:       ebpf.PerCPUHash,
 		KeySize:    44,
 		Key:        anyTypeByName(btf, "fl_key_v6"),
@@ -256,9 +256,9 @@ func newCILIUMLBFLOWLOGV61MAPSpec(btf *btf.Spec) *ebpf.MapSpec {
 	}
 }
 
-func newCILIUMLBFLOWLOGV62MAPSpec(btf *btf.Spec) *ebpf.MapSpec {
+func newCiliumLBFlowLogV62MapSpec(btf *btf.Spec) *ebpf.MapSpec {
 	return &ebpf.MapSpec{
-		Name:       CILIUMLBFLOWLOGV62MAP,
+		Name:       CiliumLBFlowLogV62Map,
 		Type:       ebpf.PerCPUHash,
 		KeySize:    44,
 		Key:        anyTypeByName(btf, "fl_key_v6"),
@@ -1811,14 +1811,14 @@ func newCiliumXDPScratchSpec(btf *btf.Spec) *ebpf.MapSpec {
 }
 
 var _outer []newMapFn = []newMapFn{
-	newCILIUMLBFLOWLOGERRORSMAPSpec,
-	newCILIUMLBFLOWLOGL21MAPSpec,
-	newCILIUMLBFLOWLOGL22MAPSpec,
-	newCILIUMLBFLOWLOGTABLEMAPSpec,
-	newCILIUMLBFLOWLOGV41MAPSpec,
-	newCILIUMLBFLOWLOGV42MAPSpec,
-	newCILIUMLBFLOWLOGV61MAPSpec,
-	newCILIUMLBFLOWLOGV62MAPSpec,
+	newCiliumLBFlowLogErrorsMapSpec,
+	newCiliumLBFlowLogL21MapSpec,
+	newCiliumLBFlowLogL22MapSpec,
+	newCiliumLBFlowLogTableMapSpec,
+	newCiliumLBFlowLogV41MapSpec,
+	newCiliumLBFlowLogV42MapSpec,
+	newCiliumLBFlowLogV61MapSpec,
+	newCiliumLBFlowLogV62MapSpec,
 	newCiliumAuthMapSpec,
 	newCiliumCallPolicySpec,
 	newCiliumCallsSpec,

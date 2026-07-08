@@ -1180,8 +1180,8 @@ encryption:
       allowRemoteNodeIdentities: false
     ingress:
       # -- Enable strict ingress encryption.
-      # When enabled, all unencrypted overlay ingress traffic will be dropped.
-      # This option is only applicable when WireGuard and tunneling are enabled.
+      # When enabled, all unencrypted pod-to-pod ingress traffic will be dropped.
+      # This option requires WireGuard encryption.
       enabled: false
   ipsec:
     # -- Name of the key file inside the Kubernetes secret configured via secretName.
@@ -2750,6 +2750,19 @@ dashboards:
   annotations: {}
 # Configure Cilium Envoy options.
 envoy:
+  # @schema
+  # oneOf:
+  # - type: [null]
+  # - enum: ["split", "ads", "strict-ads"]
+  # @schema
+  # -- xDS server operating mode for Envoy proxy configuration. Supported
+  # values are: "split" for the existing per-resource-type xDS,
+  # "ads" for the ADS (Aggregated Discovery Service) xDS, and
+  # "strict-ads" for ADS with strict snapshot cache behavior and generated
+  # snapshot consistency checks. Null value omits setting this option.
+  # Cilium Agent defaults missing option to "split" to keep upgrades in the legacy mode.
+  # @default -- `ads` for new 1.20+ installations; none when `upgradeCompatibility` is set below `1.20`
+  xdsMode: ~
   # @schema
   # type: [null, boolean]
   # @schema

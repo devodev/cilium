@@ -112,7 +112,7 @@ func registerReconcilers(params reconcilerParams) error {
 
 	namespace := ""
 	if params.AgentConfig != nil {
-		namespace = params.AgentConfig.CiliumNamespaceName()
+		namespace = params.AgentConfig.K8sNamespace
 	}
 
 	return newReconciler(

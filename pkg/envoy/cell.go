@@ -17,6 +17,8 @@ import (
 	"github.com/cilium/cilium/pkg/endpointstate"
 	config "github.com/cilium/cilium/pkg/envoy/config"
 	envoypolicy "github.com/cilium/cilium/pkg/envoy/policy"
+	util "github.com/cilium/cilium/pkg/envoy/util"
+
 	"github.com/cilium/cilium/pkg/envoy/xds"
 	"github.com/cilium/cilium/pkg/ipcache"
 	"github.com/cilium/cilium/pkg/k8s/client"
@@ -80,36 +82,59 @@ type xdsServerParams struct {
 	Metrics       *xds.XDSMetrics
 }
 
+// runnableXDSServer extends XDSServer with the lifecycle method used internally by the cell.
+type runnableXDSServer interface {
+	XDSServer
+	run(ctx context.Context) error
+}
+
 func newEnvoyXDSServer(params xdsServerParams) (XDSServer, error) {
 	// Override the default value before bootstrap is created for embedded envoy, or
 	// the xDS ConfigSource is used for CEC/CCEC.
-	CiliumXDSConfigSource.InitialFetchTimeout.Seconds = int64(params.EnvoyProxyConfig.ProxyInitialFetchTimeout)
+	SetXDSMode(params.EnvoyProxyConfig.EnvoyXDSMode)
+	SetXDSConfigSourceInitialFetchTimeout(params.EnvoyProxyConfig.ProxyInitialFetchTimeout)
 
-	xdsServer := newXDSServer(
-		params.Logger,
-		params.RestorerPromise,
-		params.IPCache,
-		params.LocalEndpointStore,
-		xdsServerConfig{
-			envoySocketDir:                GetSocketDir(option.Config.RunDir),
-			proxyGID:                      int(params.EnvoyProxyConfig.ProxyGID),
-			httpRequestTimeout:            int(params.EnvoyProxyConfig.HTTPRequestTimeout),
-			httpIdleTimeout:               params.EnvoyProxyConfig.ProxyIdleTimeoutSeconds,
-			httpMaxGRPCTimeout:            int(params.EnvoyProxyConfig.HTTPMaxGRPCTimeout),
-			httpRetryCount:                int(params.EnvoyProxyConfig.HTTPRetryCount),
-			httpRetryTimeout:              int(params.EnvoyProxyConfig.HTTPRetryTimeout),
-			httpStreamIdleTimeout:         int(params.EnvoyProxyConfig.HTTPStreamIdleTimeout),
-			httpNormalizePath:             params.EnvoyProxyConfig.HTTPNormalizePath,
-			useFullTLSContext:             params.EnvoyProxyConfig.UseFullTLSContext,
-			useSDS:                        params.SecretManager.PolicySecretSyncEnabled(),
-			proxyXffNumTrustedHopsIngress: params.EnvoyProxyConfig.ProxyXffNumTrustedHopsIngress,
-			proxyXffNumTrustedHopsEgress:  params.EnvoyProxyConfig.ProxyXffNumTrustedHopsEgress,
-			policyRestoreTimeout:          params.EnvoyProxyConfig.EnvoyPolicyRestoreTimeout,
-			metrics:                       params.Metrics,
-			httpLingerConfig:              params.EnvoyProxyConfig.EnvoyHTTPUpstreamLingerTimeout,
-			envoyAccessLogEnabled:         params.EnvoyProxyConfig.EnvoyAccessLogEnabled,
-		},
-		params.SecretManager)
+	xdsCfg := xdsServerConfig{
+		envoySocketDir:                util.GetSocketDir(option.Config.RunDir),
+		proxyGID:                      int(params.EnvoyProxyConfig.ProxyGID),
+		httpRequestTimeout:            int(params.EnvoyProxyConfig.HTTPRequestTimeout),
+		httpIdleTimeout:               params.EnvoyProxyConfig.ProxyIdleTimeoutSeconds,
+		httpMaxGRPCTimeout:            int(params.EnvoyProxyConfig.HTTPMaxGRPCTimeout),
+		httpRetryCount:                int(params.EnvoyProxyConfig.HTTPRetryCount),
+		httpRetryTimeout:              int(params.EnvoyProxyConfig.HTTPRetryTimeout),
+		httpStreamIdleTimeout:         int(params.EnvoyProxyConfig.HTTPStreamIdleTimeout),
+		httpNormalizePath:             params.EnvoyProxyConfig.HTTPNormalizePath,
+		useFullTLSContext:             params.EnvoyProxyConfig.UseFullTLSContext,
+		useSDS:                        params.SecretManager.PolicySecretSyncEnabled(),
+		proxyXffNumTrustedHopsIngress: params.EnvoyProxyConfig.ProxyXffNumTrustedHopsIngress,
+		proxyXffNumTrustedHopsEgress:  params.EnvoyProxyConfig.ProxyXffNumTrustedHopsEgress,
+		policyRestoreTimeout:          params.EnvoyProxyConfig.EnvoyPolicyRestoreTimeout,
+		metrics:                       params.Metrics,
+		httpLingerConfig:              params.EnvoyProxyConfig.EnvoyHTTPUpstreamLingerTimeout,
+		envoyAccessLogEnabled:         params.EnvoyProxyConfig.EnvoyAccessLogEnabled,
+		strictAdsMode:                 params.EnvoyProxyConfig.StrictADSModeEnabled(),
+	}
+
+	var xdsServer runnableXDSServer
+	adsMode := params.EnvoyProxyConfig.ADSModeEnabled()
+	if adsMode {
+		xdsServer = newADSServer(
+			params.Logger,
+			params.IPCache,
+			params.LocalEndpointStore,
+			xdsCfg,
+			params.SecretManager,
+			params.RestorerPromise,
+		)
+	} else {
+		xdsServer = newXDSServer(
+			params.Logger,
+			params.RestorerPromise,
+			params.IPCache,
+			params.LocalEndpointStore,
+			xdsCfg,
+			params.SecretManager)
+	}
 
 	if !option.Config.EnableL7Proxy {
 		params.Logger.Debug("L7 proxies are disabled - not starting Envoy xDS server")
@@ -125,6 +150,7 @@ func newEnvoyXDSServer(params xdsServerParams) (XDSServer, error) {
 			XDSServer:                      xdsServer,
 			logger:                         params.Logger,
 			runDir:                         option.Config.RunDir,
+			adsMode:                        adsMode,
 			envoyLogPath:                   params.EnvoyProxyConfig.EnvoyLog,
 			envoyDefaultLogLevel:           params.EnvoyProxyConfig.EnvoyDefaultLogLevel,
 			envoyNodeLocalityEnabled:       params.EnvoyProxyConfig.EnvoyNodeLocalityEnabled,
@@ -149,7 +175,7 @@ func newEnvoyXDSServer(params xdsServerParams) (XDSServer, error) {
 }
 
 func newEnvoyAdminClient(logger *slog.Logger, envoyProxyConfig config.ProxyConfig) *EnvoyAdminClient {
-	return NewEnvoyAdminClientForSocket(logger, GetSocketDir(option.Config.RunDir), envoyProxyConfig.EnvoyDefaultLogLevel)
+	return NewEnvoyAdminClientForSocket(logger, util.GetSocketDir(option.Config.RunDir), envoyProxyConfig.EnvoyDefaultLogLevel)
 }
 
 type accessLogServerParams struct {
@@ -172,7 +198,7 @@ func newEnvoyAccessLogServer(params accessLogServerParams) *AccessLogServer {
 	accessLogServer := newAccessLogServer(
 		params.Logger,
 		params.AccessLogger,
-		GetSocketDir(option.Config.RunDir),
+		util.GetSocketDir(option.Config.RunDir),
 		params.EnvoyProxyConfig.ProxyGID,
 		params.LocalEndpointStore,
 		params.EnvoyProxyConfig.EnvoyAccessLogBufferSize,

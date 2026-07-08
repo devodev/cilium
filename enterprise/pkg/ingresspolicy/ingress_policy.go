@@ -136,7 +136,7 @@ func (m *ingressPolicyManager) EnsureIngressPolicy(ctx context.Context, key reso
 					p.desiredPolicy.Ready()
 					p.desiredPolicy.Detach(m.logger)
 				}
-				m.xdsServer.RemoveNetworkPolicy(p)
+				m.xdsServer.RemoveNetworkPolicy(ctx, p)
 			}(existingPolicy)
 		}
 	}
@@ -186,7 +186,7 @@ func (m *ingressPolicyManager) DeleteIngressPolicy(ctx context.Context, key reso
 			p.desiredPolicy.Ready()
 			p.desiredPolicy.Detach(m.logger)
 		}
-		m.xdsServer.RemoveNetworkPolicy(p)
+		m.xdsServer.RemoveNetworkPolicy(ctx, p)
 		delete(m.ingressPolicies, key)
 	}
 
@@ -244,7 +244,7 @@ func (m *ingressPolicyManager) syncIngressPolicy(ctx context.Context, p *Ingress
 		logfields.Ingress, p.GetDesiredPolicy().SelectorPolicy.IngressPolicyEnabled,
 		logfields.Egress, p.GetDesiredPolicy().SelectorPolicy.EgressPolicyEnabled)
 
-	if err, rf, _ := m.xdsServer.UpdateNetworkPolicy(p, p.GetDesiredPolicy(), nil); err != nil {
+	if err, rf, _ := m.xdsServer.UpdateNetworkPolicy(ctx, p, p.GetDesiredPolicy(), nil); err != nil {
 		m.logger.Error("Failed to update network policy",
 			logfields.Name, p.GetPolicyNames(),
 			logfields.Error, err)

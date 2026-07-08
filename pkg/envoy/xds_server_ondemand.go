@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/cilium/cilium/pkg/completion"
+	"github.com/cilium/cilium/pkg/envoy/xds"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/node"
 	"github.com/cilium/cilium/pkg/policy"
@@ -20,6 +21,7 @@ type onDemandXdsStarter struct {
 
 	logger                         *slog.Logger
 	runDir                         string
+	adsMode                        bool
 	envoyLogPath                   string
 	envoyDefaultLogLevel           string
 	envoyNodeLocalityEnabled       bool
@@ -43,42 +45,43 @@ type onDemandXdsStarter struct {
 
 var _ XDSServer = &onDemandXdsStarter{}
 
-func (o *onDemandXdsStarter) AddListener(name string, kind policy.L7ParserType, port uint16, isIngress bool, mayUseOriginalSourceAddr bool, wg *completion.WaitGroup, cb func(err error)) error {
-	if err := o.startStandaloneEnvoy(nil); err != nil {
+func (o *onDemandXdsStarter) AddListener(ctx context.Context, name string, kind policy.L7ParserType, port uint16, isIngress bool, mayUseOriginalSourceAddr bool, wg *completion.WaitGroup, cb func(err error)) error {
+	if err := o.startStandaloneEnvoy(ctx, nil); err != nil {
 		o.logger.Error("Envoy: Failed to start standalone Envoy proxy on demand",
 			logfields.Error, err,
 		)
 	}
 
-	return o.XDSServer.AddListener(name, kind, port, isIngress, mayUseOriginalSourceAddr, wg, cb)
+	return o.XDSServer.AddListener(ctx, name, kind, port, isIngress, mayUseOriginalSourceAddr, wg, cb)
 }
 
-func (o *onDemandXdsStarter) UpsertEnvoyResources(ctx context.Context, resources Resources) error {
-	if err := o.startStandaloneEnvoy(nil); err != nil {
+func (o *onDemandXdsStarter) UpsertEnvoyResources(ctx context.Context, resources xds.Resources, waitGroup *completion.WaitGroup) error {
+	if err := o.startStandaloneEnvoy(ctx, nil); err != nil {
 		o.logger.Error("Envoy: Failed to start standalone Envoy proxy on demand",
 			logfields.Error, err,
 		)
 	}
 
-	return o.XDSServer.UpsertEnvoyResources(ctx, resources)
+	return o.XDSServer.UpsertEnvoyResources(ctx, resources, waitGroup)
 }
 
-func (o *onDemandXdsStarter) UpdateEnvoyResources(ctx context.Context, old, new Resources) error {
-	if err := o.startStandaloneEnvoy(nil); err != nil {
+func (o *onDemandXdsStarter) UpdateEnvoyResources(ctx context.Context, old, new xds.Resources, waitGroup *completion.WaitGroup) error {
+	if err := o.startStandaloneEnvoy(ctx, nil); err != nil {
 		o.logger.Error("Envoy: Failed to start standalone Envoy proxy on demand",
 			logfields.Error, err,
 		)
 	}
 
-	return o.XDSServer.UpdateEnvoyResources(ctx, old, new)
+	return o.XDSServer.UpdateEnvoyResources(ctx, old, new, waitGroup)
 }
 
-func (o *onDemandXdsStarter) startStandaloneEnvoy(wg *completion.WaitGroup) error {
+func (o *onDemandXdsStarter) startStandaloneEnvoy(ctx context.Context, wg *completion.WaitGroup) error {
 	var startErr error
 
 	o.envoyOnce.Do(func() {
 		// Start standalone Envoy on first invocation
 		_, startErr = o.startStandaloneEnvoyInternal(standaloneEnvoyConfig{
+			adsMode:                        o.adsMode,
 			runDir:                         o.runDir,
 			logPath:                        o.envoyLogPath,
 			defaultLogLevel:                o.envoyDefaultLogLevel,
@@ -104,7 +107,7 @@ func (o *onDemandXdsStarter) startStandaloneEnvoy(wg *completion.WaitGroup) erro
 		} else if o.metricsListenerPort != 0 {
 			// We could do this in the bootstrap config as with the Envoy DaemonSet,
 			// but then a failure to bind to the configured port would fail starting Envoy.
-			o.AddMetricsListener(uint16(o.metricsListenerPort), wg)
+			o.AddMetricsListener(ctx, uint16(o.metricsListenerPort), wg)
 		}
 
 		// Add Admin listener if the port is (properly) configured
@@ -113,7 +116,7 @@ func (o *onDemandXdsStarter) startStandaloneEnvoy(wg *completion.WaitGroup) erro
 				logfields.Port, o.adminListenerPort,
 			)
 		} else if o.adminListenerPort != 0 {
-			o.AddAdminListener(uint16(o.adminListenerPort), wg)
+			o.AddAdminListener(ctx, uint16(o.adminListenerPort), wg)
 		}
 	})
 

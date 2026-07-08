@@ -94,7 +94,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Checkout context ref (trusted)
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ inputs.context-ref || github.sha }}
           persist-credentials: false
@@ -138,6 +138,11 @@ jobs:
                 "crd-channel": "standard",
                 "conformance-profile": false,
                 "encryption": "ipsec"
+              },
+              {
+                "crd-channel": "experimental",
+                "conformance-profile": false,
+                "split": true
               }
             ]
           }'
@@ -174,7 +179,7 @@ jobs:
           comment_on_pr: false
 
       - name: Checkout context ref (trusted)
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ inputs.context-ref || github.sha }}
           persist-credentials: false
@@ -205,14 +210,19 @@ jobs:
             EXEMPT_FEATURES+=",HTTPRouteDestinationPortMatching,HTTPRouteRequestTimeout,HTTPRouteBackendTimeout,GatewayInfrastructurePropagation"
           fi
 
+          SKIPPED_TESTS="TCPRouteWeightedRouting,UDPRouteWeightedRouting"
           if [ "${{ matrix.conformance-profile }}" == "true" ]; then
-            SKIPPED_TESTS+="MeshConsumerRoute,HTTPRouteListenerPortMatching"
+            SKIPPED_TESTS+=",MeshConsumerRoute,HTTPRouteListenerPortMatching"
           fi
 
           CILIUM_INSTALL_DEFAULTS="${{ steps.default_vars.outputs.cilium_install_defaults }} \
             --helm-set=kubeProxyReplacement=true \
             --helm-set=gatewayAPI.enabled=true \
             --helm-set=l2announcements.enabled=true"
+
+          if [ "${{ matrix.split }}" == "true" ]; then
+            CILIUM_INSTALL_DEFAULTS="${CILIUM_INSTALL_DEFAULTS} --helm-set=envoy.xdsMode=split"
+          fi
 
           echo cilium_install_defaults=${CILIUM_INSTALL_DEFAULTS} >> $GITHUB_OUTPUT
           echo skipped_tests=${SKIPPED_TESTS} >> $GITHUB_OUTPUT
@@ -221,7 +231,7 @@ jobs:
       # Warning: since this is a privileged workflow, subsequent workflow job
       # steps must take care not to execute untrusted code.
       - name: Checkout pull request branch (NOT TRUSTED)
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ steps.vars.outputs.sha }}
           persist-credentials: false
@@ -257,7 +267,7 @@ jobs:
           release-version: ${{ env.CILIUM_CLI_VERSION }}
 
       - name: Install Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           # renovate: datasource=golang-version depName=go
           go-version: 1.26.4
@@ -288,10 +298,13 @@ jobs:
           # To make sure that Gateway API CRDs are available
           kubectl wait --for condition=Established crd/gatewayclasses.gateway.networking.k8s.io --timeout=${{ env.timeout }}
           kubectl wait --for condition=Established crd/gateways.gateway.networking.k8s.io --timeout=${{ env.timeout }}
-          kubectl wait --for condition=Established crd/httproutes.gateway.networking.k8s.io --timeout=${{ env.timeout }}
-          kubectl wait --for condition=Established crd/tlsroutes.gateway.networking.k8s.io --timeout=${{ env.timeout }}
           kubectl wait --for condition=Established crd/grpcroutes.gateway.networking.k8s.io --timeout=${{ env.timeout }}
+          kubectl wait --for condition=Established crd/httproutes.gateway.networking.k8s.io --timeout=${{ env.timeout }}
+          kubectl wait --for condition=Established crd/listenersets.gateway.networking.k8s.io --timeout=${{ env.timeout }}
           kubectl wait --for condition=Established crd/referencegrants.gateway.networking.k8s.io --timeout=${{ env.timeout }}
+          kubectl wait --for condition=Established crd/tcproutes.gateway.networking.k8s.io --timeout=${{ env.timeout }}
+          kubectl wait --for condition=Established crd/tlsroutes.gateway.networking.k8s.io --timeout=${{ env.timeout }}
+          kubectl wait --for condition=Established crd/udproutes.gateway.networking.k8s.io --timeout=${{ env.timeout }}
 
       - name: Install Cilium
         id: install-cilium
@@ -361,7 +374,7 @@ jobs:
           # Build test flags based on matrix
           GATEWAY_TEST_FLAGS="--gateway-class cilium --all-features --allow-crds-mismatch --cleanup-base-resources=false"
           if [ "${{ matrix.conformance-profile }}" == "true" ]; then
-            GATEWAY_TEST_FLAGS="$GATEWAY_TEST_FLAGS --skip-tests \"${{ steps.vars.outputs.skipped_tests }}\" --conformance-profiles GATEWAY-HTTP,GATEWAY-TLS,GATEWAY-GRPC,MESH-HTTP,MESH-GRPC --organization cilium --project cilium --url github.com/cilium/cilium --version main --contact https://github.com/cilium/community/blob/main/roles/Maintainers.md --report-output report.yaml"
+            GATEWAY_TEST_FLAGS="$GATEWAY_TEST_FLAGS --skip-tests \"${{ steps.vars.outputs.skipped_tests }}\" --conformance-profiles GATEWAY-HTTP,GATEWAY-TLS,GATEWAY-GRPC,GATEWAY-TCP,GATEWAY-UDP,MESH-HTTP,MESH-GRPC --organization cilium --project cilium --url github.com/cilium/cilium --version main --contact https://github.com/cilium/community/blob/main/roles/Maintainers.md --report-output report.yaml"
           else
             GATEWAY_TEST_FLAGS="$GATEWAY_TEST_FLAGS --exempt-features \"${{ steps.vars.outputs.exempt-features }}\" -test.skip \"${{ steps.vars.outputs.skipped_tests }}\""
           fi

@@ -3,7 +3,7 @@
 # Copyright Authors of Cilium
 # SPDX-License-Identifier: Apache-2.0
 
-ARG GOLANG_IMAGE=docker.io/library/golang:1.26.3@sha256:2d6c80227255c3112a4d08e67ba98e58efd3846daf15d9d7d4c389565d881b1a
+ARG GOLANG_IMAGE=docker.io/library/golang:1.26.4@sha256:f96cc555eb8db430159a3aa6797cd5bae561945b7b0fe7d0e284c63a3b291609
 ARG UBUNTU_IMAGE=docker.io/library/ubuntu:24.04@sha256:786a8b558f7be160c6c8c4a54f9a57274f3b4fb1491cf65146521ae77ff1dc54
 
 ARG CILIUM_LLVM_IMAGE=quay.io/cilium/cilium-llvm:19.1.7-1772622536-65b121f@sha256:4320b57bde46d6642efeb72e405f699a5e189f8377614900f58f54f2641afdf3
@@ -17,16 +17,21 @@ FROM ${CILIUM_IPTABLES_IMAGE} AS iptables-dist
 FROM ${GOLANG_IMAGE} AS go-builder
 
 WORKDIR /go/src/github.com/cilium/cilium/images/runtime
+ARG TARGETARCH
 RUN --mount=type=bind,readwrite,target=/go/src/github.com/cilium/cilium/images/runtime \
     --mount=target=/root/.cache,type=cache \
     --mount=target=/go/pkg/mod,type=cache \
     ./build-gops.sh
 
-ARG TARGETARCH
 RUN --mount=type=bind,readwrite,target=/go/src/github.com/cilium/cilium/images/runtime \
     --mount=target=/root/.cache,type=cache \
     --mount=target=/go/pkg/mod,type=cache \
     ./build-cni.sh
+
+RUN --mount=type=bind,readwrite,target=/go/src/github.com/cilium/cilium/images/runtime \
+    --mount=target=/root/.cache,type=cache \
+    --mount=target=/go/pkg/mod,type=cache \
+    ./build-iptables-wrapper.sh
 
 FROM ${UBUNTU_IMAGE} AS rootfs
 
@@ -46,12 +51,16 @@ RUN --mount=type=bind,readwrite,target=/go/src/github.com/cilium/cilium/images/r
 COPY --from=iptables-dist /iptables /iptables
 RUN dpkg -i /iptables/*\.deb && rm -rf /iptables
 
-RUN --mount=type=bind,readwrite,target=/go/src/github.com/cilium/cilium/images/runtime \
-    ./iptables-wrapper-installer.sh --no-sanity-check
+COPY --from=go-builder /out /
+
+# Symlink the iptables and ip6tables binaries to the iptables-wrapper binary.
+# On its first invocation the wrapper detects whether the host is using the
+# legacy or nft iptables backend and re-points these symlinks at the matching
+# backend before re-execing the original command.
+RUN /usr/sbin/iptables-wrapper install
 
 COPY --from=llvm-dist /usr/local/bin/clang /usr/local/bin/llc /usr/local/bin/
 COPY --from=bpftool-dist /usr/local/bin/bpftool /usr/local/bin/bpftool
-COPY --from=go-builder /out /
 
 FROM scratch
 LABEL maintainer="maintainer@cilium.io"
