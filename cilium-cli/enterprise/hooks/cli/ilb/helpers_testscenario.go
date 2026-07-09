@@ -647,6 +647,7 @@ func (r *lbTestScenario) addFRRClients(numberOfClients int, config frrClientConf
 	for i := startIndex; i < startIndex+numberOfClients; i++ {
 		clientName := fmt.Sprintf("%s-client-%d", r.testName, i)
 		env := []string{
+			"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/lib/frr",
 			fmt.Sprintf("LOCAL_ASN=%d", frrASN),
 			fmt.Sprintf("REMOTE_ASN=%d", ciliumASN),
 			"NEIGHBORS=" + r.getBGPNeighborString(),

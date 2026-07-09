@@ -67,7 +67,9 @@ type frrShowBGPRoutePeerNextHopOut struct {
 }
 
 func (c *frrContainer) vty(ctx context.Context, cmd string) (string, string, error) {
-	return c.Exec(ctx, fmt.Sprintf(`vtysh -c "%s"`, cmd))
+	const vtyshPathLookup = `vtysh_path=""; for path in /bin/vtysh /usr/bin/vtysh /usr/lib/frr/vtysh; do if [ -x "$path" ]; then vtysh_path="$path"; break; fi; done; if [ -z "$vtysh_path" ]; then vtysh_path="$(command -v vtysh 2>/dev/null || true)"; fi; if [ -z "$vtysh_path" ]; then echo "vtysh not found" >&2; exit 127; fi`
+
+	return c.Exec(ctx, fmt.Sprintf(`%s; "$vtysh_path" -c %q`, vtyshPathLookup, cmd))
 }
 
 func (c *frrContainer) bgpRoutes(ctx context.Context, afi, safi string) (*frrShowBGPRoutesOut, error) {

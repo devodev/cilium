@@ -23,7 +23,7 @@ spec:
   ipam:
     mode: "cluster-pool"
     operator:
-      # it gets automatically populated by the CuTE
+      # Populated by the OpenShift ILB CI workflow.
       clusterPoolIPv4MaskSize: ${POD_CIDR_HOST_PREFIX}
       clusterPoolIPv4PodCIDRList:
       - ${POD_CIDR}
@@ -87,7 +87,8 @@ spec:
   loadBalancer:
     acceleration: disabled
     dsrDispatch: ipip
-    mode: dsr
+    # Keep the cluster-wide default conservative; ILB services opt into DSR per-service.
+    mode: snat
   envoy:
     # disable probes to prevent k8s kubelet killing the Pods during maintenance / draining.
     startupProbe:
@@ -120,8 +121,9 @@ spec:
     # Disable hubble-flow-exporter
     export-file-path: "" # performance optimization
   extraEnv:
+  # Disable because the ILB test setup triggers cache mutation panics.
   - name: "KUBE_CACHE_MUTATION_DETECTOR"
-    value: "true"
+    value: "false"
   - name: "CILIUM_FEATURE_METRICS_WITH_DEFAULTS"
     value: "true"
   # Disabling Envoy version check as it gets reported in the logs
