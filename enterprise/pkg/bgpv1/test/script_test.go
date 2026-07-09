@@ -12,11 +12,13 @@ package test
 
 import (
 	"context"
+	"flag"
 	"log/slog"
 	"maps"
 	"net"
 	"net/netip"
 	"os"
+	"runtime"
 	"testing"
 	"time"
 
@@ -31,6 +33,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netlink"
+	"github.com/vishvananda/netns"
 	"golang.org/x/sys/unix"
 
 	"github.com/cilium/cilium/daemon/cmd/legacy"
@@ -105,6 +108,68 @@ const (
 	defaultEVPNSecurityGroupIDFlag   = "evpn-default-security-group-id"
 	kubeProxyReplacementFlag         = "kube-proxy-replacement"
 )
+
+// The purpose of having this self-execute hack is to run the entire test suite
+// in an isolated network namespace. This is required because the LockOSThread +
+// netns.New combination guarantees the code is executed within the netns only
+// when the test is running on the goroutine that called LockOSThread. However,
+// we spawn a lot of goroutines in the test suite in reality. Especially, GoBGP
+// does it and it is out of our control.
+//
+// LockOSThread + netns.New + self-execute makes sure that the re-executed test
+// binary clones OS thread as a child of the thread that called LockOSThread +
+// netns.New. This way, all OS threads spawned by the executed test binary
+// inherit the netns from the parent thread. Therefore, the all goroutines runs
+// in the same netns.
+//
+// This is inspired by the technique used in the os/exec's test.
+// https://github.com/golang/go/blob/c1e0cd12965106310acafbb9bd50ad0830a7283a/src/os/exec/exec_test.go#L69
+func TestMain(m *testing.M) {
+	// FIXME: If we are not in the privileged test environment, skip the
+	// test. We should extend the testutils.PrivilegedTest to support
+	// TestMain context (with the assumption that the whole test binary is
+	// privileged), but for the moment, we'll use this workaround.
+	if os.Getenv("PRIVILEGED_TESTS") == "" {
+		return
+	}
+
+	flag.Parse()
+
+	v := os.Getenv("TEST_SELF_EXECUTED")
+	if v != "" {
+		// We are in the self-executed test process. Run the test.
+		os.Exit(m.Run())
+	}
+
+	// We are in the main test process. Switch the netns.
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+
+	ns, err := netns.New()
+	if err != nil {
+		panic("Failed to create a new netns: " + err.Error())
+	}
+	defer ns.Close()
+
+	// Loopback device is down by default. Set it up to make local
+	// connections work.
+	link, err := safenetlink.LinkByName("lo")
+	if err != nil {
+		panic("Failed to get loopback device: " + err.Error())
+	}
+	if err := netlink.LinkSetUp(link); err != nil {
+		panic("Failed to set up loopback device: " + err.Error())
+	}
+
+	// Run the tests in a self-executed process.
+	if err := unix.Exec(
+		os.Args[0],
+		append([]string{os.Args[0]}, os.Args[1:]...),
+		append(os.Environ(), "TEST_SELF_EXECUTED=1"),
+	); err != nil {
+		panic("Failed to re-exec test binary: " + err.Error())
+	}
+}
 
 func TestPrivilegedScript(t *testing.T) {
 	testutils.PrivilegedTest(t)
