@@ -2616,6 +2616,10 @@ hubble:
       labels: {}
       # -- Annotations to add to the Hubble Timescape persistent volume claim.
       annotations: {}
+    # -- Extra volumes for the Hubble Timescape pod
+    extraVolumes: []
+    # -- Extra volume mounts for the Hubble Timescape container
+    extraVolumeMounts: []
     # -- Roll out Timescape pods automatically when configmap is updated.
     rollOutPods: false
     # -- Configures the time-to-live for flows. Flows older than the TTL are
@@ -2700,6 +2704,8 @@ hubble:
         capabilities:
           drop:
             - ALL
+      # -- Extra volume mounts for the Hubble Timescape Clickhouse container
+      extraVolumeMounts: []
     # -- Extra environment variables for hubble-timescape.
     extraEnv: []
     # -- Affinity for hubble-timescape
