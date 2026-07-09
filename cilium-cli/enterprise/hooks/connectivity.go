@@ -236,12 +236,10 @@ func (ec *EnterpriseConnectivity) addEncryptionPolicyTests(cts ...*check.Connect
 			WithCondition(func() bool { return !ct.Params().SingleNode })
 	}
 
-	if versioncheck.MustCompile(">=1.16.0")(cts[0].CiliumVersion) {
-		newTest(cts[0], "pod-to-pod-encryption-policy").
-			WithFeatureRequirements(features.RequireDisabled(enterpriseFeatures.EncryptionPolicyFallbackEncrypt)).
-			WithIsovalentClusterwideEncryptionPolicy(encryptClientToEchoYAML).
-			WithScenarios(enterpriseTests.PodToPodEncryptionPolicy())
-	}
+	newTest(cts[0], "pod-to-pod-encryption-policy").
+		WithFeatureRequirements(features.RequireDisabled(enterpriseFeatures.EncryptionPolicyFallbackEncrypt)).
+		WithIsovalentClusterwideEncryptionPolicy(encryptClientToEchoYAML).
+		WithScenarios(enterpriseTests.PodToPodEncryptionPolicy())
 
 	if versioncheck.MustCompile(">=1.19.0")(cts[0].CiliumVersion) {
 		newTest(cts[0], "pod-to-pod-encryption-policy-optout").

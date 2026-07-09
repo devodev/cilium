@@ -315,9 +315,9 @@ static __always_inline int
 privnet_nat_v6_addr(struct __ctx_buff *ctx, const union v6addr *old_addr,
 		    const union v6addr *new_addr, int addr_off)
 {
+	fraginfo_t fraginfo = 0;
 	void *data, *data_end;
 	struct ipv6hdr *ip6;
-	fraginfo_t fraginfo;
 	__u8 nexthdr;
 	__wsum sum;
 	int hdrlen;
@@ -659,7 +659,6 @@ privnet_is_identity_any_host(__u32 identity)
 static __always_inline int
 privnet_host_snat_ingress4(struct __ctx_buff *ctx __maybe_unused)
 {
-	int ret = 0;
 #if defined(ENABLE_IPV4) && defined(ENABLE_NODEPORT)
 	struct ipv4_nat_target target = {
 		.addr = CONFIG(privnet_host_snat_ipv4).be32,
@@ -670,8 +669,8 @@ privnet_host_snat_ingress4(struct __ctx_buff *ctx __maybe_unused)
 		 * the PurgeOrphanNATEntries (GC) removing the NAT entries of non-closed connections.
 		 */
 	};
-	struct trace_ctx trace = {};
 	struct ipv4_ct_tuple tuple = {};
+	struct trace_ctx trace = {};
 	void *data, *data_end;
 	fraginfo_t fraginfo;
 	struct iphdr *ip4;
@@ -687,11 +686,11 @@ privnet_host_snat_ingress4(struct __ctx_buff *ctx __maybe_unused)
 
 	l4_off = ETH_HLEN + ipv4_hdrlen(ip4);
 
-	ret = snat_v4_nat(ctx, &tuple, ip4, fraginfo, l4_off,
-			  &target, &trace, &ext_err);
+	return snat_v4_nat(ctx, &tuple, ip4, fraginfo, l4_off,
+			   &target, &trace, &ext_err);
+#else
+	return 0;
 #endif /* ENABLE_IPV4 && ENABLE_NODEPORT */
-
-	return ret;
 }
 
 /* The function does rev-SNAT to packets destined to a (remote) host (from
@@ -700,7 +699,6 @@ privnet_host_snat_ingress4(struct __ctx_buff *ctx __maybe_unused)
 static __always_inline int
 privnet_host_rev_snat_egress4(struct __ctx_buff *ctx __maybe_unused)
 {
-	int ret = 0;
 #if defined(ENABLE_IPV4) && defined(ENABLE_NODEPORT)
 	struct ipv4_nat_target target = {
 		.min_port = NODEPORT_PORT_MIN_NAT,
@@ -709,22 +707,21 @@ privnet_host_rev_snat_egress4(struct __ctx_buff *ctx __maybe_unused)
 	struct trace_ctx trace = {};
 	__s8 ext_err = 0;
 
-	ret = snat_v4_rev_nat(ctx, &target, &trace, &ext_err);
+	return snat_v4_rev_nat(ctx, &target, &trace, &ext_err);
+#else
+	return 0;
 #endif /* ENABLE_IPV4 && ENABLE_NODEPORT */
-
-	return ret;
 }
 
 /* See comment for privnet_host_snat_ingress4(). */
 static __always_inline int
 privnet_host_snat_ingress6(struct __ctx_buff *ctx __maybe_unused)
 {
-	int ret = 0;
 #if defined(ENABLE_IPV6) && defined(ENABLE_NODEPORT)
 	struct snat_v6_args *args = AUX(snat_v6_args);
+	fraginfo_t fraginfo = 0;
 	void *data, *data_end;
 	struct ipv6hdr *ip6;
-	fraginfo_t fraginfo;
 	int hdrlen, l4_off;
 	__s8 ext_err = 0;
 
@@ -746,17 +743,16 @@ privnet_host_snat_ingress6(struct __ctx_buff *ctx __maybe_unused)
 	l4_off = (__u32)(((void *)ip6 - data) + hdrlen);
 
 
-	ret = snat_v6_nat(ctx, fraginfo, l4_off, &ext_err);
+	return snat_v6_nat(ctx, fraginfo, l4_off, &ext_err);
+#else
+	return 0;
 #endif /* ENABLE_IPV6 && ENABLE_NODEPORT */
-
-	return ret;
 }
 
 /* See comment for privnet_host_rev_snat_egress4(). */
 static __always_inline int
 privnet_host_rev_snat_egress6(struct __ctx_buff *ctx __maybe_unused)
 {
-	int ret = 0;
 #if defined(ENABLE_IPV6) && defined(ENABLE_NODEPORT)
 	struct ipv6_nat_target target = {
 		.min_port = NODEPORT_PORT_MIN_NAT,
@@ -765,10 +761,10 @@ privnet_host_rev_snat_egress6(struct __ctx_buff *ctx __maybe_unused)
 	struct trace_ctx trace = {};
 	__s8 ext_err = 0;
 
-	ret = snat_v6_rev_nat(ctx, &target, &trace, &ext_err);
+	return snat_v6_rev_nat(ctx, &target, &trace, &ext_err);
+#else
+	return 0;
 #endif /* ENABLE_IPV6 && ENABLE_NODEPORT */
-
-	return ret;
 }
 
 static __always_inline int
@@ -1172,12 +1168,12 @@ privnet_unknown_policy_egress6(const struct __ctx_buff *ctx,
 	struct ipv6_ct_tuple *tuple = AUX(privnet_unknown_egress6_tuple);
 	const struct privnet_cidr_identity *info = NULL;
 	__u8 policy_match_type = POLICY_MATCH_NONE;
-	fraginfo_t fraginfo __maybe_unused;
 	bool is_untracked_fragment = false;
 	struct ct_state ct_state = {};
 	__u32 local_dst_sec_identity;
 	void *ct_map, *ct_map_any;
 	int verdict = CTX_ACT_OK;
+	fraginfo_t fraginfo = 0;
 	void *data, *data_end;
 	__u16 proxy_port = 0;
 	__s8 *ext_err = NULL;
@@ -1862,10 +1858,10 @@ privnet_unknown_policy_ingress6(const struct __ctx_buff *ctx,
 	__u32 local_src_sec_identity;
 	void *ct_map, *ct_map_any;
 	int verdict = CTX_ACT_OK;
+	fraginfo_t fraginfo = 0;
 	void *data, *data_end;
 	__u16 proxy_port = 0;
 	__s8 *ext_err = NULL;
-	fraginfo_t fraginfo;
 	struct ipv6hdr *ip6;
 	__u32 monitor = 0;
 	__u8 audited = 0;
@@ -2330,15 +2326,14 @@ privnet_ext_ep_policy_egress6(struct __ctx_buff *ctx,
 			      __s8 *ext_err __maybe_unused)
 {
 	__u8 policy_match_type = POLICY_MATCH_NONE;
+	struct ipv6_ct_tuple tuple = {};
+	int hdrlen, l4_off, ct_ret, ret;
 	int verdict = CTX_ACT_OK;
+	fraginfo_t fraginfo = 0;
 	__u16 proxy_port = 0;
 	__u32 monitor = 0;
 	__u8 audited = 0;
 	__u32 cookie = 0;
-
-	struct ipv6_ct_tuple tuple = {};
-	fraginfo_t fraginfo;
-	int hdrlen, l4_off, ct_ret, ret;
 
 	tuple.nexthdr = ip6->nexthdr;
 	hdrlen = ipv6_hdrlen_with_fraginfo(ctx, &tuple.nexthdr, &fraginfo);
@@ -2396,16 +2391,15 @@ privnet_ext_ep_policy_ingress6(struct __ctx_buff *ctx,
 			       __s8 *ext_err __maybe_unused)
 {
 	__u8 policy_match_type = POLICY_MATCH_NONE;
+	bool is_untracked_fragment = false;
+	struct ipv6_ct_tuple tuple = {};
+	int hdrlen, l4_off, ct_ret, ret;
 	int verdict = CTX_ACT_OK;
+	fraginfo_t fraginfo = 0;
 	__u16 proxy_port = 0;
 	__u8 audited = 0;
 	__u32 cookie = 0;
 	__u32 monitor = 0;
-
-	struct ipv6_ct_tuple tuple = {};
-	fraginfo_t fraginfo;
-	bool is_untracked_fragment = false;
-	int hdrlen, l4_off, ct_ret, ret;
 
 	tuple.nexthdr = ip6->nexthdr;
 	hdrlen = ipv6_hdrlen_with_fraginfo(ctx, &tuple.nexthdr, &fraginfo);

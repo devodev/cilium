@@ -93,14 +93,11 @@ message CTRecord {
   // Map kind
   CTMapKind kind = 1;
 
-  // Private network name or empty if kind is a global map
-  string network = 2;
-
   // Connection tracking key
-  CTKey key = 3;
+  CTKey key = 2;
 
   // Connection tracking value
-  CTValue value = 4;
+  CTValue value = 3;
 }
 
 // Connection tracking key. Counterpart of [ctmap.CtKey*].

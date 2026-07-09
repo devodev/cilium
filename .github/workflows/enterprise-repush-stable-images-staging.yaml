@@ -1,0 +1,49 @@
+name: Enterprise repush stable CI images to staging
+on:
+  push:
+    branches:
+      - v1.19-ce
+      - v1.18-ce
+      - v1.17-ce
+  workflow_call:
+    inputs:
+      SHA:
+        description: 'SHA of the commit to repush images'
+        required: true
+        type: string
+
+jobs:
+  wait-for-images:
+    name: Wait for images
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions: {}
+    steps:
+    - name: Wait for images
+      uses: ./.github/actions/wait-for-images
+      with:
+        SHA: ${{ github.event.head_commit.sha || inputs.SHA }}
+        login-host: ${{ vars.DOCKER_READ_HOST }}
+        login-username: ${{ vars.DOCKER_READ_USERNAME }}
+        login-password: ${{ secrets.DOCKER_READ_PASSWORD }}
+
+  repush-images:
+    name: Repush images to staging
+    runs-on: ubuntu-24.04
+    needs: wait-for-images
+    permissions: {}
+    strategy:
+      matrix:
+        image:
+          - cilium-ci
+          - operator-generic-ci
+          - hubble-relay-ci
+          - cilium-cli-ci
+    steps:
+    - name: Set environment variables
+      uses: ./.github/actions/set-env-variables
+    - name: Repush ${{ matrix.image }} to staging
+      run: |
+        docker buildx imagetools create \
+          --tag "${{ vars.REGISTRY_DEV }}/${{ env.ORGANIZATION_STAGING }}/${{ matrix.image }}:${{ github.event.head_commit.sha || inputs.SHA }}" \
+          "${{ vars.REGISTRY_DEV }}/${{ env.ORGANIZATION_DEV }}/${{ matrix.image }}:${{ github.event.head_commit.sha || inputs.SHA }}"

@@ -9,3 +9,4 @@ from pkt_defs_common import *
 from enterprise_privnet_pkt_defs import *
 from enterprise_evpn_pkt_defs import *
 from enterprise_inspection_pkt_defs import *
+from enterprise_vrf_egress_redirect import *

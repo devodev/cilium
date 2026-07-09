@@ -318,6 +318,7 @@ declaratively
 decrypt
 decrypted
 deduplicate
+deduplicated
 deepcopy
 defaultLBServiceIPAM
 deletetopic

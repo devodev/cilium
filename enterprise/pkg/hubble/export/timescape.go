@@ -14,6 +14,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/hive/job"
@@ -35,6 +36,35 @@ import (
 
 type timescapeTLSConfigPromise promise.Promise[*certloader.WatchedClientConfig]
 
+// multiExporter is a composite exporter that sends events to multiple timescape exporters
+type multiExporter struct {
+	exporters []exporter.FlowLogExporter
+}
+
+func (m *multiExporter) Export(ctx context.Context, ev *v1.Event) error {
+	for _, exp := range m.exporters {
+		if err := exp.Export(ctx, ev); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (m *multiExporter) Stop() error {
+	var errs []error
+	for _, exp := range m.exporters {
+		if err := exp.Stop(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("failed to stop %d exporters: %v", len(errs), errs)
+	}
+
+	return nil
+}
+
 var timescapeExporterCell = cell.Module(
 	"hubble-timescape-exporter",
 	"Hubble Timescape Exporter",
@@ -55,6 +85,7 @@ var timescapeExporterCell = cell.Module(
 type timescapeExporterConfig struct {
 	Enabled                      bool          `mapstructure:"hubble-export-timescape-enabled"`
 	Target                       string        `mapstructure:"hubble-export-timescape-target"`
+	Targets                      []string      `mapstructure:"hubble-export-timescape-targets"`
 	Allowlist                    string        `mapstructure:"hubble-export-timescape-allowlist"`
 	Denylist                     string        `mapstructure:"hubble-export-timescape-denylist"`
 	Fieldmask                    []string      `mapstructure:"hubble-export-timescape-fieldmask"`
@@ -78,7 +109,7 @@ type timescapeExporterConfig struct {
 
 var defaultTimescapeExporterConfig = timescapeExporterConfig{
 	Enabled:                      false,
-	Target:                       "hubble-timescape-export.hubble-timescape.svc.cluster.local:4261",
+	Targets:                      []string{"hubble-timescape-export.hubble-timescape.svc.cluster.local:4261"},
 	Allowlist:                    "",
 	Denylist:                     "",
 	Fieldmask:                    []string{},
@@ -102,7 +133,8 @@ var defaultTimescapeExporterConfig = timescapeExporterConfig{
 
 func (def timescapeExporterConfig) Flags(flags *pflag.FlagSet) {
 	flags.Bool("hubble-export-timescape-enabled", def.Enabled, "Whether to enable the Hubble timescape exporter")
-	flags.String("hubble-export-timescape-target", def.Target, "Target server to connect to for exporting flows")
+	flags.String("hubble-export-timescape-target", def.Target, "(Deprecated) Target server to connect to for exporting flows. Use --hubble-export-timescape-targets instead")
+	flags.StringSlice("hubble-export-timescape-targets", def.Targets, "Target servers to connect to for exporting flows")
 	flags.String("hubble-export-timescape-allowlist", def.Allowlist, "Specify allowlist as JSON encoded FlowFilters")
 	flags.String("hubble-export-timescape-denylist", def.Denylist, "Specify denylist as JSON encoded FlowFilters")
 	flags.StringSlice("hubble-export-timescape-fieldmask", def.Fieldmask, "Specify list of fields to use for field mask in Hubble exporter")
@@ -229,17 +261,37 @@ func newHubbleTimescapeExporter(params params) (out, error) {
 				return false, nil
 			}))
 
-			// create the timescape exporter
-			streamExporter, err := timescape.NewExporter(params.Logger, params.Config.Target, exporterOpts...)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create Hubble timescape exporter: %w", err)
+			targets := params.Config.Targets
+			if params.Config.Target != "" && !slices.Contains(targets, params.Config.Target) {
+				targets = append(targets, params.Config.Target)
+				params.Logger.Warn("Using deprecated 'target' field. Please migrate to 'targets' for multiple endpoint support")
 			}
 
-			params.JobGroup.Add(job.OneShot("hubble-timescape-exporter", func(ctx context.Context, _ cell.Health) error {
-				return streamExporter.Run(ctx)
-			}))
+			if len(targets) == 0 {
+				return nil, fmt.Errorf("no targets configured for Hubble timescape exporter")
+			}
 
-			return streamExporter, nil
+			var exporters []exporter.FlowLogExporter
+			for i, target := range targets {
+				streamExporter, err := timescape.NewExporter(params.Logger, target, exporterOpts...)
+				if err != nil {
+					return nil, fmt.Errorf("failed to create Hubble timescape exporter for target %s: %w", target, err)
+				}
+
+				exporterName := fmt.Sprintf("hubble-timescape-exporter-%d", i)
+				params.JobGroup.Add(job.OneShot(exporterName, func(ctx context.Context, _ cell.Health) error {
+					return streamExporter.Run(ctx)
+				}))
+
+				exporters = append(exporters, streamExporter)
+			}
+
+			// Return a composite exporter if multiple targets, otherwise return the single exporter.
+			if len(exporters) == 1 {
+				return exporters[0], nil
+			}
+
+			return &multiExporter{exporters: exporters}, nil
 		},
 	}
 

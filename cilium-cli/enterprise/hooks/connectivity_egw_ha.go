@@ -65,26 +65,24 @@ func (ec *EnterpriseConnectivity) addEgressGatewayHATests(ct *check.Connectivity
 		WithIPRoutesFromOutsideToPodCIDRs().
 		WithScenarios(enterpriseTests.EgressGatewayHA())
 
-	if versioncheck.MustCompile(">=1.16.0")(ct.CiliumVersion) {
-		// prefix the test name with `seq-` to run it sequentially
-		newTest(ct, "seq-egress-gateway-ha-with-l7-policy").
-			WithIsovalentEgressGatewayPolicy(enterpriseCheck.IsovalentEgressGatewayPolicyParams{
-				Name:            "iegp-sample-client",
-				PodSelectorKind: "client",
-				EgressGroup:     enterpriseCheck.SingleGateway,
-			}).
-			WithIsovalentEgressGatewayPolicy(enterpriseCheck.IsovalentEgressGatewayPolicyParams{
-				Name:            "iegp-sample-echo",
-				PodSelectorKind: "echo",
-				EgressGroup:     enterpriseCheck.SingleGateway,
-			}).
-			WithCiliumPolicy(clientEgressICMPYAML).
-			WithCiliumPolicy(templates["clientEgressOnlyDNSPolicyYAML"]).  // DNS resolution only
-			WithCiliumPolicy(templates["clientEgressL7HTTPAnywhereYAML"]). // L7 allow policy with HTTP introspection
-			WithIPRoutesFromOutsideToPodCIDRs().
-			WithFeatureRequirements(features.RequireEnabled(features.L7Proxy)).
-			WithScenarios(enterpriseTests.EgressGatewayHA())
-	}
+	// prefix the test name with `seq-` to run it sequentially
+	newTest(ct, "seq-egress-gateway-ha-with-l7-policy").
+		WithIsovalentEgressGatewayPolicy(enterpriseCheck.IsovalentEgressGatewayPolicyParams{
+			Name:            "iegp-sample-client",
+			PodSelectorKind: "client",
+			EgressGroup:     enterpriseCheck.SingleGateway,
+		}).
+		WithIsovalentEgressGatewayPolicy(enterpriseCheck.IsovalentEgressGatewayPolicyParams{
+			Name:            "iegp-sample-echo",
+			PodSelectorKind: "echo",
+			EgressGroup:     enterpriseCheck.SingleGateway,
+		}).
+		WithCiliumPolicy(clientEgressICMPYAML).
+		WithCiliumPolicy(templates["clientEgressOnlyDNSPolicyYAML"]).  // DNS resolution only
+		WithCiliumPolicy(templates["clientEgressL7HTTPAnywhereYAML"]). // L7 allow policy with HTTP introspection
+		WithIPRoutesFromOutsideToPodCIDRs().
+		WithFeatureRequirements(features.RequireEnabled(features.L7Proxy)).
+		WithScenarios(enterpriseTests.EgressGatewayHA())
 
 	// prefix the test name with `seq-` to run it sequentially
 	newTest(ct, "seq-egress-gateway-ha-excluded-cidrs").
@@ -106,20 +104,18 @@ func (ec *EnterpriseConnectivity) addEgressGatewayHATests(ct *check.Connectivity
 		}).
 		WithScenarios(enterpriseTests.EgressGatewayMultipleGateways())
 
-	if versioncheck.MustCompile(">=1.16.0")(ct.CiliumVersion) {
-		// prefix the test name with `seq-` to run it sequentially
-		newTest(ct, "seq-egress-gateway-ha-multiple-gateways-with-l7-policy").
-			WithIsovalentEgressGatewayPolicy(enterpriseCheck.IsovalentEgressGatewayPolicyParams{
-				Name:            "iegp-sample-client",
-				PodSelectorKind: "client",
-				EgressGroup:     enterpriseCheck.AllCiliumNodes,
-			}).
-			WithCiliumPolicy(clientEgressICMPYAML).
-			WithCiliumPolicy(templates["clientEgressOnlyDNSPolicyYAML"]).  // DNS resolution only
-			WithCiliumPolicy(templates["clientEgressL7HTTPAnywhereYAML"]). // L7 allow policy with HTTP introspection
-			WithFeatureRequirements(features.RequireEnabled(features.L7Proxy)).
-			WithScenarios(enterpriseTests.EgressGatewayMultipleGateways())
-	}
+	// prefix the test name with `seq-` to run it sequentially
+	newTest(ct, "seq-egress-gateway-ha-multiple-gateways-with-l7-policy").
+		WithIsovalentEgressGatewayPolicy(enterpriseCheck.IsovalentEgressGatewayPolicyParams{
+			Name:            "iegp-sample-client",
+			PodSelectorKind: "client",
+			EgressGroup:     enterpriseCheck.AllCiliumNodes,
+		}).
+		WithCiliumPolicy(clientEgressICMPYAML).
+		WithCiliumPolicy(templates["clientEgressOnlyDNSPolicyYAML"]).  // DNS resolution only
+		WithCiliumPolicy(templates["clientEgressL7HTTPAnywhereYAML"]). // L7 allow policy with HTTP introspection
+		WithFeatureRequirements(features.RequireEnabled(features.L7Proxy)).
+		WithScenarios(enterpriseTests.EgressGatewayMultipleGateways())
 
 	// prefix the test name with `seq-` to run it sequentially
 	egwHAAZAffinityTest := newTest(ct, "seq-egress-gateway-ha-az-affinity").
@@ -151,29 +147,25 @@ func (ec *EnterpriseConnectivity) addEgressGatewayHATests(ct *check.Connectivity
 		return et
 	}
 
-	if versioncheck.MustCompile(">=1.16.0")(ct.CiliumVersion) {
-		// prefix the test name with `seq-` to run it sequentially
-		newIPAMTest(ct, "seq-egress-gateway-ha-ipam").
-			WithIsovalentEgressGatewayPolicy(enterpriseCheck.IsovalentEgressGatewayPolicyParams{
-				Name:            "iegp-sample-client",
-				PodSelectorKind: "client",
-				EgressGroup:     enterpriseCheck.SingleGateway,
-			}).
-			WithIPRoutesFromOutsideToPodCIDRs().
-			WithScenarios(enterpriseTests.EgressGatewayHAIPAM())
-	}
+	// prefix the test name with `seq-` to run it sequentially
+	newIPAMTest(ct, "seq-egress-gateway-ha-ipam").
+		WithIsovalentEgressGatewayPolicy(enterpriseCheck.IsovalentEgressGatewayPolicyParams{
+			Name:            "iegp-sample-client",
+			PodSelectorKind: "client",
+			EgressGroup:     enterpriseCheck.SingleGateway,
+		}).
+		WithIPRoutesFromOutsideToPodCIDRs().
+		WithScenarios(enterpriseTests.EgressGatewayHAIPAM())
 
-	if versioncheck.MustCompile(">=1.16.0")(ct.CiliumVersion) {
-		// prefix the test name with `seq-` to run it sequentially
-		newIPAMTest(ct, "seq-egress-gateway-ha-ipam-multiple-gateways").
-			WithIsovalentEgressGatewayPolicy(enterpriseCheck.IsovalentEgressGatewayPolicyParams{
-				Name:            "iegp-sample-client",
-				PodSelectorKind: "client",
-				EgressGroup:     enterpriseCheck.AllCiliumNodes,
-			}).
-			WithIPRoutesFromOutsideToPodCIDRs().
-			WithScenarios(enterpriseTests.EgressGatewayHAIPAMMultipleGateways())
-	}
+	// prefix the test name with `seq-` to run it sequentially
+	newIPAMTest(ct, "seq-egress-gateway-ha-ipam-multiple-gateways").
+		WithIsovalentEgressGatewayPolicy(enterpriseCheck.IsovalentEgressGatewayPolicyParams{
+			Name:            "iegp-sample-client",
+			PodSelectorKind: "client",
+			EgressGroup:     enterpriseCheck.AllCiliumNodes,
+		}).
+		WithIPRoutesFromOutsideToPodCIDRs().
+		WithScenarios(enterpriseTests.EgressGatewayHAIPAMMultipleGateways())
 
 	// This test depends on the Route Reflector feature of the BGP CP, which requires using
 	// v1.18.1 or later.

@@ -130,7 +130,9 @@ func (p *pipRewrite) watchPIPChanges(ctx context.Context, health cell.Health) er
 			// PIP became inactive, remove any completed or pending rewrites
 			mapentryKey := change.Object.Key()
 			if change.Deleted {
-				p.Rewrites.Delete(wtxn, tables.MigrationPIPRewrite{MapEntry: mapentryKey})
+				for obj := range p.Rewrites.Prefix(wtxn, tables.MigrationPIPRewriteByMapEntry(mapentryKey)) {
+					p.Rewrites.Delete(wtxn, obj)
+				}
 				continue
 			}
 
@@ -287,45 +289,9 @@ func (p *pipRewriteOps) rewritePIPs(ctx context.Context, tasks iter.Seq[tables.M
 	return err
 }
 
-// ctKey is an IP family agnostic interface to read and write the CT key addresses
-type ctKey[T any] interface {
-	bpf.MapKey
-	GetDestAddr() netip.Addr
-	GetSourceAddr() netip.Addr
-	SetDestAddr(addr netip.Addr)
-	SetSourceAddr(addr netip.Addr)
-	*T
-}
-
-// ctKey4 wraps ctmap.CtKey4Global to implement the ctKey interface
-type ctKey4 struct {
-	ctmap.CtKey4Global
-}
-
-func (c *ctKey4) SetSourceAddr(addr netip.Addr) {
-	c.SourceAddr.FromAddr(addr)
-}
-
-func (c *ctKey4) SetDestAddr(addr netip.Addr) {
-	c.DestAddr.FromAddr(addr)
-}
-
-// ctKey6 wraps ctmap.CtKey6Global to implement the ctKey interface
-type ctKey6 struct {
-	ctmap.CtKey6Global
-}
-
-func (c *ctKey6) SetSourceAddr(addr netip.Addr) {
-	c.SourceAddr.FromAddr(addr)
-}
-
-func (c *ctKey6) SetDestAddr(addr netip.Addr) {
-	c.DestAddr.FromAddr(addr)
-}
-
 // rewriteCTMap takes a list of PIP pairs and replaces all occurrences of oldPIP with newPIP in the provided
 // ctMap. It returns an error if the operation did not finish and should be retried.
-func rewriteCTMap[T any, PT ctKey[T]](ctx context.Context, ctMap *ctmap.Map, toReplace pipPairs) error {
+func rewriteCTMap[T any, PT ctKeyWritable[T]](ctx context.Context, ctMap *ctmap.Map, toReplace pipPairs) error {
 	type ctEntry struct {
 		original  PT
 		rewritten PT

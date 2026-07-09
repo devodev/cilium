@@ -4099,6 +4099,12 @@
                     "string"
                   ]
                 },
+                "targets": {
+                  "type": [
+                    "null",
+                    "array"
+                  ]
+                },
                 "tls": {
                   "properties": {
                     "ca": {
@@ -5013,6 +5019,10 @@
                   },
                   "type": "object"
                 },
+                "extraVolumeMounts": {
+                  "items": {},
+                  "type": "array"
+                },
                 "image": {
                   "properties": {
                     "digest": {
@@ -5123,6 +5133,14 @@
               "type": "boolean"
             },
             "extraEnv": {
+              "items": {},
+              "type": "array"
+            },
+            "extraVolumeMounts": {
+              "items": {},
+              "type": "array"
+            },
+            "extraVolumes": {
               "items": {},
               "type": "array"
             },

@@ -216,8 +216,8 @@ func (l *LocalWorkloads) upsertEndpoint(ep endpoints.Endpoint) {
 		_, _, found := l.migrations.Get(wtx, tables.MigrationByKey(migration.MigrationKey))
 		if !found {
 			l.migrations.Insert(wtx, *migration)
-			lw.AddActivationBlocker(tables.ActivationBlockerMigration)
 		}
+		lw.AddActivationBlocker(tables.ActivationBlockerMigration)
 	}
 
 	_, _, err = l.tbl.Insert(wtx, lw)

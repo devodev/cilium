@@ -24,6 +24,7 @@ import (
 	"github.com/cilium/hive/job"
 	"github.com/cilium/statedb"
 
+	pnmaps "github.com/cilium/cilium/enterprise/pkg/maps/privnet"
 	pncfg "github.com/cilium/cilium/enterprise/pkg/privnet/config"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/endpoints"
 	api "github.com/cilium/cilium/enterprise/pkg/privnet/grpc/api/v1"
@@ -34,7 +35,10 @@ import (
 	cmtypes "github.com/cilium/cilium/pkg/clustermesh/types"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/mac"
+	"github.com/cilium/cilium/pkg/maps/ctmap"
 	"github.com/cilium/cilium/pkg/time"
+	"github.com/cilium/cilium/pkg/tuple"
+	"github.com/cilium/cilium/pkg/u8proto"
 )
 
 type controllerParams struct {
@@ -54,6 +58,10 @@ type controllerParams struct {
 
 	Endpoints          endpoints.EndpointGetter
 	EndpointProperties *endpoints.EndpointPropertyManager
+
+	GlobalCT  ctmap.CTMaps
+	PrivNetCT pnmaps.CTMaps
+	CTTime    *ctTimestampConverter
 }
 
 func registerController(params controllerParams) {
@@ -67,6 +75,36 @@ func registerController(params controllerParams) {
 
 type controller struct {
 	controllerParams
+}
+
+func (c *controller) ctMaps(network string) map[api.CTMapKind]*ctmap.Map {
+	ctMaps := make(map[api.CTMapKind]*ctmap.Map)
+	for _, ctMap := range c.GlobalCT.ActiveMaps() {
+		switch ctMap.Name() {
+		case ctmap.MapNameTCP4Global:
+			ctMaps[api.CTMapKind_CT_MAP_KIND_GLOBAL_TCP4] = ctMap
+		case ctmap.MapNameAny4Global:
+			ctMaps[api.CTMapKind_CT_MAP_KIND_GLOBAL_ANY4] = ctMap
+		case ctmap.MapNameTCP6Global:
+			ctMaps[api.CTMapKind_CT_MAP_KIND_GLOBAL_TCP6] = ctMap
+		case ctmap.MapNameAny6Global:
+			ctMaps[api.CTMapKind_CT_MAP_KIND_GLOBAL_ANY6] = ctMap
+		}
+	}
+	for _, ctMap := range c.PrivNetCT.ActiveMapsForNetwork(network) {
+		cfg := ctMap.Config
+		switch {
+		case !cfg.IPv6 && cfg.TCP:
+			ctMaps[api.CTMapKind_CT_MAP_KIND_PRIVNET_TCP4] = ctMap.Map
+		case !cfg.IPv6 && !cfg.TCP:
+			ctMaps[api.CTMapKind_CT_MAP_KIND_PRIVNET_ANY4] = ctMap.Map
+		case cfg.IPv6 && cfg.TCP:
+			ctMaps[api.CTMapKind_CT_MAP_KIND_PRIVNET_TCP6] = ctMap.Map
+		case cfg.IPv6 && !cfg.TCP:
+			ctMaps[api.CTMapKind_CT_MAP_KIND_PRIVNET_ANY6] = ctMap.Map
+		}
+	}
+	return ctMaps
 }
 
 func (c *controller) loop(ctx context.Context, health cell.Health) error {
@@ -89,6 +127,8 @@ func (c *controller) loop(ctx context.Context, health cell.Health) error {
 							logfields.K8sPodName, migration.MigrationKey.PodName,
 							logfields.MACAddr, migration.MigrationKey.MAC,
 						),
+						ctMaps: c.ctMaps(migration.LocalWorkload.Interface.Network),
+						ctTime: c.CTTime,
 					})
 				migration.State = tables.MigrationStateStarting
 				migration.UpdatedAt = time.Now()
@@ -116,6 +156,9 @@ type migrator struct {
 	controllerParams
 	key tables.MigrationKey
 	log *slog.Logger
+
+	ctTime *ctTimestampConverter
+	ctMaps map[api.CTMapKind]*ctmap.Map
 }
 
 func (m *migrator) run(ctx context.Context, health cell.Health) error {
@@ -320,6 +363,9 @@ func (m *migrator) processBatch(migration tables.Migration, batch *api.Migration
 	if addr := batch.GetEndpointAddressing(); len(addr) != 0 {
 		m.processEndpointAddressing(migration, addr)
 	}
+	if ctRecords := batch.GetRecords(); len(ctRecords) != 0 {
+		m.processCTRecords(migration, ctRecords)
+	}
 }
 
 func (m *migrator) processLeases(migration tables.Migration, leases []*api.DHCPLease) {
@@ -402,6 +448,100 @@ func (m *migrator) processEndpointAddressing(migration tables.Migration, epAddrs
 	}
 
 	m.EndpointProperties.SetPreviousAddressing(ep, prevAddressing)
+}
+
+func (m *migrator) ctKey(key *api.CTKey) (ctmap.CtKey, error) {
+	saddr, ok := netip.AddrFromSlice(key.GetSourceIp())
+	if !ok {
+		return nil, fmt.Errorf("invalid CT source IP %s", key.GetSourceIp())
+	}
+	daddr, ok := netip.AddrFromSlice(key.GetDestIp())
+	if !ok {
+		return nil, fmt.Errorf("invalid CT dest IP %s", key.GetDestIp())
+	}
+	proto, err := u8proto.FromNumber(uint8(key.GetNextHeader()))
+	if err != nil {
+		return nil, err
+	}
+	if saddr.Is4() != daddr.Is4() {
+		return nil, fmt.Errorf("invalid CT key with mismatched IP family %s and %s", saddr, daddr)
+	}
+
+	if saddr.Is4() {
+		t := tuple.TupleKey4{
+			DestPort:   uint16(key.GetDestPort()),
+			SourcePort: uint16(key.GetSourcePort()),
+			NextHeader: proto,
+			Flags:      uint8(key.GetFlags()),
+		}
+		t.SourceAddr.FromAddr(saddr)
+		t.DestAddr.FromAddr(daddr)
+		return &ctmap.CtKey4Global{
+			TupleKey4Global: tuple.TupleKey4Global{
+				TupleKey4: t,
+			},
+		}, nil
+	} else if saddr.Is6() {
+		t := tuple.TupleKey6{
+			DestPort:   uint16(key.GetDestPort()),
+			SourcePort: uint16(key.GetSourcePort()),
+			NextHeader: proto,
+			Flags:      uint8(key.GetFlags()),
+		}
+		t.SourceAddr.FromAddr(saddr)
+		t.DestAddr.FromAddr(daddr)
+		return &ctmap.CtKey6Global{
+			TupleKey6Global: tuple.TupleKey6Global{
+				TupleKey6: t,
+			},
+		}, nil
+	}
+
+	return nil, errors.New("unknown IP family")
+}
+
+func (m *migrator) processCTRecords(migration tables.Migration, records []*api.CTRecord) {
+	ctNow, err := m.ctTime.ctNow()
+	if err != nil {
+		m.log.Error("Unable to get current CT time", logfields.Error, err)
+		return
+	}
+
+	var errs error
+	for _, record := range records {
+		ctMap := m.ctMaps[record.GetKind()]
+		if ctMap == nil {
+			m.log.Warn("Unable to resolve CT map kind", logfields.Kind, record.Kind)
+			continue
+		}
+
+		k, v := record.GetKey(), record.GetValue()
+		if k == nil || v == nil {
+			m.log.Warn("Discarding incomplete CT record")
+			continue
+		}
+
+		ctKey, err := m.ctKey(k)
+		if err != nil {
+			m.log.Warn("Discarding CT record", logfields.Error, err)
+			continue
+		}
+		ctValue := &ctmap.CtEntry{
+			Lifetime:    m.ctTime.toLifetime(ctNow, v.GetLifetime()),
+			Flags:       uint16(v.GetFlags()),
+			TxFlagsSeen: uint8(v.GetTxFlagsSeen()),
+			RxFlagsSeen: uint8(v.GetRxFlagsSeen()),
+		}
+
+		err = ctMap.Update(ctKey, ctValue)
+		if err != nil {
+			errs = errors.Join(errs, fmt.Errorf("error updating CT entry %q: %w", ctKey.String(), err))
+		}
+	}
+
+	if errs != nil {
+		m.log.Warn("Unable to update CT records. Expect connection drops during endpoint migration", logfields.Error, errs)
+	}
 }
 
 type batch struct {

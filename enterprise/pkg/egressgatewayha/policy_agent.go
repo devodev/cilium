@@ -256,7 +256,7 @@ func (config *AgentPolicyConfig) regenerateGatewayConfig(manager *Manager, tx st
 					if gc.iface != "" {
 						ifaceName, ifaceIndex, ifaceType, err = fetchLinkInfo(manager, gc.iface)
 					} else if !config.virtualIP {
-						iface, err = route.NodeDeviceWithDefaultRoute(manager.logger, true, false)
+						iface, err = route.NodeDeviceWithDefaultRoute(logger, true, false)
 						if err == nil {
 							ifaceIndex = iface.Attrs().Index
 							ifaceName = iface.Attrs().Name
@@ -285,7 +285,7 @@ func (config *AgentPolicyConfig) regenerateGatewayConfig(manager *Manager, tx st
 					logger.Info("Local node is a gateway but has no egress IP assigned from egressCIDRs pool yet")
 					continue
 				}
-			} else if err := gwc.deriveFromGroupConfig(manager, manager.logger, &gc); err != nil {
+			} else if err := gwc.deriveFromGroupConfig(manager, logger, &gc); err != nil {
 				logger.Error("Failed to derive policy gateway configuration",
 					logfields.Error, err,
 				)
