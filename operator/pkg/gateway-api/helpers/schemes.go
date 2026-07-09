@@ -13,7 +13,6 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	mcsapiv1beta1 "sigs.k8s.io/mcs-api/pkg/apis/v1beta1"
 
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
@@ -33,8 +32,8 @@ var RequiredGVKs = []schema.GroupVersionKind{
 var AllOptionalKinds = []schema.GroupVersionKind{
 	gatewayv1.SchemeGroupVersion.WithKind(ListenerSetKind),
 	mcsapiv1beta1.SchemeGroupVersion.WithKind(ServiceImportKind),
-	gatewayv1alpha2.SchemeGroupVersion.WithKind(TCPRouteKind),
-	gatewayv1alpha2.SchemeGroupVersion.WithKind(UDPRouteKind),
+	gatewayv1.SchemeGroupVersion.WithKind(TCPRouteKind),
+	gatewayv1.SchemeGroupVersion.WithKind(UDPRouteKind),
 }
 
 func TestScheme(optionalKinds []schema.GroupVersionKind) *runtime.Scheme {
@@ -57,8 +56,18 @@ func RegisterGatewayAPITypesToScheme(scheme *runtime.Scheme, optionalKinds []sch
 
 	addToSchema := make(map[fmt.Stringer]func(s *runtime.Scheme) error)
 
-	// We can safely install the GA resources
-	addToSchema[gatewayv1.GroupVersion] = gatewayv1.AddToScheme
+	// Install all required GVKs.
+	for _, gvk := range RequiredGVKs {
+		addToSchema[gvk] = func(s *runtime.Scheme) error {
+			s.AddKnownTypes(
+				gvk.GroupVersion(),
+				GetConcreteObject(gvk),
+				GetConcreteListObject(gvk),
+			)
+			metav1.AddToGroupVersion(s, gvk.GroupVersion())
+			return nil
+		}
+	}
 
 	for _, optionalKind := range optionalKinds {
 		// Note that we're using the full GVK as the map key here - this is fine
@@ -69,15 +78,11 @@ func RegisterGatewayAPITypesToScheme(scheme *runtime.Scheme, optionalKinds []sch
 		// AddToScheme, but we can't use that here because we want to only
 		// enable things on a per-resource basis.
 		addToSchema[optionalKind] = func(s *runtime.Scheme) error {
-			s.AddKnownTypes(optionalKind.GroupVersion(), GetConcreteObject(optionalKind))
-			// We also need to add the List version to the Schema
-			listKind := optionalKind.Kind[:len(optionalKind.Kind)-1] + "lists"
-			optionalKindList := schema.GroupVersionKind{
-				Group:   optionalKind.Group,
-				Version: optionalKind.Version,
-				Kind:    listKind,
-			}
-			s.AddKnownTypes(optionalKind.GroupVersion(), GetConcreteObject(optionalKindList))
+			s.AddKnownTypes(
+				optionalKind.GroupVersion(),
+				GetConcreteObject(optionalKind),
+				GetConcreteListObject(optionalKind),
+			)
 			metav1.AddToGroupVersion(s, optionalKind.GroupVersion())
 			return nil
 		}
