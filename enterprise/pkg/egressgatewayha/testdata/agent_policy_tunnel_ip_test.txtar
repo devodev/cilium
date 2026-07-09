@@ -20,6 +20,9 @@ db/cmp --timeout=10s policy-config policyconfig.expected.1
 db/show egress-ips --columns Address,Interface
 db/cmp --timeout=10s egress-ips egressips.expected.1
 
+db/show sysctl --columns Name,Value
+db/cmp --timeout=10s sysctl sysctl.expected.1
+
 # Check that manager realizes expected bpf map state.
 egressha/policy-maps-dump policymap.actual
 * cmp policymap.actual policymap.expected.1
@@ -32,6 +35,9 @@ policy2   [10.244.3.92]   1            true                    0           100.1
 Address   Interface
 100.1.2.3 eth0
 100.1.2.4
+-- sysctl.expected.1 --
+Name                               Value
+net.ipv4.conf.eth0.rp_filter       2
 -- policymap.expected.1 --
 source_ip=10.244.3.91 dest_cidr=0.0.0.0 egress_ip=100.1.2.3 egress_ifindex=1 gateway_ips=[10.254.0.1]
 source_ip=10.244.3.92 dest_cidr=0.0.0.0 egress_ip=100.1.2.4 egress_ifindex=0 gateway_ips=[10.254.0.1]
