@@ -171,7 +171,7 @@ func TestMain(m *testing.M) {
 	}
 }
 
-func TestPrivilegedScript(t *testing.T) {
+func setupCommon(t *testing.T) []string {
 	testutils.PrivilegedTest(t)
 	slog.SetLogLoggerLevel(slog.LevelInfo) // used by test GoBGP instances
 	k8sVersion.Force(k8sTestutils.DefaultVersion)
@@ -184,215 +184,240 @@ func TestPrivilegedScript(t *testing.T) {
 	// setup test links
 	envVars = setupTestLinks(t, envVars)
 
-	setup := func(t testing.TB, args []string) *script.Engine {
-		var (
-			err        error
-			lbWriter   *writer.Writer
-			egwMgrMock *egwManagerMock
-		)
+	return envVars
+}
 
-		// parse the shebang arguments in the script
-		flags := pflag.NewFlagSet("test-flags", pflag.ContinueOnError)
-		peeringIPs := flags.StringSlice(testPeeringIPsFlag, nil, "List of IPs used for peering in the test")
-		useIPAM := flags.String(ipamFlag, ipamOption.IPAMKubernetes, "IPAM used by the test")
-		probeTCPMD5 := flags.Bool(probeTCPMD5Flag, false, "Probe if TCP_MD5SIG socket option is available")
-		enableNodeMaintenanceHelpers := flags.Bool(enableNodeMaintenanceHelpersFlag, false, "Enable node maintenance helpers")
-		enableNoEndpointsRoutable := flags.Bool(enableNoEndpointsRoutableFlag, true, "")
-		enableEVPNSecurityGroupTags := flags.Bool(enableEVPNSecurityGroupTagsFlag, false, "Enable Security Group Tags in EVPN advertisements")
-		defaultEVPNSecurityGroupID := flags.Uint16(defaultEVPNSecurityGroupIDFlag, 0, "Default Security Group ID used in EVPN advertisements")
-		kubeProxyReplacement := flags.Bool(kubeProxyReplacementFlag, true, "Enable kube-proxy replacement")
-		require.NoError(t, flags.Parse(args), "Error parsing test flags")
+func setupEngine(t testing.TB, args []string) *script.Engine {
+	var (
+		err        error
+		lbWriter   *writer.Writer
+		egwMgrMock *egwManagerMock
+	)
 
-		if *probeTCPMD5 {
-			available, err := osstest.TCPMD5SigAvailable()
-			require.NoError(t, err)
-			if !available {
-				t.Skip("TCP_MD5SIG socket option is not available")
-			}
-		}
+	// parse the shebang arguments in the script
+	flags := pflag.NewFlagSet("test-flags", pflag.ContinueOnError)
+	peeringIPs := flags.StringSlice(testPeeringIPsFlag, nil, "List of IPs used for peering in the test")
+	useIPAM := flags.String(ipamFlag, ipamOption.IPAMKubernetes, "IPAM used by the test")
+	probeTCPMD5 := flags.Bool(probeTCPMD5Flag, false, "Probe if TCP_MD5SIG socket option is available")
+	enableNodeMaintenanceHelpers := flags.Bool(enableNodeMaintenanceHelpersFlag, false, "Enable node maintenance helpers")
+	enableNoEndpointsRoutable := flags.Bool(enableNoEndpointsRoutableFlag, true, "")
+	enableEVPNSecurityGroupTags := flags.Bool(enableEVPNSecurityGroupTagsFlag, false, "Enable Security Group Tags in EVPN advertisements")
+	defaultEVPNSecurityGroupID := flags.Uint16(defaultEVPNSecurityGroupIDFlag, 0, "Default Security Group ID used in EVPN advertisements")
+	kubeProxyReplacement := flags.Bool(kubeProxyReplacementFlag, true, "Enable kube-proxy replacement")
+	require.NoError(t, flags.Parse(args), "Error parsing test flags")
 
-		h := ciliumhive.New(
-			k8sfake.FakeClientCell(),
-			daemonk8s.ResourcesCell,
-			k8sTables.TablesCell,
-			cell.Config(envoyCfg.SecretSyncConfig{}),
-			metrics.Cell,
-			lbcell.Cell,
-			maglev.Cell,
-			cell.Provide(source.NewSources),
-			cell.Config(loadbalancer.TestConfig{}),
-			cell.Provide(
-				func(cfg loadbalancer.TestConfig) *loadbalancer.TestConfig { return &cfg }, // newLBMaps expects *TestConfig
-			),
-			cell.Config(cmtypes.DefaultClusterInfo),
-			svcrouteconfig.Cell,
-
-			lbipamconfig.Cell,
-			nodeipamconfig.Cell,
-
-			// OSS BGP cell
-			bgp.Cell,
-
-			// Enterprise cells
-			enterprisebgpv1.Cell,
-			sidmanager.SIDManagerCell,
-			srv6manager.Cell,
-			srv6map.Cell,
-			rib.Cell,
-			rib.NopDataPlaneCell,
-			evpnConfig.Cell,
-			privnetConfig.Cell,
-
-			// Route Reconciler cell
-			routeReconciler.Cell,
-
-			// Enterprise BGP dependencies
-			cell.Provide(
-				tables.NewDeviceTable,
-				tables.NewNeighborTable,
-				tables.NewRouteTable,
-				tables.NewNodeAddressTable,
-				bfdtypes.NewBFDPeersTable,
-				privnetTables.NewPrivateNetworksTable,
-				privnetTables.NewLocalWorkloadsTable,
-				evpnSecurityGroupTables.NewEndpointSecurityGroupTable,
-
-				statedb.RWTable[*tables.Route].ToTable,
-				statedb.RWTable[*tables.Device].ToTable,
-				statedb.RWTable[*tables.Neighbor].ToTable,
-				statedb.RWTable[tables.NodeAddress].ToTable,
-				statedb.RWTable[*bfdtypes.BFDPeerStatus].ToTable,
-				statedb.RWTable[privnetTables.PrivateNetwork].ToTable,
-				statedb.RWTable[*privnetTables.LocalWorkload].ToTable,
-				statedb.RWTable[evpnSecurityGroupTables.EndpointSecurityGroup].ToTable,
-			),
-			cell.Provide(func(sig *signaler.BGPCPSignaler) egressgatewayha.EgressIPsProvider {
-				egwMgrMock = newEGWManagerMock(sig)
-				return egwMgrMock
-			}),
-
-			// SRv6 dependencies
-			cell.Provide(
-				func() cache.IdentityAllocator {
-					return testidentity.NewMockIdentityAllocator(nil)
-				},
-				func() legacy.DaemonInitialization {
-					return legacy.DaemonInitialization{}
-				},
-				func() *ipam.IPAM {
-					return &ipam.IPAM{}
-				},
-			),
-
-			// OSS + CEE BGP DaemonConfig
-			cell.Provide(func() *option.DaemonConfig {
-				// BGP Manager uses the global variable option.Config so we need to set it there as well
-				option.Config = &option.DaemonConfig{
-					BGPSecretsNamespace:       testSecretsNamespace,
-					BGPRouterIDAllocationMode: option.BGPRouterIDAllocationModeDefault,
-					IPAM:                      *useIPAM,
-					EnableIPv4:                true,
-					EnableIPv6:                true,
-					EnterpriseDaemonConfig: option.EnterpriseDaemonConfig{
-						EnableEnterpriseBGPControlPlane: true,
-						EnableBFD:                       true,
-						EnableIPv4EgressGatewayHA:       true,
-					},
-					StateDir: t.TempDir(),
-				}
-				return option.Config
-			},
-				func() kpr.KPRConfig {
-					return kpr.KPRConfig{
-						KubeProxyReplacement: *kubeProxyReplacement,
-					}
-				},
-			),
-
-			cell.Provide(
-				tunnel.NewTestConfig,
-				func() tunnel.EncapProtocol {
-					return tunnel.VXLAN
-				},
-			),
-
-			// Enterprise BFD config
-			cell.Config(bfdtypes.BFDConfig{
-				BFDEnabled: true,
-			}),
-
-			node.LocalNodeStoreTestCell,
-			cell.Invoke(func() {
-				types.SetName(testNodeName)
-			}),
-			cell.Provide(
-				func() *egwManagerMock {
-					return egwMgrMock
-				},
-				BGPTestScriptCmds,
-			),
-			cell.Invoke(func(m enterpriseAgent.EnterpriseBGPRouterManager) {
-				m.(*enterpriseManager.BGPRouterManager).DestroyRouterOnStop(true) // fully destroy GoBGP server on Stop()
-			}),
-			cell.Invoke(func(w *writer.Writer) {
-				lbWriter = w
-			}),
-		)
-		hive.AddConfigOverride(h, func(cfg *reconcilerv2.Config) {
-			cfg.SvcHealthCheckingEnabled = true
-			cfg.RouteImportEnabled = true
-			if *enableNodeMaintenanceHelpers {
-				cfg.MaintenanceGracefulShutdownEnabled = true
-				cfg.MaintenanceWithdrawTime = 1 * time.Second
-			}
-		})
-		hive.AddConfigOverride(h, func(cfg *config.Config) {
-			cfg.Enabled = true
-		})
-		hive.AddConfigOverride(h, func(cfg *svcrouteconfig.RoutesConfig) {
-			cfg.EnableNoServiceEndpointsRoutable = *enableNoEndpointsRoutable
-		})
-		hive.AddConfigOverride(h, func(cfg *evpnConfig.Config) {
-			cfg.Enabled = true
-			cfg.SecurityGroupTagsEnabled = *enableEVPNSecurityGroupTags
-			cfg.DefaultSecurityGroupID = *defaultEVPNSecurityGroupID
-		})
-		hive.AddConfigOverride(h, func(cfg *privnetConfig.Flags) {
-			cfg.Enabled = true
-		})
-
-		hiveLog := hivetest.Logger(t, hivetest.LogLevel(slog.LevelInfo))
-		t.Cleanup(func() {
-			assert.NoError(t, h.Stop(hiveLog, context.TODO()))
-		})
-
-		// setup test peering IPs
-		setupTestPeeringIPs(t, *peeringIPs)
-
-		// set up GoBGP command
-		gobgpCmdCtx := commands.NewGoBGPCmdContext()
-		t.Cleanup(gobgpCmdCtx.Cleanup)
-
-		cmds, err := h.ScriptCommands(hiveLog)
-		require.NoError(t, err, "ScriptCommands")
-		maps.Insert(cmds, maps.All(script.DefaultCmds()))
-		maps.Insert(cmds, maps.All(commands.GoBGPScriptCmds(gobgpCmdCtx)))
-		maps.Insert(cmds, maps.All(CEEGoBGPScriptCmds(gobgpCmdCtx)))
-		maps.Insert(cmds, maps.All(commands.SvcScriptCmds(lbWriter)))
-
-		return &script.Engine{
-			Cmds: cmds,
+	if *probeTCPMD5 {
+		available, err := osstest.TCPMD5SigAvailable()
+		require.NoError(t, err)
+		if !available {
+			t.Skip("TCP_MD5SIG socket option is not available")
 		}
 	}
+
+	h := ciliumhive.New(
+		k8sfake.FakeClientCell(),
+		daemonk8s.ResourcesCell,
+		k8sTables.TablesCell,
+		cell.Config(envoyCfg.SecretSyncConfig{}),
+		metrics.Cell,
+		lbcell.Cell,
+		maglev.Cell,
+		cell.Provide(source.NewSources),
+		cell.Config(loadbalancer.TestConfig{}),
+		cell.Provide(
+			func(cfg loadbalancer.TestConfig) *loadbalancer.TestConfig { return &cfg }, // newLBMaps expects *TestConfig
+		),
+		cell.Config(cmtypes.DefaultClusterInfo),
+		svcrouteconfig.Cell,
+
+		lbipamconfig.Cell,
+		nodeipamconfig.Cell,
+
+		// OSS BGP cell
+		bgp.Cell,
+
+		// Enterprise cells
+		enterprisebgpv1.Cell,
+
+		sidmanager.SIDManagerCell,
+		srv6manager.Cell,
+		srv6map.Cell,
+		rib.Cell,
+		rib.NopDataPlaneCell,
+		evpnConfig.Cell,
+		privnetConfig.Cell,
+
+		// Route Reconciler cell
+		routeReconciler.Cell,
+
+		// Enterprise BGP dependencies
+		cell.Provide(
+			tables.NewDeviceTable,
+			tables.NewNeighborTable,
+			tables.NewRouteTable,
+			tables.NewNodeAddressTable,
+			bfdtypes.NewBFDPeersTable,
+			privnetTables.NewPrivateNetworksTable,
+			privnetTables.NewLocalWorkloadsTable,
+			evpnSecurityGroupTables.NewEndpointSecurityGroupTable,
+
+			statedb.RWTable[*tables.Route].ToTable,
+			statedb.RWTable[*tables.Device].ToTable,
+			statedb.RWTable[*tables.Neighbor].ToTable,
+			statedb.RWTable[tables.NodeAddress].ToTable,
+			statedb.RWTable[*bfdtypes.BFDPeerStatus].ToTable,
+			statedb.RWTable[privnetTables.PrivateNetwork].ToTable,
+			statedb.RWTable[*privnetTables.LocalWorkload].ToTable,
+			statedb.RWTable[evpnSecurityGroupTables.EndpointSecurityGroup].ToTable,
+		),
+		cell.Provide(func(sig *signaler.BGPCPSignaler) egressgatewayha.EgressIPsProvider {
+			egwMgrMock = newEGWManagerMock(sig)
+			return egwMgrMock
+		}),
+
+		// SRv6 dependencies
+		cell.Provide(
+			func() cache.IdentityAllocator {
+				return testidentity.NewMockIdentityAllocator(nil)
+			},
+			func() legacy.DaemonInitialization {
+				return legacy.DaemonInitialization{}
+			},
+			func() *ipam.IPAM {
+				return &ipam.IPAM{}
+			},
+		),
+
+		// OSS + CEE BGP DaemonConfig
+		cell.Provide(func() *option.DaemonConfig {
+			// BGP Manager uses the global variable option.Config so we need to set it there as well
+			option.Config = &option.DaemonConfig{
+				BGPSecretsNamespace:       testSecretsNamespace,
+				BGPRouterIDAllocationMode: option.BGPRouterIDAllocationModeDefault,
+				IPAM:                      *useIPAM,
+				EnableIPv4:                true,
+				EnableIPv6:                true,
+				EnterpriseDaemonConfig: option.EnterpriseDaemonConfig{
+					EnableEnterpriseBGPControlPlane: true,
+					EnableBFD:                       true,
+					EnableIPv4EgressGatewayHA:       true,
+				},
+				StateDir: t.TempDir(),
+			}
+			return option.Config
+		},
+			func() kpr.KPRConfig {
+				return kpr.KPRConfig{
+					KubeProxyReplacement: *kubeProxyReplacement,
+				}
+			},
+		),
+
+		cell.Provide(
+			tunnel.NewTestConfig,
+			func() tunnel.EncapProtocol {
+				return tunnel.VXLAN
+			},
+		),
+
+		// Enterprise BFD config
+		cell.Config(bfdtypes.BFDConfig{
+			BFDEnabled: true,
+		}),
+
+		node.LocalNodeStoreTestCell,
+		cell.Invoke(func() {
+			types.SetName(testNodeName)
+		}),
+		cell.Provide(
+			func() *egwManagerMock {
+				return egwMgrMock
+			},
+			BGPTestScriptCmds,
+		),
+		cell.Invoke(func(m enterpriseAgent.EnterpriseBGPRouterManager) {
+			m.(*enterpriseManager.BGPRouterManager).DestroyRouterOnStop(true) // fully destroy GoBGP server on Stop()
+		}),
+		cell.Invoke(func(w *writer.Writer) {
+			lbWriter = w
+		}),
+	)
+	hive.AddConfigOverride(h, func(cfg *reconcilerv2.Config) {
+		cfg.SvcHealthCheckingEnabled = true
+		cfg.RouteImportEnabled = true
+		if *enableNodeMaintenanceHelpers {
+			cfg.MaintenanceGracefulShutdownEnabled = true
+			cfg.MaintenanceWithdrawTime = 1 * time.Second
+		}
+	})
+	hive.AddConfigOverride(h, func(cfg *config.Config) {
+		cfg.Enabled = true
+	})
+	hive.AddConfigOverride(h, func(cfg *svcrouteconfig.RoutesConfig) {
+		cfg.EnableNoServiceEndpointsRoutable = *enableNoEndpointsRoutable
+	})
+	hive.AddConfigOverride(h, func(cfg *evpnConfig.Config) {
+		cfg.Enabled = true
+		cfg.SecurityGroupTagsEnabled = *enableEVPNSecurityGroupTags
+		cfg.DefaultSecurityGroupID = *defaultEVPNSecurityGroupID
+	})
+	hive.AddConfigOverride(h, func(cfg *privnetConfig.Flags) {
+		cfg.Enabled = true
+	})
+
+	hiveLog := hivetest.Logger(t, hivetest.LogLevel(slog.LevelInfo))
+	t.Cleanup(func() {
+		assert.NoError(t, h.Stop(hiveLog, context.TODO()))
+	})
+
+	// setup test peering IPs
+	setupTestPeeringIPs(t, *peeringIPs)
+
+	// set up GoBGP command
+	gobgpCmdCtx := commands.NewGoBGPCmdContext()
+	t.Cleanup(gobgpCmdCtx.Cleanup)
+
+	cmds, err := h.ScriptCommands(hiveLog)
+	require.NoError(t, err, "ScriptCommands")
+	maps.Insert(cmds, maps.All(script.DefaultCmds()))
+	maps.Insert(cmds, maps.All(commands.GoBGPScriptCmds(gobgpCmdCtx)))
+	maps.Insert(cmds, maps.All(CEEGoBGPScriptCmds(gobgpCmdCtx)))
+	maps.Insert(cmds, maps.All(commands.SvcScriptCmds(lbWriter)))
+
+	return &script.Engine{
+		Cmds: cmds,
+	}
+}
+
+func TestPrivilegedScriptParallel(t *testing.T) {
+	envVars := setupCommon(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
 	t.Cleanup(cancel)
 
 	scripttest.Test(t,
 		ctx,
-		setup,
+		setupEngine,
 		envVars,
-		"testdata/*.txtar")
+		"testdata/*.txtar",
+	)
+}
+
+func TestPrivilegedScriptSequential(t *testing.T) {
+	t.Skip("No test to execute. Skipping.")
+
+	envVars := setupCommon(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+	t.Cleanup(cancel)
+
+	scripttest.Test(t,
+		ctx,
+		setupEngine,
+		envVars,
+		"testdata/seq/*.txtar",
+		scripttest.NoParallel,
+	)
 }
 
 func setupTestLinks(t *testing.T, envVars []string) []string {
