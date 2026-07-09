@@ -16,7 +16,11 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"log/slog"
 	"maps"
+	"os"
+	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"text/tabwriter"
@@ -34,6 +38,7 @@ import (
 	"github.com/cilium/cilium/pkg/bpf"
 	"github.com/cilium/cilium/pkg/endpoint/regeneration"
 	"github.com/cilium/cilium/pkg/lock"
+	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/maps/ctmap"
 	ctmapgc "github.com/cilium/cilium/pkg/maps/ctmap/gc"
 	"github.com/cilium/cilium/pkg/maps/timestamp"
@@ -41,6 +46,9 @@ import (
 )
 
 type CTMapFactory func(name string, cfg ctmap.MapConfig, opts ...ctmap.MapOption) pnmaps.CTMap
+
+// CTMapTCPathOverride allows to override the default map pins path for testing purposes.
+type CTMapTCPathOverride string
 
 var CTMapsCell = cell.Group(
 	cell.ProvidePrivate(
@@ -83,7 +91,10 @@ var CTMapsCell = cell.Group(
 type CTMaps struct {
 	mu lock.Mutex
 
+	log *slog.Logger
+
 	factory CTMapFactory
+	tcPath  string
 	ctMaps  map[tables.NetworkID]*ctMap
 	global  ctmap.CTMaps
 
@@ -103,10 +114,12 @@ type CTMaps struct {
 func newCTMaps(in struct {
 	cell.In
 
+	Log       *slog.Logger
 	Lifecycle cell.Lifecycle
 
 	Global  ctmap.CTMaps
 	Factory CTMapFactory
+	TCPath  CTMapTCPathOverride `optional:"true"`
 
 	TCP4 pnmaps.CTMapsMapTCP4
 	Any4 pnmaps.CTMapsMapAny4
@@ -114,8 +127,10 @@ func newCTMaps(in struct {
 	Any6 pnmaps.CTMapsMapAny6
 }) *CTMaps {
 	var maps = &CTMaps{
-		global:  in.Global,
+		log: in.Log,
+
 		factory: in.Factory,
+		tcPath:  cmp.Or(string(in.TCPath), bpf.TCGlobalsPath()),
 		ctMaps:  make(map[tables.NetworkID]*ctMap),
 
 		tcp4:    in.TCP4,
@@ -400,17 +415,6 @@ func (c *CTMaps) deleteCTMapLocked(networkID tables.NetworkID) error {
 	)
 }
 
-func (c *CTMaps) pruneCTMapsLocked(alive sets.Set[tables.NetworkID]) error {
-	var err error
-	for networkID := range c.ctMaps {
-		if !alive.Has(networkID) {
-			err = errors.Join(err, c.deleteCTMapLocked(networkID))
-		}
-	}
-
-	return err
-}
-
 func ctKeyVal(networkID tables.NetworkID, m pnmaps.CTMap) *pnmaps.CTMapsKeyVal {
 	return &pnmaps.CTMapsKeyVal{
 		Key: pnmaps.CTMapsKey{NetworkID: uint32(networkID)},
@@ -549,77 +553,43 @@ func (c *CTMaps) Delete(ctx context.Context, txn statedb.ReadTxn, revision state
 	return err
 }
 
-type ctKeyValWithRev struct {
-	*pnmaps.CTMapsKeyVal
-	Revision statedb.Revision
-}
+// Prune removes all CT maps no longer alive
+func (c *CTMaps) Prune(context.Context, statedb.ReadTxn, iter.Seq2[tables.ConnTrackMap, statedb.Revision]) error {
+	// Collect the name of all expected maps.
+	c.mu.Lock()
 
-func iterCtKeyVals(objs []ctKeyValWithRev) iter.Seq2[*pnmaps.CTMapsKeyVal, statedb.Revision] {
-	return func(yield func(*pnmaps.CTMapsKeyVal, statedb.Revision) bool) {
-		for _, obj := range objs {
-			if !yield(obj.CTMapsKeyVal, obj.Revision) {
-				return
+	var expected = sets.New[string]()
+	for _, m := range c.ctMaps {
+		for _, ctm := range m.all() {
+			expected.Insert(ctm.Name())
+		}
+	}
+
+	c.mu.Unlock()
+
+	pins, err := os.ReadDir(c.tcPath)
+	if err != nil {
+		return fmt.Errorf("listing pinned BPF maps: %w", err)
+	}
+
+	var matcher = regexp.MustCompile(
+		fmt.Sprintf("^%s_[0-9]{5}(%s|%s|%s|%s)$", mapPrefix,
+			mapSuffixTCP4, mapSuffixTCP6, mapSuffixAny4, mapSuffixAny6,
+		),
+	)
+
+	// Iterate over all pinned maps, and delete any that match the name format,
+	// but are not expected to exist.
+	for _, entry := range pins {
+		if !entry.IsDir() && !expected.Has(entry.Name()) && matcher.MatchString(entry.Name()) {
+			err2 := os.Remove(filepath.Join(c.tcPath, entry.Name()))
+			if err2 != nil && !os.IsNotExist(err2) {
+				err = errors.Join(err, fmt.Errorf("unpinning %s map: %w", entry.Name(), err2))
+			} else if err2 == nil {
+				c.log.Info("Pruned stale CT map", logfields.Name, entry.Name())
 			}
 		}
 	}
-}
-
-// Prune removes all CT maps no longer alive
-func (c *CTMaps) Prune(ctx context.Context, txn statedb.ReadTxn, objs iter.Seq2[tables.ConnTrackMap, statedb.Revision]) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	var err error
-	retainedNetworks := make(sets.Set[tables.NetworkID])
-	var tcp4Objs, any4Objs, tcp6Objs, any6Objs []ctKeyValWithRev
-	for obj, rev := range objs {
-		m, ok := c.ctMaps[obj.NetworkID]
-		if !ok {
-			err = errors.Join(err, fmt.Errorf("prune: no private network CT map for network %q", obj.Network))
-			continue
-		}
-
-		if c.tcp4.Enabled() {
-			tcp4Objs = append(tcp4Objs, ctKeyValWithRev{ctKeyVal(obj.NetworkID, m.tcp4), rev})
-		}
-		if c.any4.Enabled() {
-			any4Objs = append(any4Objs, ctKeyValWithRev{ctKeyVal(obj.NetworkID, m.any4), rev})
-		}
-		if c.tcp6.Enabled() {
-			tcp6Objs = append(tcp6Objs, ctKeyValWithRev{ctKeyVal(obj.NetworkID, m.tcp6), rev})
-		}
-		if c.any6.Enabled() {
-			any6Objs = append(any6Objs, ctKeyValWithRev{ctKeyVal(obj.NetworkID, m.any6), rev})
-		}
-
-		retainedNetworks.Insert(obj.NetworkID)
-	}
-
-	pruneEntries := func(
-		name string,
-		outerMap pnmaps.Map[*pnmaps.CTMapsKeyVal],
-		entries []ctKeyValWithRev,
-		ops reconciler.Operations[*pnmaps.CTMapsKeyVal],
-	) error {
-		if !outerMap.Enabled() {
-			return nil
-		}
-
-		err := ops.Prune(ctx, txn, iterCtKeyVals(entries))
-		if err != nil {
-			return fmt.Errorf("%s: %w", name, err)
-		}
-
-		return nil
-	}
-
-	err = errors.Join(err,
-		pruneEntries("tcp4", c.tcp4, tcp4Objs, c.tcp4Ops),
-		pruneEntries("any4", c.any4, any4Objs, c.any4Ops),
-		pruneEntries("tcp6", c.tcp6, tcp6Objs, c.tcp6Ops),
-		pruneEntries("any6", c.any6, any6Objs, c.any6Ops),
-		c.pruneCTMapsLocked(retainedNetworks),
-	)
 
 	return err
 }

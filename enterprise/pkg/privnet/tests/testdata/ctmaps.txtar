@@ -1,10 +1,29 @@
 #! --private-networks-enabled
 
+# Create a few map pins to validate pruning.
+privnet/ct-maps-registry/create-pin cilium_privnet_00001_ct4_global
+privnet/ct-maps-registry/create-pin cilium_privnet_00001_ct6_global
+privnet/ct-maps-registry/create-pin cilium_privnet_00001_ct_any4_global
+privnet/ct-maps-registry/create-pin cilium_privnet_00001_ct_any6_global
+privnet/ct-maps-registry/create-pin cilium_privnet_00009_ct4_global
+privnet/ct-maps-registry/create-pin cilium_privnet_00009_ct6_global
+privnet/ct-maps-registry/create-pin cilium_privnet_00009_ct_any4_global
+privnet/ct-maps-registry/create-pin cilium_privnet_00009_ct_any6_global
+
+# Create a few more that don't match the format, and should not be removed.
+privnet/ct-maps-registry/create-pin cilium_privnet_02_ct4_global
+privnet/ct-maps-registry/create-pin cilium_privnet_00002_ct6_global_foo
+privnet/ct-maps-registry/create-pin foo_cilium_privnet_00002_ct_any4_global
+privnet/ct-maps-registry/create-pin cilium_privnet_ct_any6_global
+
+# Add an already existing private network, before starting the hive.
+k8s/add icpn-1.yaml
+
 hive start
 db/initialized private-networks privnet-ctmaps
 
-# Add two private networks...
-k8s/add icpn-1.yaml icpn-2.yaml
+# Add one more private networks...
+k8s/add icpn-2.yaml
 
 # ... and check that they are reflected into the ctmaps table,
 db/cmp privnet-ctmaps ctmaps.v1.table
@@ -22,6 +41,10 @@ privnet/maps-dump privnet_ct_any4_global
 * cmp stdout ct_any4_global.v1.txt
 privnet/maps-dump privnet_ct_any6_global
 * cmp stdout ct_any6_global.v1.txt
+
+# Assert that stale map pins have been pruned.
+privnet/ct-maps-registry/list-pins
+* cmp stdout ct-maps-pins.txt
 
 # Add one more private network...
 k8s/add icpn-3.yaml
@@ -310,4 +333,16 @@ cilium_privnet_00004_ct_any6_global  (0x14) - IPv4: false, TCP: false - pinned
 0x1 -> fd=8
 0x3 -> fd=16
 0x4 -> fd=20
+-- EOR --
+
+
+-- ct-maps-pins.txt --
+cilium_privnet_00001_ct4_global
+cilium_privnet_00001_ct6_global
+cilium_privnet_00001_ct_any4_global
+cilium_privnet_00001_ct_any6_global
+cilium_privnet_00002_ct6_global_foo
+cilium_privnet_02_ct4_global
+cilium_privnet_ct_any6_global
+foo_cilium_privnet_00002_ct_any4_global
 -- EOR --

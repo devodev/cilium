@@ -17,6 +17,7 @@ import (
 	"maps"
 	"net/netip"
 	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strconv"
@@ -46,10 +47,11 @@ func mockCTMaps(t testing.TB) cell.Cell {
 	t.Helper()
 
 	return cell.Group(
-		cell.ProvidePrivate(newCTMapsRegistry),
+		cell.ProvidePrivate(func() *ctMapsRegistry { return newCTMapsRegistry(t) }),
 		cell.DecorateAll((*ctMapsRegistry).factory),
 		cell.DecorateAll((*ctMapsRegistry).toCTMaps),
 		cell.Provide(func() ctmap.CTMaps { return nil }),
+		cell.Provide((*ctMapsRegistry).pinPathOverride),
 		cell.Provide((*ctMapsRegistry).commands),
 	)
 }
@@ -60,12 +62,15 @@ type ctMapsRegistry struct {
 	registry map[string]*ctMap
 	failures lock.Map[string, struct{}]
 	nextFD   int
+
+	pinPath string
 }
 
-func newCTMapsRegistry() *ctMapsRegistry {
+func newCTMapsRegistry(t testing.TB) *ctMapsRegistry {
 	var registry = ctMapsRegistry{
 		registry: make(map[string]*ctMap),
 		nextFD:   1,
+		pinPath:  t.TempDir(),
 	}
 
 	registry.new(ctmap.MapNameTCP4Global, ctmap.MapConfig{TCP: true, IPv6: false})
@@ -107,6 +112,10 @@ func (r *ctMapsRegistry) new(name string, cfg ctmap.MapConfig, _ ...ctmap.MapOpt
 func (r *ctMapsRegistry) factory() reconcilers.CTMapFactory { return r.new }
 func (r *ctMapsRegistry) toCTMaps() pnmaps.CTMaps           { return r }
 
+func (r *ctMapsRegistry) pinPathOverride() reconcilers.CTMapTCPathOverride {
+	return reconcilers.CTMapTCPathOverride(r.pinPath)
+}
+
 func (r *ctMapsRegistry) ActiveMapsGlobal() []pnmaps.CTMap {
 	return cslices.Map(r.activeMapsMatching("cilium_ct"),
 		func(m pnmaps.CTMapWithConfig) pnmaps.CTMap { return m.Map })
@@ -133,6 +142,8 @@ func (r *ctMapsRegistry) commands() hive.ScriptCmdsOut {
 	return hive.NewScriptCmds(
 		map[string]script.Cmd{
 			"privnet/ct-maps-registry/list":             r.dump(),
+			"privnet/ct-maps-registry/create-pin":       r.createPin(),
+			"privnet/ct-maps-registry/list-pins":        r.listPins(),
 			"privnet/ct-maps-registry/inject-failure":   r.injectFailure(),
 			"privnet/ct-maps-registry/withdraw-failure": r.withdrawFailure(),
 			"privnet/ct-maps-registry/map/show":         r.showMap(),
@@ -214,6 +225,60 @@ func (r *ctMapsRegistry) withdrawFailure() script.Cmd {
 			}
 
 			return nil, nil
+		},
+	)
+}
+
+func (r *ctMapsRegistry) createPin() script.Cmd {
+	return script.Command(
+		script.CmdUsage{
+			Summary: "Create 'fake' map pins to validate pruning",
+			Args:    "map...",
+		},
+		func(s *script.State, args ...string) (script.WaitFunc, error) {
+			for _, name := range args {
+				err := os.WriteFile(filepath.Join(r.pinPath, name), nil, 0644)
+				if err != nil {
+					return nil, fmt.Errorf("creating file: %w", err)
+				}
+			}
+
+			return nil, nil
+		},
+	)
+}
+
+func (r *ctMapsRegistry) listPins() script.Cmd {
+	return script.Command(
+		script.CmdUsage{
+			Summary: "List the 'fake' map pins to validate pruning",
+			Flags: func(fs *pflag.FlagSet) {
+				fs.StringP("out", "o", "", "File to write to instead of stdout")
+			},
+		},
+		func(s *script.State, args ...string) (script.WaitFunc, error) {
+			outfile, err := s.Flags.GetString("out")
+			if err != nil {
+				return nil, fmt.Errorf("reading out flag: %w", err)
+			}
+
+			return func(*script.State) (stdout, stderr string, err error) {
+				entries, err := os.ReadDir(r.pinPath)
+				if err != nil {
+					return "", "", fmt.Errorf("listing fake pins: %w", err)
+				}
+
+				var b strings.Builder
+				for _, entry := range entries {
+					fmt.Fprintln(&b, entry.Name())
+				}
+
+				if outfile != "" {
+					return "", "", os.WriteFile(s.Path(outfile), []byte(b.String()), 0644)
+				}
+
+				return b.String(), "", nil
+			}, nil
 		},
 	)
 }
