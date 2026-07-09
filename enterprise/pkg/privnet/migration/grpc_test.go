@@ -40,7 +40,7 @@ func (f *fakeCTMaps) ActiveMaps() []*ctmap.Map {
 	return nil // cannot mock CT maps in non-privileged tests
 }
 
-func (f *fakeCTMaps) ActiveMapsForNetwork(networkName string) []privnet.CTMap {
+func (f *fakeCTMaps) ActiveMapsForNetwork(networkName string) []privnet.CTMapWithConfig {
 	return nil // cannot mock CT maps in non-privileged tests
 }
 

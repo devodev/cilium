@@ -157,13 +157,13 @@ type (
 	CTMapsMapAny6 Map[*CTMapsKeyVal]
 )
 
-type CTMap struct {
+type CTMapWithConfig struct {
 	Config ctmap.MapConfig
 	Map    *ctmap.Map
 }
 
 type CTMaps interface {
-	ActiveMapsForNetwork(networkName string) []CTMap
+	ActiveMapsForNetwork(networkName string) []CTMapWithConfig
 }
 
 func newCTMaps(in struct {

@@ -356,7 +356,7 @@ func ctKeyVal(networkID tables.NetworkID, m *ctmap.Map) *pnmaps.CTMapsKeyVal {
 }
 
 // ActiveMapsForNetwork implements pnmaps.CTMaps
-func (c *CTMaps) ActiveMapsForNetwork(networkName string) []pnmaps.CTMap {
+func (c *CTMaps) ActiveMapsForNetwork(networkName string) []pnmaps.CTMapWithConfig {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -372,27 +372,27 @@ func (c *CTMaps) ActiveMapsForNetwork(networkName string) []pnmaps.CTMap {
 		return nil
 	}
 
-	var activeMaps []pnmaps.CTMap
+	var activeMaps []pnmaps.CTMapWithConfig
 	if ctMap.tcp4 != nil {
-		activeMaps = append(activeMaps, pnmaps.CTMap{
+		activeMaps = append(activeMaps, pnmaps.CTMapWithConfig{
 			Config: ctmap.MapConfig{TCP: true, IPv6: false},
 			Map:    ctMap.tcp4,
 		})
 	}
 	if ctMap.any4 != nil {
-		activeMaps = append(activeMaps, pnmaps.CTMap{
+		activeMaps = append(activeMaps, pnmaps.CTMapWithConfig{
 			Config: ctmap.MapConfig{TCP: false, IPv6: false},
 			Map:    ctMap.any4,
 		})
 	}
 	if ctMap.tcp6 != nil {
-		activeMaps = append(activeMaps, pnmaps.CTMap{
+		activeMaps = append(activeMaps, pnmaps.CTMapWithConfig{
 			Config: ctmap.MapConfig{TCP: true, IPv6: true},
 			Map:    ctMap.tcp6,
 		})
 	}
 	if ctMap.any6 != nil {
-		activeMaps = append(activeMaps, pnmaps.CTMap{
+		activeMaps = append(activeMaps, pnmaps.CTMapWithConfig{
 			Config: ctmap.MapConfig{TCP: false, IPv6: true},
 			Map:    ctMap.any6,
 		})

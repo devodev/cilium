@@ -290,7 +290,7 @@ func (s *service) collectGlobalCT(ctx context.Context, ctMap *ctmap.Map, ep endp
 	return records, err
 }
 
-func (s *service) collectPrivnetCT(ctx context.Context, ctMap pnmaps.CTMap, netIPv4 netip.Addr, netIPv6 netip.Addr) (records []*api.CTRecord, err error) {
+func (s *service) collectPrivnetCT(ctx context.Context, ctMap pnmaps.CTMapWithConfig, netIPv4 netip.Addr, netIPv6 netip.Addr) (records []*api.CTRecord, err error) {
 	var kind api.CTMapKind
 	var cfg = ctMap.Config
 	if !cfg.IPv6 && netIPv4.IsValid() {
