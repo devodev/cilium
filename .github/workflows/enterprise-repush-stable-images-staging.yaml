@@ -5,7 +5,7 @@ on:
       - v1.19-ce
       - v1.18-ce
       - v1.17-ce
-  workflow_call:
+  workflow_dispatch:
     inputs:
       SHA:
         description: 'SHA of the commit to repush images'
