@@ -19,6 +19,7 @@ import (
 	"net/netip"
 	"os"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -52,6 +53,8 @@ import (
 	"github.com/cilium/cilium/enterprise/pkg/rib"
 	"github.com/cilium/cilium/enterprise/pkg/srv6/sidmanager"
 	"github.com/cilium/cilium/enterprise/pkg/srv6/srv6manager"
+	"github.com/cilium/cilium/enterprise/pkg/vrf"
+	vrfConfig "github.com/cilium/cilium/enterprise/pkg/vrf/config"
 	"github.com/cilium/cilium/pkg/bgp"
 	"github.com/cilium/cilium/pkg/bgp/agent/signaler"
 	osstest "github.com/cilium/cilium/pkg/bgp/test"
@@ -62,6 +65,8 @@ import (
 	"github.com/cilium/cilium/pkg/datapath/linux/sysctl"
 	"github.com/cilium/cilium/pkg/datapath/tables"
 	"github.com/cilium/cilium/pkg/datapath/tunnel"
+	"github.com/cilium/cilium/pkg/endpointmanager"
+	"github.com/cilium/cilium/pkg/endpointstate"
 	envoyCfg "github.com/cilium/cilium/pkg/envoy/config"
 	ciliumhive "github.com/cilium/cilium/pkg/hive"
 	"github.com/cilium/cilium/pkg/identity/cache"
@@ -77,15 +82,19 @@ import (
 	lbcell "github.com/cilium/cilium/pkg/loadbalancer/cell"
 	"github.com/cilium/cilium/pkg/loadbalancer/writer"
 	"github.com/cilium/cilium/pkg/maglev"
+	"github.com/cilium/cilium/pkg/maps/lxcmap"
+	"github.com/cilium/cilium/pkg/maps/registry"
 	"github.com/cilium/cilium/pkg/maps/srv6map"
 	"github.com/cilium/cilium/pkg/metrics"
 	"github.com/cilium/cilium/pkg/node"
 	"github.com/cilium/cilium/pkg/node/types"
 	"github.com/cilium/cilium/pkg/nodeipamconfig"
 	"github.com/cilium/cilium/pkg/option"
+	"github.com/cilium/cilium/pkg/promise"
 	"github.com/cilium/cilium/pkg/source"
 	"github.com/cilium/cilium/pkg/svcrouteconfig"
 	"github.com/cilium/cilium/pkg/testutils"
+	testendpointmanager "github.com/cilium/cilium/pkg/testutils/endpointmanager"
 	testidentity "github.com/cilium/cilium/pkg/testutils/identity"
 )
 
@@ -107,6 +116,7 @@ const (
 	enableEVPNSecurityGroupTagsFlag  = "enable-evpn-security-group-tags"
 	defaultEVPNSecurityGroupIDFlag   = "evpn-default-security-group-id"
 	kubeProxyReplacementFlag         = "kube-proxy-replacement"
+	enableVRFFlag                    = "enable-vrf"
 )
 
 // The purpose of having this self-execute hack is to run the entire test suite
@@ -204,6 +214,7 @@ func setupEngine(t testing.TB, args []string) *script.Engine {
 	enableEVPNSecurityGroupTags := flags.Bool(enableEVPNSecurityGroupTagsFlag, false, "Enable Security Group Tags in EVPN advertisements")
 	defaultEVPNSecurityGroupID := flags.Uint16(defaultEVPNSecurityGroupIDFlag, 0, "Default Security Group ID used in EVPN advertisements")
 	kubeProxyReplacement := flags.Bool(kubeProxyReplacementFlag, true, "Enable kube-proxy replacement")
+	enableVRF := flags.Bool(enableVRFFlag, false, "Enable VRF (only available for sequential tests)")
 	require.NoError(t, flags.Parse(args), "Error parsing test flags")
 
 	if *probeTCPMD5 {
@@ -212,6 +223,10 @@ func setupEngine(t testing.TB, args []string) *script.Engine {
 		if !available {
 			t.Skip("TCP_MD5SIG socket option is not available")
 		}
+	}
+
+	if *enableVRF && !strings.HasPrefix(t.Name(), "TestPrivilegedScriptSequential") {
+		t.Fatal("--enable-vrf can only be used with sequential tests")
 	}
 
 	h := ciliumhive.New(
@@ -249,6 +264,31 @@ func setupEngine(t testing.TB, args []string) *script.Engine {
 
 		// Route Reconciler cell
 		routeReconciler.Cell,
+
+		// VRF cell and its dependencies
+		vrf.Cell,
+		registry.Cell,
+		cell.Provide(
+			// All fake implementations
+			promise.New[endpointstate.Restorer],
+			func() endpointmanager.EndpointManager {
+				return testendpointmanager.NewMockEndpointManager()
+			},
+			func() lxcmap.Map {
+				return &fakeLXCMap{}
+			},
+		),
+		cell.Invoke(func(in struct {
+			cell.In
+
+			Resolver  promise.Resolver[endpointstate.Restorer]
+			Notifiers []endpointstate.RestorationNotifier `group:"endpointRestorationNotifiers"`
+		}) {
+			// Resolve with the fake implementation
+			in.Resolver.Resolve(&fakeRestorer{})
+			// We don't need notifier
+			_ = in.Notifiers
+		}),
 
 		// Enterprise BGP dependencies
 		cell.Provide(
@@ -363,6 +403,9 @@ func setupEngine(t testing.TB, args []string) *script.Engine {
 	})
 	hive.AddConfigOverride(h, func(cfg *privnetConfig.Flags) {
 		cfg.Enabled = true
+	})
+	hive.AddConfigOverride(h, func(cfg *vrfConfig.Config) {
+		cfg.EnableVRF = *enableVRF
 	})
 
 	hiveLog := hivetest.Logger(t, hivetest.LogLevel(slog.LevelInfo))
@@ -495,3 +538,30 @@ func createNetlinkAddr(prefix netip.Prefix) *netlink.Addr {
 	}
 	return addr
 }
+
+type fakeRestorer struct{}
+
+func (r *fakeRestorer) Await(context.Context) (endpointstate.Restorer, error) {
+	return r, nil
+}
+
+func (r *fakeRestorer) WaitForEndpointRestoreWithoutRegeneration(ctx context.Context) error {
+	return nil
+}
+
+func (r *fakeRestorer) WaitForEndpointRestore(_ context.Context) error {
+	return nil
+}
+
+func (r *fakeRestorer) WaitForInitialPolicy(_ context.Context) error {
+	return nil
+}
+
+type fakeLXCMap struct{}
+
+func (*fakeLXCMap) WriteEndpoint(f lxcmap.EndpointFrontend) error                        { return nil }
+func (*fakeLXCMap) SyncHostEntry(addr netip.Addr) (bool, error)                          { return false, nil }
+func (*fakeLXCMap) DeleteEntry(addr netip.Addr) error                                    { return nil }
+func (*fakeLXCMap) DeleteElement(logger *slog.Logger, f lxcmap.EndpointFrontend) []error { return nil }
+func (*fakeLXCMap) Dump(hash map[string][]string) error                                  { return nil }
+func (*fakeLXCMap) DumpToMap() (map[netip.Addr]lxcmap.EndpointInfo, error)               { return nil, nil }
