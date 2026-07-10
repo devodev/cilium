@@ -1,8 +1,5 @@
 #! --private-networks-enabled
 
-# This tests needs to run privileged for the CT BPF maps
-[!privileged] stop
-
 hive start
 clustermesh/endpoints/sync
 clustermesh/nodes/sync
@@ -15,25 +12,25 @@ k8s/add pneps-worker1.v1.yaml
 k8s/add pneps-worker2.v1.yaml
 
 # Populate the CT map with some ongoing connections
-privnet/mock-global-ct-maps/upsert TCP OUT  10.244.2.200:12345            10.244.1.100:8000           src_sec_id=123
-privnet/mock-global-ct-maps/upsert TCP OUT  10.244.2.200:60123            1.1.1.1:80                  src_sec_id=123
-privnet/mock-global-ct-maps/upsert TCP IN   10.244.1.100:45678            10.244.2.200:8080           src_sec_id=456
-privnet/mock-global-ct-maps/upsert TCP IN   [2606:4700:4700::1001]:49214  [fd00:10:244:2::200]:9000   src_sec_id=10
-privnet/mock-global-ct-maps/upsert TCP IN   [fd00:10:244:1::100]:34567    [fd00:10:244:2::200]:9000   src_sec_id=456
-privnet/mock-global-ct-maps/upsert UDP OUT  10.244.2.200:34567            10.244.1.100:53             src_sec_id=123
-privnet/mock-global-ct-maps/upsert UDP OUT  [fd00:10:244:2::200]:34567    [fd00:10:244:1::100]:53     src_sec_id=123
+privnet/ct-maps-registry/map/upsert TCP OUT  10.244.2.200:12345            10.244.1.100:8000           src_sec_id=123
+privnet/ct-maps-registry/map/upsert TCP OUT  10.244.2.200:60123            1.1.1.1:80                  src_sec_id=123
+privnet/ct-maps-registry/map/upsert TCP IN   10.244.1.100:45678            10.244.2.200:8080           src_sec_id=456
+privnet/ct-maps-registry/map/upsert TCP IN   [2606:4700:4700::1001]:49214  [fd00:10:244:2::200]:9000   src_sec_id=10
+privnet/ct-maps-registry/map/upsert TCP IN   [fd00:10:244:1::100]:34567    [fd00:10:244:2::200]:9000   src_sec_id=456
+privnet/ct-maps-registry/map/upsert UDP OUT  10.244.2.200:34567            10.244.1.100:53             src_sec_id=123
+privnet/ct-maps-registry/map/upsert UDP OUT  [fd00:10:244:2::200]:34567    [fd00:10:244:1::100]:53     src_sec_id=123
 
 # Assert CT maps pre-migration
-privnet/mock-global-ct-maps/show any4
+privnet/ct-maps-registry/map/show cilium_ct_any4_global
 cmp stdout ctmap-any4.v1.txt
 
-privnet/mock-global-ct-maps/show tcp4
+privnet/ct-maps-registry/map/show cilium_ct4_global
 cmp stdout ctmap-tcp4.v1.txt
 
-privnet/mock-global-ct-maps/show any6
+privnet/ct-maps-registry/map/show cilium_ct_any6_global
 cmp stdout ctmap-any6.v1.txt
 
-privnet/mock-global-ct-maps/show tcp6
+privnet/ct-maps-registry/map/show cilium_ct6_global
 cmp stdout ctmap-tcp6.v1.txt
 
 # Migrate optimum-mouse to worker-node-3
@@ -45,16 +42,16 @@ sed 'Done \([^)]+\)' 'Done (<time>)' migration-pip-rewrite.v2.table
 * cmp migration-pip-rewrite.expected.v2.table migration-pip-rewrite.v2.table
 
 # Assert CT maps post-migration
-privnet/mock-global-ct-maps/show any4
+privnet/ct-maps-registry/map/show cilium_ct_any4_global
 cmp stdout ctmap-any4.v2.txt
 
-privnet/mock-global-ct-maps/show tcp4
+privnet/ct-maps-registry/map/show cilium_ct4_global
 cmp stdout ctmap-tcp4.v2.txt
 
-privnet/mock-global-ct-maps/show any6
+privnet/ct-maps-registry/map/show cilium_ct_any6_global
 cmp stdout ctmap-any6.v2.txt
 
-privnet/mock-global-ct-maps/show tcp6
+privnet/ct-maps-registry/map/show cilium_ct6_global
 cmp stdout ctmap-tcp6.v2.txt
 
 -- icpn-blue.v1.yaml --

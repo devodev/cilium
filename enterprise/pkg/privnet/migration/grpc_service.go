@@ -38,12 +38,11 @@ import (
 type service struct {
 	api.UnimplementedMigrationServer
 
-	log       *slog.Logger
-	db        *statedb.DB
-	leases    statedb.Table[tables.DHCPLease]
-	ctTime    *ctTimestampConverter
-	globalCT  ctmap.CTMaps
-	privnetCT pnmaps.CTMaps
+	log    *slog.Logger
+	db     *statedb.DB
+	leases statedb.Table[tables.DHCPLease]
+	ctTime *ctTimestampConverter
+	ctMaps pnmaps.CTMaps
 
 	endpoints endpoints.EndpointGetter
 }
@@ -55,9 +54,8 @@ func newService(in struct {
 	DB     *statedb.DB
 	Leases statedb.Table[tables.DHCPLease]
 
-	GlobalCT  ctmap.CTMaps
-	PrivnetCT pnmaps.CTMaps
-	CTTime    *ctTimestampConverter
+	CTMaps pnmaps.CTMaps
+	CTTime *ctTimestampConverter
 
 	Endpoints endpoints.EndpointGetter
 }) *service {
@@ -65,8 +63,7 @@ func newService(in struct {
 		log:       in.Log,
 		db:        in.DB,
 		leases:    in.Leases,
-		globalCT:  in.GlobalCT,
-		privnetCT: in.PrivnetCT,
+		ctMaps:    in.CTMaps,
 		ctTime:    in.CTTime,
 		endpoints: in.Endpoints,
 	}
@@ -231,7 +228,7 @@ func (s *service) sendCT(network tables.NetworkName, ep endpoints.Endpoint, stre
 
 	// Dump global CT maps. We collect all entries matching the endpoints P-IP of the migrating endpoint.
 	ctx := stream.Context()
-	for _, ctMap := range s.globalCT.ActiveMaps() {
+	for _, ctMap := range s.ctMaps.ActiveMapsGlobal() {
 		records, err := s.collectGlobalCT(ctx, ctMap, ep)
 		if err != nil {
 			// Log error, but send any collected records downstream anyway
@@ -249,7 +246,7 @@ func (s *service) sendCT(network tables.NetworkName, ep endpoints.Endpoint, stre
 	}
 
 	// Dump privnet CT maps. We collect all entries matching the endpoints Net-IP of the migrating endpoint.
-	for _, ctMap := range s.privnetCT.ActiveMapsForNetwork(string(network)) {
+	for _, ctMap := range s.ctMaps.ActiveMapsForNetwork(string(network)) {
 		records, err := s.collectPrivnetCT(ctx, ctMap, netIPv4, netIPv6)
 		if err != nil {
 			// Log error, but send any collected records downstream anyway
@@ -268,7 +265,7 @@ func (s *service) sendCT(network tables.NetworkName, ep endpoints.Endpoint, stre
 	return nil
 }
 
-func (s *service) collectGlobalCT(ctx context.Context, ctMap *ctmap.Map, ep endpoints.Endpoint) (records []*api.CTRecord, err error) {
+func (s *service) collectGlobalCT(ctx context.Context, ctMap pnmaps.CTMap, ep endpoints.Endpoint) (records []*api.CTRecord, err error) {
 	switch ctMap.Name() {
 	case ctmap.MapNameTCP4Global:
 		records, err = collectCTEntries[ctmap.CtKey4Global, *ctmap.CtKey4Global](

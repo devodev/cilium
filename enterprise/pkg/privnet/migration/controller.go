@@ -59,9 +59,8 @@ type controllerParams struct {
 	Endpoints          endpoints.EndpointGetter
 	EndpointProperties *endpoints.EndpointPropertyManager
 
-	GlobalCT  ctmap.CTMaps
-	PrivNetCT pnmaps.CTMaps
-	CTTime    *ctTimestampConverter
+	CTMaps pnmaps.CTMaps
+	CTTime *ctTimestampConverter
 }
 
 func registerController(params controllerParams) {
@@ -79,7 +78,7 @@ type controller struct {
 
 func (c *controller) ctMaps(network string) map[api.CTMapKind]pnmaps.CTMap {
 	ctMaps := make(map[api.CTMapKind]pnmaps.CTMap)
-	for _, ctMap := range c.GlobalCT.ActiveMaps() {
+	for _, ctMap := range c.CTMaps.ActiveMapsGlobal() {
 		switch ctMap.Name() {
 		case ctmap.MapNameTCP4Global:
 			ctMaps[api.CTMapKind_CT_MAP_KIND_GLOBAL_TCP4] = ctMap
@@ -91,7 +90,7 @@ func (c *controller) ctMaps(network string) map[api.CTMapKind]pnmaps.CTMap {
 			ctMaps[api.CTMapKind_CT_MAP_KIND_GLOBAL_ANY6] = ctMap
 		}
 	}
-	for _, ctMap := range c.PrivNetCT.ActiveMapsForNetwork(network) {
+	for _, ctMap := range c.CTMaps.ActiveMapsForNetwork(network) {
 		cfg := ctMap.Config
 		switch {
 		case !cfg.IPv6 && cfg.TCP:

@@ -37,6 +37,7 @@ import (
 	"github.com/cilium/cilium/pkg/maps/ctmap"
 	ctmapgc "github.com/cilium/cilium/pkg/maps/ctmap/gc"
 	"github.com/cilium/cilium/pkg/maps/timestamp"
+	cslices "github.com/cilium/cilium/pkg/slices"
 )
 
 type CTMapFactory func(name string, cfg ctmap.MapConfig, opts ...ctmap.MapOption) pnmaps.CTMap
@@ -84,6 +85,7 @@ type CTMaps struct {
 
 	factory CTMapFactory
 	ctMaps  map[tables.NetworkID]*ctMap
+	global  ctmap.CTMaps
 
 	tcp4    pnmaps.CTMapsMapTCP4
 	tcp4Ops reconciler.Operations[*pnmaps.CTMapsKeyVal]
@@ -101,6 +103,7 @@ type CTMaps struct {
 func newCTMaps(in struct {
 	cell.In
 
+	Global  ctmap.CTMaps
 	Factory CTMapFactory
 
 	TCP4 pnmaps.CTMapsMapTCP4
@@ -109,6 +112,7 @@ func newCTMaps(in struct {
 	Any6 pnmaps.CTMapsMapAny6
 }) *CTMaps {
 	return &CTMaps{
+		global:  in.Global,
 		factory: in.Factory,
 		ctMaps:  make(map[tables.NetworkID]*ctMap),
 
@@ -368,6 +372,11 @@ func ctKeyVal(networkID tables.NetworkID, m pnmaps.CTMap) *pnmaps.CTMapsKeyVal {
 		Key: pnmaps.CTMapsKey{NetworkID: uint32(networkID)},
 		Val: pnmaps.CTMapsValue{Fd: uint32(m.FD())},
 	}
+}
+
+// ActiveMapsGlobal implements pnmaps.CTMaps
+func (c *CTMaps) ActiveMapsGlobal() []pnmaps.CTMap {
+	return cslices.Map(c.global.ActiveMaps(), func(m *ctmap.Map) pnmaps.CTMap { return m })
 }
 
 // ActiveMapsForNetwork implements pnmaps.CTMaps

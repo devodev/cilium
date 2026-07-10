@@ -12,7 +12,6 @@ package tests
 
 import (
 	"cmp"
-	"errors"
 	"fmt"
 	"maps"
 	"net/netip"
@@ -38,7 +37,6 @@ import (
 	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/cilium/pkg/maps/ctmap"
 	cslices "github.com/cilium/cilium/pkg/slices"
-	"github.com/cilium/cilium/pkg/testutils"
 	"github.com/cilium/cilium/pkg/tuple"
 	"github.com/cilium/cilium/pkg/u8proto"
 )
@@ -47,22 +45,10 @@ func mockCTMaps(t testing.TB) cell.Cell {
 	t.Helper()
 
 	return cell.Group(
-		cell.ProvidePrivate(newFakeCTMaps),
-		cell.Provide(
-			func(f *fakeCTMaps) ctmap.CTMaps { return f },
-			func(f *fakeCTMaps) hive.ScriptCmdsOut {
-				return hive.NewScriptCmds(
-					map[string]script.Cmd{
-						"privnet/mock-global-ct-maps/show":   f.showMap(),
-						"privnet/mock-global-ct-maps/upsert": f.upsertTuple(),
-						"privnet/mock-global-ct-maps/delete": f.deleteTuple(),
-					},
-				)
-			},
-		),
-
 		cell.ProvidePrivate(newCTMapsRegistry),
 		cell.DecorateAll((*ctMapsRegistry).factory),
+		cell.DecorateAll((*ctMapsRegistry).toCTMaps),
+		cell.Provide(func() ctmap.CTMaps { return nil }),
 		cell.Provide((*ctMapsRegistry).commands),
 	)
 }
@@ -112,11 +98,37 @@ func (r *ctMapsRegistry) new(name string, cfg ctmap.MapConfig, _ ...ctmap.MapOpt
 }
 
 func (r *ctMapsRegistry) factory() reconcilers.CTMapFactory { return r.new }
+func (r *ctMapsRegistry) toCTMaps() pnmaps.CTMaps           { return r }
+
+func (r *ctMapsRegistry) ActiveMapsGlobal() []pnmaps.CTMap {
+	return cslices.Map(r.activeMapsMatching("cilium_ct"),
+		func(m pnmaps.CTMapWithConfig) pnmaps.CTMap { return m.Map })
+}
+
+func (r *ctMapsRegistry) ActiveMapsForNetwork(networkName string) []pnmaps.CTMapWithConfig {
+	return r.activeMapsMatching("_" + networkName + "_")
+}
+
+func (r *ctMapsRegistry) activeMapsMatching(pattern string) (out []pnmaps.CTMapWithConfig) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	for name, m := range r.registry {
+		if strings.Contains(name, pattern) {
+			out = append(out, pnmaps.CTMapWithConfig{Config: m.cfg, Map: m})
+		}
+	}
+
+	return out
+}
 
 func (r *ctMapsRegistry) commands() hive.ScriptCmdsOut {
 	return hive.NewScriptCmds(
 		map[string]script.Cmd{
-			"privnet/ct-maps-registry/list": r.dump(),
+			"privnet/ct-maps-registry/list":       r.dump(),
+			"privnet/ct-maps-registry/map/show":   r.showMap(),
+			"privnet/ct-maps-registry/map/upsert": r.upsertTuple(),
+			"privnet/ct-maps-registry/map/delete": r.deleteTuple(),
 		},
 	)
 }
@@ -165,89 +177,36 @@ func (r *ctMapsRegistry) dump() script.Cmd {
 	)
 }
 
-type fakeCTMaps struct {
-	maps map[string]*ctmap.Map
+func (r *ctMapsRegistry) getMap(name string) (*ctMap, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	got, ok := r.registry[name]
+	if !ok {
+		return nil, fmt.Errorf("map %q not found", name)
+	}
+
+	return got, nil
 }
 
-func newFakeCTMaps() (*fakeCTMaps, error) {
-	if !testutils.IsPrivileged() {
-		return &fakeCTMaps{
-			maps: nil,
-		}, nil
-	}
-
-	f := &fakeCTMaps{
-		maps: map[string]*ctmap.Map{
-			ctmap.MapNameAny4Global: ctmap.NewGlobalMap(ctmap.MapNameAny4Global, ctmap.MapConfig{TCP: false, IPv6: false}),
-			ctmap.MapNameTCP4Global: ctmap.NewGlobalMap(ctmap.MapNameTCP4Global, ctmap.MapConfig{TCP: true, IPv6: false}),
-			ctmap.MapNameAny6Global: ctmap.NewGlobalMap(ctmap.MapNameAny6Global, ctmap.MapConfig{TCP: false, IPv6: true}),
-			ctmap.MapNameTCP6Global: ctmap.NewGlobalMap(ctmap.MapNameTCP6Global, ctmap.MapConfig{TCP: true, IPv6: true}),
-		},
-	}
-
-	// Create temporary unpinned maps
-	for name, m := range f.maps {
-		if err := m.CreateUnpinned(); err != nil {
-			return nil, fmt.Errorf("creating unpinned map %q: %w", name, err)
-		}
-	}
-
-	return f, nil
-}
-
-func (f *fakeCTMaps) ActiveMaps() []*ctmap.Map {
-	return slices.Collect(maps.Values(f.maps))
-}
-
-const (
-	mapTypeAny4 = "any4"
-	mapTypeAny6 = "any6"
-	mapTypeTCP4 = "tcp4"
-	mapTypeTCP6 = "tcp6"
-)
-
-func (f *fakeCTMaps) getMap(mapType string) (*ctmap.Map, error) {
-	var m *ctmap.Map
-	switch mapType {
-	case mapTypeTCP4:
-		m = f.maps[ctmap.MapNameTCP4Global]
-	case mapTypeAny4:
-		m = f.maps[ctmap.MapNameAny4Global]
-	case mapTypeTCP6:
-		m = f.maps[ctmap.MapNameTCP6Global]
-	case mapTypeAny6:
-		m = f.maps[ctmap.MapNameAny6Global]
-	default:
-		return nil, fmt.Errorf("%w: unknown map type %q", script.ErrUsage, mapType)
-	}
-	if m == nil {
-		return nil, errors.New("map is unavailable - check if you are running tests in privileged mode")
-	}
-
-	return m, nil
-}
-
-func (f *fakeCTMaps) showMap() script.Cmd {
+func (r *ctMapsRegistry) showMap() script.Cmd {
 	return script.Command(
 		script.CmdUsage{
-			Summary: "Show global CT BPF maps",
-			Args:    "tcp4|any4|tcp6|any6",
-			Detail: []string{
-				"Shows the contents of a global CT map.",
-			},
+			Summary: "Show the contents of a CT BPF map",
+			Args:    "name",
 		},
 		func(s *script.State, args ...string) (script.WaitFunc, error) {
 			if len(args) < 1 {
-				return nil, fmt.Errorf("%w: expected map type argument", script.ErrUsage)
+				return nil, fmt.Errorf("%w: expected map name argument", script.ErrUsage)
 			}
 
-			m, err := f.getMap(args[0])
+			m, err := r.getMap(args[0])
 			if err != nil {
 				return nil, err
 			}
 
 			return func(*script.State) (stdout, stderr string, err error) {
-				dump, err := ctmap.DumpEntriesWithTimeDiff(m, nil)
+				dump, err := m.DumpEntriesWithTimeDiff(nil)
 				stdout = strings.Join(slices.Sorted(
 					cslices.MapIter(strings.SplitSeq(dump, "\n"),
 						func(in string) string {
@@ -264,14 +223,14 @@ func (f *fakeCTMaps) showMap() script.Cmd {
 	)
 }
 
-func parseCtKey(args ...string) (ctKey ctmap.CtKey, mapType string, err error) {
+func parseCtKey(args ...string) (ctKey ctmap.CtKey, mapName string, err error) {
 	if len(args) < 4 {
-		return ctKey, mapType, fmt.Errorf("%w: expected at least four arguments", script.ErrUsage)
+		return ctKey, mapName, fmt.Errorf("%w: expected at least four arguments", script.ErrUsage)
 	}
 
 	proto, err := u8proto.ParseProtocol(args[0])
 	if err != nil {
-		return ctKey, mapType, fmt.Errorf("%w: %w", script.ErrUsage, err)
+		return ctKey, mapName, fmt.Errorf("%w: %w", script.ErrUsage, err)
 	}
 
 	var flags uint8
@@ -281,23 +240,23 @@ func parseCtKey(args ...string) (ctKey ctmap.CtKey, mapType string, err error) {
 	case "OUT":
 		flags = ctmap.TUPLE_F_OUT
 	default:
-		return ctKey, mapType, fmt.Errorf(
+		return ctKey, mapName, fmt.Errorf(
 			"%w: direction needs to be 'IN' or 'OUT' (got %q)", script.ErrUsage, args[1],
 		)
 	}
 
 	saddrport, err := netip.ParseAddrPort(args[2])
 	if err != nil {
-		return ctKey, mapType, err
+		return ctKey, mapName, err
 	}
 
 	daddrport, err := netip.ParseAddrPort(args[3])
 	if err != nil {
-		return ctKey, mapType, err
+		return ctKey, mapName, err
 	}
 
 	if saddrport.Addr().Is4() != daddrport.Addr().Is4() {
-		return ctKey, mapType, fmt.Errorf(
+		return ctKey, mapName, fmt.Errorf(
 			"%w: saddr (%q) and daddr (%q) have different IP family",
 			script.ErrUsage, saddrport.Addr(), daddrport.Addr(),
 		)
@@ -319,9 +278,9 @@ func parseCtKey(args ...string) (ctKey ctmap.CtKey, mapType string, err error) {
 		}
 
 		if proto == u8proto.TCP {
-			mapType = mapTypeTCP4
+			mapName = ctmap.MapNameTCP4Global
 		} else {
-			mapType = mapTypeAny4
+			mapName = ctmap.MapNameAny4Global
 		}
 	} else {
 		t := tuple.TupleKey6{
@@ -339,13 +298,13 @@ func parseCtKey(args ...string) (ctKey ctmap.CtKey, mapType string, err error) {
 		}
 
 		if proto == u8proto.TCP {
-			mapType = mapTypeTCP6
+			mapName = ctmap.MapNameTCP6Global
 		} else {
-			mapType = mapTypeAny6
+			mapName = ctmap.MapNameAny6Global
 		}
 	}
 
-	return ctKey.ToNetwork(), mapType, nil
+	return ctKey.ToNetwork(), mapName, nil
 }
 
 func parseCtEntryKey(arg string, entry *ctmap.CtEntry) error {
@@ -372,7 +331,7 @@ func parseCtEntryKey(arg string, entry *ctmap.CtEntry) error {
 	return fmt.Errorf("%w: unknown entry key %q", script.ErrUsage, k)
 }
 
-func (f *fakeCTMaps) upsertTuple() script.Cmd {
+func (r *ctMapsRegistry) upsertTuple() script.Cmd {
 	return script.Command(
 		script.CmdUsage{
 			Summary: "Upserts a CT tuple",
@@ -386,7 +345,7 @@ func (f *fakeCTMaps) upsertTuple() script.Cmd {
 			},
 		},
 		func(s *script.State, args ...string) (script.WaitFunc, error) {
-			ctKey, mapType, err := parseCtKey(args...)
+			ctKey, mapName, err := parseCtKey(args...)
 			if err != nil {
 				return nil, err
 			}
@@ -399,7 +358,7 @@ func (f *fakeCTMaps) upsertTuple() script.Cmd {
 				}
 			}
 
-			m, err := f.getMap(mapType)
+			m, err := r.getMap(mapName)
 			if err != nil {
 				return nil, err
 			}
@@ -412,7 +371,7 @@ func (f *fakeCTMaps) upsertTuple() script.Cmd {
 	)
 }
 
-func (f *fakeCTMaps) deleteTuple() script.Cmd {
+func (r *ctMapsRegistry) deleteTuple() script.Cmd {
 	return script.Command(
 		script.CmdUsage{
 			Summary: "Deletes a CT tuple",
@@ -422,12 +381,12 @@ func (f *fakeCTMaps) deleteTuple() script.Cmd {
 			},
 		},
 		func(s *script.State, args ...string) (script.WaitFunc, error) {
-			ctKey, mapType, err := parseCtKey(args...)
+			ctKey, mapName, err := parseCtKey(args...)
 			if err != nil {
 				return nil, err
 			}
 
-			m, err := f.getMap(mapType)
+			m, err := r.getMap(mapName)
 			if err != nil {
 				return nil, err
 			}

@@ -181,6 +181,7 @@ type CTMapWithConfig struct {
 }
 
 type CTMaps interface {
+	ActiveMapsGlobal() []CTMap
 	ActiveMapsForNetwork(networkName string) []CTMapWithConfig
 }
 

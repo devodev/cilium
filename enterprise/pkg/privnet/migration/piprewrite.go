@@ -24,6 +24,7 @@ import (
 	"github.com/cilium/statedb"
 	"github.com/cilium/statedb/reconciler"
 
+	pnmaps "github.com/cilium/cilium/enterprise/pkg/maps/privnet"
 	pncfg "github.com/cilium/cilium/enterprise/pkg/privnet/config"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/tables"
 	"github.com/cilium/cilium/pkg/bpf"
@@ -42,7 +43,7 @@ type pipRewriteParams struct {
 	MapEntries statedb.Table[*tables.MapEntry]
 	Rewrites   statedb.RWTable[tables.MigrationPIPRewrite]
 
-	CTMaps           ctmap.CTMaps
+	CTMaps           pnmaps.CTMaps
 	ReconcilerParams reconciler.Params
 
 	Log      *slog.Logger
@@ -221,7 +222,7 @@ func (p *pipRewrite) watchPIPChanges(ctx context.Context, health cell.Health) er
 // pipRewriteOps implements reconciler.Operations and reconciler.BatchOperations to ensure all pending PIP
 // rewrites are performed sequentially, in batches and re-tried if they fail.
 type pipRewriteOps struct {
-	ctmaps ctmap.CTMaps
+	ctmaps pnmaps.CTMaps
 }
 
 // Update implements reconciler.Operations
@@ -273,7 +274,7 @@ func (p *pipRewriteOps) rewritePIPs(ctx context.Context, tasks iter.Seq[tables.M
 		}
 	}
 
-	for _, ctMap := range p.ctmaps.ActiveMaps() {
+	for _, ctMap := range p.ctmaps.ActiveMapsGlobal() {
 		switch ctMap.Name() {
 		case ctmap.MapNameTCP4Global, ctmap.MapNameAny4Global:
 			if len(ipv4Pairs) > 0 {
@@ -291,7 +292,7 @@ func (p *pipRewriteOps) rewritePIPs(ctx context.Context, tasks iter.Seq[tables.M
 
 // rewriteCTMap takes a list of PIP pairs and replaces all occurrences of oldPIP with newPIP in the provided
 // ctMap. It returns an error if the operation did not finish and should be retried.
-func rewriteCTMap[T any, PT ctKeyWritable[T]](ctx context.Context, ctMap *ctmap.Map, toReplace pipPairs) error {
+func rewriteCTMap[T any, PT ctKeyWritable[T]](ctx context.Context, ctMap pnmaps.CTMap, toReplace pipPairs) error {
 	type ctEntry struct {
 		original  PT
 		rewritten PT
@@ -300,7 +301,7 @@ func rewriteCTMap[T any, PT ctKeyWritable[T]](ctx context.Context, ctMap *ctmap.
 
 	// Collect and rewrite all entries that match the oldPIP
 	var toUpdate []ctEntry
-	iter := bpf.NewBatchIterator[T, ctmap.CtEntry, PT, *ctmap.CtEntry](&ctMap.Map)
+	iter := bpf.NewBatchIterator[T, ctmap.CtEntry, PT, *ctmap.CtEntry](ctMap)
 	for k, v := range iter.IterateAll(ctx) {
 		if ctx.Err() != nil {
 			return ctx.Err() // bail out if job has been canceled

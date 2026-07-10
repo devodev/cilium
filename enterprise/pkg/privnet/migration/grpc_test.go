@@ -31,12 +31,11 @@ import (
 	testTypes "github.com/cilium/cilium/enterprise/pkg/privnet/tests/types"
 	"github.com/cilium/cilium/enterprise/pkg/privnet/types"
 	"github.com/cilium/cilium/pkg/mac"
-	"github.com/cilium/cilium/pkg/maps/ctmap"
 )
 
 type fakeCTMaps struct{}
 
-func (f *fakeCTMaps) ActiveMaps() []*ctmap.Map {
+func (f *fakeCTMaps) ActiveMapsGlobal() []privnet.CTMap {
 	return nil // cannot mock CT maps in non-privileged tests
 }
 
@@ -99,8 +98,7 @@ func TestClientServer(t *testing.T) {
 		leases:    leases,
 		endpoints: epm,
 		ctTime:    ctTime,
-		globalCT:  ct,
-		privnetCT: ct,
+		ctMaps:    ct,
 	}
 	api.RegisterMigrationServer(srv, apiService)
 	t.Cleanup(srv.Stop)
