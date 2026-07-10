@@ -134,6 +134,9 @@ type PolicyConfig struct {
 	groupStatusesGeneration int64
 	groupStatuses           []groupStatus
 
+	v4Needed bool
+	v6Needed bool
+
 	// These fields should always be re-created when regenerating
 	groupConfigs []groupConfig
 }
@@ -158,6 +161,7 @@ func ParseIEGP(logger *slog.Logger, iegp *v1.IsovalentEgressGatewayPolicy) (*Pol
 	var dstCidrList []netip.Prefix
 	var excludedCIDRs []netip.Prefix
 	var egressCIDRs []netip.Prefix
+	var v4Needed, v6Needed bool
 	var virtualIP bool
 
 	allowAllNamespacesRequirement := slim_metav1.LabelSelectorRequirement{
@@ -219,6 +223,11 @@ func ParseIEGP(logger *slog.Logger, iegp *v1.IsovalentEgressGatewayPolicy) (*Pol
 			return nil, fmt.Errorf("failed to parse destination CIDR %s: %w", cidrString, err)
 		}
 		dstCidrList = append(dstCidrList, cidr)
+		if cidr.Addr().Is6() {
+			v6Needed = true
+		} else {
+			v4Needed = true
+		}
 	}
 
 	for _, cidrString := range iegp.Spec.ExcludedCIDRs {
@@ -384,6 +393,8 @@ func ParseIEGP(logger *slog.Logger, iegp *v1.IsovalentEgressGatewayPolicy) (*Pol
 		apiVersion:        "isovalent.com/v1",
 		generation:        iegp.GetGeneration(),
 		virtualIP:         virtualIP,
+		v4Needed:          v4Needed,
+		v6Needed:          v6Needed,
 	}, nil
 }
 

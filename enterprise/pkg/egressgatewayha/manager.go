@@ -69,8 +69,11 @@ var (
 	// to indicate the entry is for an excluded CIDR and should skip egress gateway
 	ExcludedCIDRIPv4 = netip.MustParseAddr("0.0.0.1")
 	// EgressIPNotFoundIPv4 is a special IP value used as egressIP in the BPF policy map
-	// to indicate no egressIP was found for the given policy
+	// to indicate no IPv4 egressIP was found for the given policy
 	EgressIPNotFoundIPv4 = netip.IPv4Unspecified()
+	// EgressIPNotFoundIPv6 is a special IP value used as egressIP in the BPF policy map
+	// to indicate no IPv6 egressIP was found for the given policy
+	EgressIPNotFoundIPv6 = netip.IPv6Unspecified()
 )
 
 type eventType int
@@ -186,6 +189,7 @@ type Manager struct {
 
 	egressIPTable statedb.RWTable[*enterprise_tables.EgressIPEntry]
 	deviceTable   statedb.Table[*tables.Device]
+	nodeAddrTable statedb.Table[tables.NodeAddress]
 
 	egressIPReconciler reconciler.Reconciler[*enterprise_tables.EgressIPEntry]
 
@@ -227,6 +231,7 @@ type Params struct {
 	EgressIPReconciler reconciler.Reconciler[*enterprise_tables.EgressIPEntry]
 	PolicyConfigsTable statedb.RWTable[AgentPolicyConfig]
 	DeviceTable        statedb.Table[*tables.Device]
+	NodeAddrTable      statedb.Table[tables.NodeAddress]
 
 	CTNATMapGC ctmap.GCRunner
 
@@ -342,6 +347,7 @@ func newEgressGatewayManager(p Params) (*Manager, error) {
 		egressIPTable:                 p.EgressIPTable,
 		egressIPReconciler:            p.EgressIPReconciler,
 		deviceTable:                   p.DeviceTable,
+		nodeAddrTable:                 p.NodeAddrTable,
 		policyInitializer:             policyInitializer,
 		ctNATMapGC:                    p.CTNATMapGC,
 		config:                        p.Config,
@@ -1123,7 +1129,7 @@ func (manager *Manager) AdvertisedEgressIPs(policySelector *slimv1.LabelSelector
 			continue
 		}
 		if gwc.localNodeConfiguredAsGateway && selector.Matches(k8sLabels.Set(policyConfig.labels)) {
-			egressIPs[policyConfig.id] = append(egressIPs[policyConfig.id], gwc.egressIP)
+			egressIPs[policyConfig.id] = append(egressIPs[policyConfig.id], gwc.egressIP4)
 		}
 	}
 

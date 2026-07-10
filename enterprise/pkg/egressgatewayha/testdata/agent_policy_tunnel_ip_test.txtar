@@ -14,7 +14,7 @@ db/insert devices device-eth0.yaml device-eth1.yaml device-cilium_host.yaml
 # break
 
 # Wait and check for in memory state
-db/show policy-config --columns ID,Endpoints,Generation,IsGateway,Interface,Ifindex,EgressIP,Groups
+db/show policy-config --columns ID,Endpoints,Generation,IsGateway,Interface,Ifindex,EgressIPv4,Groups
 db/cmp --timeout=10s policy-config policyconfig.expected.1
 
 db/show egress-ips --columns Address,Interface
@@ -28,7 +28,7 @@ egressha/policy-maps-dump policymap.actual
 * cmp policymap.actual policymap.expected.1
 
 -- policyconfig.expected.1 --
-ID        Endpoints       Generation   IsGateway   Interface   Ifindex     EgressIP    Groups
+ID        Endpoints       Generation   IsGateway   Interface   Ifindex     EgressIPv4  Groups
 policy1   [10.244.3.91]   1            true        eth0        1           100.1.2.3   [active=[10.254.0.1],healthy=[10.254.0.1],byGateway=map[10.254.0.1:100.1.2.3]]
 policy2   [10.244.3.92]   1            true                    0           100.1.2.4   [active=[10.254.0.1],healthy=[10.254.0.1],byGateway=map[10.254.0.1:100.1.2.4]]
 -- egressips.expected.1 --
@@ -187,9 +187,11 @@ addrs:
   - addr: 10.10.0.1
   - addr: fd00::10:10:0:1
   - addr: fe80::42:bdff:ec52:ab12
+    scope: 0xfd
 type: veth
 flags: 1 # admin-up
 operstatus: up
+selected: true
 -- device-eth1.yaml --
 index: 2
 name: eth1
@@ -201,6 +203,7 @@ addrs:
 type: veth
 flags: 1 # admin-up
 operstatus: up
+selected: true
 -- device-cilium_host.yaml --
 index: 3
 name: cilium_host

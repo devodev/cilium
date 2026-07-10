@@ -48,7 +48,7 @@ var (
 )
 
 func (p AgentPolicyConfig) TableHeader() []string {
-	return []string{"ID", "Endpoints", "Generation", "IsGateway", "Interface", "Ifindex", "EgressIP", "Groups"}
+	return []string{"ID", "Endpoints", "Generation", "IsGateway", "Interface", "Ifindex", "EgressIPv4", "EgressIPv6", "Groups"}
 }
 
 func (p AgentPolicyConfig) TableRow() []string {
@@ -72,17 +72,18 @@ func (p AgentPolicyConfig) TableRow() []string {
 		ss = append(ss, gs)
 	}
 	var (
-		localNodeIsGateway string
-		ifaceName          string
-		ifaceIndex         uint32
-		egressIP           string
+		localNodeIsGateway   string
+		ifaceName            string
+		ifaceIndex           uint32
+		egressIP4, egressIP6 string
 	)
 
 	if p.gatewayConfig != nil {
 		localNodeIsGateway = fmt.Sprintf("%t", p.gatewayConfig.localNodeConfiguredAsGateway)
 		ifaceName = p.gatewayConfig.ifaceName
 		ifaceIndex = p.gatewayConfig.egressIfindex
-		egressIP = p.gatewayConfig.egressIP.String()
+		egressIP4 = p.gatewayConfig.egressIP4.String()
+		egressIP6 = p.gatewayConfig.egressIP6.String()
 	}
 	return []string{
 		strings.TrimPrefix(p.id.String(), "/"),
@@ -91,7 +92,8 @@ func (p AgentPolicyConfig) TableRow() []string {
 		localNodeIsGateway,
 		ifaceName,
 		fmt.Sprintf("%d", ifaceIndex),
-		egressIP,
+		egressIP4,
+		egressIP6,
 		fmt.Sprintf("%v", ss),
 	}
 }

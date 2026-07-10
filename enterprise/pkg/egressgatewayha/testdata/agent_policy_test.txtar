@@ -10,7 +10,7 @@ k8s/add ciliumendpoint1.yaml
 db/insert devices device-eth0.yaml device-eth1.yaml
 
 # Wait and check for in memory state
-db/show policy-config --columns ID,Endpoints,Generation,IsGateway,Interface,Ifindex,EgressIP,Groups
+db/show policy-config --columns ID,Endpoints,Generation,IsGateway,Interface,Ifindex,EgressIPv4,Groups
 db/cmp --timeout=10s policy-config policyconfig.expected.1
 
 db/show sysctl --columns Name,Value
@@ -27,7 +27,7 @@ sed '    interface: eth0' '    interface: eth1-alt' policy1_2.yaml
 k8s/update policy1_2.yaml
 
 # Wait and check for in memory state
-db/show policy-config --columns ID,Endpoints,Generation,IsGateway,Interface,Ifindex,EgressIP,Groups
+db/show policy-config --columns ID,Endpoints,Generation,IsGateway,Interface,Ifindex,EgressIPv4,EgressIPv6,Groups
 db/cmp --timeout=10s policy-config policyconfig.expected.2
 
 db/show sysctl --columns Name,Value
@@ -44,7 +44,7 @@ sed '    interface: eth1-alt' '    egressIP: 10.10.0.1' policy1_3.yaml
 k8s/update policy1_3.yaml
 
 # Wait and check for in memory state
-db/show policy-config --columns ID,Endpoints,Generation,IsGateway,Interface,Ifindex,EgressIP,Groups
+db/show policy-config --columns ID,Endpoints,Generation,IsGateway,Interface,Ifindex,EgressIPv4,EgressIPv6,Groups
 db/cmp --timeout=10s policy-config policyconfig.expected.3
 
 db/show sysctl --columns Name,Value
@@ -54,32 +54,57 @@ db/cmp --timeout=10s sysctl sysctl.expected.3
 egressha/policy-maps-dump policymap.actual
 * cmp policymap.actual policymap.expected.3
 
+# Validate that the `egressIP` selector also works with an IPv6 address.
+cp policy1_3.yaml policy1_4.yaml
+sed '    egressIP: 10.10.0.1' '    egressIP: fd00::10:10:0:2' policy1_4.yaml
+k8s/update policy1_4.yaml
+
+# Wait and check for in memory state
+db/show policy-config --columns ID,Endpoints,Generation,IsGateway,Interface,Ifindex,EgressIPv4,EgressIPv6,Groups
+db/cmp --timeout=10s policy-config policyconfig.expected.4
+
+db/show sysctl --columns Name,Value
+db/cmp --timeout=10s sysctl sysctl.expected.4
+
+# Check that manager realizes expected bpf map state.
+egressha/policy-maps-dump policymap.actual
+* cmp policymap.actual policymap.expected.4
+
 -- policyconfig.expected.1 --
-ID        Endpoints       Generation   IsGateway   Interface   Ifindex     EgressIP    Groups
-policy1   [10.244.3.91]   1            true        eth0        1           10.10.0.1   [active=[172.18.0.3],healthy=[172.18.0.3]]
--- policymap.expected.1 --
-source_ip=10.244.3.91 dest_cidr=0.0.0.0 egress_ip=10.10.0.1 egress_ifindex=1 gateway_ips=[172.18.0.3]
+ID        Endpoints       Generation   IsGateway   Interface   Ifindex     EgressIPv4  EgressIPv6           Groups
+policy1   [10.244.3.91]   1            true        eth0        1           10.10.0.1   fd00::10:10:0:1      [active=[172.18.0.3],healthy=[172.18.0.3]]
 -- sysctl.expected.1 --
 Name                               Value
 net.ipv4.conf.eth0.rp_filter       2
+-- policymap.expected.1 --
+source_ip=10.244.3.91 dest_cidr=0.0.0.0 egress_ip=10.10.0.1 egress_ifindex=1 gateway_ips=[172.18.0.3]
 -- policyconfig.expected.2 --
-ID        Endpoints       Generation   IsGateway   Interface   Ifindex     EgressIP    Groups
-policy1   [10.244.3.91]   1            true        eth1        2           10.10.0.2   [active=[172.18.0.3],healthy=[172.18.0.3]]
--- policymap.expected.2 --
-source_ip=10.244.3.91 dest_cidr=0.0.0.0 egress_ip=10.10.0.2 egress_ifindex=2 gateway_ips=[172.18.0.3]
+ID        Endpoints       Generation   IsGateway   Interface   Ifindex     EgressIPv4  EgressIPv6           Groups
+policy1   [10.244.3.91]   1            true        eth1        2           10.10.0.2   fd00::10:10:0:2      [active=[172.18.0.3],healthy=[172.18.0.3]]
 -- sysctl.expected.2 --
 Name                               Value
 net.ipv4.conf.eth0.rp_filter       2
 net.ipv4.conf.eth1.rp_filter       2
+-- policymap.expected.2 --
+source_ip=10.244.3.91 dest_cidr=0.0.0.0 egress_ip=10.10.0.2 egress_ifindex=2 gateway_ips=[172.18.0.3]
 -- policyconfig.expected.3 --
-ID        Endpoints       Generation   IsGateway   Interface   Ifindex     EgressIP    Groups
-policy1   [10.244.3.91]   1            true        eth0        0           10.10.0.1   [active=[172.18.0.3],healthy=[172.18.0.3]]
+ID        Endpoints       Generation   IsGateway   Interface   Ifindex     EgressIPv4  EgressIPv6           Groups
+policy1   [10.244.3.91]   1            true        eth0        0           10.10.0.1   fd00::10:10:0:1      [active=[172.18.0.3],healthy=[172.18.0.3]]
 -- sysctl.expected.3 --
 Name                               Value
 net.ipv4.conf.eth0.rp_filter       2
 net.ipv4.conf.eth1.rp_filter       2
 -- policymap.expected.3 --
 source_ip=10.244.3.91 dest_cidr=0.0.0.0 egress_ip=10.10.0.1 egress_ifindex=0 gateway_ips=[172.18.0.3]
+-- policyconfig.expected.4 --
+ID        Endpoints       Generation   IsGateway   Interface   Ifindex     EgressIPv4  EgressIPv6           Groups
+policy1   [10.244.3.91]   1            true        eth1        0           10.10.0.2   fd00::10:10:0:2      [active=[172.18.0.3],healthy=[172.18.0.3]]
+-- sysctl.expected.4 --
+Name                               Value
+net.ipv4.conf.eth0.rp_filter       2
+net.ipv4.conf.eth1.rp_filter       2
+-- policymap.expected.4 --
+source_ip=10.244.3.91 dest_cidr=0.0.0.0 egress_ip=10.10.0.2 egress_ifindex=0 gateway_ips=[172.18.0.3]
 -- node1.yaml --
 apiVersion: v1
 kind: Node
@@ -115,6 +140,7 @@ spec:
   azAffinity: disabled
   destinationCIDRs:
   - 0.0.0.0/0
+  - "::/0"
   egressGroups:
   - maxGatewayNodes: 0
     interface: eth0
@@ -163,9 +189,11 @@ addrs:
   - addr: 10.10.0.1
   - addr: fd00::10:10:0:1
   - addr: fe80::42:bdff:ec52:ab12
+    scope: 0xfd
 type: veth
 flags: 1 # admin-up
 operstatus: up
+selected: true
 -- device-eth1.yaml --
 index: 2
 name: eth1
@@ -177,3 +205,4 @@ addrs:
 type: veth
 flags: 1 # admin-up
 operstatus: up
+selected: true
