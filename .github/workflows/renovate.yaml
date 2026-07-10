@@ -52,7 +52,7 @@ jobs:
           ARTIFACTORY_PASSWORD: ${{ secrets.ARTIFACTORY_PASSWORD }}
         with:
           # renovate: datasource=github-releases depName=renovatebot/renovate
-          renovate-version: 43.249.5
+          renovate-version: 43.251.3
           docker-user: root
           docker-cmd-file: .github/actions/renovate/enterprise-entrypoint.sh
           configurationFile: .github/workflows/enterprise-renovate-config.js

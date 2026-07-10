@@ -373,13 +373,6 @@ jobs:
           config: ./.github/kind-config-cluster2.yaml
           wait: 0 # The control-plane never becomes ready, since no CNI is present
 
-      - name: Remove control-plane scheduling taint
-        run: |
-          kubectl --context ${{ env.contextName1 }} taint node \
-            ${{ env.clusterName1 }}-control-plane node-role.kubernetes.io/control-plane:NoSchedule- || true
-          kubectl --context ${{ env.contextName2 }} taint node \
-            ${{ env.clusterName2 }}-control-plane node-role.kubernetes.io/control-plane:NoSchedule- || true
-
       - name: Label one of the nodes as external to the cluster
         run: |
           kubectl --context ${{ env.contextName1 }} label node \
