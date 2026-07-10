@@ -139,6 +139,18 @@ spec:
               key: debug
               name: cilium-config
               optional: true
+        - name: CILIUM_LOG_DRIVER
+          valueFrom:
+            configMapKeyRef:
+              key: log-driver
+              name: cilium-config
+              optional: true
+        - name: CILIUM_LOG_OPT
+          valueFrom:
+            configMapKeyRef:
+              key: log-opt
+              name: cilium-config
+              optional: true
         - name: CILIUM_ENABLE_IPV4
           valueFrom:
             configMapKeyRef:

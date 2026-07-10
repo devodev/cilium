@@ -39,10 +39,12 @@ func main() {
 			return Hive.Run(logging.DefaultSlogLogger)
 		},
 		PreRun: func(cmd *cobra.Command, args []string) {
+			// Apply log-opt before deriving the logger below.
+			option.Config.SetupLogging(Hive.Viper(), "external-dns-proxy")
+
 			// slogloggercheck: it was initialized in SetupLogging
 			logger := logging.DefaultSlogLogger.With(logfields.LogSubsys, binaryName)
 
-			option.Config.SetupLogging(Hive.Viper(), "external-dns-proxy")
 			// dnsproxy does not manage identity allocation; set the
 			// mode explicitly to suppress the spurious warning from
 			// option.Config.Populate() when kvstore is empty.

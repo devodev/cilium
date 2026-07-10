@@ -28,21 +28,23 @@ var (
 )
 
 type Config struct {
-	Debug                         bool          `mapstructure:"debug"`
-	EnableOfflineMode             bool          `mapstructure:"tofqdns-enable-offline-mode"`
-	EnableIPV6                    bool          `mapstructure:"enable-ipv6"`
-	EnableIPV4                    bool          `mapstructure:"enable-ipv4"`
-	EnableDNSCompression          bool          `mapstructure:"tofqdns-enable-dns-compression"`
-	ExposePrometheusMetrics       bool          `mapstructure:"expose-metrics"`
-	PrometheusPort                uint16        `mapstructure:"prometheus-port"`
-	DNSNotificationSendWorkers    uint          `mapstructure:"dns-notification-retry-workers"`
-	DNSNotificationChannelSize    uint          `mapstructure:"dns-notification-channel-size"`
-	ConcurrencyLimit              uint          `mapstructure:"concurrency-limit"`
-	ConcurrencyGracePeriod        time.Duration `mapstructure:"concurrency-processing-grace-period"`
-	FQDNRegexCompileLRUSize       uint          `mapstructure:"fqdn-regex-compile-lru-size"`
-	ToFQDNSRejectResponseCode     string        `mapstructure:"tofqdns-dns-reject-response-code"`
-	DNSProxyEnableTransparentMode bool          `mapstructure:"dnsproxy-enable-transparent-mode"`
-	DNSProxySocketLingerTimeout   uint          `mapstructure:"dnsproxy-socket-linger-timeout"`
+	Debug                         bool              `mapstructure:"debug"`
+	EnableOfflineMode             bool              `mapstructure:"tofqdns-enable-offline-mode"`
+	EnableIPV6                    bool              `mapstructure:"enable-ipv6"`
+	EnableIPV4                    bool              `mapstructure:"enable-ipv4"`
+	EnableDNSCompression          bool              `mapstructure:"tofqdns-enable-dns-compression"`
+	ExposePrometheusMetrics       bool              `mapstructure:"expose-metrics"`
+	PrometheusPort                uint16            `mapstructure:"prometheus-port"`
+	DNSNotificationSendWorkers    uint              `mapstructure:"dns-notification-retry-workers"`
+	DNSNotificationChannelSize    uint              `mapstructure:"dns-notification-channel-size"`
+	ConcurrencyLimit              uint              `mapstructure:"concurrency-limit"`
+	ConcurrencyGracePeriod        time.Duration     `mapstructure:"concurrency-processing-grace-period"`
+	FQDNRegexCompileLRUSize       uint              `mapstructure:"fqdn-regex-compile-lru-size"`
+	ToFQDNSRejectResponseCode     string            `mapstructure:"tofqdns-dns-reject-response-code"`
+	DNSProxyEnableTransparentMode bool              `mapstructure:"dnsproxy-enable-transparent-mode"`
+	DNSProxySocketLingerTimeout   uint              `mapstructure:"dnsproxy-socket-linger-timeout"`
+	LogDriver                     []string          `mapstructure:"log-driver"`
+	LogOpt                        map[string]string `mapstructure:"log-opt"`
 }
 
 // IsDualStack returns whether both IPv4 and IPv6 are enabled.
@@ -66,6 +68,8 @@ var defaultConfig = Config{
 	ToFQDNSRejectResponseCode:     "refused",
 	DNSProxyEnableTransparentMode: false,
 	DNSProxySocketLingerTimeout:   defaults.DNSProxySocketLingerTimeout,
+	LogDriver:                     []string{},
+	LogOpt:                        map[string]string{},
 }
 
 const DefaultGopsPort = 8910
@@ -95,4 +99,7 @@ func (def Config) Flags(flags *pflag.FlagSet) {
 	flags.Bool("dnsproxy-enable-transparent-mode", def.DNSProxyEnableTransparentMode, "Enable DNS proxy transparent mode")
 	flags.Uint("dnsproxy-socket-linger-timeout", def.DNSProxySocketLingerTimeout, "Timeout (in seconds) when closing the connection between the DNS proxy and the upstream server."+
 		"If set to 0, the connection is closed immediately (with TCP RST). If set to -1, the connection is closed asynchronously in the background")
+	flags.StringSlice("log-driver", def.LogDriver, "Logging endpoints to use (example: syslog)")
+	flags.StringToString("log-opt", def.LogOpt, `Log driver options for the dnsproxy, `+
+		`configmap example for syslog driver: {"syslog.level":"info","syslog.facility":"local5","syslog.tag":"cilium-dnsproxy"}`)
 }
