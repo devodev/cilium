@@ -10,7 +10,7 @@ k8s/add ciliumendpoint1.yaml ciliumendpoint2.yaml
 db/insert devices device-eth0.yaml device-eth1.yaml
 
 # Wait and check for in memory state
-db/show policy-config --columns ID,Endpoints,Generation,IsGateway,Interface,Ifindex,EgressIP,Groups policy-config
+db/show policy-config --columns ID,Endpoints,Generation,IsGateway,Interface,Ifindex,EgressIP,Groups
 db/cmp --timeout=10s policy-config policyconfig.expected.1
 
 db/show egress-ips --columns Address,Interface
@@ -27,7 +27,7 @@ sed '    interface: eth0' '    interface: eth1-alt' policy1_2.yaml
 k8s/update policy1_2.yaml
 
 # Wait and check for in memory state
-db/show policy-config --columns ID,Endpoints,Generation,IsGateway,Interface,Ifindex,EgressIP,Groups policy-config
+db/show policy-config --columns ID,Endpoints,Generation,IsGateway,Interface,Ifindex,EgressIP,Groups
 db/cmp --timeout=10s policy-config policyconfig.expected.2
 
 db/show egress-ips --columns Address,Interface

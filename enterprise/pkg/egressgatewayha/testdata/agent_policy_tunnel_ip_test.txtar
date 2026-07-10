@@ -14,7 +14,7 @@ db/insert devices device-eth0.yaml device-eth1.yaml device-cilium_host.yaml
 # break
 
 # Wait and check for in memory state
-db/show policy-config --columns ID,Endpoints,Generation,IsGateway,Interface,Ifindex,EgressIP,Groups policy-config
+db/show policy-config --columns ID,Endpoints,Generation,IsGateway,Interface,Ifindex,EgressIP,Groups
 db/cmp --timeout=10s policy-config policyconfig.expected.1
 
 db/show egress-ips --columns Address,Interface
