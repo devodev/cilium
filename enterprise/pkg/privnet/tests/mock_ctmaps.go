@@ -37,6 +37,7 @@ import (
 	"github.com/cilium/cilium/pkg/bpf"
 	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/cilium/pkg/maps/ctmap"
+	cslices "github.com/cilium/cilium/pkg/slices"
 	"github.com/cilium/cilium/pkg/testutils"
 	"github.com/cilium/cilium/pkg/tuple"
 	"github.com/cilium/cilium/pkg/u8proto"
@@ -247,7 +248,16 @@ func (f *fakeCTMaps) showMap() script.Cmd {
 
 			return func(*script.State) (stdout, stderr string, err error) {
 				dump, err := ctmap.DumpEntriesWithTimeDiff(m, nil)
-				stdout = strings.Join(slices.Sorted(strings.SplitAfterSeq(dump, "\n")), "")
+				stdout = strings.Join(slices.Sorted(
+					cslices.MapIter(strings.SplitSeq(dump, "\n"),
+						func(in string) string {
+							if trimmed := strings.TrimSpace(in); len(trimmed) > 0 {
+								return trimmed + "\n"
+							}
+
+							return ""
+						}),
+				), "")
 				return stdout, stderr, err
 			}, nil
 		},

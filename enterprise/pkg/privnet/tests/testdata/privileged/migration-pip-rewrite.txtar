@@ -152,29 +152,29 @@ endpoints:
     network: blue-network
 
 -- ctmap-any4.v1.txt --
-UDP OUT 10.244.1.100:34567 -> 10.244.2.200:53 expires=0 Packets=0 Bytes=0 RxFlagsSeen=0x00 LastRxReport=0 TxFlagsSeen=0x00 LastTxReport=0 Flags=0x0000 [ ] RevNAT=0 SourceSecurityID=123 BackendID=0 NatPort=0 
+UDP OUT 10.244.1.100:34567 -> 10.244.2.200:53 expires=0 Packets=0 Bytes=0 RxFlagsSeen=0x00 LastRxReport=0 TxFlagsSeen=0x00 LastTxReport=0 Flags=0x0000 [ ] RevNAT=0 SourceSecurityID=123 BackendID=0 NatPort=0
 -- ctmap-tcp4.v1.txt --
-TCP IN 10.244.2.200:45678 -> 10.244.1.100:8080 expires=0 Packets=0 Bytes=0 RxFlagsSeen=0x00 LastRxReport=0 TxFlagsSeen=0x00 LastTxReport=0 Flags=0x0000 [ ] RevNAT=0 SourceSecurityID=456 BackendID=0 NatPort=0 
-TCP OUT 1.1.1.1:60123 -> 10.244.2.200:80 expires=0 Packets=0 Bytes=0 RxFlagsSeen=0x00 LastRxReport=0 TxFlagsSeen=0x00 LastTxReport=0 Flags=0x0000 [ ] RevNAT=0 SourceSecurityID=123 BackendID=0 NatPort=0 
-TCP OUT 10.244.1.100:12345 -> 10.244.2.200:8000 expires=0 Packets=0 Bytes=0 RxFlagsSeen=0x00 LastRxReport=0 TxFlagsSeen=0x00 LastTxReport=0 Flags=0x0000 [ ] RevNAT=0 SourceSecurityID=123 BackendID=0 NatPort=0 
+TCP IN 10.244.2.200:45678 -> 10.244.1.100:8080 expires=0 Packets=0 Bytes=0 RxFlagsSeen=0x00 LastRxReport=0 TxFlagsSeen=0x00 LastTxReport=0 Flags=0x0000 [ ] RevNAT=0 SourceSecurityID=456 BackendID=0 NatPort=0
+TCP OUT 1.1.1.1:60123 -> 10.244.2.200:80 expires=0 Packets=0 Bytes=0 RxFlagsSeen=0x00 LastRxReport=0 TxFlagsSeen=0x00 LastTxReport=0 Flags=0x0000 [ ] RevNAT=0 SourceSecurityID=123 BackendID=0 NatPort=0
+TCP OUT 10.244.1.100:12345 -> 10.244.2.200:8000 expires=0 Packets=0 Bytes=0 RxFlagsSeen=0x00 LastRxReport=0 TxFlagsSeen=0x00 LastTxReport=0 Flags=0x0000 [ ] RevNAT=0 SourceSecurityID=123 BackendID=0 NatPort=0
 -- ctmap-any6.v1.txt --
-UDP OUT fd00:10:244:1::100:34567 -> fd00:10:244:2::200:53 expires=0 Packets=0 Bytes=0 RxFlagsSeen=0x00 LastRxReport=0 TxFlagsSeen=0x00 LastTxReport=0 Flags=0x0000 [ ] RevNAT=0 SourceSecurityID=123 BackendID=0 NatPort=0 
+UDP OUT fd00:10:244:1::100:34567 -> fd00:10:244:2::200:53 expires=0 Packets=0 Bytes=0 RxFlagsSeen=0x00 LastRxReport=0 TxFlagsSeen=0x00 LastTxReport=0 Flags=0x0000 [ ] RevNAT=0 SourceSecurityID=123 BackendID=0 NatPort=0
 -- ctmap-tcp6.v1.txt --
-TCP IN fd00:10:244:2::200:34567 -> fd00:10:244:1::100:9000 expires=0 Packets=0 Bytes=0 RxFlagsSeen=0x00 LastRxReport=0 TxFlagsSeen=0x00 LastTxReport=0 Flags=0x0000 [ ] RevNAT=0 SourceSecurityID=456 BackendID=0 NatPort=0 
-TCP IN fd00:10:244:2::200:49214 -> 2606:4700:4700::1001:9000 expires=0 Packets=0 Bytes=0 RxFlagsSeen=0x00 LastRxReport=0 TxFlagsSeen=0x00 LastTxReport=0 Flags=0x0000 [ ] RevNAT=0 SourceSecurityID=10 BackendID=0 NatPort=0 
+TCP IN fd00:10:244:2::200:34567 -> fd00:10:244:1::100:9000 expires=0 Packets=0 Bytes=0 RxFlagsSeen=0x00 LastRxReport=0 TxFlagsSeen=0x00 LastTxReport=0 Flags=0x0000 [ ] RevNAT=0 SourceSecurityID=456 BackendID=0 NatPort=0
+TCP IN fd00:10:244:2::200:49214 -> 2606:4700:4700::1001:9000 expires=0 Packets=0 Bytes=0 RxFlagsSeen=0x00 LastRxReport=0 TxFlagsSeen=0x00 LastTxReport=0 Flags=0x0000 [ ] RevNAT=0 SourceSecurityID=10 BackendID=0 NatPort=0
 -- EOF --
 
 -- ctmap-any4.v2.txt --
-UDP OUT 10.244.3.50:34567 -> 10.244.2.200:53 expires=0 Packets=0 Bytes=0 RxFlagsSeen=0x00 LastRxReport=0 TxFlagsSeen=0x00 LastTxReport=0 Flags=0x0000 [ ] RevNAT=0 SourceSecurityID=123 BackendID=0 NatPort=0 
+UDP OUT 10.244.3.50:34567 -> 10.244.2.200:53 expires=0 Packets=0 Bytes=0 RxFlagsSeen=0x00 LastRxReport=0 TxFlagsSeen=0x00 LastTxReport=0 Flags=0x0000 [ ] RevNAT=0 SourceSecurityID=123 BackendID=0 NatPort=0
 -- ctmap-tcp4.v2.txt --
-TCP IN 10.244.2.200:45678 -> 10.244.3.50:8080 expires=0 Packets=0 Bytes=0 RxFlagsSeen=0x00 LastRxReport=0 TxFlagsSeen=0x00 LastTxReport=0 Flags=0x0000 [ ] RevNAT=0 SourceSecurityID=456 BackendID=0 NatPort=0 
-TCP OUT 1.1.1.1:60123 -> 10.244.2.200:80 expires=0 Packets=0 Bytes=0 RxFlagsSeen=0x00 LastRxReport=0 TxFlagsSeen=0x00 LastTxReport=0 Flags=0x0000 [ ] RevNAT=0 SourceSecurityID=123 BackendID=0 NatPort=0 
-TCP OUT 10.244.3.50:12345 -> 10.244.2.200:8000 expires=0 Packets=0 Bytes=0 RxFlagsSeen=0x00 LastRxReport=0 TxFlagsSeen=0x00 LastTxReport=0 Flags=0x0000 [ ] RevNAT=0 SourceSecurityID=123 BackendID=0 NatPort=0 
+TCP IN 10.244.2.200:45678 -> 10.244.3.50:8080 expires=0 Packets=0 Bytes=0 RxFlagsSeen=0x00 LastRxReport=0 TxFlagsSeen=0x00 LastTxReport=0 Flags=0x0000 [ ] RevNAT=0 SourceSecurityID=456 BackendID=0 NatPort=0
+TCP OUT 1.1.1.1:60123 -> 10.244.2.200:80 expires=0 Packets=0 Bytes=0 RxFlagsSeen=0x00 LastRxReport=0 TxFlagsSeen=0x00 LastTxReport=0 Flags=0x0000 [ ] RevNAT=0 SourceSecurityID=123 BackendID=0 NatPort=0
+TCP OUT 10.244.3.50:12345 -> 10.244.2.200:8000 expires=0 Packets=0 Bytes=0 RxFlagsSeen=0x00 LastRxReport=0 TxFlagsSeen=0x00 LastTxReport=0 Flags=0x0000 [ ] RevNAT=0 SourceSecurityID=123 BackendID=0 NatPort=0
 -- ctmap-any6.v2.txt --
-UDP OUT fd00:10:244:3::50:34567 -> fd00:10:244:2::200:53 expires=0 Packets=0 Bytes=0 RxFlagsSeen=0x00 LastRxReport=0 TxFlagsSeen=0x00 LastTxReport=0 Flags=0x0000 [ ] RevNAT=0 SourceSecurityID=123 BackendID=0 NatPort=0 
+UDP OUT fd00:10:244:3::50:34567 -> fd00:10:244:2::200:53 expires=0 Packets=0 Bytes=0 RxFlagsSeen=0x00 LastRxReport=0 TxFlagsSeen=0x00 LastTxReport=0 Flags=0x0000 [ ] RevNAT=0 SourceSecurityID=123 BackendID=0 NatPort=0
 -- ctmap-tcp6.v2.txt --
-TCP IN fd00:10:244:2::200:34567 -> fd00:10:244:3::50:9000 expires=0 Packets=0 Bytes=0 RxFlagsSeen=0x00 LastRxReport=0 TxFlagsSeen=0x00 LastTxReport=0 Flags=0x0000 [ ] RevNAT=0 SourceSecurityID=456 BackendID=0 NatPort=0 
-TCP IN fd00:10:244:2::200:49214 -> 2606:4700:4700::1001:9000 expires=0 Packets=0 Bytes=0 RxFlagsSeen=0x00 LastRxReport=0 TxFlagsSeen=0x00 LastTxReport=0 Flags=0x0000 [ ] RevNAT=0 SourceSecurityID=10 BackendID=0 NatPort=0 
+TCP IN fd00:10:244:2::200:34567 -> fd00:10:244:3::50:9000 expires=0 Packets=0 Bytes=0 RxFlagsSeen=0x00 LastRxReport=0 TxFlagsSeen=0x00 LastTxReport=0 Flags=0x0000 [ ] RevNAT=0 SourceSecurityID=456 BackendID=0 NatPort=0
+TCP IN fd00:10:244:2::200:49214 -> 2606:4700:4700::1001:9000 expires=0 Packets=0 Bytes=0 RxFlagsSeen=0x00 LastRxReport=0 TxFlagsSeen=0x00 LastTxReport=0 Flags=0x0000 [ ] RevNAT=0 SourceSecurityID=10 BackendID=0 NatPort=0
 -- EOF --
 
 -- migration-pip-rewrite.expected.v2.table --
