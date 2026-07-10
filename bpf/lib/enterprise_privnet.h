@@ -1178,7 +1178,7 @@ privnet_unknown_policy_egress6(const struct __ctx_buff *ctx,
 		AUX(privnet_unknown_policy_egress6_vars);
 	const struct privnet_cidr_identity *info = NULL;
 	__u8 policy_match_type = POLICY_MATCH_NONE;
-	bool is_untracked_fragment = false;
+	bool is_untracked_fragment;
 	void *ct_map, *ct_map_any;
 	int verdict = CTX_ACT_OK;
 	void *data, *data_end;
@@ -1203,6 +1203,13 @@ privnet_unknown_policy_egress6(const struct __ctx_buff *ctx,
 		return vars->hdrlen;
 
 	vars->l4_off = ETH_HLEN + vars->hdrlen;
+
+	/* Indicate that this is a datagram fragment for which we cannot
+	 * retrieve L4 ports. Do not set flag if we support fragmentation.
+	 */
+	is_untracked_fragment = !CONFIG(enable_ipv6_fragments) &&
+		ipfrag_is_fragment(vars->fraginfo);
+
 	ipv6_addr_copy(&vars->tuple.saddr, (union v6addr *)&ip6->saddr);
 	ipv6_addr_copy(&vars->tuple.daddr, (union v6addr *)&ip6->daddr);
 
@@ -1874,7 +1881,7 @@ privnet_unknown_policy_ingress6(const struct __ctx_buff *ctx,
 		AUX(privnet_unknown_policy_ingress6_vars);
 	const struct privnet_cidr_identity *info = NULL;
 	__u8 policy_match_type = POLICY_MATCH_NONE;
-	bool is_untracked_fragment = false;
+	bool is_untracked_fragment;
 	void *ct_map, *ct_map_any;
 	int verdict = CTX_ACT_OK;
 	void *data, *data_end;
@@ -1899,6 +1906,13 @@ privnet_unknown_policy_ingress6(const struct __ctx_buff *ctx,
 		return vars->hdrlen;
 
 	vars->l4_off = ETH_HLEN + vars->hdrlen;
+
+	/* Indicate that this is a datagram fragment for which we cannot
+	 * retrieve L4 ports. Do not set flag if we support fragmentation.
+	 */
+	is_untracked_fragment = !CONFIG(enable_ipv6_fragments) &&
+		ipfrag_is_fragment(vars->fraginfo);
+
 	ipv6_addr_copy(&vars->tuple.saddr, (union v6addr *)&ip6->saddr);
 	ipv6_addr_copy(&vars->tuple.daddr, (union v6addr *)&ip6->daddr);
 
