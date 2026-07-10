@@ -608,6 +608,20 @@ func (m *BGPRouterManager) reconcileEnterpriseInstances(ctx context.Context,
 		err = errors.Join(err, m.reconcile(ctx, rd))
 	}
 
+	// Instances whose desired state could not be computed this round (e.g. their
+	// VRF device is not resolvable yet) were kept out of the register/reconcile
+	// sets so they do not block the others. Record their error for status and
+	// return it so the reconciliation is retried.
+	for name, ierr := range rd.errored {
+		if serr := m.updateReconcilerErrors(name, []error{ierr}); serr != nil {
+			m.logger.Error("Failed to record reconcile error for instance",
+				logfields.Error, serr,
+				types.InstanceLogField, name,
+			)
+		}
+		err = errors.Join(err, fmt.Errorf("instance %q: %w", name, ierr))
+	}
+
 	return err
 }
 

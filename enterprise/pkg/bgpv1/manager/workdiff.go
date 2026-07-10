@@ -14,6 +14,8 @@ import (
 	"fmt"
 
 	"github.com/cilium/cilium/enterprise/pkg/bgpv1/manager/instance"
+	"github.com/cilium/cilium/enterprise/pkg/bgpv1/types"
+	ossTypes "github.com/cilium/cilium/pkg/bgp/types"
 	v2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	v1 "github.com/cilium/cilium/pkg/k8s/apis/isovalent.com/v1"
 )
@@ -26,6 +28,7 @@ type reconcileDiff struct {
 	register  []string
 	withdraw  []string
 	reconcile []string
+	errored   map[string]error
 }
 
 // newReconcileDiff constructs a new *reconcileDiff with all internal structures
@@ -37,6 +40,7 @@ func newReconcileDiff(ciliumNode *v2.CiliumNode) *reconcileDiff {
 		register:   []string{},
 		withdraw:   []string{},
 		reconcile:  []string{},
+		errored:    make(map[string]error),
 	}
 }
 
@@ -65,6 +69,8 @@ func (wd *reconcileDiff) empty() bool {
 	case len(wd.withdraw) > 0:
 		fallthrough
 	case len(wd.reconcile) > 0:
+		fallthrough
+	case len(wd.errored) > 0:
 		return false
 	}
 	return true
@@ -83,16 +89,20 @@ func (wd *reconcileDiff) registerOrReconcileDiff(existingInstances map[string]*i
 		} else {
 			return fmt.Errorf("encountered duplicate BGP instance with name %s", config.Name)
 		}
+
+		desiredGlobal, err := wd.ensureGlobal(&desiredConfig.Spec.BGPInstances[i])
+		if err != nil {
+			// Record the errored instance and continue processing
+			// so that we won't block other instances.
+			wd.errored[config.Name] = err
+			continue
+		}
+
 		if existing, ok := existingInstances[config.Name]; !ok {
 			// new instance
 			wd.register = append(wd.register, config.Name)
 		} else {
-			// existing instance
-			recreate, err := wd.requiresRecreate(existing, &desiredConfig.Spec.BGPInstances[i])
-			if err != nil {
-				return err
-			}
-			if recreate {
+			if wd.requiresRecreate(&existing.Global, desiredGlobal) {
 				wd.withdraw = append(wd.withdraw, config.Name)
 				wd.register = append(wd.register, config.Name) // register does an initial reconciliation as well
 			} else {
@@ -103,24 +113,38 @@ func (wd *reconcileDiff) registerOrReconcileDiff(existingInstances map[string]*i
 	return nil
 }
 
-// requiresRecreate returns true if the desired config change requires full recreate of the BGP instance.
-func (wd *reconcileDiff) requiresRecreate(existing *instance.EnterpriseBGPInstance, desiredConfig *v1.IsovalentBGPNodeInstance) (bool, error) {
+// ensureGlobal sets the unset globals when possible and returns a new Global
+// struct for later comparison with the existing state.
+func (wd *reconcileDiff) ensureGlobal(desiredConfig *v1.IsovalentBGPNodeInstance) (*types.EnterpriseBGPGlobal, error) {
 	localASN, err := getLocalASN(desiredConfig)
 	if err != nil {
-		return false, fmt.Errorf("failed to get local ASN for instance %v: %w", desiredConfig.Name, err)
+		return nil, fmt.Errorf("failed to get local ASN for instance %v: %w", desiredConfig.Name, err)
 	}
 
 	localPort, err := getLocalPort(desiredConfig)
 	if err != nil {
-		return false, fmt.Errorf("failed to get local port for instance %v: %w", desiredConfig.Name, err)
+		return nil, fmt.Errorf("failed to get local port for instance %v: %w", desiredConfig.Name, err)
 	}
 
 	routerID, err := getRouterID(desiredConfig, wd.ciliumNode)
 	if err != nil {
-		return false, fmt.Errorf("failed to get router ID for instance %v: %w", desiredConfig.Name, err)
+		return nil, fmt.Errorf("failed to get router ID for instance %v: %w", desiredConfig.Name, err)
 	}
 
-	return localASN != int64(existing.Global.ASN) || localPort != existing.Global.ListenPort || routerID != existing.Global.RouterID, nil
+	return &types.EnterpriseBGPGlobal{
+		BGPGlobal: ossTypes.BGPGlobal{
+			ASN:        uint32(localASN),
+			ListenPort: localPort,
+			RouterID:   routerID,
+		},
+	}, nil
+}
+
+// requiresRecreate returns true if the desired config change requires full recreate of the BGP instance.
+func (wd *reconcileDiff) requiresRecreate(existing *types.EnterpriseBGPGlobal, desired *types.EnterpriseBGPGlobal) bool {
+	return existing.ASN != desired.ASN ||
+		existing.ListenPort != desired.ListenPort ||
+		existing.RouterID != desired.RouterID
 }
 
 // withdrawDiff will populate the `withdraw` field of a reconcileDiff, indicating which
