@@ -1,3 +1,4 @@
+{{- $envoyXdsMode := include "envoyXdsMode" . -}}
 node:
   id: "host~127.0.0.1~no-id~localdomain"
   cluster: "ingress-cluster"
@@ -276,6 +277,10 @@ staticResources:
     connectTimeout: "{{ .Values.envoy.connectTimeoutSeconds }}s"
     edsClusterConfig:
       edsConfig:
+        {{- if or (eq $envoyXdsMode "ads") (eq $envoyXdsMode "strict-ads") }}
+        ads: {}
+        resourceApiVersion: "V3"
+        {{- else }}
         apiConfigSource:
           apiType: "GRPC"
           transportApiVersion: "V3"
@@ -284,6 +289,7 @@ staticResources:
               clusterName: "xds-grpc-cilium"
           setNodeOnFirstMessageOnly: true
         resourceApiVersion: "V3"
+        {{- end }}
       serviceName: "/cilium-locality-cluster"
     lbPolicy: "ROUND_ROBIN"
   {{- end }}
@@ -299,6 +305,23 @@ staticResources:
               pipe:
                 path: "/var/run/cilium/envoy/sockets/admin.sock"
 dynamicResources:
+{{- if or (eq $envoyXdsMode "ads") (eq $envoyXdsMode "strict-ads") }}
+  adsConfig:
+    apiType: "GRPC"
+    transportApiVersion: "V3"
+    setNodeOnFirstMessageOnly: true
+    grpcServices:
+    - envoyGrpc:
+        clusterName: "xds-grpc-cilium"
+  ldsConfig:
+    initialFetchTimeout: "{{ .Values.envoy.initialFetchTimeoutSeconds }}s"
+    ads: {}
+    resourceApiVersion: "V3"
+  cdsConfig:
+    initialFetchTimeout: "{{ .Values.envoy.initialFetchTimeoutSeconds }}s"
+    ads: {}
+    resourceApiVersion: "V3"
+{{- else }}
   ldsConfig:
     initialFetchTimeout: "{{ .Values.envoy.initialFetchTimeoutSeconds }}s"
     apiConfigSource:
@@ -319,6 +342,7 @@ dynamicResources:
           clusterName: "xds-grpc-cilium"
       setNodeOnFirstMessageOnly: true
     resourceApiVersion: "V3"
+{{- end }}
 bootstrapExtensions:
 - name: "envoy.bootstrap.internal_listener"
   typedConfig:

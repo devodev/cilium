@@ -4,9 +4,38 @@
 #pragma once
 
 #include <bpf/config/node.h>
+#include "export_type.h"
 
 #include "dbg.h"
 #include "clustermesh.h"
+
+enum identity {
+	UNKNOWN_ID = 0,
+	HOST_ID = 1,
+	WORLD_ID = 2,
+	UNMANAGED_ID = 3,
+	HEALTH_ID = 4,
+	INIT_ID = 5,
+	LOCAL_NODE_ID = 6,
+	REMOTE_NODE_ID = LOCAL_NODE_ID,
+	KUBE_APISERVER_NODE_ID = 7,
+	INGRESS_ID = 8,
+	WORLD_IPV4_ID = 9,
+	WORLD_IPV6_ID = 10,
+	POLICY_CLUSTER_ID = 11, /* This ID is not used by endpoints, only policy map */
+	POLICY_CLUSTER_MESH_ID = 12,
+};
+
+EXPORT_TYPE(enum identity);
+
+/* TODO(tb): Replace this with a helper, enable_v4/v6 will be runtime configs at
+ * some point.
+ */
+#if defined ENABLE_IPV4 && defined ENABLE_IPV6
+#else
+# define WORLD_IPV4_ID WORLD_ID
+# define WORLD_IPV6_ID WORLD_ID
+#endif
 
 /**
  * Minimal numeric identity value for a local (CIDR) identity.
@@ -306,6 +335,30 @@ static __always_inline bool identity_is_local(__u32 identity)
 	return (identity & IDENTITY_LOCAL_SCOPE_MASK) != 0;
 }
 
+static __always_inline __u32 get_tunnel_id(__u32 identity)
+{
+#if defined ENABLE_IPV4 && defined ENABLE_IPV6
+	if (identity == WORLD_IPV4_ID || identity == WORLD_IPV6_ID)
+		return WORLD_ID;
+#endif
+	return identity;
+}
+
+static __always_inline __u32 get_id_from_tunnel_id(__u32 tunnel_id, __be16 proto  __maybe_unused)
+{
+#if defined ENABLE_IPV4 && defined ENABLE_IPV6
+	if (tunnel_id == WORLD_ID) {
+		switch (proto) {
+		case bpf_htons(ETH_P_IP):
+			return WORLD_IPV4_ID;
+		case bpf_htons(ETH_P_IPV6):
+			return WORLD_IPV6_ID;
+		}
+	}
+#endif
+	return tunnel_id;
+}
+
 /**
  * aggregate_for_identity returns the aggregated (i.e. wildcard) identity
  * for the given leaf identity.
@@ -320,5 +373,17 @@ static __always_inline __u32 aggregate_for_identity(__u32 identity)
 	if (identity_is_world(identity))
 		return WORLD_ID;
 
-	return 0;
+	if (identity == POLICY_CLUSTER_ID || identity == POLICY_CLUSTER_MESH_ID || identity == 0)
+		return identity;
+	/* Identities 0-99 are special, we cannot easily aggregate them. */
+	if (identity < 100)
+		return 0;
+
+	/* identity is global scope and >= 100.
+	 * It must be an endpoint, either in cluster or cluster mesh.
+	 */
+	if (extract_cluster_id_from_identity(identity) == CONFIG(cluster_id))
+		return POLICY_CLUSTER_ID;
+
+	return POLICY_CLUSTER_MESH_ID;
 }

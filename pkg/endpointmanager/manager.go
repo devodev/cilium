@@ -325,12 +325,6 @@ func (mgr *endpointManager) Lookup(id string) (*endpoint.Endpoint, error) {
 	case endpointid.CNIAttachmentIdPrefix:
 		return mgr.lookupCNIAttachmentID(eid), nil
 
-	case endpointid.ContainerIdPrefix:
-		return mgr.lookupContainerID(eid), nil
-
-	case endpointid.PodNamePrefix:
-		return mgr.lookupPodNameLocked(eid), nil
-
 	case endpointid.CEPNamePrefix:
 		return mgr.lookupCEPNameLocked(eid), nil
 
@@ -498,6 +492,17 @@ func (mgr *endpointManager) removeEndpoint(ep *endpoint.Endpoint, conf endpoint.
 	isRestored := ep.GetState() == endpoint.StateRestoring
 
 	mgr.unexpose(ep)
+
+	// Guard the per-endpoint routing rule teardown against a stale delete. By
+	// this point unexpose has removed ep from the IP index, so LookupIP returns
+	// nil when no one owns the IP (safe to delete our rules) and the new owner
+	// when the IP has already been reused (skip, deleting would strip its
+	// rules). It can never return ep itself.
+	conf.EndpointOwnsIP = func(ip netip.Addr) bool {
+		owner := mgr.LookupIP(ip)
+		return owner == nil || owner == ep
+	}
+
 	result := ep.Delete(conf)
 
 	// Restored endpoints never had an ID allocated.
@@ -532,13 +537,6 @@ func (mgr *endpointManager) lookupCiliumID(id uint16) *endpoint.Endpoint {
 	return nil
 }
 
-func (mgr *endpointManager) lookupPodNameLocked(name string) *endpoint.Endpoint {
-	if ep, ok := mgr.endpointsAux[endpointid.NewID(endpointid.PodNamePrefix, name)]; ok {
-		return ep
-	}
-	return nil
-}
-
 func (mgr *endpointManager) lookupCEPNameLocked(name string) *endpoint.Endpoint {
 	if ep, ok := mgr.endpointsAux[endpointid.NewID(endpointid.CEPNamePrefix, name)]; ok {
 		return ep
@@ -555,13 +553,6 @@ func (mgr *endpointManager) lookupIPv4(ipv4 string) *endpoint.Endpoint {
 
 func (mgr *endpointManager) lookupIPv6(ipv6 string) *endpoint.Endpoint {
 	if ep, ok := mgr.endpointsAux[endpointid.NewID(endpointid.IPv6Prefix, ipv6)]; ok {
-		return ep
-	}
-	return nil
-}
-
-func (mgr *endpointManager) lookupContainerID(id string) *endpoint.Endpoint {
-	if ep, ok := mgr.endpointsAux[endpointid.NewID(endpointid.ContainerIdPrefix, id)]; ok {
 		return ep
 	}
 	return nil
@@ -911,4 +902,33 @@ func (mgr *endpointManager) stopEndpoints() {
 	wg.Wait()
 
 	mgr.logger.Info("All endpoints' goroutines stopped.")
+}
+
+// UpdateCIDRLabels triggers identity resolution for all pod endpoints
+// whose IPs are contained within the given prefix. Implements ipcache.CIDRSelectorAllocator.
+//
+// If the prefix represents a single IP address, it performs an optimized map lookup
+// and returns true if a matching endpoint is found. Otherwise, it performs a linear
+// scan over all endpoints and returns false.
+func (mgr *endpointManager) UpdateCIDRLabels(ctx context.Context, prefix netip.Prefix) bool {
+	if prefix.IsSingleIP() {
+		ep := mgr.LookupIP(prefix.Addr())
+		if ep == nil {
+			return false // No endpoint matching this IP is managed on this node.
+		}
+
+		// Trigger asynchronous identity resolution for the endpoint.
+		// Since this is called from the label injector thread, running it asynchronously
+		// prevents blocking the metadata injection pipeline on KVStore/APIServer latency.
+		ep.ForceUpdateCIDRLabels(ctx)
+		return true
+	}
+
+	for _, ep := range mgr.GetEndpoints() {
+		if (ep.IPv4.IsValid() && prefix.Contains(ep.IPv4)) || (ep.IPv6.IsValid() && prefix.Contains(ep.IPv6)) {
+			// Trigger asynchronous identity resolution for the endpoint.
+			ep.ForceUpdateCIDRLabels(ctx)
+		}
+	}
+	return false
 }

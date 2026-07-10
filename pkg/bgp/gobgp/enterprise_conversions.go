@@ -12,6 +12,7 @@ package gobgp
 
 import (
 	"errors"
+	"fmt"
 
 	gobgp "github.com/osrg/gobgp/v4/api"
 	"github.com/osrg/gobgp/v4/pkg/apiutil"
@@ -56,7 +57,7 @@ func toGoBGPPolicyExtended(apiPolicy *types.ExtendedRoutePolicy) (*gobgp.Policy,
 		Name: apiPolicy.Name,
 	}
 	for i, stmt := range apiPolicy.Statements {
-		statement, dSets := toGoBGPPolicyStatementExtended(stmt, policyStatementName(apiPolicy.Name, i))
+		statement, dSets := toGoBGPPolicyStatementExtended(stmt, fmt.Sprintf("%s-%d", apiPolicy.Name, i))
 		policy.Statements = append(policy.Statements, statement)
 		definedSets = append(definedSets, dSets...)
 	}

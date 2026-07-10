@@ -87,12 +87,34 @@ spec:
       - key: "node.kubernetes.io/not-ready"
         operator: "Exists"
         effect: "NoSchedule"
+      # On AKS the no-schedule nodes are made Ready with a dummy CNI conf and
+      # then explicitly tainted cilium.io/no-schedule:NoSchedule to keep regular
+      # test pods off. Tolerate it so the external targets still schedule here.
+      # No-op on GKE, where these nodes are only labeled, never tainted.
+      - key: "cilium.io/no-schedule"
+        operator: "Exists"
+        effect: "NoSchedule"
       dnsPolicy: ClusterFirstWithHostNet
       containers:
       - name: nginx
         image: nginx:latest
         securityContext:
           allowPrivilegeEscalation: false
+        # Only report ready once nginx actually serves HTTPS on 443. Without
+        # this, numberReady=1 (and the rollout wait in action.sh) can succeed
+        # while nginx is still starting up, so the first L7 TLS-interception
+        # requests race the warm-up and get a connection refused or a transient
+        # 503 from nginx. An HTTPS GET probe exercises the same serving path the
+        # tests use (kubelet skips cert verification for scheme: HTTPS) and only
+        # passes on a 2xx/3xx response.
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 443
+            scheme: HTTPS
+          initialDelaySeconds: 1
+          periodSeconds: 2
+          failureThreshold: 15
         volumeMounts:
         - name: config
           mountPath: /etc/nginx/nginx.conf

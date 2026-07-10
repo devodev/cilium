@@ -18,6 +18,7 @@
 #include "conntrack.h"
 #include "conntrack_map.h"
 #include "csum.h"
+#include "drop_reasons.h"
 #include "egress_gateway.h"
 #include "eps.h"
 #include "icmp6.h"
@@ -623,29 +624,13 @@ static __always_inline void snat_v4_init_tuple(const struct iphdr *ip4,
  * error code (distinct from NAT_PUNT_TO_STACK).
  */
 static __always_inline int
-snat_v4_needs_masquerade(struct __ctx_buff *ctx __maybe_unused,
-			 struct ipv4_ct_tuple *tuple __maybe_unused,
-			 struct iphdr *ip4 __maybe_unused,
-			 fraginfo_t fraginfo __maybe_unused,
-			 int l4_off __maybe_unused,
-			 struct ipv4_nat_target *target __maybe_unused)
+__snat_v4_needs_masquerade(struct __ctx_buff *ctx, struct ipv4_ct_tuple *tuple,
+			   struct iphdr *ip4, fraginfo_t fraginfo, int l4_off,
+			   struct ipv4_nat_target *target)
 {
-	const struct endpoint_info *local_ep __maybe_unused;
-	const struct remote_endpoint_info *remote_ep __maybe_unused;
+	const struct endpoint_info *local_ep;
+	const struct remote_endpoint_info *remote_ep;
 
-#if defined(TUNNEL_MODE) && defined(IS_BPF_OVERLAY)
-# if defined(ENABLE_CLUSTER_AWARE_ADDRESSING) && defined(ENABLE_INTER_CLUSTER_SNAT)
-	if (target->cluster_id != 0 &&
-	    target->cluster_id != CONFIG(cluster_id)) {
-		target->addr = IPV4_INTER_CLUSTER_SNAT;
-		target->from_local_endpoint = true;
-
-		return NAT_NEEDED;
-	}
-# endif
-#endif /* TUNNEL_MODE && IS_BPF_OVERLAY */
-
-#if defined(ENABLE_MASQUERADE_IPV4) && defined(IS_BPF_HOST)
 	/* To prevent aliasing with masqueraded connections,
 	 * we need to track all host connections that use config
 	 * nat_ipv4_masquerade.
@@ -788,9 +773,32 @@ snat_v4_needs_masquerade(struct __ctx_buff *ctx __maybe_unused,
 		target->addr = CONFIG(nat_ipv4_masquerade).be32;
 		return NAT_NEEDED;
 	}
-#endif /*ENABLE_MASQUERADE_IPV4 && IS_BPF_HOST */
 
 	return NAT_PUNT_TO_STACK;
+}
+
+/* Store struct ipv6_ct_tuple and struct ipv6_nat_target objects in maps to
+ * optimize stack usage.
+ */
+struct snat_v4_args {
+	struct ipv4_ct_tuple tuple;
+	struct ipv4_nat_target target;
+};
+
+DEFINE_AUX(struct snat_v4_args, snat_v4_args);
+
+__noinline __weak int
+snat_v4_needs_masquerade(struct __ctx_buff *ctx, fraginfo_t fraginfo, int l4_off)
+{
+	struct snat_v4_args *args = AUX(snat_v4_args);
+	void *data, *data_end;
+	struct iphdr *ip4;
+
+	if (!revalidate_data(ctx, &data, &data_end, &ip4))
+		return DROP_INVALID;
+
+	return __snat_v4_needs_masquerade(ctx, &args->tuple, ip4, fraginfo,
+					  l4_off, &args->target);
 }
 
 static __always_inline __maybe_unused int

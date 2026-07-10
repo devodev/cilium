@@ -230,43 +230,6 @@ func TestLookup(t *testing.T) {
 			},
 		},
 		{
-			name: "endpoint by container ID (deprecated)",
-			cm: &apiv1.EndpointChangeRequest{
-				ContainerID: "1234",
-			},
-			setupArgs: func() args {
-				return args{
-					endpointid.NewID(endpointid.ContainerIdPrefix, "1234"),
-				}
-			},
-			setupWant: func() want {
-				return want{
-					ep:       true,
-					err:      nil,
-					errCheck: assert.EqualValues,
-				}
-			},
-		},
-		{
-			name: "endpoint by pod name",
-			cm: &apiv1.EndpointChangeRequest{
-				K8sNamespace: "default",
-				K8sPodName:   "foo",
-			},
-			setupArgs: func() args {
-				return args{
-					endpointid.NewID(endpointid.PodNamePrefix, "default/foo"),
-				}
-			},
-			setupWant: func() want {
-				return want{
-					ep:       true,
-					err:      nil,
-					errCheck: assert.EqualValues,
-				}
-			},
-		},
-		{
 			name: "endpoint by cep name",
 			cm: &apiv1.EndpointChangeRequest{
 				K8sNamespace: "default",
@@ -306,12 +269,12 @@ func TestLookup(t *testing.T) {
 			},
 		},
 		{
-			name: "endpoint by cep name with interface and disabled legacy identifers",
+			name: "endpoint by cep name with secondary interface",
 			cm: &apiv1.EndpointChangeRequest{
-				K8sNamespace:             "default",
-				K8sPodName:               "foo",
-				ContainerInterfaceName:   "net1",
-				DisableLegacyIdentifiers: true,
+				K8sNamespace:           "default",
+				K8sPodName:             "foo",
+				ContainerInterfaceName: "net1",
+				IsSecondaryInterface:   true,
 			},
 			setupArgs: func() args {
 				return args{
@@ -371,25 +334,6 @@ func TestLookup(t *testing.T) {
 				return want{
 					err:      nil,
 					errCheck: assert.NotEqualValues,
-				}
-			},
-		},
-		{
-			name: "invalid lookup with container id with disabled legacy identifiers",
-			cm: &apiv1.EndpointChangeRequest{
-				ContainerID:              "1234",
-				DisableLegacyIdentifiers: true,
-			},
-			setupArgs: func() args {
-				return args{
-					endpointid.NewID(endpointid.ContainerIdPrefix, "1234"),
-				}
-			},
-			setupWant: func() want {
-				return want{
-					ep:       false,
-					err:      nil,
-					errCheck: assert.EqualValues,
 				}
 			},
 		},
@@ -636,10 +580,10 @@ func TestLookupCEPName(t *testing.T) {
 		{
 			name: "existing pod name with container interface name",
 			cm: apiv1.EndpointChangeRequest{
-				K8sNamespace:             "default",
-				K8sPodName:               "bar",
-				ContainerInterfaceName:   "eth1",
-				DisableLegacyIdentifiers: true,
+				K8sNamespace:           "default",
+				K8sPodName:             "bar",
+				ContainerInterfaceName: "eth1",
+				IsSecondaryInterface:   true,
 			},
 			preTestRun: func(ep *endpoint.Endpoint) {
 				require.NoError(t, mgr.expose(ep))
@@ -1124,4 +1068,70 @@ func TestUpdateHostEndpointLabels(t *testing.T) {
 		)
 		tt.postTestRun()
 	}
+}
+
+func TestUpdateCIDRLabelsPrefixScan(t *testing.T) {
+	logger := hivetest.Logger(t)
+	s := setupEndpointManagerSuite(t)
+	mgr := New(logger, nil, &dummyEpSyncher{}, nil, nil, nil, defaultEndpointManagerConfig)
+
+	kvstoreSync := ipcache.NewIPIdentitySynchronizer(logger, kvstore.SetupDummy(t, kvstore.DisabledBackendName))
+
+	// Create and expose two endpoints, one inside the subnet, one outside
+	model1 := newTestEndpointModel(1, endpoint.StateReady)
+	ep1, err := func() (*endpoint.Endpoint, error) {
+		p := makeTestEndpointParams(logger, s.repo)
+		p.KVStoreSynchronizer = kvstoreSync
+		return endpoint.NewEndpointFromChangeModel(p, nil, &endpoint.FakeEndpointProxy{}, model1, nil)
+	}()
+	require.NoError(t, err)
+	ep1.IPv4 = netip.MustParseAddr("10.20.30.50")
+	ep1.Start(uint16(model1.ID))
+	t.Cleanup(ep1.Stop)
+	require.NoError(t, mgr.expose(ep1))
+	defer mgr.WaitEndpointRemoved(ep1)
+
+	model2 := newTestEndpointModel(2, endpoint.StateReady)
+	ep2, err := func() (*endpoint.Endpoint, error) {
+		p := makeTestEndpointParams(logger, s.repo)
+		p.KVStoreSynchronizer = kvstoreSync
+		return endpoint.NewEndpointFromChangeModel(p, nil, &endpoint.FakeEndpointProxy{}, model2, nil)
+	}()
+	require.NoError(t, err)
+	ep2.IPv4 = netip.MustParseAddr("10.30.30.50")
+	ep2.Start(uint16(model2.ID))
+	t.Cleanup(ep2.Stop)
+	require.NoError(t, mgr.expose(ep2))
+	defer mgr.WaitEndpointRemoved(ep2)
+
+	// Call UpdateCIDRLabels for the prefix 10.20.30.0/24
+	subnet := netip.MustParsePrefix("10.20.30.0/24")
+	_ = mgr.UpdateCIDRLabels(context.Background(), subnet)
+
+	// Verify that the controller for ep1 was triggered or is present, while ep2 was not
+	m1 := ep1.GetModel()
+	require.NotNil(t, m1)
+	require.NotNil(t, m1.Status)
+
+	// Find controller for resolve-identity-1
+	foundEP1Ctrl := false
+	for _, c := range m1.Status.Controllers {
+		if c.Name == "resolve-identity-1" {
+			foundEP1Ctrl = true
+			break
+		}
+	}
+	assert.True(t, foundEP1Ctrl, "ep1 should have triggered identity resolver")
+
+	m2 := ep2.GetModel()
+	require.NotNil(t, m2)
+	require.NotNil(t, m2.Status)
+	foundEP2Ctrl := false
+	for _, c := range m2.Status.Controllers {
+		if c.Name == "resolve-identity-2" {
+			foundEP2Ctrl = true
+			break
+		}
+	}
+	assert.False(t, foundEP2Ctrl, "ep2 should not have triggered identity resolver")
 }

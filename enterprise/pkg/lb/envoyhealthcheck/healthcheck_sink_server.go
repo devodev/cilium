@@ -25,8 +25,8 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/cilium/cilium/pkg/ciliumenvoyconfig"
-	"github.com/cilium/cilium/pkg/envoy"
 	"github.com/cilium/cilium/pkg/envoy/config"
+	envoyutil "github.com/cilium/cilium/pkg/envoy/util"
 	"github.com/cilium/cilium/pkg/lock"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/option"
@@ -90,7 +90,7 @@ func registerHealthCheckSinkServer(params healthcheckSinkServerParams) error {
 		params.DB,
 		params.HealthCheckTable,
 		params.CECTable,
-		envoy.GetSocketDir(option.Config.RunDir),
+		envoyutil.GetSocketDir(option.Config.RunDir),
 		params.EnvoyProxyConfig.ProxyGID,
 		params.EnvoyProxyConfig.EnvoyAccessLogBufferSize,
 	)

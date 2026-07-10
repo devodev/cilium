@@ -12,6 +12,7 @@ package egressgatewayha
 
 import (
 	"context"
+	"log/slog"
 	"maps"
 	"net"
 	"testing"
@@ -45,6 +46,7 @@ import (
 	"github.com/cilium/cilium/pkg/healthconfig"
 	"github.com/cilium/cilium/pkg/hive"
 	"github.com/cilium/cilium/pkg/identity/cache"
+	"github.com/cilium/cilium/pkg/ipcache"
 	k8sFake "github.com/cilium/cilium/pkg/k8s/client/testutils"
 	k8sTables "github.com/cilium/cilium/pkg/k8s/tables"
 	"github.com/cilium/cilium/pkg/kpr"
@@ -144,6 +146,11 @@ func TestPrivilegedAgentScripts(t *testing.T) {
 				// using the mock node sync type.
 				node.LocalNodeStoreCell,
 				endpointmanager.Cell,
+				cell.Provide(func(log *slog.Logger) *ipcache.IPCache {
+					return ipcache.NewIPCache(&ipcache.Configuration{
+						Logger: log,
+					})
+				}),
 				cell.Provide(func() promise.Promise[endpointstate.Restorer] {
 					resolver, promise := promise.New[endpointstate.Restorer]()
 					resolver.Resolve(&fakeRestorer{})

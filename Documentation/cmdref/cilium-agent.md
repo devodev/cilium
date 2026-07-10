@@ -262,6 +262,7 @@ cilium-agent [flags]
       --envoy-node-locality-enabled                                      Enable Envoy node-locality support for zone-aware routing
       --envoy-policy-restore-timeout duration                            Maximum time to wait for endpoint policy restoration before starting serving resources to Envoy (default 3m0s)
       --envoy-secrets-namespace string                                   EnvoySecretsNamespace is the namespace having secrets used by CEC
+      --envoy-xds-mode string                                            xDS server implementation for Envoy proxy configuration. Valid values are "split" for the existing per-resource-type xDS server, "ads" for the ADS (Aggregated Discovery Service) xDS server, or "strict-ads" for ADS with strict snapshot cache behavior and generated snapshot consistency checks (default "split")
       --evpn-default-security-group-id uint16                            Default Security Group ID used in EVPN advertisements
       --evpn-source-interface string                                     Interface to use as EVPN VXLAN packet source
       --evpn-vxlan-device string                                         VXLAN device setup and used for EVPN (default "cilium_evpn")
@@ -485,7 +486,7 @@ cilium-agent [flags]
       --packetization-layer-pmtud-mode string                            Enables kernel packetization layer path mtu discovery on Pod netns (if empty will use host setting) (default "blackhole")
       --policy-accounting                                                Maintain packet and byte counters for every policy entry (default true)
       --policy-audit-mode                                                Enable policy audit (non-drop) mode
-      --policy-cidr-match-mode strings                                   The entities that can be selected by CIDR policy. Supported values: 'nodes'
+      --policy-cidr-match-mode strings                                   The entities that can be selected by CIDR policy. Supported values: 'nodes', 'pods'
       --policy-default-local-cluster                                     Control whether policy rules assume by default the local cluster if not explicitly selected (default true)
       --policy-deny-response string                                      How to handle pod egress traffic dropped by network policy: either drop the packet ("none") or reject with an ICMP Destination Unreachable ("icmp") (default "none")
       --policy-queue-size uint                                           Size of queue for policy-related events (default 100)

@@ -85,6 +85,7 @@ import (
 	"github.com/cilium/cilium/pkg/nodeipamconfig"
 	"github.com/cilium/cilium/pkg/option"
 	policy "github.com/cilium/cilium/pkg/policy/cell"
+	policycommands "github.com/cilium/cilium/pkg/policy/commands"
 	"github.com/cilium/cilium/pkg/policy/compute"
 	policyDirectory "github.com/cilium/cilium/pkg/policy/directory"
 	policyK8s "github.com/cilium/cilium/pkg/policy/k8s"
@@ -143,7 +144,7 @@ var (
 
 		// Provides the Client to access the KVStore.
 		cell.Provide(kvstoreExtraOptions),
-		kvstore.Cell(kvstore.DisabledBackendName),
+		kvstore.Cell(kvstore.DisabledBackendName, kvstore.OptAsyncWaitForEstablished),
 		cell.Invoke(kvstoreLocksGC),
 
 		cni.Cell,
@@ -310,6 +311,7 @@ var (
 
 		// Provides PolicyRepository (List of policy rules)
 		policy.Cell,
+		policycommands.Cell,
 
 		// Provides PolicyRecomputer (policy computation).
 		compute.Cell,

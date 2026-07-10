@@ -70,7 +70,7 @@ union v4addr {
 
 #define THIS_IS_L3_DEV		(ETH_HLEN == 0)
 
-static __always_inline bool validate_ethertype(struct __ctx_buff *ctx,
+static __always_inline bool validate_ethertype(const struct __ctx_buff *ctx,
 					       __be16 *proto)
 {
 	void *data_end = ctx_data_end(ctx);
@@ -117,30 +117,6 @@ __revalidate_data_pull(const struct __ctx_buff *ctx, void **data_, void **data_e
 
 	*l3 = data + l3_off;
 	return true;
-}
-
-static __always_inline __u32 get_tunnel_id(__u32 identity)
-{
-#if defined ENABLE_IPV4 && defined ENABLE_IPV6
-	if (identity == WORLD_IPV4_ID || identity == WORLD_IPV6_ID)
-		return WORLD_ID;
-#endif
-	return identity;
-}
-
-static __always_inline __u32 get_id_from_tunnel_id(__u32 tunnel_id, __be16 proto  __maybe_unused)
-{
-#if defined ENABLE_IPV4 && defined ENABLE_IPV6
-	if (tunnel_id == WORLD_ID) {
-		switch (proto) {
-		case bpf_htons(ETH_P_IP):
-			return WORLD_IPV4_ID;
-		case bpf_htons(ETH_P_IPV6):
-			return WORLD_IPV6_ID;
-		}
-	}
-#endif
-	return tunnel_id;
 }
 
 /* revalidate_data_pull() initializes the provided pointers from the ctx and

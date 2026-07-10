@@ -248,7 +248,7 @@ func (e *Endpoint) regeneratePolicy(stats *regenerationStatistics, datapathRegen
 		return err
 	}
 	// Ingress endpoint needs no redirects
-	if !e.isProperty(endpointtypes.PropertySkipBPFPolicy) {
+	if !e.isPropertyLocked(endpointtypes.PropertySkipBPFPolicy) {
 		stats.proxyConfiguration.Start()
 		desiredRedirects, stats.missingProxyRedirectsCount, rf = e.addNewRedirects(selectorPolicy, datapathRegenCtxt.proxyWaitGroup)
 		stats.proxyConfiguration.End(true)
@@ -421,7 +421,7 @@ func (e *Endpoint) setDesiredPolicy(datapathRegenCtxt *datapathRegenerationConte
 					return fmt.Errorf("unable to dump PolicyMap when trying to revert failed endpoint regeneration: %w", err)
 				}
 
-				_, _, err = e.syncPolicyMapWith(currentMap, false)
+				_, _, err = e.syncPolicyMapWith(currentMap, false, false)
 				if err != nil {
 					e.getLogger().Error("failed to sync PolicyMap when reverting to last known good policy", logfields.Error, err)
 				}
@@ -626,7 +626,7 @@ func (e *Endpoint) updateRealizedState(stats *regenerationStatistics, origDir st
 
 	// Start periodic background full reconciliation of the policy map.
 	// Does nothing if it has already been started.
-	if !e.isProperty(endpointtypes.PropertyFakeEndpoint) {
+	if !e.isPropertyLocked(endpointtypes.PropertyFakeEndpoint) {
 		e.startSyncPolicyMapController()
 	}
 
@@ -1037,7 +1037,7 @@ func (e *Endpoint) ComputeInitialPolicy(regenContext *regenerationContext) (erro
 
 		stats.proxyPolicyCalculation.Start()
 		// Initial NetworkPolicy is not reverted
-		err, _, finalize := e.proxy.UpdateNetworkPolicy(e, e.desiredPolicy, nil)
+		err, _, finalize := e.proxy.UpdateNetworkPolicy(regenContext.parentContext, e, e.desiredPolicy, nil)
 		stats.proxyPolicyCalculation.End(err == nil)
 		if err != nil {
 			e.getLogger().Warn(

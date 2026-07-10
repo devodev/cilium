@@ -26,7 +26,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
-	gatewayv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 	mcsapiv1beta1 "sigs.k8s.io/mcs-api/pkg/apis/v1beta1"
 
 	controllerruntime "github.com/cilium/cilium/operator/pkg/controller-runtime"
@@ -104,6 +103,13 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return controllerruntime.Success()
 	}
 
+	// At this point, the GatewayClass is managed by Cilium, so Gateway-level validations are safe to run.
+	if ref := gw.Spec.Infrastructure; ref != nil && ref.ParametersRef != nil {
+		setGatewayAccepted(gw, false, "Invalid Gateway parameters: spec.infrastructure.parametersRef is not supported", gatewayv1.GatewayReasonInvalidParameters)
+		setGatewayProgrammed(gw, metav1.ConditionUnknown, "Waiting for Accepted condition to be True", gatewayv1.GatewayReasonPending)
+		return r.handleReconcileErrorWithStatus(ctx, errors.New("Invalid Gateway"), original, gw)
+	}
+
 	if ref := gwc.Spec.ParametersRef; ref != nil {
 		if !isParameterRefSupported(ref) {
 			setGatewayAccepted(gw, false, "Invalid GatewayClass parameters: spec.parametersRef.kind must be CiliumGatewayClassConfig", gatewayv1.GatewayReasonInvalidParameters)
@@ -150,7 +156,7 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 	}
 
-	tcpRouteList := &gatewayv1alpha2.TCPRouteList{}
+	tcpRouteList := &gatewayv1.TCPRouteList{}
 	if helpers.HasTCPRouteSupport(r.Client.Scheme()) {
 		if err := r.Client.List(ctx, tcpRouteList, &client.ListOptions{
 			FieldSelector: fields.OneTermEqualSelector(indexers.GatewayTCPRouteIndex, client.ObjectKeyFromObject(original).String()),
@@ -160,7 +166,7 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 	}
 
-	udpRouteList := &gatewayv1alpha2.UDPRouteList{}
+	udpRouteList := &gatewayv1.UDPRouteList{}
 	if helpers.HasUDPRouteSupport(r.Client.Scheme()) {
 		if err := r.Client.List(ctx, udpRouteList, &client.ListOptions{
 			FieldSelector: fields.OneTermEqualSelector(indexers.GatewayUDPRouteIndex, client.ObjectKeyFromObject(original).String()),
@@ -210,7 +216,7 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			}
 
 			if helpers.HasTCPRouteSupport(r.Client.Scheme()) {
-				lsTCPRoutes := &gatewayv1alpha2.TCPRouteList{}
+				lsTCPRoutes := &gatewayv1.TCPRouteList{}
 				if err := r.Client.List(ctx, lsTCPRoutes, &client.ListOptions{
 					FieldSelector: fields.OneTermEqualSelector(indexers.TCPRouteListenerSetIndex, lsKey),
 				}); err != nil {
@@ -223,7 +229,7 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			}
 
 			if helpers.HasUDPRouteSupport(r.Client.Scheme()) {
-				lsUDPRoutes := &gatewayv1alpha2.UDPRouteList{}
+				lsUDPRoutes := &gatewayv1.UDPRouteList{}
 				if err := r.Client.List(ctx, lsUDPRoutes, &client.ListOptions{
 					FieldSelector: fields.OneTermEqualSelector(indexers.UDPRouteListenerSetIndex, lsKey),
 				}); err != nil {
@@ -323,11 +329,11 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return controllerruntime.Fail(err)
 	}
 
-	httpRoutes := r.filterHTTPRoutesByGateway(ctx, gw, attachedListenerSets, httpRouteList.Items, namespaceLabels)
-	tlsRoutes := r.filterTLSRoutesByGateway(ctx, gw, attachedListenerSets, tlsRouteList.Items, namespaceLabels)
-	grpcRoutes := r.filterGRPCRoutesByGateway(ctx, gw, attachedListenerSets, grpcRouteList.Items, namespaceLabels)
-	tcpRoutes := r.filterTCPRoutesByGateway(ctx, gw, attachedListenerSets, tcpRouteList.Items, namespaceLabels)
-	udpRoutes := r.filterUDPRoutesByGateway(ctx, gw, attachedListenerSets, udpRouteList.Items, namespaceLabels)
+	httpRoutes := r.filterHTTPRoutesByGateway(ctx, gw, attachedListenerSets, httpRouteList.Items)
+	tlsRoutes := r.filterTLSRoutesByGateway(ctx, gw, attachedListenerSets, tlsRouteList.Items)
+	grpcRoutes := r.filterGRPCRoutesByGateway(ctx, gw, attachedListenerSets, grpcRouteList.Items)
+	tcpRoutes := r.filterTCPRoutesByGateway(ctx, gw, attachedListenerSets, tcpRouteList.Items)
+	udpRoutes := r.filterUDPRoutesByGateway(ctx, gw, attachedListenerSets, udpRouteList.Items)
 
 	if err := r.setBackendTLSPolicyStatuses(scopedLog, ctx, httpRoutes, btlspMap, req.NamespacedName); err != nil {
 		scopedLog.ErrorContext(ctx, "Unable to update BackendTLSPolicy Status", logfields.Error, err)
@@ -351,7 +357,7 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		MergedListeners:     mergedListeners,
 	})
 
-	validListener, err := r.setListenerStatus(ctx, gw, httpRouteList, tlsRouteList, grpcRouteList, tcpRouteList, udpRouteList, namespaceLabels)
+	listenersStatus, err := r.setListenerStatus(ctx, gw, httpRouteList, tlsRouteList, grpcRouteList, tcpRouteList, udpRouteList, namespaceLabels)
 	if err != nil {
 		scopedLog.ErrorContext(ctx, "Unable to set listener status", logfields.Error, err)
 		setGatewayAccepted(gw, false, "Unable to set listener status", gatewayv1.GatewayReasonNoResources)
@@ -359,12 +365,17 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return r.handleReconcileErrorWithStatus(ctx, err, original, gw)
 	}
 
-	if !validListener {
+	switch listenersStatus {
+	case ListenersStatusNoneValid:
 		err := fmt.Errorf("No Accepted Listeners for Gateway")
 		scopedLog.ErrorContext(ctx, "No Accepted Listeners for Gateway", logfields.Error, err)
 		setGatewayAccepted(gw, false, "No Accepted Listeners", gatewayv1.GatewayReasonListenersNotValid)
 		setGatewayProgrammed(gw, metav1.ConditionFalse, "No Accepted Listeners", gatewayv1.GatewayReasonListenersNotValid)
 		return r.handleReconcileErrorWithStatus(ctx, err, original, gw)
+	case ListenersStatusValidWithUnsupportedProtocol:
+		setGatewayAccepted(gw, true, "Gateway has unsupported listeners", gatewayv1.GatewayReasonListenersNotValid)
+	case ListenersStatusSomeInvalid, ListenersStatusAllValid:
+		setGatewayAccepted(gw, true, "Gateway successfully scheduled", gatewayv1.GatewayReasonAccepted)
 	}
 
 	// ListenerSet status is reported independently from the parent Gateway's
@@ -372,7 +383,6 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// Gateway's local configuration, so valid ListenerSets do not make an
 	// otherwise invalid Gateway accepted or programmed.
 	r.setListenerSetStatuses(ctx, gw, attachedListenerSets, httpRouteList, tlsRouteList, grpcRouteList, tcpRouteList, udpRouteList, namespaceLabels)
-	setGatewayAccepted(gw, true, "Gateway successfully scheduled", gatewayv1.GatewayReasonAccepted)
 
 	// Step 3: Translate the listeners into Cilium model
 	cec, svc, eps, err := r.translator.Translate(m)
@@ -809,23 +819,24 @@ func resolveAllowedNamespaces(ctx context.Context, c client.Client, listenerName
 	return map[string]struct{}{listenerNamespace: {}}
 }
 
-func (r *gatewayReconciler) filterHTTPRoutesByGateway(ctx context.Context, gw *gatewayv1.Gateway, attachedListenerSets []gatewayv1.ListenerSet, routes []gatewayv1.HTTPRoute, namespaceLabels helpers.NamespaceLabelIndex) []gatewayv1.HTTPRoute {
+// The Gateway-level filters only select Routes with an accepted parent belonging
+// to the Gateway or one of its attached ListenerSets. Listener-specific policy
+// and hostname checks happen during model ingestion, where the parent source is
+// known and the correct listener can be evaluated.
+func (r *gatewayReconciler) filterHTTPRoutesByGateway(ctx context.Context, gw *gatewayv1.Gateway, attachedListenerSets []gatewayv1.ListenerSet, routes []gatewayv1.HTTPRoute) []gatewayv1.HTTPRoute {
 	var filtered []gatewayv1.HTTPRoute
-	allListenerHostNames := routechecks.GetAllListenerHostNames(gw.Spec.Listeners)
 	for _, route := range routes {
-		if helpers.IsParentAttachable(ctx, gw, &route, route.Status.Parents, attachedListenerSets) && isAllowed(gw, &route, namespaceLabels) && len(computeHosts(gw, route.Spec.Hostnames, allListenerHostNames)) > 0 {
+		if helpers.IsParentAttachable(ctx, gw, &route, route.Status.Parents, attachedListenerSets) {
 			filtered = append(filtered, route)
 		}
 	}
 	return filtered
 }
 
-func (r *gatewayReconciler) filterGRPCRoutesByGateway(ctx context.Context, gw *gatewayv1.Gateway, attachedListenerSets []gatewayv1.ListenerSet, routes []gatewayv1.GRPCRoute, namespaceLabels helpers.NamespaceLabelIndex) []gatewayv1.GRPCRoute {
+func (r *gatewayReconciler) filterGRPCRoutesByGateway(ctx context.Context, gw *gatewayv1.Gateway, attachedListenerSets []gatewayv1.ListenerSet, routes []gatewayv1.GRPCRoute) []gatewayv1.GRPCRoute {
 	var filtered []gatewayv1.GRPCRoute
-	allListenerHostNames := routechecks.GetAllListenerHostNames(gw.Spec.Listeners)
-
 	for _, route := range routes {
-		if helpers.IsParentAttachable(ctx, gw, &route, route.Status.Parents, attachedListenerSets) && isAllowed(gw, &route, namespaceLabels) && len(computeHosts(gw, route.Spec.Hostnames, allListenerHostNames)) > 0 {
+		if helpers.IsParentAttachable(ctx, gw, &route, route.Status.Parents, attachedListenerSets) {
 			filtered = append(filtered, route)
 		}
 	}
@@ -918,31 +929,30 @@ func parentRefMatched(gw *gatewayv1.Gateway, listener *gatewayv1.Listener, liste
 	return false
 }
 
-func (r *gatewayReconciler) filterTLSRoutesByGateway(ctx context.Context, gw *gatewayv1.Gateway, attachedListenerSets []gatewayv1.ListenerSet, routes []gatewayv1.TLSRoute, namespaceLabels helpers.NamespaceLabelIndex) []gatewayv1.TLSRoute {
+func (r *gatewayReconciler) filterTLSRoutesByGateway(ctx context.Context, gw *gatewayv1.Gateway, attachedListenerSets []gatewayv1.ListenerSet, routes []gatewayv1.TLSRoute) []gatewayv1.TLSRoute {
 	var filtered []gatewayv1.TLSRoute
 	for _, route := range routes {
-		if helpers.IsParentAttachable(ctx, gw, &route, route.Status.Parents, attachedListenerSets) && isAllowed(gw, &route, namespaceLabels) &&
-			len(computeHosts(gw, route.Spec.Hostnames, nil)) > 0 {
+		if helpers.IsParentAttachable(ctx, gw, &route, route.Status.Parents, attachedListenerSets) {
 			filtered = append(filtered, route)
 		}
 	}
 	return filtered
 }
 
-func (r *gatewayReconciler) filterTCPRoutesByGateway(ctx context.Context, gw *gatewayv1.Gateway, attachedListenerSets []gatewayv1.ListenerSet, routes []gatewayv1alpha2.TCPRoute, namespaceLabels helpers.NamespaceLabelIndex) []gatewayv1alpha2.TCPRoute {
-	var filtered []gatewayv1alpha2.TCPRoute
+func (r *gatewayReconciler) filterTCPRoutesByGateway(ctx context.Context, gw *gatewayv1.Gateway, attachedListenerSets []gatewayv1.ListenerSet, routes []gatewayv1.TCPRoute) []gatewayv1.TCPRoute {
+	var filtered []gatewayv1.TCPRoute
 	for _, route := range routes {
-		if helpers.IsParentAttachable(ctx, gw, &route, route.Status.Parents, attachedListenerSets) && isAllowed(gw, &route, namespaceLabels) {
+		if helpers.IsParentAttachable(ctx, gw, &route, route.Status.Parents, attachedListenerSets) {
 			filtered = append(filtered, route)
 		}
 	}
 	return filtered
 }
 
-func (r *gatewayReconciler) filterUDPRoutesByGateway(ctx context.Context, gw *gatewayv1.Gateway, attachedListenerSets []gatewayv1.ListenerSet, routes []gatewayv1alpha2.UDPRoute, namespaceLabels helpers.NamespaceLabelIndex) []gatewayv1alpha2.UDPRoute {
-	var filtered []gatewayv1alpha2.UDPRoute
+func (r *gatewayReconciler) filterUDPRoutesByGateway(ctx context.Context, gw *gatewayv1.Gateway, attachedListenerSets []gatewayv1.ListenerSet, routes []gatewayv1.UDPRoute) []gatewayv1.UDPRoute {
+	var filtered []gatewayv1.UDPRoute
 	for _, route := range routes {
-		if helpers.IsParentAttachable(ctx, gw, &route, route.Status.Parents, attachedListenerSets) && isAllowed(gw, &route, namespaceLabels) {
+		if helpers.IsParentAttachable(ctx, gw, &route, route.Status.Parents, attachedListenerSets) {
 			filtered = append(filtered, route)
 		}
 	}
@@ -963,9 +973,9 @@ func (r *gatewayReconciler) filterTLSRoutesByListener(ctx context.Context, gw *g
 	return filtered
 }
 
-func (r *gatewayReconciler) filterTCPRoutesByListener(ctx context.Context, gw *gatewayv1.Gateway, listener *gatewayv1.Listener, listenerSource *model.FullyQualifiedResource, routes []gatewayv1alpha2.TCPRoute, namespaceLabels helpers.NamespaceLabelIndex, attachedListenerSets ...gatewayv1.ListenerSet) []gatewayv1alpha2.TCPRoute {
+func (r *gatewayReconciler) filterTCPRoutesByListener(ctx context.Context, gw *gatewayv1.Gateway, listener *gatewayv1.Listener, listenerSource *model.FullyQualifiedResource, routes []gatewayv1.TCPRoute, namespaceLabels helpers.NamespaceLabelIndex, attachedListenerSets ...gatewayv1.ListenerSet) []gatewayv1.TCPRoute {
 	lsNS := listenerOwnerNamespace(gw, listenerSource)
-	var filtered []gatewayv1alpha2.TCPRoute
+	var filtered []gatewayv1.TCPRoute
 	for _, route := range routes {
 		if helpers.IsParentAttachable(ctx, gw, &route, route.Status.Parents, attachedListenerSets) &&
 			listenerisAllowed(lsNS, listener, &route, namespaceLabels) &&
@@ -976,9 +986,9 @@ func (r *gatewayReconciler) filterTCPRoutesByListener(ctx context.Context, gw *g
 	return filtered
 }
 
-func (r *gatewayReconciler) filterUDPRoutesByListener(ctx context.Context, gw *gatewayv1.Gateway, listener *gatewayv1.Listener, listenerSource *model.FullyQualifiedResource, routes []gatewayv1alpha2.UDPRoute, namespaceLabels helpers.NamespaceLabelIndex, attachedListenerSets ...gatewayv1.ListenerSet) []gatewayv1alpha2.UDPRoute {
+func (r *gatewayReconciler) filterUDPRoutesByListener(ctx context.Context, gw *gatewayv1.Gateway, listener *gatewayv1.Listener, listenerSource *model.FullyQualifiedResource, routes []gatewayv1.UDPRoute, namespaceLabels helpers.NamespaceLabelIndex, attachedListenerSets ...gatewayv1.ListenerSet) []gatewayv1.UDPRoute {
 	lsNS := listenerOwnerNamespace(gw, listenerSource)
-	var filtered []gatewayv1alpha2.UDPRoute
+	var filtered []gatewayv1.UDPRoute
 	for _, route := range routes {
 		if helpers.IsParentAttachable(ctx, gw, &route, route.Status.Parents, attachedListenerSets) &&
 			listenerisAllowed(lsNS, listener, &route, namespaceLabels) &&
@@ -1127,16 +1137,26 @@ func (r *gatewayReconciler) setStaticAddressStatus(ctx context.Context, gw *gate
 	return nil
 }
 
-func (r *gatewayReconciler) setListenerStatus(ctx context.Context, gw *gatewayv1.Gateway, httpRoutes *gatewayv1.HTTPRouteList, tlsRoutes *gatewayv1.TLSRouteList, grpcRoutes *gatewayv1.GRPCRouteList, tcpRoutes *gatewayv1alpha2.TCPRouteList, udpRoutes *gatewayv1alpha2.UDPRouteList, namespaceLabels helpers.NamespaceLabelIndex) (bool, error) {
+type ListenersStatus string
+
+const (
+	ListenersStatusNoneValid                    ListenersStatus = "NoneValid"
+	ListenersStatusValidWithUnsupportedProtocol ListenersStatus = "SomeValidWithUnsupported"
+	ListenersStatusSomeInvalid                  ListenersStatus = "SomeInvalid"
+	ListenersStatusAllValid                     ListenersStatus = "AllValid"
+)
+
+func (r *gatewayReconciler) setListenerStatus(ctx context.Context, gw *gatewayv1.Gateway, httpRoutes *gatewayv1.HTTPRouteList, tlsRoutes *gatewayv1.TLSRouteList, grpcRoutes *gatewayv1.GRPCRouteList, tcpRoutes *gatewayv1.TCPRouteList, udpRoutes *gatewayv1.UDPRouteList, namespaceLabels helpers.NamespaceLabelIndex) (ListenersStatus, error) {
 	grants := &gatewayv1.ReferenceGrantList{}
 	if err := r.Client.List(ctx, grants); err != nil {
-		return false, fmt.Errorf("failed to retrieve reference grants: %w", err)
+		return "", fmt.Errorf("failed to retrieve reference grants: %w", err)
 	}
 
 	conflictedListeners := conflictedGatewayListeners(gw)
 
-	// Keep track of if there is at least one Valid Listener; if not, the Gateway cannot be Accepted.
-	oneValidListener := false
+	validListeners := 0
+	unsupportedProtocolListeners := 0
+	invalidListeners := 0
 	for _, l := range gw.Spec.Listeners {
 		isValid := true
 		var invalidMessages []string
@@ -1156,20 +1176,23 @@ func (r *gatewayReconciler) setListenerStatus(ctx context.Context, gw *gatewayv1
 			grants:         grants.Items,
 			ownerRef:       client.ObjectKeyFromObject(gw).String(),
 		})
+		if !res.isValid && res.invalidReason == gatewayv1.ListenerReasonUnsupportedProtocol {
+			unsupportedProtocolListeners++
+		}
 		isValid = isValid && res.isValid
 		invalidMessages = append(invalidMessages, res.invalidMessages...)
 		conds = merge(conds, res.conds...)
 		supportedKinds := res.supportedKinds
 
 		if !isValid {
+			invalidListeners++
 			conds = merge(conds,
 				listenerAcceptedCondition(gw.GetGeneration(), false, res.invalidReason, "Listener not valid. "+strings.Join(invalidMessages, " ")),
 				listenerProgrammedCondition(gw.GetGeneration(), false, gatewayv1.ListenerReasonPending, "Address not ready yet"))
 			// If the Listener is not valid, then no kinds are supported
 			// supportedKinds = []gatewayv1.RouteGroupKind{}
 		} else {
-			// There's at least one Accepted listener, so the Gateway can also be Accepted.
-			oneValidListener = true
+			validListeners++
 			// If ResolvedRefs is not already present, add a successful one.
 			if !helpers.IsConditionPresent(conds, string(gatewayv1.ListenerConditionResolvedRefs)) {
 				conds = merge(conds, metav1.Condition{
@@ -1224,7 +1247,17 @@ func (r *gatewayReconciler) setListenerStatus(ctx context.Context, gw *gatewayv1
 		}
 	}
 	gw.Status.Listeners = newListenersStatus
-	return oneValidListener, nil
+
+	switch {
+	case validListeners == 0:
+		return ListenersStatusNoneValid, nil
+	case unsupportedProtocolListeners > 0:
+		return ListenersStatusValidWithUnsupportedProtocol, nil
+	case invalidListeners > 0:
+		return ListenersStatusSomeInvalid, nil
+	default:
+		return ListenersStatusAllValid, nil
+	}
 }
 
 type listenerConflict struct {
@@ -1405,6 +1438,7 @@ func (r *gatewayReconciler) validateListener(ctx context.Context, l gatewayv1.Li
 	allSupported := getSupportedRouteKinds(l.Protocol)
 	if allSupported == nil {
 		res.invalidMessages = append(res.invalidMessages, "Unsupported Listener Protocol.")
+		res.invalidReason = gatewayv1.ListenerReasonUnsupportedProtocol
 		res.isValid = false
 	}
 
@@ -1522,8 +1556,8 @@ func (r *gatewayReconciler) setListenerSetStatuses(
 	httpRoutes *gatewayv1.HTTPRouteList,
 	tlsRoutes *gatewayv1.TLSRouteList,
 	grpcRoutes *gatewayv1.GRPCRouteList,
-	tcpRoutes *gatewayv1alpha2.TCPRouteList,
-	udpRoutes *gatewayv1alpha2.UDPRouteList,
+	tcpRoutes *gatewayv1.TCPRouteList,
+	udpRoutes *gatewayv1.UDPRouteList,
 	namespaceLabels helpers.NamespaceLabelIndex,
 ) {
 	gw.Status.AttachedListenerSets = nil
@@ -2155,7 +2189,7 @@ func (r *gatewayReconciler) setBackendTLSPolicyStatuses(scopedLog *slog.Logger,
 	return nil
 }
 
-func (r *gatewayReconciler) setTCPRouteStatuses(scopedLog *slog.Logger, ctx context.Context, tcpRoutes *gatewayv1alpha2.TCPRouteList, grants *gatewayv1.ReferenceGrantList) error {
+func (r *gatewayReconciler) setTCPRouteStatuses(scopedLog *slog.Logger, ctx context.Context, tcpRoutes *gatewayv1.TCPRouteList, grants *gatewayv1.ReferenceGrantList) error {
 	scopedLog.Debug("Updating TCPRoute statuses for Gateway", numRoutes, len(tcpRoutes.Items))
 	for tcpRouteIndex, original := range tcpRoutes.Items {
 
@@ -2186,7 +2220,7 @@ func (r *gatewayReconciler) setTCPRouteStatuses(scopedLog *slog.Logger, ctx cont
 	return nil
 }
 
-func (r *gatewayReconciler) setUDPRouteStatuses(scopedLog *slog.Logger, ctx context.Context, udpRoutes *gatewayv1alpha2.UDPRouteList, grants *gatewayv1.ReferenceGrantList) error {
+func (r *gatewayReconciler) setUDPRouteStatuses(scopedLog *slog.Logger, ctx context.Context, udpRoutes *gatewayv1.UDPRouteList, grants *gatewayv1.ReferenceGrantList) error {
 	scopedLog.Debug("Updating UDPRoute statuses for Gateway", numRoutes, len(udpRoutes.Items))
 	for udpRouteIndex, original := range udpRoutes.Items {
 
@@ -2242,14 +2276,14 @@ func (r *gatewayReconciler) handleTLSRouteReconcileErrorWithStatus(ctx context.C
 	return nil
 }
 
-func (r *gatewayReconciler) handleTCPRouteReconcileErrorWithStatus(ctx context.Context, scopedLog *slog.Logger, reconcileErr error, original *gatewayv1alpha2.TCPRoute, modified *gatewayv1alpha2.TCPRoute) error {
+func (r *gatewayReconciler) handleTCPRouteReconcileErrorWithStatus(ctx context.Context, scopedLog *slog.Logger, reconcileErr error, original *gatewayv1.TCPRoute, modified *gatewayv1.TCPRoute) error {
 	if err := r.updateTCPRouteStatus(ctx, scopedLog, original, modified); err != nil {
 		return fmt.Errorf("failed to update Gateway status while handling the reconcile error: %w: %w", reconcileErr, err)
 	}
 	return nil
 }
 
-func (r *gatewayReconciler) handleUDPRouteReconcileErrorWithStatus(ctx context.Context, scopedLog *slog.Logger, reconcileErr error, original *gatewayv1alpha2.UDPRoute, modified *gatewayv1alpha2.UDPRoute) error {
+func (r *gatewayReconciler) handleUDPRouteReconcileErrorWithStatus(ctx context.Context, scopedLog *slog.Logger, reconcileErr error, original *gatewayv1.UDPRoute, modified *gatewayv1.UDPRoute) error {
 	if err := r.updateUDPRouteStatus(ctx, scopedLog, original, modified); err != nil {
 		return fmt.Errorf("failed to update Gateway status while handling the reconcile error: %w: %w", reconcileErr, err)
 	}
@@ -2267,7 +2301,7 @@ func (r *gatewayReconciler) updateTLSRouteStatus(ctx context.Context, scopedLog 
 	return r.Client.Status().Update(ctx, new)
 }
 
-func (r *gatewayReconciler) updateTCPRouteStatus(ctx context.Context, scopedLog *slog.Logger, original *gatewayv1alpha2.TCPRoute, new *gatewayv1alpha2.TCPRoute) error {
+func (r *gatewayReconciler) updateTCPRouteStatus(ctx context.Context, scopedLog *slog.Logger, original *gatewayv1.TCPRoute, new *gatewayv1.TCPRoute) error {
 	oldStatus := original.Status.DeepCopy()
 	newStatus := new.Status.DeepCopy()
 
@@ -2278,7 +2312,7 @@ func (r *gatewayReconciler) updateTCPRouteStatus(ctx context.Context, scopedLog 
 	return r.Client.Status().Update(ctx, new)
 }
 
-func (r *gatewayReconciler) updateUDPRouteStatus(ctx context.Context, scopedLog *slog.Logger, original *gatewayv1alpha2.UDPRoute, new *gatewayv1alpha2.UDPRoute) error {
+func (r *gatewayReconciler) updateUDPRouteStatus(ctx context.Context, scopedLog *slog.Logger, original *gatewayv1.UDPRoute, new *gatewayv1.UDPRoute) error {
 	oldStatus := original.Status.DeepCopy()
 	newStatus := new.Status.DeepCopy()
 

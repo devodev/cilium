@@ -229,7 +229,7 @@ func (p *proxyPolicy) GetListener() string {
 // required to implement the given L4 policy.
 // Only called after a new selector policy has been computed.
 func (e *Endpoint) addNewRedirects(selectorPolicy policy.SelectorPolicy, proxyWaitGroup *completion.WaitGroup) (desiredRedirects map[string]uint16, skipped uint, rf revert.RevertFunc) {
-	if e.isProperty(endpointtypes.PropertyFakeEndpoint) || e.IsProxyDisabled() {
+	if e.isPropertyLocked(endpointtypes.PropertyFakeEndpoint) || e.IsProxyDisabled() {
 		return nil, 0, nil
 	}
 
@@ -312,7 +312,7 @@ func (e *Endpoint) addNewRedirects(selectorPolicy policy.SelectorPolicy, proxyWa
 // Must be called with endpoint.mutex locked for writing, as this calls back to
 // 'e.OnDNSPolicyUpdateLocked()'.
 func (e *Endpoint) removeOldRedirects(desiredRedirects, realizedRedirects map[string]uint16) {
-	if e.isProperty(endpointtypes.PropertyFakeEndpoint) || e.IsProxyDisabled() {
+	if e.isPropertyLocked(endpointtypes.PropertyFakeEndpoint) || e.IsProxyDisabled() {
 		return
 	}
 
@@ -383,16 +383,15 @@ func (e *Endpoint) regenerateBPF(regenContext *regenerationContext) (revnum uint
 	defer datapathRegenCtxt.completionCancel()
 
 	err = e.runPreCompilationSteps(regenContext)
-	// Keep track of the side-effects of the regeneration that need to be
-	// reverted in case of failure.
-	// Also keep track of the regeneration finalization code that can't be
-	// reverted, and execute it in case of regeneration success.
-	defer func() {
-		// Ignore finalizing of proxy state in dry mode.
-		if !e.isProperty(endpointtypes.PropertyFakeEndpoint) {
-			e.finalizeEndpointRegeneration(regenContext, reterr)
-		}
-	}()
+
+	// Ignore finalizing of proxy state in dry mode.
+	if !e.IsProperty(endpointtypes.PropertyFakeEndpoint) {
+		// Keep track of the side-effects of the regeneration that need to be
+		// reverted in case of failure.
+		// Also keep track of the regeneration finalization code that can't be
+		// reverted, and execute it in case of regeneration success.
+		defer e.finalizeEndpointRegeneration(regenContext, reterr)
+	}
 
 	if err != nil {
 		return 0, err
@@ -434,15 +433,15 @@ func (e *Endpoint) regenerateBPF(regenContext *regenerationContext) (revnum uint
 	// No need to compile BPF in dry mode. Also, in lb-only mode we do not
 	// support local Pods on the worker node, hence endpoint BPF regeneration
 	// is skipped everywhere.
-	if e.isProperty(endpointtypes.PropertyFakeEndpoint) {
+	if e.IsProperty(endpointtypes.PropertyFakeEndpoint) {
 		return e.desiredPolicyRevision, nil
 	}
 
 	// Skip BPF if the endpoint has no policy map
-	if e.isProperty(endpointtypes.PropertySkipBPFPolicy) {
+	if e.IsProperty(endpointtypes.PropertySkipBPFPolicy) {
 		// Ingress endpoint needs entries in the endpoints map so that the return traffic,
 		// ARP, and IPv6 ND are delivered to the host stack in all datapath configurations.
-		if e.isProperty(endpointtypes.PropertyAtHostNS) {
+		if e.IsProperty(endpointtypes.PropertyAtHostNS) {
 			stats.mapSync.Start()
 			err = e.lxcMap.WriteEndpoint(datapathRegenCtxt.epInfoCache)
 			stats.mapSync.End(err == nil)
@@ -553,7 +552,27 @@ func (e *Endpoint) policyMapSync(policyMapDump policy.MapStateMap, stats *regene
 	// Nothing to do if the desired policy is already fully realized.
 	if e.realizedPolicy != e.desiredPolicy {
 		if len(policyMapDump) > 0 {
-			_, _, err = e.syncPolicyMapWith(policyMapDump, false)
+			// A non-empty dump only happens on the first regeneration after an
+			// agent restart, when the BPF policy map still holds the entries
+			// that were enforced before the restart but no policy has been
+			// realized yet (see the caller in runPreCompilationSteps). Those
+			// entries represent the last known good policy, so preserve them:
+			// add the desired keys but do not delete the restored ones against a
+			// desired policy that may not have finished resolving its selectors
+			// yet. Deleting them here breaks established L3/L4 connections until
+			// the desired policy is complete (a POLICY_DENIED black-hole during
+			// upgrade/downgrade).
+			//
+			// The preserved entries that end up not being part of the desired
+			// policy (e.g. entries keyed on identities that were reallocated
+			// across the restart) are left in the map. They are not tracked by
+			// realizedPolicy once regeneration completes, so normal syncs do not
+			// remove them; the periodic full reconciliation (syncPolicyMapWithDump)
+			// removes them once the desired policy is fully realized. Mark the
+			// endpoint so that first reconciliation is treated as expected
+			// convergence rather than a policy-map bug.
+			_, _, err = e.syncPolicyMapWith(policyMapDump, false, true)
+			e.preservedRestoredPolicyEntries = true
 		} else {
 			err = e.syncPolicyMap()
 		}
@@ -648,7 +667,7 @@ func (e *Endpoint) runPreCompilationSteps(regenContext *regenerationContext) (pr
 
 	// Once the policy has been calculated, we can update the standalone dns proxy as well.
 	// We need to send the snapshot of the policyRules to SDP.
-	if !e.isProperty(endpointtypes.PropertyFakeEndpoint) && !e.IsProxyDisabled() && e.proxy.IsSDPEnabled() {
+	if !e.IsProperty(endpointtypes.PropertyFakeEndpoint) && !e.IsProxyDisabled() && e.proxy.IsSDPEnabled() {
 		repo := e.policyRepo
 		e.getLogger().Debug("Updating standalone DNS proxy with policy rules")
 		policyRules := repo.GetPolicySnapshot()
@@ -675,7 +694,7 @@ func (e *Endpoint) runPreCompilationSteps(regenContext *regenerationContext) (pr
 	// pre-existing connections using that IP are now invalid.
 	if !e.ctCleaned {
 		go func() {
-			if !e.isProperty(endpointtypes.PropertyFakeEndpoint) {
+			if !e.isPropertyLocked(endpointtypes.PropertyFakeEndpoint) {
 				e.scrubIPsInConntrackTable()
 			}
 			close(datapathRegenCtxt.ctCleaned)
@@ -738,13 +757,13 @@ func (e *Endpoint) runPreCompilationSteps(regenContext *regenerationContext) (pr
 	e.setDNSRulesLocked(rules)
 
 	// If dry mode is enabled, no further changes to BPF maps are performed
-	if e.isProperty(endpointtypes.PropertySkipBPFPolicy) {
+	if e.isPropertyLocked(endpointtypes.PropertySkipBPFPolicy) {
 		// Ingress endpoint needs epInfoCache for endpointmap population
-		if e.isProperty(endpointtypes.PropertyAtHostNS) {
+		if e.isPropertyLocked(endpointtypes.PropertyAtHostNS) {
 			datapathRegenCtxt.epInfoCache = e.createEpInfoCache(currentDir)
 		}
 
-		if e.isProperty(endpointtypes.PropertyFakeEndpoint) {
+		if e.isPropertyLocked(endpointtypes.PropertyFakeEndpoint) {
 			if err = e.writeHeaderfile(nextDir); err != nil {
 				return newRegenerationErrorf(regenerationFailureReasonDatapathOrchestrationError, "unable to write header file: %w", err)
 			}
@@ -809,14 +828,14 @@ func (e *Endpoint) runPreCompilationSteps(regenContext *regenerationContext) (pr
 	}
 
 	// sync policy map for fake endpoints, bpf compilation will be skipped for them.
-	if e.isProperty(endpointtypes.PropertyFakeEndpoint) {
+	if e.isPropertyLocked(endpointtypes.PropertyFakeEndpoint) {
 		err = e.policyMapSync(nil, stats)
 		if err != nil {
 			return newRegenerationErrorf(regenerationFailureReasonPolicyBPFError, "fake ep policymap synchronization failed: %w", err)
 		}
 	}
 
-	if e.isProperty(endpointtypes.PropertySkipBPFRegeneration) {
+	if e.isPropertyLocked(endpointtypes.PropertySkipBPFRegeneration) {
 		return nil
 	}
 
@@ -1127,7 +1146,7 @@ func (e *Endpoint) applyPolicyMapChangesLocked(regenContext *regenerationContext
 
 	// Ingress endpoint does not need to wait.
 	// This also lets daemon/cmd integration tests to proceed
-	if e.isProperty(endpointtypes.PropertySkipBPFPolicy) {
+	if e.isPropertyLocked(endpointtypes.PropertySkipBPFPolicy) {
 		e.getLogger().Debug(
 			"Ingress Endpoint updating Network policy",
 		)
@@ -1150,10 +1169,14 @@ func (e *Endpoint) applyPolicyMapChangesLocked(regenContext *regenerationContext
 		// updateEnvoy when policy has changed (due to the possible removed redirects), if
 		// the endpoint has Envoy redirects, or is an Ingress endpoint, which needs to
 		// enforce also the full L3/4 policy.
-		if hasNewPolicy || hasEnvoyRedirect || e.isIngress {
+		//
+		// When EnvoyConfig is enabled, policy filters will be applied on listeners that might
+		// not be referenced in policy rules(eg. L7 load balancing). Always update proxy policy
+		// in such cases to propagate incremental updates.
+		if option.Config.EnableEnvoyConfig || hasNewPolicy || hasEnvoyRedirect || e.isIngress {
 			e.getLogger().Debug("applyPolicyMapChanges: Updating Envoy NetworkPolicy")
 			stats.proxyPolicyCalculation.Start()
-			proxyErr, rf, ff := e.proxy.UpdateNetworkPolicy(e, e.desiredPolicy, proxyWaitGroup)
+			proxyErr, rf, ff := e.proxy.UpdateNetworkPolicy(context.Background(), e, e.desiredPolicy, proxyWaitGroup)
 			stats.proxyPolicyCalculation.End(proxyErr == nil)
 
 			// UpdateNetworkPolicy only returns revert/finalize func if there is no
@@ -1170,7 +1193,7 @@ func (e *Endpoint) applyPolicyMapChangesLocked(regenContext *regenerationContext
 	}
 
 	// Ingress endpoint has no bpf policy maps, so return before applying changes to bpf.
-	if e.isProperty(endpointtypes.PropertySkipBPFPolicy) {
+	if e.isPropertyLocked(endpointtypes.PropertySkipBPFPolicy) {
 		e.getLogger().Debug(
 			"Skipping bpf updates due to dry mode",
 		)
@@ -1382,7 +1405,16 @@ func (e *Endpoint) syncPolicyMap() error {
 // syncPolicyMapWith updates the bpf policy map state based on the
 // difference between a realized MapStateMap from a recent policy map dump
 // and desired policy state.
-func (e *Endpoint) syncPolicyMapWith(realized policy.MapStateMap, withDiffs bool) (diffCount int, diffs []policy.MapChange, err error) {
+//
+// When skipDeletes is true, entries present in the realized map but missing
+// from the desired policy are left in place instead of being deleted. This is
+// used on the first regeneration after an agent restart, where the realized map
+// is the pre-restart map and the desired policy may not have finished resolving
+// its selectors yet: deleting then would tear down entries that still enforce
+// established L3/L4 connections. The stale entries are cleaned up once the
+// desired policy is fully realized, by a subsequent regeneration and by the
+// periodic full reconciliation (syncPolicyMapWithDump).
+func (e *Endpoint) syncPolicyMapWith(realized policy.MapStateMap, withDiffs bool, skipDeletes bool) (diffCount int, diffs []policy.MapChange, err error) {
 	addErrors, deleteErrors := 0, 0
 
 	e.updatePolicyMapPressureMetric(e.desiredPolicy.Len())
@@ -1420,17 +1452,19 @@ func (e *Endpoint) syncPolicyMapWith(realized policy.MapStateMap, withDiffs bool
 	}
 
 	// Delete policy keys present in the realized state, but not present in the desired state
-	for k, v := range e.desiredPolicy.MissingMap(realized) {
-		if !e.deletePolicyKey(k) {
-			deleteErrors++
-			continue
-		}
-		diffCount++
-		if withDiffs {
-			diffs = append(diffs, policy.MapChange{
-				Key:   k,
-				Value: v,
-			})
+	if !skipDeletes {
+		for k, v := range e.desiredPolicy.MissingMap(realized) {
+			if !e.deletePolicyKey(k) {
+				deleteErrors++
+				continue
+			}
+			diffCount++
+			if withDiffs {
+				diffs = append(diffs, policy.MapChange{
+					Key:   k,
+					Value: v,
+				})
+			}
 		}
 	}
 
@@ -1513,19 +1547,46 @@ func (e *Endpoint) syncPolicyMapWithDump() error {
 	e.PolicyDebug("syncPolicyMapWithDump", logfields.DumpedPolicyMap, currentMap)
 	// Diffs between the maps indicate an error in the policy map update logic.
 	// Collect and log diffs if policy logging is enabled.
-	diffCount, diffs, err := e.syncPolicyMapWith(currentMap, e.getLogger() != nil)
+	//
+	// Always collect diffs (withDiffs=true) so that a restart-preserved cleanup
+	// can be told apart from a genuine bug: on the first reconciliation after a
+	// restart that preserved policy map entries, we expect only deletions of the
+	// leftover entries and no additions. That case is expected convergence, not a
+	// bug, so log it at a lower severity and clear the marker. Any addition, or
+	// any discrepancy once the marker is cleared, still indicates a real policy
+	// map update bug and is logged as a warning (which CI treats as an error).
+	diffCount, diffs, err := e.syncPolicyMapWith(currentMap, true, false)
 
 	if diffCount > 0 {
-		e.getLogger().Warn("Policy map sync fixed errors, consider running with debug verbose = policy to get detailed dumps", logfields.Count, diffCount)
+		onlyDeletes := true
+		for _, d := range diffs {
+			if d.Add {
+				onlyDeletes = false
+				break
+			}
+		}
+		if e.preservedRestoredPolicyEntries && onlyDeletes {
+			e.getLogger().Info(
+				"Removed policy map entries preserved across agent restart now that the desired policy is realized",
+				logfields.Count, diffCount,
+			)
+		} else {
+			e.getLogger().Warn("Policy map sync fixed errors, consider running with debug verbose = policy to get detailed dumps", logfields.Count, diffCount)
+		}
 		e.PolicyDebug("syncPolicyMapWithDump", logfields.DumpedDiffs, diffs)
 	}
+
+	// The reconciliation has converged the map to the desired policy, so any
+	// entries preserved across the restart have now been dealt with.
+	e.preservedRestoredPolicyEntries = false
 
 	return err
 }
 
+// startSyncPolicyMapController starts the policymap sync controller. Must be called with the endpoint mutex held.
 func (e *Endpoint) startSyncPolicyMapController() {
 	// Skip the controller if the endpoint has no policy map
-	if e.isProperty(endpointtypes.PropertySkipBPFPolicy) {
+	if e.isPropertyLocked(endpointtypes.PropertySkipBPFPolicy) {
 		return
 	}
 

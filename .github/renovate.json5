@@ -127,19 +127,31 @@
       "minimumReleaseAge": "5 days"
     },
     {
-      // Do not pin digests for self-referenced cilium/cilium GitHub Actions
-      // and reusable workflows (e.g.,
-      // cilium/cilium/.github/actions/set-commit-status@main or
-      // cilium/cilium/.github/workflows/foo.yaml@v1.17). These are internal
-      // references within the same repository and should not be pinned to a
-      // commit SHA by Renovate.
+      // Docker Hub is the only Docker registry that currently supports release
+      // timestamps, causing updates to be never proposed by Renovate for all
+      // other registries. Hence, let's enable the "timestamp-optional" option,
+      // which unfortunately effectively disables the cooldown period for them.
+      // https://docs.renovatebot.com/key-concepts/minimum-release-age/#which-registries-support-release-timestamps
+      "matchDatasources": ["docker"],
+      "minimumReleaseAgeBehaviour": "timestamp-optional",
+    },
+    {
+      // Do not pin or update digests for self-referenced cilium/cilium GitHub
+      // Actions and reusable workflows (e.g.,
+      // cilium/cilium/.github/actions/set-commit-status@<sha> # main or
+      // cilium/cilium/.github/workflows/foo.yaml@<sha> # v1.17). These are
+      // internal references within the same repository.
       "matchManagers": [
         "github-actions"
       ],
       "matchPackageNames": [
         "cilium/cilium"
       ],
-      "pinDigests": false
+      "matchUpdateTypes": [
+        "digest",
+        "pinDigest"
+      ],
+      "enabled": false
     },
     {
       // Do not pin digests for the golangci/golangci-lint dependency that the
@@ -390,8 +402,6 @@
         // dependency manually.
         "/github.com/onsi/ginkgo/",
         "/github.com/onsi/gomega/*/",
-        // We can't update it, see https://github.com/cilium/cilium/issues/44063 for more info
-        "github.com/cilium/ebpf",
         // The version upgrade from 9.0.4 to 9.1.0 breaks our CI
         "sphinx"
       ]
@@ -837,6 +847,7 @@
       // as we need to update cilium-envoy accordingly.
       "matchPackageNames": [
         "github.com/envoyproxy/go-control-plane/envoy",
+        "github.com/envoyproxy/go-control-plane",
       ],
       "matchUpdateTypes": [
         "patch",

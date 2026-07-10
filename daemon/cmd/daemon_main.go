@@ -35,6 +35,7 @@ import (
 	endpointTypes "github.com/cilium/cilium/pkg/endpoint/types"
 	"github.com/cilium/cilium/pkg/endpointmanager"
 	"github.com/cilium/cilium/pkg/envoy"
+	util "github.com/cilium/cilium/pkg/envoy/util"
 	"github.com/cilium/cilium/pkg/flowdebug"
 	"github.com/cilium/cilium/pkg/hive"
 	"github.com/cilium/cilium/pkg/identity"
@@ -780,7 +781,7 @@ func InitGlobalFlags(logger *slog.Logger, cmd *cobra.Command, vp *viper.Viper) {
 	flags.MarkHidden(option.EnableCiliumClusterwideNetworkPolicy)
 	option.BindEnv(vp, option.EnableCiliumClusterwideNetworkPolicy)
 
-	flags.StringSlice(option.PolicyCIDRMatchMode, defaults.PolicyCIDRMatchMode, "The entities that can be selected by CIDR policy. Supported values: 'nodes'")
+	flags.StringSlice(option.PolicyCIDRMatchMode, defaults.PolicyCIDRMatchMode, "The entities that can be selected by CIDR policy. Supported values: 'nodes', 'pods'")
 	option.BindEnv(vp, option.PolicyCIDRMatchMode)
 
 	flags.Duration(option.MaxInternalTimerDelay, defaults.MaxInternalTimerDelay, "Maximum internal timer value across the entire agent. Use in test environments to detect race conditions in agent logic.")
@@ -952,7 +953,7 @@ func initEnv(logger *slog.Logger, vp *viper.Viper) {
 
 	// Creating Envoy sockets directory for cases which doesn't provide a volume mount
 	// (e.g. embedded Envoy, external workload in ClusterMesh scenario)
-	if err := os.MkdirAll(envoy.GetSocketDir(option.Config.RunDir), defaults.RuntimePathRights); err != nil {
+	if err := os.MkdirAll(util.GetSocketDir(option.Config.RunDir), defaults.RuntimePathRights); err != nil {
 		logging.Fatal(scopedLog, "Could not create envoy sockets directory", logfields.Error, err)
 	}
 

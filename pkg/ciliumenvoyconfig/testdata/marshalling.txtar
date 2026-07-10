@@ -126,8 +126,8 @@ spec:
     }
   ],
   "Resources": {
-    "Listeners": [
-      {
+    "Listeners": {
+      "test/envoy-lb-listener/envoy-lb-listener": {
         "name": "test/envoy-lb-listener/envoy-lb-listener",
         "address": {
           "Address": {
@@ -166,11 +166,13 @@ spec:
         ],
         "ListenerSpecifier": null
       }
-    ],
-    "Secrets": null,
-    "Routes": null,
-    "Clusters": null,
-    "Endpoints": null
+    },
+    "Secrets": {},
+    "Routes": {},
+    "Clusters": {},
+    "Endpoints": {},
+    "NetworkPolicies": {},
+    "NetworkPolicyHosts": {}
   }
 }
 -- envoy-resources-expected.json --
@@ -191,8 +193,8 @@ spec:
     "Secrets": null,
     "Routes": null,
     "Clusters": null,
-    "Endpoints": [
-      {
+    "Endpoints": {
+      "test/echo:80": {
         "cluster_name": "test/echo:80",
         "endpoints": [
           {
@@ -218,15 +220,17 @@ spec:
           }
         ]
       }
-    ]
+    },
+    "NetworkPolicies": null,
+    "NetworkPolicyHosts": null
   },
   "ReconciledResources": {
     "Listeners": null,
     "Secrets": null,
     "Routes": null,
     "Clusters": null,
-    "Endpoints": [
-      {
+    "Endpoints": {
+      "test/echo:80": {
         "cluster_name": "test/echo:80",
         "endpoints": [
           {
@@ -252,7 +256,9 @@ spec:
           }
         ]
       }
-    ]
+    },
+    "NetworkPolicies": null,
+    "NetworkPolicyHosts": null
   },
   "Redirects": [],
   "ReconciledRedirects": [],
@@ -271,8 +277,8 @@ spec:
     "kind": "Done"
   },
   "Resources": {
-    "Listeners": [
-      {
+    "Listeners": {
+      "test/envoy-lb-listener/envoy-lb-listener": {
         "name": "test/envoy-lb-listener/envoy-lb-listener",
         "address": {
           "Address": {
@@ -311,15 +317,17 @@ spec:
         ],
         "ListenerSpecifier": null
       }
-    ],
-    "Secrets": null,
-    "Routes": null,
-    "Clusters": null,
-    "Endpoints": null
+    },
+    "Secrets": {},
+    "Routes": {},
+    "Clusters": {},
+    "Endpoints": {},
+    "NetworkPolicies": {},
+    "NetworkPolicyHosts": {}
   },
   "ReconciledResources": {
-    "Listeners": [
-      {
+    "Listeners": {
+      "test/envoy-lb-listener/envoy-lb-listener": {
         "name": "test/envoy-lb-listener/envoy-lb-listener",
         "address": {
           "Address": {
@@ -358,11 +366,13 @@ spec:
         ],
         "ListenerSpecifier": null
       }
-    ],
-    "Secrets": null,
-    "Routes": null,
-    "Clusters": null,
-    "Endpoints": null
+    },
+    "Secrets": {},
+    "Routes": {},
+    "Clusters": {},
+    "Endpoints": {},
+    "NetworkPolicies": {},
+    "NetworkPolicyHosts": {}
   },
   "Redirects": [
     {

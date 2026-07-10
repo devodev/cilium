@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include <bpf/lb_selection.h>
 #include <lib/static_data.h>
 
 /* Legacy node config rendered at agent runtime. */
@@ -63,6 +64,20 @@ NODE_CONFIG(bool, enable_conntrack_accounting, "Enable per flow (conntrack) stat
 
 NODE_CONFIG(bool, debug_lb, "Enable debugging trace statements for load balancer")
 
+NODE_CONFIG(__u8, lb_default_alg, "Default load-balancer backend selection algorithm")
+NODE_CONFIG(bool, lb_selection_per_service,
+	    "Enable per-service load-balancer backend selection algorithm")
+
+/*
+ * Init lb_default_alg to random to keep the old behaviour,
+ * but at the same time allow overriding this value in tests
+ */
+#ifndef LB_DEFAULT_ALG
+#define LB_DEFAULT_ALG LB_SELECTION_RANDOM
+#endif
+
+ASSIGN_CONFIG(__u8, lb_default_alg, LB_DEFAULT_ALG)
+
 NODE_CONFIG(__u16, nodeport_port_min, "Nodeport minimum port value.")
 NODE_CONFIG(__u16, nodeport_port_max, "Nodeport maximum port value.")
 
@@ -81,3 +96,7 @@ NODE_CONFIG(__u32, events_map_burst_limit,
 NODE_CONFIG(bool, enable_endpoint_routes, "Enable per endpoint routes")
 
 NODE_CONFIG(bool, enable_identity_mark, "Enable setting identity mark for local traffic")
+
+NODE_CONFIG(bool, enable_bpf_host_routing, "Enable BPF Host Routing")
+
+NODE_CONFIG(bool, encryption_strict_ingress, "Enable strict encryption for ingress traffic")
