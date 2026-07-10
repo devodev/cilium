@@ -13,11 +13,11 @@ package commands
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/netip"
 	"slices"
 	"strconv"
 	"strings"
-	"text/tabwriter"
 
 	"github.com/cilium/hive/script"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
@@ -41,7 +41,7 @@ func BGPRoutesCmd(bgpMgr agent.EnterpriseBGPRouterManager, errorPathStore *recon
 			Args:    "<table type> <afi> <safi>",
 			Flags: func(fs *pflag.FlagSet) {
 				AddOutFileFlag(fs)
-				AddFormatFlag(fs)
+				fs.StringP(formatFlag, formatFlagShort, "table", "Format to write in (table, table-json or json)")
 				fs.Bool("no-age", false, "Do not show Age column for testing purpose")
 				fs.BoolP("with-attrs", "a", false, "Show path attributes (excluding NEXT_HOP and MP_REACH_NLRI)")
 			},
@@ -130,6 +130,17 @@ func BGPRoutesCmd(bgpMgr agent.EnterpriseBGPRouterManager, errorPathStore *recon
 					}
 					PrintRoutes(tw, routesRes.Instances, peerMaps, errorPathStore, noAge, isAdjRIB, printAttr)
 					tw.Flush()
+				case "table-json":
+					builder := strings.Builder{}
+					PrintRoutes(&builder, routesRes.Instances, peerMaps, errorPathStore, noAge, isAdjRIB, printAttr)
+					table := tableJSONfromString(builder.String())
+					out, err := json.MarshalIndent(table, "", "  ")
+					if err != nil {
+						return "", "", fmt.Errorf("json marshal failed: %w", err)
+					}
+					if _, err := w.Write(out); err != nil {
+						return "", "", err
+					}
 				case "json":
 					out, err := json.MarshalIndent(routesRes, "", "  ")
 					if err != nil {
@@ -162,7 +173,7 @@ func parseTableTypeArg(arg string) (ossTypes.TableType, error) {
 }
 
 func PrintRoutes(
-	tw *tabwriter.Writer,
+	w io.Writer,
 	instances []agent.InstanceRoutesExtended,
 	peerMaps map[string]map[netip.Addr]string,
 	errorPathStore *reconcilerv2.ErrorPathStore,
@@ -273,15 +284,15 @@ func PrintRoutes(
 		}
 
 		if isAdjRIB {
-			fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s", row.Instance, row.Peer, row.Prefix, row.NextHop, row.Age)
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s", row.Instance, row.Peer, row.Prefix, row.NextHop, row.Age)
 		} else {
-			fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s", row.Instance, row.Peer, row.Prefix, row.NextHop, row.Best, row.Age, row.Error)
+			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s", row.Instance, row.Peer, row.Prefix, row.NextHop, row.Best, row.Age, row.Error)
 		}
 
 		if printAttr {
-			fmt.Fprintf(tw, "\t%s\n", row.Attrs)
+			fmt.Fprintf(w, "\t%s\n", row.Attrs)
 		} else {
-			fmt.Fprintf(tw, "\n")
+			fmt.Fprintf(w, "\n")
 		}
 
 		if row.Instance != "" {

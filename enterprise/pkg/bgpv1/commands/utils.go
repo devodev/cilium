@@ -37,7 +37,7 @@ func AddOutFileFlag(fs *pflag.FlagSet) {
 }
 
 func AddFormatFlag(fs *pflag.FlagSet) {
-	fs.StringP(formatFlag, formatFlagShort, "table", "Format to write in (table / json)")
+	fs.StringP(formatFlag, formatFlagShort, "table", "Format to write in (table or json)")
 }
 
 func GetCmdWriter(s *script.State) (writer io.Writer, buf *strings.Builder, f *os.File, err error) {
@@ -65,4 +65,34 @@ func GetCmdWriter(s *script.State) (writer io.Writer, buf *strings.Builder, f *o
 
 func GetCmdTabWriter(writer io.Writer) *tabwriter.Writer {
 	return tabwriter.NewWriter(writer, tabMinWidth, 0, tabPadding, tabPaddingChar, 0)
+}
+
+type tableJSON struct {
+	Columns []string            `json:"columns"`
+	Rows    []map[string]string `json:"rows"`
+}
+
+func tableJSONfromString(output string) tableJSON {
+	lines := strings.FieldsFunc(output, func(c rune) bool {
+		return c == '\n'
+	})
+	table := tableJSON{
+		Rows: []map[string]string{},
+	}
+
+	for i, line := range lines {
+		rows := strings.Split(line, "\t")
+		for j, row := range rows {
+			if i == 0 {
+				table.Columns = append(table.Columns, row)
+			} else {
+				if j == 0 {
+					table.Rows = append(table.Rows, map[string]string{})
+				}
+				table.Rows[i-1][table.Columns[j]] = row
+			}
+		}
+	}
+
+	return table
 }

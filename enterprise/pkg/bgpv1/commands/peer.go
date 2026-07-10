@@ -19,7 +19,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"text/tabwriter"
 
 	"github.com/cilium/hive/script"
 	"github.com/osrg/gobgp/v4/pkg/packet/bgp"
@@ -36,7 +35,7 @@ func BGPPeersCmd(bgpMgr agent.EnterpriseBGPRouterManager) script.Cmd {
 			Summary: "List BGP peers on Cilium",
 			Flags: func(fs *pflag.FlagSet) {
 				AddOutFileFlag(fs)
-				fs.StringP(formatFlag, formatFlagShort, "table", "Format to write in (table, json or detailed)")
+				fs.StringP(formatFlag, formatFlagShort, "table", "Format to write in (table, table-json, json or detailed)")
 				fs.Bool("no-uptime", false, "Do not show Uptime for testing purpose")
 			},
 			Detail: []string{
@@ -73,6 +72,17 @@ func BGPPeersCmd(bgpMgr agent.EnterpriseBGPRouterManager) script.Cmd {
 					PrintPeerStatesTable(tw, res.Instances, noUptime)
 
 					tw.Flush()
+				case "table-json":
+					builder := strings.Builder{}
+					PrintPeerStatesTable(&builder, res.Instances, noUptime)
+					table := tableJSONfromString(builder.String())
+					out, err := json.MarshalIndent(table, "", "  ")
+					if err != nil {
+						return "", "", fmt.Errorf("json marshal failed: %w", err)
+					}
+					if _, err := w.Write(out); err != nil {
+						return "", "", err
+					}
 				case "json":
 					out, err := json.MarshalIndent(res.Instances, "", "  ")
 					if err != nil {
@@ -93,7 +103,7 @@ func BGPPeersCmd(bgpMgr agent.EnterpriseBGPRouterManager) script.Cmd {
 	)
 }
 
-func PrintPeerStatesTable(tw *tabwriter.Writer, instances []agent.InstancePeerStatesExtended, noUptime bool) {
+func PrintPeerStatesTable(w io.Writer, instances []agent.InstancePeerStatesExtended, noUptime bool) {
 	type row struct {
 		Instance     string
 		Peer         string
@@ -191,7 +201,7 @@ func PrintPeerStatesTable(tw *tabwriter.Writer, instances []agent.InstancePeerSt
 			}
 		}
 
-		fmt.Fprintf(tw, "%s\n", strings.Join([]string{
+		fmt.Fprintf(w, "%s\n", strings.Join([]string{
 			row.Instance,
 			row.Peer,
 			row.SessionState,
