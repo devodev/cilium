@@ -1,0 +1,458 @@
+#! --enable-vrf --probe-tcp-md5
+
+# Tests BGP peering over VRF-bound sockets. The red VRF binds the Cilium listen
+# socket (gobgp is the active side), the blue VRF binds the Cilium connect
+# socket (gobgp is passive). The blue sessions are additionally authenticated
+# with a TCP MD5 signature to exercise SO_BINDTODEVICE together with TCP_MD5SIG,
+# while the red sessions stay unauthenticated.
+#
+# After the initial sessions are up, the VRF table IDs are changed. This makes
+# the controller recreate the VRF devices (cvrf-1000 -> cvrf-3000, cvrf-2000 ->
+# cvrf-4000) and the BGP instances must rebind their sockets to the new devices,
+# re-establishing every session for both the listen-bound (red) and the
+# connect-bound (blue) instance.
+
+# Start the hive
+hive start
+
+# Apply resources
+k8s/add vrf-red.yaml vrf-blue.yaml cilium-node.yaml bgp-node-config0.yaml active-peer-config.yaml passive-peer-config.yaml bgp-advertisement0.yaml auth-secret.yaml
+
+# Assign IP to the red VRF
+* addr/add 10.0.0.1/32 cvrf-1000
+addr/add fd00::1/128 cvrf-1000
+
+# Assign IP to the blue VRF
+* addr/add 10.0.0.1/32 cvrf-2000
+addr/add fd00::1/128 cvrf-2000
+
+# Create GoBGP servers and peers. The blue peers are authenticated with a TCP
+# MD5 password.
+gobgp/add-server red-v4  red-v4-1000.toml
+gobgp/add-server red-v6  red-v6-1000.toml
+gobgp/add-server blue-v4 blue-v4-2000.toml
+gobgp/add-server blue-v6 blue-v6-2000.toml
+
+# Wait for peerings to be established
+gobgp/wait-state -s red-v4  10.0.0.1 ESTABLISHED
+gobgp/wait-state -s red-v6  fd00::1  ESTABLISHED
+gobgp/wait-state -s blue-v4 10.0.0.1 ESTABLISHED
+gobgp/wait-state -s blue-v6 fd00::1  ESTABLISHED
+
+# The PodCIDRs are advertised over each VRF-bound session (retry until received).
+gobgp/routes -s red-v4  ipv4 unicast -o routes.actual
+* cmp routes-v4.expected routes.actual
+gobgp/routes -s red-v6  ipv6 unicast -o routes.actual
+* cmp routes-v6.expected routes.actual
+gobgp/routes -s blue-v4 ipv4 unicast -o routes.actual
+* cmp routes-v4.expected routes.actual
+gobgp/routes -s blue-v6 ipv6 unicast -o routes.actual
+* cmp routes-v6.expected routes.actual
+
+# Change the VRF table IDs. The controller recreates the devices
+# (cvrf-1000 -> cvrf-3000, cvrf-2000 -> cvrf-4000) and the BGP instances rebind
+# their sockets to the new devices.
+k8s/update vrf-red-table3000.yaml vrf-blue-table4000.yaml
+
+# Re-assign the addresses to the recreated devices (retry until they appear).
+* addr/add 10.0.0.1/32 cvrf-3000
+addr/add fd00::1/128 cvrf-3000
+* addr/add 10.0.0.1/32 cvrf-4000
+addr/add fd00::1/128 cvrf-4000
+
+# The old gobgp servers were bound to the now-deleted devices. Recreate them on
+# the new devices.
+gobgp/delete-server red-v4
+gobgp/delete-server red-v6
+gobgp/delete-server blue-v4
+gobgp/delete-server blue-v6
+gobgp/add-server red-v4  red-v4-3000.toml
+gobgp/add-server red-v6  red-v6-3000.toml
+gobgp/add-server blue-v4 blue-v4-4000.toml
+gobgp/add-server blue-v6 blue-v6-4000.toml
+
+# Every session re-establishes over the new devices, proving the rebind of both
+# the listen-bound (red) and the connect-bound (blue) instance.
+gobgp/wait-state -s red-v4  10.0.0.1 ESTABLISHED
+gobgp/wait-state -s red-v6  fd00::1  ESTABLISHED
+gobgp/wait-state -s blue-v4 10.0.0.1 ESTABLISHED
+gobgp/wait-state -s blue-v6 fd00::1  ESTABLISHED
+
+# The PodCIDRs are re-advertised over the rebound sessions (retry until received).
+gobgp/routes -s red-v4  ipv4 unicast -o routes.actual
+* cmp routes-v4.expected routes.actual
+gobgp/routes -s red-v6  ipv6 unicast -o routes.actual
+* cmp routes-v6.expected routes.actual
+gobgp/routes -s blue-v4 ipv4 unicast -o routes.actual
+* cmp routes-v4.expected routes.actual
+gobgp/routes -s blue-v6 ipv6 unicast -o routes.actual
+* cmp routes-v6.expected routes.actual
+
+#####
+
+-- red-v4-1000.toml --
+[global.config]
+  as = 65002
+  router-id = "10.0.0.2"
+  local-address-list = ["10.0.0.1"]
+  port = 1179
+  bind-to-device = "cvrf-1000"
+
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "10.0.0.1"
+    peer-as = 65001
+  [neighbors.transport.config]
+    bind-interface = "cvrf-1000"
+  [neighbors.timers.config]
+    connect-retry = 1
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv4-unicast"
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv6-unicast"
+
+-- red-v6-1000.toml --
+[global.config]
+  as = 65002
+  router-id = "10.0.0.2"
+  local-address-list = ["fd00::1"]
+  port = 1179
+  bind-to-device = "cvrf-1000"
+
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "fd00::1"
+    peer-as = 65001
+  [neighbors.transport.config]
+    bind-interface = "cvrf-1000"
+  [neighbors.timers.config]
+    connect-retry = 1
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv4-unicast"
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv6-unicast"
+
+-- blue-v4-2000.toml --
+[global.config]
+  as = 65002
+  router-id = "10.0.0.2"
+  local-address-list = ["10.0.0.1"]
+  port = 1179
+  bind-to-device = "cvrf-2000"
+
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "10.0.0.1"
+    peer-as = 65001
+    auth-password = "Cilium123"
+  [neighbors.transport.config]
+    passive-mode = true
+    bind-interface = "cvrf-2000"
+  [neighbors.timers.config]
+    connect-retry = 1
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv4-unicast"
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv6-unicast"
+
+-- blue-v6-2000.toml --
+[global.config]
+  as = 65002
+  router-id = "10.0.0.2"
+  local-address-list = ["fd00::1"]
+  port = 1179
+  bind-to-device = "cvrf-2000"
+
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "fd00::1"
+    peer-as = 65001
+    auth-password = "Cilium123"
+  [neighbors.transport.config]
+    passive-mode = true
+    bind-interface = "cvrf-2000"
+  [neighbors.timers.config]
+    connect-retry = 1
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv4-unicast"
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv6-unicast"
+
+-- red-v4-3000.toml --
+[global.config]
+  as = 65002
+  router-id = "10.0.0.2"
+  local-address-list = ["10.0.0.1"]
+  port = 1179
+  bind-to-device = "cvrf-3000"
+
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "10.0.0.1"
+    peer-as = 65001
+  [neighbors.transport.config]
+    bind-interface = "cvrf-3000"
+  [neighbors.timers.config]
+    connect-retry = 1
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv4-unicast"
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv6-unicast"
+
+-- red-v6-3000.toml --
+[global.config]
+  as = 65002
+  router-id = "10.0.0.2"
+  local-address-list = ["fd00::1"]
+  port = 1179
+  bind-to-device = "cvrf-3000"
+
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "fd00::1"
+    peer-as = 65001
+  [neighbors.transport.config]
+    bind-interface = "cvrf-3000"
+  [neighbors.timers.config]
+    connect-retry = 1
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv4-unicast"
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv6-unicast"
+
+-- blue-v4-4000.toml --
+[global.config]
+  as = 65002
+  router-id = "10.0.0.2"
+  local-address-list = ["10.0.0.1"]
+  port = 1179
+  bind-to-device = "cvrf-4000"
+
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "10.0.0.1"
+    peer-as = 65001
+    auth-password = "Cilium123"
+  [neighbors.transport.config]
+    passive-mode = true
+    bind-interface = "cvrf-4000"
+  [neighbors.timers.config]
+    connect-retry = 1
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv4-unicast"
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv6-unicast"
+
+-- blue-v6-4000.toml --
+[global.config]
+  as = 65002
+  router-id = "10.0.0.2"
+  local-address-list = ["fd00::1"]
+  port = 1179
+  bind-to-device = "cvrf-4000"
+
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "fd00::1"
+    peer-as = 65001
+    auth-password = "Cilium123"
+  [neighbors.transport.config]
+    passive-mode = true
+    bind-interface = "cvrf-4000"
+  [neighbors.timers.config]
+    connect-retry = 1
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv4-unicast"
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv6-unicast"
+
+-- vrf-red.yaml --
+apiVersion: isovalent.com/v1alpha1
+kind: IsovalentCoreVRF
+metadata:
+  name: red
+spec:
+  id: 1000
+  table: 1000
+
+-- vrf-blue.yaml --
+apiVersion: isovalent.com/v1alpha1
+kind: IsovalentCoreVRF
+metadata:
+  name: blue
+spec:
+  id: 2000
+  table: 2000
+
+-- vrf-red-table3000.yaml --
+apiVersion: isovalent.com/v1alpha1
+kind: IsovalentCoreVRF
+metadata:
+  name: red
+spec:
+  id: 1000
+  table: 3000
+
+-- vrf-blue-table4000.yaml --
+apiVersion: isovalent.com/v1alpha1
+kind: IsovalentCoreVRF
+metadata:
+  name: blue
+spec:
+  id: 2000
+  table: 4000
+
+-- cilium-node.yaml --
+apiVersion: cilium.io/v2
+kind: CiliumNode
+metadata:
+  name: test-node
+spec:
+  addresses:
+  - ip: 192.168.0.1
+    type: InternalIP
+  ipam:
+    podCIDRs:
+    - 10.244.0.0/24
+    - fd00:244::/64
+
+-- bgp-node-config0.yaml --
+apiVersion: isovalent.com/v1
+kind: IsovalentBGPNodeConfig
+metadata:
+  name: test-node
+spec:
+  bgpInstances:
+
+  # Bind to the red VRF. Set localPort to ensure VRF binding to the listen
+  # socket works correctly.
+  - name: vrf-red
+    vrfRef:
+      name: red
+    localASN: 65001
+    localPort: 179
+    routerID: 10.0.0.1
+    peers:
+    - name: red-v4
+      peerASN: 65002
+      peerAddress: 10.0.0.1
+      localAddress: 10.0.0.1
+      peerConfigRef:
+        name: active-peer-config
+    - name: red-v6
+      peerASN: 65002
+      peerAddress: fd00::1
+      localAddress: fd00::1
+      peerConfigRef:
+        name: active-peer-config
+
+  # Bind to the blue VRF. Don't set localPort and connect to the passive peer to
+  # ensure VRF binding to the connect socket works correctly.
+  - name: vrf-blue
+    vrfRef:
+      name: blue
+    localASN: 65001
+    routerID: 10.0.0.1
+    peers:
+    - name: blue-v4
+      peerASN: 65002
+      peerAddress: 10.0.0.1
+      localAddress: 10.0.0.1
+      peerConfigRef:
+        name: passive-peer-config
+    - name: blue-v6
+      peerASN: 65002
+      peerAddress: fd00::1
+      localAddress: fd00::1
+      peerConfigRef:
+        name: passive-peer-config
+
+-- active-peer-config.yaml --
+apiVersion: isovalent.com/v1
+kind: IsovalentBGPPeerConfig
+metadata:
+  name: active-peer-config
+spec:
+  transport:
+    # Peer is NOT listening on this port
+    peerPort: 22222
+  timers:
+    connectRetryTimeSeconds: 1
+  families:
+  - afi: ipv4
+    safi: unicast
+    advertisements:
+      matchLabels:
+        advertise: bgp
+  - afi: ipv6
+    safi: unicast
+    advertisements:
+      matchLabels:
+        advertise: bgp
+
+-- passive-peer-config.yaml --
+apiVersion: isovalent.com/v1
+kind: IsovalentBGPPeerConfig
+metadata:
+  name: passive-peer-config
+spec:
+  transport:
+    peerPort: 1179
+  authSecretRef: bgp-auth-secret
+  timers:
+    connectRetryTimeSeconds: 1
+  families:
+  - afi: ipv4
+    safi: unicast
+    advertisements:
+      matchLabels:
+        advertise: bgp
+  - afi: ipv6
+    safi: unicast
+    advertisements:
+      matchLabels:
+        advertise: bgp
+
+-- bgp-advertisement0.yaml --
+apiVersion: isovalent.com/v1
+kind: IsovalentBGPAdvertisement
+metadata:
+  labels:
+    advertise: bgp
+  name: advertisement0
+spec:
+  advertisements:
+  - advertisementType: PodCIDR
+
+-- auth-secret.yaml --
+apiVersion: v1
+kind: Secret
+type: string
+metadata:
+  name: bgp-auth-secret
+  namespace: kube-system
+data:
+  password: Q2lsaXVtMTIz
+
+-- routes-v4.expected --
+Prefix          NextHop    Attrs
+10.244.0.0/24   10.0.0.1   [{Origin: i} {AsPath: 65001}]
+-- routes-v6.expected --
+Prefix          NextHop   Attrs
+fd00:244::/64   fd00::1   [{Origin: i} {AsPath: 65001}]

@@ -96,6 +96,7 @@ import (
 	"github.com/cilium/cilium/pkg/testutils"
 	testendpointmanager "github.com/cilium/cilium/pkg/testutils/endpointmanager"
 	testidentity "github.com/cilium/cilium/pkg/testutils/identity"
+	"github.com/cilium/cilium/pkg/testutils/scriptnet"
 )
 
 const (
@@ -409,9 +410,35 @@ func setupEngine(t testing.TB, args []string) *script.Engine {
 	})
 
 	hiveLog := hivetest.Logger(t, hivetest.LogLevel(slog.LevelInfo))
+
+	// The VRF controller creates cvrf-<table> devices in the (shared) network
+	// namespace but does not remove them when the hive stops. Because all
+	// sequential tests run in the same netns, those devices and their addresses
+	// would otherwise leak into subsequent tests. Registered before the hive
+	// stop below so that, by LIFO cleanup ordering, it runs after the hive (and
+	// thus the VRF controller) has stopped and can no longer recreate them.
+	t.Cleanup(func() {
+		links, err := safenetlink.LinkList()
+		if err != nil {
+			return
+		}
+		for _, l := range links {
+			if strings.HasPrefix(l.Attrs().Name, vrf.CiliumVRFDevicePrefix) {
+				netlink.LinkDel(l)
+			}
+		}
+	})
+
 	t.Cleanup(func() {
 		assert.NoError(t, h.Stop(hiveLog, context.TODO()))
 	})
+
+	// Use scriptnet for commands like addr/add. We don't need to isolation
+	// because we're already running in a netns.
+	nsm, err := scriptnet.NewNSManager(t)
+	require.NoError(t, err, "NewNSManager")
+	err = nsm.LockThreadAndInitialize(t, false)
+	require.NoError(t, err, "LockThreadAndInitialize")
 
 	// setup test peering IPs
 	setupTestPeeringIPs(t, *peeringIPs)
@@ -426,6 +453,7 @@ func setupEngine(t testing.TB, args []string) *script.Engine {
 	maps.Insert(cmds, maps.All(commands.GoBGPScriptCmds(gobgpCmdCtx)))
 	maps.Insert(cmds, maps.All(CEEGoBGPScriptCmds(gobgpCmdCtx)))
 	maps.Insert(cmds, maps.All(commands.SvcScriptCmds(lbWriter)))
+	maps.Insert(cmds, maps.All(nsm.Commands()))
 
 	return &script.Engine{
 		Cmds: cmds,
@@ -447,8 +475,6 @@ func TestPrivilegedScriptParallel(t *testing.T) {
 }
 
 func TestPrivilegedScriptSequential(t *testing.T) {
-	t.Skip("No test to execute. Skipping.")
-
 	envVars := setupCommon(t)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
