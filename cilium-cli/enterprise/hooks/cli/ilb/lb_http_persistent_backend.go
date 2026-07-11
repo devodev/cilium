@@ -52,13 +52,13 @@ func TestHTTPPersistentBackendWithCookie(t T) {
 
 	// 1. Test persistent backend selection with cookie
 	{
-		testCmd := curlCmd(fmt.Sprintf("--max-time 10 -H 'Content-Type: application/json' --cookie 'session=123' http://%s:80/test1", vipIP))
+		testCmd := curlCmd(fmt.Sprintf("--fail --max-time 10 -H 'Content-Type: application/json' --cookie 'session=123' http://%s:80/test1", vipIP))
 		t.Log("Testing backend selection persistence of 100 requests: %q...", testCmd)
 		testPersistenceWith100Requests(t, client, testCmd)
 	}
 
 	{
-		testCmd := curlCmd(fmt.Sprintf("--max-time 10 -H 'Content-Type: application/json' --cookie 'session=234' http://%s:80/test2", vipIP))
+		testCmd := curlCmd(fmt.Sprintf("--fail --max-time 10 -H 'Content-Type: application/json' --cookie 'session=234' http://%s:80/test2", vipIP))
 		t.Log("Testing backend selection persistence of 100 requests: %q...", testCmd)
 		testPersistenceWith100Requests(t, client, testCmd)
 	}
