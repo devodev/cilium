@@ -56,7 +56,7 @@ jobs:
           docker-user: root
           docker-cmd-file: .github/actions/renovate/enterprise-entrypoint.sh
           configurationFile: .github/workflows/enterprise-renovate-config.js
-          token: '${{ steps.get_token.outputs.app_token }}'
+          token: '${{ steps.get_token.outputs.token }}'
           env-regex: '^(?:RENOVATE_\w+|RH_REGISTRY_USERNAME|RH_REGISTRY_PASSWORD|ARTIFACTORY_USERNAME|ARTIFACTORY_PASSWORD|LOG_LEVEL)$'
           mount-docker-socket: true
           docker-volumes: |
