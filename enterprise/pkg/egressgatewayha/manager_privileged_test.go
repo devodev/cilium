@@ -1972,7 +1972,7 @@ func TestPrivilegedEgressGatewayManagerIPAMWithVirtualIP(t *testing.T) {
 	})
 	k.assertBGPSignal(t, k.manager)
 	k.assertAdvertisedEgressIPs(t, k.manager, advertisePolicySelector, map[types.NamespacedName][]string{
-		{Name: policy1.name}: {"10.100.0.1"},
+		{Name: policy1.name}: {ipamIP1},
 	})
 
 	key := ent_tables.EgressIPKey{
