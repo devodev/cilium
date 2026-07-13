@@ -61,6 +61,20 @@ rules:
   - privatenetworkexternalendpoints.isovalent.com
   - privatenetworknodeattachments.isovalent.com
 {{- end }}
+{{- if .Values.enterprise.bgpControlPlane.enabled }}
+- apiGroups:
+  - apiextensions.k8s.io
+  resources:
+  - customresourcedefinitions/status
+  verbs:
+  - update
+  resourceNames:
+  - isovalentbgpclusterconfigs.isovalent.com
+  - isovalentbgppeerconfigs.isovalent.com
+  - isovalentbgpadvertisements.isovalent.com
+  - isovalentbgpnodeconfigs.isovalent.com
+  - isovalentbgpnodeconfigoverrides.isovalent.com
+{{- end }}
 {{- if .Values.enterprise.loadbalancer.gatewayAPI.enabled }}
 - apiGroups:
   - gateway.networking.k8s.io
