@@ -1129,7 +1129,12 @@ func (manager *Manager) AdvertisedEgressIPs(policySelector *slimv1.LabelSelector
 			continue
 		}
 		if gwc.localNodeConfiguredAsGateway && selector.Matches(k8sLabels.Set(policyConfig.labels)) {
-			egressIPs[policyConfig.id] = append(egressIPs[policyConfig.id], gwc.egressIP4)
+			if gwc.egressIP4 != EgressIPNotFoundIPv4 {
+				egressIPs[policyConfig.id] = append(egressIPs[policyConfig.id], gwc.egressIP4)
+			}
+			if gwc.egressIP6 != EgressIPNotFoundIPv6 {
+				egressIPs[policyConfig.id] = append(egressIPs[policyConfig.id], gwc.egressIP6)
+			}
 		}
 	}
 

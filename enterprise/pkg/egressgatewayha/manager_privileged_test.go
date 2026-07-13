@@ -172,8 +172,8 @@ func setupEgressGatewayTestSuite(t *testing.T) *EgressGatewayTestSuite {
 
 	k.reconciliationEventsCount = k.manager.reconciliationEventsCount.Load()
 
-	createTestInterface(t, k.sysctl, testInterface1, egressCIDR1)
-	createTestInterface(t, k.sysctl, testInterface2, egressCIDR2)
+	createTestInterface(t, k.sysctl, testInterface1, []string{egressCIDR1, egressCIDR1v6})
+	createTestInterface(t, k.sysctl, testInterface2, []string{egressCIDR2, egressCIDR2v6})
 
 	k.policies.sync(t)
 	k.endpoints.sync(t)
@@ -184,7 +184,7 @@ func setupEgressGatewayTestSuite(t *testing.T) *EgressGatewayTestSuite {
 	return k
 }
 
-func createTestInterface(tb testing.TB, sysctl sysctl.Sysctl, iface string, addr string) {
+func createTestInterface(tb testing.TB, sysctl sysctl.Sysctl, iface string, addrs []string) {
 	tb.Helper()
 
 	la := netlink.NewLinkAttrs()
@@ -209,9 +209,11 @@ func createTestInterface(tb testing.TB, sysctl sysctl.Sysctl, iface string, addr
 		tb.Fatal(err)
 	}
 
-	a, _ := netlink.ParseAddr(addr)
-	if err := netlink.AddrAdd(link, a); err != nil {
-		tb.Fatal(err)
+	for _, addr := range addrs {
+		a, _ := netlink.ParseAddr(addr)
+		if err := netlink.AddrAdd(link, a); err != nil {
+			tb.Fatal(err)
+		}
 	}
 }
 
@@ -1639,7 +1641,7 @@ func TestPrivilegedAdvertisedEgressIPs(t *testing.T) {
 		uid:              policy1UID,
 		labels:           advertisePolicyLabels,
 		endpointLabels:   ep1Labels,
-		destinationCIDRs: []string{destCIDR},
+		destinationCIDRs: []string{destCIDR, destCIDRv6},
 		egressGroups: []egressGroupParams{{
 			iface:             testInterface1,
 			nodeLabels:        nodeGroup1Labels,
@@ -1651,7 +1653,7 @@ func TestPrivilegedAdvertisedEgressIPs(t *testing.T) {
 	k.assertEgressRules(t, []egressRule{})
 	k.assertBGPSignal(t, k.manager)
 	k.assertAdvertisedEgressIPs(t, k.manager, advertisePolicySelector, map[types.NamespacedName][]string{
-		{Name: policy1.name}: {egressIP1},
+		{Name: policy1.name}: {egressIP1, egressIP1v6},
 	})
 
 	// Add a new endpoint which matches policy-1 - no change
@@ -1663,7 +1665,7 @@ func TestPrivilegedAdvertisedEgressIPs(t *testing.T) {
 	})
 	k.assertBGPSignal(t, k.manager)
 	k.assertAdvertisedEgressIPs(t, k.manager, advertisePolicySelector, map[types.NamespacedName][]string{
-		{Name: policy1.name}: {egressIP1},
+		{Name: policy1.name}: {egressIP1, egressIP1v6},
 	})
 
 	// Remove node1 - no advertisement
@@ -1682,7 +1684,7 @@ func TestPrivilegedAdvertisedEgressIPs(t *testing.T) {
 	})
 	k.assertBGPSignal(t, k.manager)
 	k.assertAdvertisedEgressIPs(t, k.manager, advertisePolicySelector, map[types.NamespacedName][]string{
-		{Name: policy1.name}: {egressIP1},
+		{Name: policy1.name}: {egressIP1, egressIP1v6},
 	})
 
 	// Create a new HA policy (policy-2) using testInterface2,
@@ -1706,7 +1708,7 @@ func TestPrivilegedAdvertisedEgressIPs(t *testing.T) {
 	})
 	k.assertBGPSignal(t, k.manager)
 	k.assertAdvertisedEgressIPs(t, k.manager, advertisePolicySelector, map[types.NamespacedName][]string{
-		{Name: policy1.name}: {egressIP1},
+		{Name: policy1.name}: {egressIP1, egressIP1v6},
 	})
 
 	// Update labels on policy-2 to be selected by advertisePolicySelector
@@ -1719,7 +1721,7 @@ func TestPrivilegedAdvertisedEgressIPs(t *testing.T) {
 	})
 	k.assertBGPSignal(t, k.manager)
 	k.assertAdvertisedEgressIPs(t, k.manager, advertisePolicySelector, map[types.NamespacedName][]string{
-		{Name: policy1.name}: {egressIP1},
+		{Name: policy1.name}: {egressIP1, egressIP1v6},
 		{Name: policy2.name}: {egressIP2},
 	})
 
@@ -1733,7 +1735,7 @@ func TestPrivilegedAdvertisedEgressIPs(t *testing.T) {
 	})
 	k.assertBGPSignal(t, k.manager)
 	k.assertAdvertisedEgressIPs(t, k.manager, advertisePolicySelector, map[types.NamespacedName][]string{
-		{Name: policy1.name}: {egressIP1},
+		{Name: policy1.name}: {egressIP1, egressIP1v6},
 		{Name: policy2.name}: {egressIP2},
 	})
 
@@ -1760,7 +1762,7 @@ func TestPrivilegedAdvertisedEgressIPs(t *testing.T) {
 	})
 	k.assertBGPSignal(t, k.manager)
 	k.assertAdvertisedEgressIPs(t, k.manager, advertisePolicySelector, map[types.NamespacedName][]string{
-		{Name: policy1.name}: {egressIP1},
+		{Name: policy1.name}: {egressIP1, egressIP1v6},
 		{Name: policy2.name}: {egressIP2},
 		{Name: policy3.name}: {egressIP2},
 	})
@@ -1776,7 +1778,7 @@ func TestPrivilegedAdvertisedEgressIPs(t *testing.T) {
 	})
 	k.assertBGPSignal(t, k.manager)
 	k.assertAdvertisedEgressIPs(t, k.manager, advertisePolicySelector, map[types.NamespacedName][]string{
-		{Name: policy1.name}: {egressIP1},
+		{Name: policy1.name}: {egressIP1, egressIP1v6},
 		{Name: policy3.name}: {egressIP2},
 	})
 
@@ -1790,7 +1792,7 @@ func TestPrivilegedAdvertisedEgressIPs(t *testing.T) {
 	})
 	k.assertBGPSignal(t, k.manager)
 	k.assertAdvertisedEgressIPs(t, k.manager, advertisePolicySelector, map[types.NamespacedName][]string{
-		{Name: policy1.name}: {egressIP1},
+		{Name: policy1.name}: {egressIP1, egressIP1v6},
 	})
 
 	// Update labels on policy-1 to NOT be selected by advertisePolicySelector - no egress IPs should be advertised

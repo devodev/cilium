@@ -74,11 +74,17 @@ const (
 	excludedCIDR2   = "1.1.1.240/30"
 	excludedCIDR3   = "1.1.1.0/28"
 
-	egressIP1   = "192.168.101.1"
-	egressCIDR1 = "192.168.101.1/24"
+	destCIDRv6 = "2001:db8::/64"
 
-	egressIP2   = "192.168.102.1"
-	egressCIDR2 = "192.168.102.1/24"
+	egressIP1     = "192.168.101.1"
+	egressCIDR1   = "192.168.101.1/24"
+	egressIP1v6   = "2001:db8:101::1"
+	egressCIDR1v6 = "2001:db8:101::1/64"
+
+	egressIP2     = "192.168.102.1"
+	egressCIDR2   = "192.168.102.1/24"
+	egressIP2v6   = "2001:db8:102::1"
+	egressCIDR2v6 = "2001:db8:102::1/64"
 
 	ipamIP1  = "10.100.0.1"
 	ipamCIDR = "10.100.0.0/24"
