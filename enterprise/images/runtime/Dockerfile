@@ -14,16 +14,21 @@ FROM ${COMPILERS_IMAGE} AS compilers
 FROM ${GOLANG_IMAGE} AS go-builder
 
 WORKDIR /go/src/github.com/isovalent/cilium/images/runtime
+ARG TARGETARCH
 RUN --mount=type=bind,readwrite,source=./images/runtime,target=. \
     --mount=target=/root/.cache,type=cache \
     --mount=target=/go/pkg/mod,type=cache \
     ./build-gops.sh
 
-ARG TARGETARCH
 RUN --mount=type=bind,readwrite,source=./images/runtime,target=. \
     --mount=target=/root/.cache,type=cache \
     --mount=target=/go/pkg/mod,type=cache \
     ./build-cni.sh
+
+RUN --mount=type=bind,readwrite,source=./images/runtime,target=. \
+    --mount=target=/root/.cache,type=cache \
+    --mount=target=/go/pkg/mod,type=cache \
+    ./build-iptables-wrapper.sh
 
 FROM ${UBI_MINI_IMAGE} AS release
 
@@ -49,13 +54,18 @@ COPY ./enterprise/images/runtime/LICENSE /usr/share/licenses/isovalent/
 RUN ln -s /usr/share/licenses /licenses
 
 WORKDIR /go/src/github.com/isovalent/cilium/images/runtime
-RUN --mount=type=bind,readwrite,source=./images/runtime,target=. ./iptables-wrapper-installer.sh --no-sanity-check
 
 COPY --from=llvm-dist /usr/local/bin/clang /usr/local/bin/llc /usr/local/bin/
 
 COPY --from=bpftool-dist /usr/local/bin/bpftool /usr/local/bin/bpftool
 
 COPY --from=go-builder /out /
+
+# Symlink the iptables and ip6tables binaries to the iptables-wrapper binary.
+# On its first invocation the wrapper detects whether the host is using the
+# legacy or nft iptables backend and re-points these symlinks at the matching
+# backend before re-execing the original command.
+RUN /usr/sbin/iptables-wrapper install
 
 LABEL version="${VERSION}" \
       org.opencontainers.image.version="${VERSION}" \

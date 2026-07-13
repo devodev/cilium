@@ -28,7 +28,7 @@ ARG MODIFIERS
 ARG GOEXPERIMENT
 ARG EXTRA_GOTAGS
 
-RUN apk add --no-cache git
+RUN apk add --no-cache git curl
 
 # legit:ignore
 RUN git clone --depth 1 https://github.com/google/gops.git /build/gops && \
@@ -36,6 +36,10 @@ RUN git clone --depth 1 https://github.com/google/gops.git /build/gops && \
     export $(echo $MODIFIERS | tr -d '"') && \
     GOEXPERIMENT=${GOEXPERIMENT} \
     go build -buildmode=pie -ldflags "-s -w" ${EXTRA_GOTAGS} -o /out/gops .
+
+ARG TARGETARCH
+RUN --mount=type=bind,readwrite,target=/go/src/github.com/cilium/cilium \
+    TARGETARCH=${TARGETARCH} /go/src/github.com/cilium/cilium/images/runtime/build-iptables-wrapper.sh
 
 # Stage 2: Build all Cilium Go binaries
 FROM --platform=${BUILDPLATFORM} ${GOLANG_IMAGE} AS builder
@@ -197,8 +201,12 @@ RUN rm -f /usr/bin/cilium /bin/cilium && \
     # cilium-cli sysdump expects gops at /bin/gops
     ln -sf /usr/local/bin/gops /bin/gops
 
-RUN --mount=type=bind,readwrite,target=/src \
-    /src/images/runtime/iptables-wrapper-installer.sh --no-sanity-check
+# Copy the pre-built iptables-wrapper binary and let it install the symlinks.
+# On its first invocation the wrapper detects whether the host is using the
+# legacy or nft iptables backend and re-points these symlinks at the matching
+# backend before re-execing the original command.
+COPY --from=gops-builder /out/usr/sbin/iptables-wrapper /usr/sbin/iptables-wrapper
+RUN /usr/sbin/iptables-wrapper install
 
 WORKDIR /home/cilium
 ENV HUBBLE_SERVER=unix:///var/run/cilium/hubble.sock
