@@ -12,4 +12,9 @@ package main
 
 const (
 	logfieldController = "controller"
+	logfieldListeners  = "listeners"
+	logfieldRoutes     = "routes"
+	logfieldClusters   = "clusters"
+	logfieldEndpoints  = "endpoints"
+	logfieldSecrets    = "secrets"
 )

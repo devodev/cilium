@@ -18,14 +18,18 @@ import (
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/hive/job"
 	"github.com/go-logr/logr"
+	corev1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/discovery"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctrlcache "sigs.k8s.io/controller-runtime/pkg/cache"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
+	gatewayhelpers "github.com/cilium/cilium/operator/pkg/gateway-api/helpers"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 )
 
@@ -39,8 +43,17 @@ type controllerRuntimeManagerParams struct {
 
 func newControllerRuntimeManager(params controllerRuntimeManagerParams) (ctrl.Manager, error) {
 	scheme := runtime.NewScheme()
-	if err := gatewayv1.Install(scheme); err != nil {
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		return nil, fmt.Errorf("failed to install core Kubernetes scheme: %w", err)
+	}
+	if err := gatewayhelpers.RegisterGatewayAPITypesToScheme(scheme, nil); err != nil {
 		return nil, fmt.Errorf("failed to install Gateway API scheme: %w", err)
+	}
+	if err := discoveryv1.AddToScheme(scheme); err != nil {
+		return nil, fmt.Errorf("failed to install discovery scheme: %w", err)
+	}
+	if err := corev1.AddToScheme(scheme); err != nil {
+		return nil, fmt.Errorf("failed to install corev1 scheme: %w", err)
 	}
 
 	restConfig, err := ctrl.GetConfig()

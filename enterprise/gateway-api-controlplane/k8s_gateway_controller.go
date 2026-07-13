@@ -14,38 +14,33 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net/http"
-	"slices"
-	"strings"
 
 	"github.com/cilium/hive/cell"
-	envoy_config_accesslog_v3 "github.com/envoyproxy/go-control-plane/envoy/config/accesslog/v3"
-	envoy_config_core_v3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
-	envoy_config_listener_v3 "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
-	envoy_config_route_v3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
-	envoy_extensions_accessloggers_file_v3 "github.com/envoyproxy/go-control-plane/envoy/extensions/access_loggers/file/v3"
-	envoy_extensions_filters_http_router_v3 "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/router/v3"
-	envoy_extensions_filters_network_http_connection_manager_v3 "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/anypb"
+	corev1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	gatewayhelpers "github.com/cilium/cilium/operator/pkg/gateway-api/helpers"
+	translation "github.com/cilium/cilium/operator/pkg/model/translation"
+	gatewaytranslation "github.com/cilium/cilium/operator/pkg/model/translation/gateway-api"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/time"
 )
 
 type gatewayReconciler struct {
-	client        client.Client
-	logger        *slog.Logger
-	xdsMutator    XDSResourceMutator
-	targetGateway types.NamespacedName
+	client            client.Client
+	logger            *slog.Logger
+	xdsMutator        XDSResourceMutator
+	targetGateway     types.NamespacedName
+	gatewayTranslator translation.Translator
 }
 
 type gatewayReconcilerParams struct {
@@ -71,6 +66,31 @@ func registerGatewayController(params gatewayReconcilerParams) error {
 			Name:      params.Config.GatewayName,
 		},
 	}
+	translationConfig := translation.Config{
+		SecretsNamespace: gatewayReconciler.targetGateway.Namespace,
+		HostNetworkConfig: translation.HostNetworkConfig{
+			Enabled: true,
+		},
+		IPConfig: translation.IPConfig{
+			IPv4Enabled: true,
+			IPv6Enabled: false,
+		},
+		ListenerConfig: translation.ListenerConfig{
+			StreamIdleTimeoutSeconds: 300,
+		},
+		ClusterConfig: translation.ClusterConfig{
+			IdleTimeoutSeconds: 60,
+			UseAppProtocol:     true,
+		},
+		RouteConfig: translation.RouteConfig{
+			HostNameSuffixMatch: true,
+		},
+		OriginalIPDetectionConfig: translation.OriginalIPDetectionConfig{
+			UseRemoteAddress: true,
+		},
+	}
+	cecTranslator := translation.NewCECTranslator(translationConfig)
+	gatewayReconciler.gatewayTranslator = gatewaytranslation.NewTranslator(cecTranslator, translationConfig)
 	if err := gatewayReconciler.setupWithManager(params.CtrlMgr); err != nil {
 		return fmt.Errorf("failed to setup Gateway controller: %w", err)
 	}
@@ -90,7 +110,7 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	scopedLogger := r.logger.With(
 		logfieldController, "gateway-api-controlplane",
-		logfields.Resource, req.NamespacedName.String(),
+		logfields.Resource, req.String(),
 	)
 	scopedLogger.Debug("Reconciling Gateway")
 
@@ -119,7 +139,7 @@ func (r *gatewayReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	original := gateway.DeepCopy()
 
 	scopedLogger.Debug("Translating Gateway to xDS resources", logfields.Gateway, gateway.Name)
-	resources, err := translateGatewayToXDSResources(&gateway)
+	resources, err := r.translateGatewayToXDSResources(ctx, scopedLogger, &gateway)
 	if err != nil {
 		r.setGatewayAccepted(&gateway, metav1.ConditionTrue, "Gateway is accepted by the controlplane", gatewayv1.GatewayReasonAccepted)
 		r.setGatewayProgrammed(&gateway, metav1.ConditionFalse, "Unable to translate Gateway resources", gatewayv1.GatewayReasonListenersNotValid)
@@ -183,140 +203,29 @@ func (r *gatewayReconciler) setupWithManager(mgr ctrl.Manager) error {
 		return obj.GetNamespace() == r.targetGateway.Namespace && obj.GetName() == r.targetGateway.Name
 	})
 
+	// The per-Gateway controlplane intentionally uses coarse same-namespace
+	// watches for now. Any change to a potentially relevant namespaced input
+	// causes the target Gateway to reconcile, and finer-grained dependency
+	// tracking can be added in a later stage.
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&gatewayv1.Gateway{}, builder.WithPredicates(targetGatewayPredicate)).
+		Watches(&gatewayv1.HTTPRoute{}, handler.EnqueueRequestsFromMapFunc(r.enqueueTargetGateway)).
+		Watches(&gatewayv1.TLSRoute{}, handler.EnqueueRequestsFromMapFunc(r.enqueueTargetGateway)).
+		Watches(&gatewayv1.GRPCRoute{}, handler.EnqueueRequestsFromMapFunc(r.enqueueTargetGateway)).
+		Watches(&gatewayv1.ReferenceGrant{}, handler.EnqueueRequestsFromMapFunc(r.enqueueTargetGateway)).
+		Watches(&gatewayv1.BackendTLSPolicy{}, handler.EnqueueRequestsFromMapFunc(r.enqueueTargetGateway)).
+		Watches(&corev1.Service{}, handler.EnqueueRequestsFromMapFunc(r.enqueueTargetGateway)).
+		Watches(&corev1.Secret{}, handler.EnqueueRequestsFromMapFunc(r.enqueueTargetGateway)).
+		Watches(&corev1.ConfigMap{}, handler.EnqueueRequestsFromMapFunc(r.enqueueTargetGateway)).
+		Watches(&discoveryv1.EndpointSlice{}, handler.EnqueueRequestsFromMapFunc(r.enqueueTargetGateway)).
 		Complete(r)
 }
 
-// translateGatewayToXDSResources is a temporary test translation used to
-// exercise the xDS controlplane wiring. It is not yet the intended full
-// Gateway API to Envoy xDS translation.
-func translateGatewayToXDSResources(gateway *gatewayv1.Gateway) (XDSResources, error) {
-	listeners := make([]*envoy_config_listener_v3.Listener, 0, len(gateway.Spec.Listeners))
-	routes := make([]*envoy_config_route_v3.RouteConfiguration, 0, len(gateway.Spec.Listeners))
-
-	for _, listener := range gateway.Spec.Listeners {
-		if listenerProtocol(listener.Protocol) != "http" {
-			continue
-		}
-
-		routeName := xdsRouteName(gateway, listener.Name)
-
-		httpConnectionManager, err := anypb.New(&envoy_extensions_filters_network_http_connection_manager_v3.HttpConnectionManager{
-			StatPrefix: routeName,
-			RouteSpecifier: &envoy_extensions_filters_network_http_connection_manager_v3.HttpConnectionManager_Rds{
-				Rds: &envoy_extensions_filters_network_http_connection_manager_v3.Rds{
-					ConfigSource: &envoy_config_core_v3.ConfigSource{
-						ResourceApiVersion: envoy_config_core_v3.ApiVersion_V3,
-						ConfigSourceSpecifier: &envoy_config_core_v3.ConfigSource_Ads{
-							Ads: &envoy_config_core_v3.AggregatedConfigSource{},
-						},
-					},
-					RouteConfigName: routeName,
-				},
-			},
-			AccessLog: []*envoy_config_accesslog_v3.AccessLog{
-				{
-					Name: "envoy.access_loggers.file",
-					ConfigType: &envoy_config_accesslog_v3.AccessLog_TypedConfig{
-						TypedConfig: mustAny(&envoy_extensions_accessloggers_file_v3.FileAccessLog{
-							Path: "/dev/stdout",
-						}),
-					},
-				},
-			},
-			HttpFilters: []*envoy_extensions_filters_network_http_connection_manager_v3.HttpFilter{
-				{
-					Name: "envoy.filters.http.router",
-					ConfigType: &envoy_extensions_filters_network_http_connection_manager_v3.HttpFilter_TypedConfig{
-						TypedConfig: mustAny(&envoy_extensions_filters_http_router_v3.Router{}),
-					},
-				},
-			},
-		})
-		if err != nil {
-			return XDSResources{}, fmt.Errorf("failed to marshal HTTP connection manager for listener %q: %w", listener.Name, err)
-		}
-
-		listeners = append(listeners, &envoy_config_listener_v3.Listener{
-			Name: routeName,
-			Address: &envoy_config_core_v3.Address{
-				Address: &envoy_config_core_v3.Address_SocketAddress{
-					SocketAddress: &envoy_config_core_v3.SocketAddress{
-						Protocol: envoy_config_core_v3.SocketAddress_TCP,
-						Address:  "0.0.0.0",
-						PortSpecifier: &envoy_config_core_v3.SocketAddress_PortValue{
-							PortValue: uint32(listener.Port),
-						},
-					},
-				},
-			},
-			FilterChains: []*envoy_config_listener_v3.FilterChain{
-				{
-					Filters: []*envoy_config_listener_v3.Filter{
-						{
-							Name: "envoy.filters.network.http_connection_manager",
-							ConfigType: &envoy_config_listener_v3.Filter_TypedConfig{
-								TypedConfig: httpConnectionManager,
-							},
-						},
-					},
-				},
-			},
-		})
-
-		routes = append(routes, &envoy_config_route_v3.RouteConfiguration{
-			Name: routeName,
-			VirtualHosts: []*envoy_config_route_v3.VirtualHost{
-				{
-					Name:    routeName,
-					Domains: []string{"*"},
-					Routes: []*envoy_config_route_v3.Route{
-						{
-							Match: &envoy_config_route_v3.RouteMatch{
-								PathSpecifier: &envoy_config_route_v3.RouteMatch_Prefix{
-									Prefix: "/",
-								},
-							},
-							Action: &envoy_config_route_v3.Route_DirectResponse{
-								DirectResponse: &envoy_config_route_v3.DirectResponseAction{
-									Status: http.StatusOK,
-									Body: &envoy_config_core_v3.DataSource{
-										Specifier: &envoy_config_core_v3.DataSource_InlineString{
-											InlineString: fmt.Sprintf("gateway: %s/%s\n", gateway.Namespace, gateway.Name),
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		})
+func (r *gatewayReconciler) enqueueTargetGateway(ctx context.Context, obj client.Object) []reconcile.Request {
+	if obj.GetNamespace() != r.targetGateway.Namespace {
+		return nil
 	}
-
-	return XDSResources{
-		Listeners: listeners,
-		Routes:    routes,
-	}, nil
-}
-
-func listenerProtocol(protocol gatewayv1.ProtocolType) string {
-	return strings.ToLower(string(protocol))
-}
-
-func xdsRouteName(gateway *gatewayv1.Gateway, listenerName gatewayv1.SectionName) string {
-	parts := []string{gateway.Namespace, gateway.Name, string(listenerName)}
-	return strings.Join(slices.DeleteFunc(parts, func(part string) bool { return part == "" }), "/")
-}
-
-func mustAny(message proto.Message) *anypb.Any {
-	typedConfig, err := anypb.New(message)
-	if err != nil {
-		panic(err)
-	}
-
-	return typedConfig
+	return []reconcile.Request{{NamespacedName: r.targetGateway}}
 }
 
 func gatewayAsEnvoyClusterName(targetGateway types.NamespacedName) string {

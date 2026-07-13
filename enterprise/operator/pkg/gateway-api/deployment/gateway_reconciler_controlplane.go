@@ -256,7 +256,24 @@ func (r *GatewayReconciler) desiredControlplaneRole(gw *gatewayv1.Gateway) *rbac
 				// controller-runtime uses informer list/watch for the namespaced cache,
 				// so this cannot be restricted to a single Gateway via ResourceNames.
 				APIGroups: []string{gatewayv1.GroupVersion.Group},
-				Resources: []string{"gateways"},
+				Resources: []string{
+					"gateways",
+					"httproutes",
+					"tlsroutes",
+					"grpcroutes",
+					"referencegrants",
+					"backendtlspolicies",
+				},
+				Verbs: []string{"get", "list", "watch"},
+			},
+			{
+				APIGroups: []string{""},
+				Resources: []string{"services", "secrets", "configmaps"},
+				Verbs:     []string{"get", "list", "watch"},
+			},
+			{
+				APIGroups: []string{"discovery.k8s.io"},
+				Resources: []string{"endpointslices"},
 				Verbs:     []string{"get", "list", "watch"},
 			},
 			{

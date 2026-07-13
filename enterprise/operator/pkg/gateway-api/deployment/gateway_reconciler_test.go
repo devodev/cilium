@@ -155,9 +155,9 @@ func TestGatewayReconcilerCreatesDeploymentAndService(t *testing.T) {
 
 	controlplaneRole := &rbacv1.Role{}
 	require.NoError(t, c.Get(context.Background(), client.ObjectKey{Name: r.controlplaneResourceName(gw), Namespace: gw.Namespace}, controlplaneRole))
-	require.Len(t, controlplaneRole.Rules, 2)
-	require.Equal(t, []string{"gateways/status"}, controlplaneRole.Rules[1].Resources)
-	require.Equal(t, []string{"update", "patch"}, controlplaneRole.Rules[1].Verbs)
+	require.Len(t, controlplaneRole.Rules, 4)
+	require.Equal(t, []string{"gateways/status"}, controlplaneRole.Rules[3].Resources)
+	require.Equal(t, []string{"update", "patch"}, controlplaneRole.Rules[3].Verbs)
 
 	controlplaneRoleBinding := &rbacv1.RoleBinding{}
 	require.NoError(t, c.Get(context.Background(), client.ObjectKey{Name: r.controlplaneResourceName(gw), Namespace: gw.Namespace}, controlplaneRoleBinding))
