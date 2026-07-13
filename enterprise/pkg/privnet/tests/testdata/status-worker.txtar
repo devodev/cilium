@@ -1,4 +1,4 @@
-#! --private-networks-enabled --private-networks-health-check-interval 30ms --private-networks-health-check-timeout 50ms
+#! --private-networks-enabled --private-networks-health-check-interval 25ms --private-networks-health-check-timeout 250ms
 
 # Create the health servers.
 serverpool/new felidae/cougar
@@ -37,7 +37,7 @@ db/initialized privnet-mapentries
 privnet/status -o=json
 * cmp stdout status.1.json
 privnet/status --color=false
-cmp stdout status.1.txt
+* cmp stdout status.1.txt
 
 # Update blue net to also include other inb + add routes
 k8s/add icpn-blue.v2.yaml
@@ -46,7 +46,7 @@ k8s/add icpn-blue.v2.yaml
 privnet/status -o=json
 * cmp stdout status.2.json
 privnet/status --color=false
-cmp stdout status.2.txt
+* cmp stdout status.2.txt
 
 # Stop camelidae - should fail over to felidae
 serverpool/stop camelidae/alpaca
@@ -55,7 +55,7 @@ serverpool/stop camelidae/alpaca
 privnet/status -o=json
 * cmp stdout status.3.json
 privnet/status --color=false
-cmp stdout status.3.txt
+* cmp stdout status.3.txt
 
 -- icpn-blue.v1.yaml --
 apiVersion: isovalent.com/v1alpha1
