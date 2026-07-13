@@ -22,7 +22,7 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	wafenvoy "github.com/cilium/cilium/enterprise/operator/pkg/waf/envoy"
+	lbextension "github.com/cilium/cilium/enterprise/operator/pkg/lb/extension"
 	"github.com/cilium/cilium/pkg/envoy"
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	"github.com/cilium/cilium/pkg/k8s/slim/k8s/apis/labels"
@@ -298,8 +298,10 @@ func TestDesiredEnvoyZoneAwarenessLoadAssignment(t *testing.T) {
 
 func TestDesiredCiliumEnvoyConfigsRequireSameZone(t *testing.T) {
 	tr := &lbServiceT2Translator{
-		logger:        hivetest.Logger(t),
-		wafTranslator: wafenvoy.NewTranslator(hivetest.Logger(t), wafenvoy.NewProxyConfigBuilder()),
+		logger: hivetest.Logger(t),
+		httpExtensions: []lbextension.HTTPExtension{
+			&testHTTPRouteExtension{},
+		},
 	}
 
 	vip := "100.64.0.100"
@@ -424,8 +426,10 @@ func TestDesiredCiliumEnvoyConfigsRequireSameZone(t *testing.T) {
 
 func TestDesiredCiliumEnvoyConfigsRequireSameZoneHostnameBackend(t *testing.T) {
 	tr := &lbServiceT2Translator{
-		logger:        hivetest.Logger(t),
-		wafTranslator: wafenvoy.NewTranslator(hivetest.Logger(t), wafenvoy.NewProxyConfigBuilder()),
+		logger: hivetest.Logger(t),
+		httpExtensions: []lbextension.HTTPExtension{
+			&testHTTPRouteExtension{},
+		},
 	}
 
 	vip := "100.64.0.100"

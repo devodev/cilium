@@ -19,6 +19,7 @@ import (
 	"maps"
 	"net/url"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -66,8 +67,9 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
-	wafenvoy "github.com/cilium/cilium/enterprise/operator/pkg/waf/envoy"
+	lbextension "github.com/cilium/cilium/enterprise/operator/pkg/lb/extension"
 	"github.com/cilium/cilium/pkg/annotation"
 	"github.com/cilium/cilium/pkg/envoy"
 	envoyutil "github.com/cilium/cilium/pkg/envoy/util"
@@ -82,9 +84,9 @@ const (
 )
 
 type lbServiceT2Translator struct {
-	logger        *slog.Logger
-	config        reconcilerConfig
-	wafTranslator *wafenvoy.Translator
+	logger         *slog.Logger
+	config         reconcilerConfig
+	httpExtensions []lbextension.HTTPExtension
 }
 
 type t2CECSpec struct {
@@ -413,7 +415,7 @@ func (r *lbServiceT2Translator) desiredEnvoyTCPListener(model *lbService, addres
 	var accessLoggers []*envoy_config_accesslog_v3.AccessLog
 
 	if r.config.AccessLog.EnableTCP {
-		accessLoggers = r.desiredEnvoyAccessLoggers(model, r.config.AccessLog.FormatTCP, r.config.AccessLog.JSONFormatTCP)
+		accessLoggers = r.desiredEnvoyAccessLoggers(model, r.config.AccessLog.FormatTCP, r.config.AccessLog.JSONFormatTCP, nil)
 	}
 
 	mainAddress, additionalAddresses := r.toAddresses(addresses, model.port, envoy_config_core_v3.SocketAddress_TCP)
@@ -527,7 +529,7 @@ func (r *lbServiceT2Translator) desiredEnvoyUDPListenerFilters(model *lbService)
 	var accessLoggers []*envoy_config_accesslog_v3.AccessLog
 
 	if r.config.AccessLog.EnableUDP {
-		accessLoggers = r.desiredEnvoyAccessLoggers(model, r.config.AccessLog.FormatUDP, r.config.AccessLog.JSONFormatUDP)
+		accessLoggers = r.desiredEnvoyAccessLoggers(model, r.config.AccessLog.FormatUDP, r.config.AccessLog.JSONFormatUDP, nil)
 	}
 
 	listenerFilters = append(listenerFilters, &envoy_config_listener_v3.ListenerFilter{
@@ -737,7 +739,7 @@ func (r *lbServiceT2Translator) desiredEnvoyListenerHealthCheckHTTPHCM(model *lb
 	var accessLoggers []*envoy_config_accesslog_v3.AccessLog
 
 	if r.config.AccessLog.EnableHC {
-		accessLoggers = r.desiredEnvoyAccessLoggers(model, r.config.AccessLog.FormatHC, r.config.AccessLog.JSONFormatHC)
+		accessLoggers = r.desiredEnvoyAccessLoggers(model, r.config.AccessLog.FormatHC, r.config.AccessLog.JSONFormatHC, nil)
 	}
 
 	return &envoy_extensions_filters_network_hcm_v3.HttpConnectionManager{
@@ -775,7 +777,7 @@ func (r *lbServiceT2Translator) desiredEnvoyListenerHTTPHCM(model *lbService) (*
 
 	return &envoy_extensions_filters_network_hcm_v3.HttpConnectionManager{
 		ServerName:                   r.config.ServerName,
-		AccessLog:                    r.desiredEnvoyAccessLoggers(model, r.config.AccessLog.FormatHTTP, r.config.AccessLog.JSONFormatHTTP),
+		AccessLog:                    r.desiredEnvoyAccessLoggers(model, r.config.AccessLog.FormatHTTP, r.config.AccessLog.JSONFormatHTTP, r.accessLogFields(model)),
 		GenerateRequestId:            wrapperspb.Bool(r.config.RequestID.Generate),
 		PreserveExternalRequestId:    r.config.RequestID.Preserve,
 		AlwaysSetRequestIdInResponse: r.config.RequestID.Response,
@@ -826,15 +828,9 @@ func (r *lbServiceT2Translator) desiredEnvoyListenerHealthCheckHttpHTTPFilters(m
 }
 
 func (r *lbServiceT2Translator) desiredEnvoyListenerHttpHTTPFilters(model *lbService) ([]*envoy_extensions_filters_network_hcm_v3.HttpFilter, error) {
-	httpFilters := []*envoy_extensions_filters_network_hcm_v3.HttpFilter{}
-
-	wafFilter, err := r.wafTranslator.HTTPFilter(model.name, model.namespace, model.effectiveWAFConfig)
+	httpFilters, err := r.httpExtensionFilters(model)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build managed WAF HTTP filter: %w", err)
-	}
-
-	if wafFilter != nil {
-		httpFilters = append(httpFilters, wafFilter)
+		return nil, err
 	}
 
 	if model.usesHTTPBasicAuth() {
@@ -1225,7 +1221,7 @@ func (r *lbServiceT2Translator) desiredEnvoyListenerHTTPSHCM(model *lbService) (
 
 	return &envoy_extensions_filters_network_hcm_v3.HttpConnectionManager{
 		ServerName:                   r.config.ServerName,
-		AccessLog:                    r.desiredEnvoyAccessLoggers(model, r.config.AccessLog.FormatHTTPS, r.config.AccessLog.JSONFormatHTTPS),
+		AccessLog:                    r.desiredEnvoyAccessLoggers(model, r.config.AccessLog.FormatHTTPS, r.config.AccessLog.JSONFormatHTTPS, r.accessLogFields(model)),
 		GenerateRequestId:            wrapperspb.Bool(r.config.RequestID.Generate),
 		PreserveExternalRequestId:    r.config.RequestID.Preserve,
 		AlwaysSetRequestIdInResponse: r.config.RequestID.Response,
@@ -1255,15 +1251,9 @@ func (r *lbServiceT2Translator) desiredEnvoyListenerHTTPSHCM(model *lbService) (
 }
 
 func (r *lbServiceT2Translator) desiredEnvoyListenerHttpsHTTPFilters(model *lbService) ([]*envoy_extensions_filters_network_hcm_v3.HttpFilter, error) {
-	httpFilters := []*envoy_extensions_filters_network_hcm_v3.HttpFilter{}
-
-	wafFilter, err := r.wafTranslator.HTTPFilter(model.name, model.namespace, model.effectiveWAFConfig)
+	httpFilters, err := r.httpExtensionFilters(model)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build managed WAF HTTPs filter: %w", err)
-	}
-
-	if wafFilter != nil {
-		httpFilters = append(httpFilters, wafFilter)
+		return nil, err
 	}
 
 	if model.usesHTTPSBasicAuth() {
@@ -1356,7 +1346,7 @@ func (r *lbServiceT2Translator) desiredEnvoyListenerTLSPassthroughFilterChains(m
 			Name: "envoy.filters.network.tcp_proxy",
 			ConfigType: &envoy_config_listener_v3.Filter_TypedConfig{
 				TypedConfig: toAny(&envoy_extensions_filters_network_tcpproxy_v3.TcpProxy{
-					AccessLog:  r.desiredEnvoyAccessLoggers(model, r.config.AccessLog.FormatTLSPassthrough, r.config.AccessLog.JSONFormatTLSPassthrough),
+					AccessLog:  r.desiredEnvoyAccessLoggers(model, r.config.AccessLog.FormatTLSPassthrough, r.config.AccessLog.JSONFormatTLSPassthrough, nil),
 					StatPrefix: fmt.Sprintf("tls_passthrough_%s_%s_%d", model.namespace, model.name, i),
 					HashPolicy: r.toTCPProxyHashpolicyForTLS(tr.persistentBackend),
 					ClusterSpecifier: &envoy_extensions_filters_network_tcpproxy_v3.TcpProxy_Cluster{
@@ -1409,7 +1399,7 @@ func (r *lbServiceT2Translator) desiredEnvoyListenerTLSProxyFilterChains(model *
 			Name: "envoy.filters.network.tcp_proxy",
 			ConfigType: &envoy_config_listener_v3.Filter_TypedConfig{
 				TypedConfig: toAny(&envoy_extensions_filters_network_tcpproxy_v3.TcpProxy{
-					AccessLog:  r.desiredEnvoyAccessLoggers(model, r.config.AccessLog.FormatTLS, r.config.AccessLog.JSONFormatTLS),
+					AccessLog:  r.desiredEnvoyAccessLoggers(model, r.config.AccessLog.FormatTLS, r.config.AccessLog.JSONFormatTLS, nil),
 					StatPrefix: fmt.Sprintf("tls_proxy_%s_%s_%d", model.namespace, model.name, i),
 					HashPolicy: r.toTCPProxyHashpolicyForTLS(tr.persistentBackend),
 					ClusterSpecifier: &envoy_extensions_filters_network_tcpproxy_v3.TcpProxy_Cluster{
@@ -1479,7 +1469,7 @@ func (r *lbServiceT2Translator) desiredEnvoyListenerTCPProxyFilterChains(model *
 			Name: "envoy.filters.network.tcp_proxy",
 			ConfigType: &envoy_config_listener_v3.Filter_TypedConfig{
 				TypedConfig: toAny(&envoy_extensions_filters_network_tcpproxy_v3.TcpProxy{
-					AccessLog:  r.desiredEnvoyAccessLoggers(model, r.config.AccessLog.FormatTCP, r.config.AccessLog.JSONFormatTCP),
+					AccessLog:  r.desiredEnvoyAccessLoggers(model, r.config.AccessLog.FormatTCP, r.config.AccessLog.JSONFormatTCP, nil),
 					StatPrefix: fmt.Sprintf("tcp_proxy_%s_%s_%d", model.namespace, model.name, i),
 					HashPolicy: r.toTCPProxyHashpolicy(tr.persistentBackend),
 					ClusterSpecifier: &envoy_extensions_filters_network_tcpproxy_v3.TcpProxy_Cluster{
@@ -1502,11 +1492,12 @@ func (r *lbServiceT2Translator) desiredEnvoyListenerTCPProxyFilterChains(model *
 	return tcpProxyFilterChains
 }
 
-func (r *lbServiceT2Translator) desiredEnvoyAccessLoggers(model *lbService, textFormatString string, jsonFormatString string) []*envoy_config_accesslog_v3.AccessLog {
+func (r *lbServiceT2Translator) desiredEnvoyAccessLoggers(model *lbService, textFormatString string, jsonFormatString string, accessLogFields []lbextension.AccessLogField) []*envoy_config_accesslog_v3.AccessLog {
 	accessLoggers := []*envoy_config_accesslog_v3.AccessLog{}
 
 	textFormatString = strings.ReplaceAll(textFormatString, "%SERVICE_NAMESPACE%", model.namespace)
 	textFormatString = strings.ReplaceAll(textFormatString, "%SERVICE_NAME%", model.name)
+	textFormatString = appendTextAccessLogFields(textFormatString, accessLogFields)
 	jsonFormatString = strings.ReplaceAll(jsonFormatString, "%SERVICE_NAMESPACE%", model.namespace)
 	jsonFormatString = strings.ReplaceAll(jsonFormatString, "%SERVICE_NAME%", model.name)
 
@@ -1538,6 +1529,11 @@ func (r *lbServiceT2Translator) desiredEnvoyAccessLoggers(model *lbService, text
 				logfields.Path, r.config.AccessLog.FilePath,
 				logfields.Error, err)
 			return accessLoggers
+		}
+		for _, field := range accessLogFields {
+			for key, value := range field.JSON {
+				jsonFormatMap[key] = value
+			}
 		}
 
 		jsonFormatStruct, err := structpb.NewStruct(jsonFormatMap)
@@ -1619,13 +1615,13 @@ func (r *lbServiceT2Translator) desiredEnvoyRouteConfigs(model *lbService) ([]*e
 func (r *lbServiceT2Translator) desiredEnvoyHttpRouteConfig(model *lbService) (*envoy_config_route_v3.RouteConfiguration, error) {
 	virtualHosts := []*envoy_config_route_v3.VirtualHost{}
 	if model.applications.httpProxy != nil {
-		blockRoute, err := r.wafTranslator.BlockRoute(model.name, model.namespace, model.effectiveWAFConfig)
+		extensionRoutes, err := r.httpExtensionRoutes(model)
 		if err != nil {
 			return nil, err
 		}
 
 		virtualHosts = r.desiredEnvoyHttpRouteVirtualHosts(
-			blockRoute,
+			extensionRoutes,
 			model.usesHTTPRequestFiltering(),
 			model.usesHTTPRequestRateLimiting(),
 			model.usesHTTPBasicAuth(),
@@ -1646,13 +1642,13 @@ func (r *lbServiceT2Translator) desiredEnvoyHttpRouteConfig(model *lbService) (*
 func (r *lbServiceT2Translator) desiredEnvoyHttpsRouteConfig(model *lbService) (*envoy_config_route_v3.RouteConfiguration, error) {
 	virtualHosts := []*envoy_config_route_v3.VirtualHost{}
 	if model.applications.httpsProxy != nil {
-		blockRoute, err := r.wafTranslator.BlockRoute(model.name, model.namespace, model.effectiveWAFConfig)
+		extensionRoutes, err := r.httpExtensionRoutes(model)
 		if err != nil {
 			return nil, err
 		}
 
 		virtualHosts = r.desiredEnvoyHttpRouteVirtualHosts(
-			blockRoute,
+			extensionRoutes,
 			model.usesHTTPSRequestFiltering(),
 			model.usesHTTPSRequestRateLimiting(),
 			model.usesHTTPSBasicAuth(),
@@ -1670,16 +1666,13 @@ func (r *lbServiceT2Translator) desiredEnvoyHttpsRouteConfig(model *lbService) (
 	}, nil
 }
 
-func (r *lbServiceT2Translator) desiredEnvoyHttpRouteVirtualHosts(blockRoute *envoy_config_route_v3.Route, usesRequestFiltering bool, usesRateLimiting bool, usesBasicAuth bool, usesJWTAuth bool, modelRoutes map[string][]lbRouteHTTP, httpType string, namespace string, name string) []*envoy_config_route_v3.VirtualHost {
+func (r *lbServiceT2Translator) desiredEnvoyHttpRouteVirtualHosts(extensionRoutes []*envoy_config_route_v3.Route, usesRequestFiltering bool, usesRateLimiting bool, usesBasicAuth bool, usesJWTAuth bool, modelRoutes map[string][]lbRouteHTTP, httpType string, namespace string, name string) []*envoy_config_route_v3.VirtualHost {
 	virtualHosts := []*envoy_config_route_v3.VirtualHost{}
 
 	routeHostNamesOrdered := slices.Sorted(maps.Keys(modelRoutes))
 
 	for _, routeHostname := range routeHostNamesOrdered {
-		envoyRoutes := []*envoy_config_route_v3.Route{}
-		if blockRoute != nil {
-			envoyRoutes = append(envoyRoutes, blockRoute)
-		}
+		envoyRoutes := append([]*envoy_config_route_v3.Route{}, extensionRoutes...)
 
 		for _, route := range modelRoutes[routeHostname] {
 			tpfc := map[string]*anypb.Any{}
@@ -3200,6 +3193,80 @@ func (r *lbServiceT2Translator) toXdsResource(m proto.Message, typeUrl string) (
 	}, nil
 }
 
+func (r *lbServiceT2Translator) httpExtensionFilters(model *lbService) ([]*envoy_extensions_filters_network_hcm_v3.HttpFilter, error) {
+	service := types.NamespacedName{Namespace: model.namespace, Name: model.name}
+	httpFilters := []lbextension.HTTPFilter{}
+	for _, ext := range r.httpExtensions {
+		if !ext.Enabled() {
+			continue
+		}
+
+		filters, err := ext.HTTPFilters(service, model.httpExtensionStates[ext.Name()])
+		if err != nil {
+			return nil, fmt.Errorf("failed to build HTTP filters for extension %q: %w", ext.Name(), err)
+		}
+		for _, filter := range filters {
+			if filter.Filter == nil {
+				continue
+			}
+			httpFilters = append(httpFilters, filter)
+		}
+	}
+
+	sort.SliceStable(httpFilters, func(i, j int) bool {
+		return httpFilters[i].Order < httpFilters[j].Order
+	})
+
+	filters := make([]*envoy_extensions_filters_network_hcm_v3.HttpFilter, 0, len(httpFilters))
+	for _, filter := range httpFilters {
+		filters = append(filters, filter.Filter)
+	}
+	return filters, nil
+}
+
+func (r *lbServiceT2Translator) httpExtensionRoutes(model *lbService) ([]*envoy_config_route_v3.Route, error) {
+	service := types.NamespacedName{Namespace: model.namespace, Name: model.name}
+	httpRoutes := []lbextension.HTTPRoute{}
+	for _, ext := range r.httpExtensions {
+		if !ext.Enabled() {
+			continue
+		}
+
+		routes, err := ext.HTTPRoutes(service, model.httpExtensionStates[ext.Name()])
+		if err != nil {
+			return nil, fmt.Errorf("failed to build HTTP routes for extension %q: %w", ext.Name(), err)
+		}
+		for _, route := range routes {
+			if route.Route == nil {
+				continue
+			}
+			httpRoutes = append(httpRoutes, route)
+		}
+	}
+
+	sort.SliceStable(httpRoutes, func(i, j int) bool {
+		return httpRoutes[i].Order < httpRoutes[j].Order
+	})
+
+	routes := make([]*envoy_config_route_v3.Route, 0, len(httpRoutes))
+	for _, route := range httpRoutes {
+		routes = append(routes, route.Route)
+	}
+	return routes, nil
+}
+
+func (r *lbServiceT2Translator) accessLogFields(model *lbService) []lbextension.AccessLogField {
+	fields := []lbextension.AccessLogField{}
+	for _, ext := range r.httpExtensions {
+		if !ext.Enabled() {
+			continue
+		}
+
+		fields = append(fields, ext.AccessLogFields(model.httpExtensionStates[ext.Name()])...)
+	}
+	return fields
+}
+
 func toAny(message proto.Message) *anypb.Any {
 	a, err := anypb.New(message)
 	if err != nil {
@@ -3248,4 +3315,19 @@ func desiredCECNodeSelector(model *lbService, zone string) (*slim_metav1.LabelSe
 	selector.MatchLabels[corev1.LabelTopologyZone] = zone
 
 	return selector, nil
+}
+
+func appendTextAccessLogFields(format string, fields []lbextension.AccessLogField) string {
+	parts := make([]string, 0)
+	if format = strings.TrimSpace(format); format != "" {
+		parts = append(parts, format)
+	}
+	for _, field := range fields {
+		for _, text := range field.Text {
+			if text = strings.TrimSpace(text); text != "" {
+				parts = append(parts, text)
+			}
+		}
+	}
+	return strings.Join(parts, " ")
 }

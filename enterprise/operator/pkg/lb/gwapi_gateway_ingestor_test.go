@@ -25,7 +25,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	wafenvoy "github.com/cilium/cilium/enterprise/operator/pkg/waf/envoy"
 	ciliumv2 "github.com/cilium/cilium/pkg/k8s/apis/cilium.io/v2"
 	slim_corev1 "github.com/cilium/cilium/pkg/k8s/slim/k8s/api/core/v1"
 )
@@ -67,10 +66,6 @@ func TestHTTP(t *testing.T) {
 			t2Translator := &lbServiceT2Translator{
 				logger: hivetest.Logger(t),
 				config: config,
-				wafTranslator: wafenvoy.NewTranslator(
-					hivetest.Logger(t),
-					wafenvoy.NewProxyConfigBuilder(),
-				),
 			}
 
 			// desired T1 from translation
