@@ -57,7 +57,7 @@ env:
   test_name: cidr-scale
   cluster_name: ${{ github.run_id }}-${{ github.run_attempt }}
   # renovate: datasource=docker depName=google/cloud-sdk
-  gcloud_version: 575.0.0
+  gcloud_version: 575.0.1
 
 jobs:
   echo-inputs:
