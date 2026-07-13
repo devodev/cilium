@@ -1,11 +1,11 @@
 name: Conformance ILB OpenShift (ci-ilb-openshift)
 
 # Usage with Ariane (GitHub issue comment):
-# `/ci-ilb-openshift {"ocp_version":"4.17.14", "region":"us-east-1"}`
+# `/ci-ilb-openshift {"ocp_version":"4.19.11", "region":"us-east-1"}`
 # The json parameters are optional. The default region is us-east-1.
 
 on:
-  # Deactivated as it has not had a single successful run over the last 3 months
+  # TODO: Re-enable pull_request trigger once the workflow is stable
   # pull_request:
   #   types:
   #     - opened
@@ -31,11 +31,6 @@ on:
         description: "[JSON object] Arbitrary arguments passed from the trigger comment via regex capture group. Parse with 'fromJson(inputs.extra-args).argName' in workflow."
         required: false
         default: '{}'
-  # For the purpose of testing the workflow
-  # push:
-  #   branches:
-  #     - 'yourbranch'
-
 # By specifying the access of one of the scopes, all of those that are not
 # specified are set to 'none'.
 permissions:
@@ -74,7 +69,7 @@ concurrency:
 env:
   clusterName: ${{ github.run_id }}-${{ github.run_attempt }}
   # renovate: datasource=docker depName=quay.io/openshift-release-dev/ocp-release
-  ocp_version_multi: 4.18.20-multi
+  ocp_version_multi: 4.19.11-multi
   pod_cidr: 10.244.0.0/16
   pod_cidr_host_prefix: 23
   test_vm_tunnel_port: 8888
@@ -84,11 +79,6 @@ jobs:
     name: Commit Status Start
     runs-on: ubuntu-24.04
     steps:
-      - name: Echo Workflow Dispatch Inputs
-        if: ${{ github.event_name == 'workflow_dispatch' }}
-        run: |
-          echo '${{ tojson(inputs) }}'
-
       - name: Set initial commit status
         uses: myrotvorets/set-commit-status-action@3730c0a348a2ace3c110851bed53331bc6406e9f # v2.0.1
         with:
@@ -108,6 +98,9 @@ jobs:
       - name: Cleanup Disk space in runner
         uses: ./.github/actions/disk-cleanup
 
+      - name: Set Environment Variables
+        uses: ./.github/actions/set-env-variables
+
       - name: Set up job variables
         id: vars
         run: |
@@ -120,19 +113,26 @@ jobs:
           fi
           echo sha=${sha} >> $GITHUB_OUTPUT
 
+      - name: Login to Artifactory
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        with:
+          registry: ${{ env.ARTIFACTORY_DEV }}
+          username: ${{ vars.ARTIFACTORY_USERNAME }}
+          password: ${{ secrets.ARTIFACTORY_PASSWORD }}
+
       - name: Wait for images to be available
         id: wait_images
         timeout-minutes: 30
         shell: bash
         run: |
           for image in cilium-ubi-ci operator-generic-ubi-ci hubble-relay-ubi-ci clustermesh-apiserver-ubi-ci; do
-            until docker manifest inspect quay.io/isovalent-dev/$image:${{ steps.vars.outputs.sha }} &> /dev/null; do sleep 45s; done
+            until docker manifest inspect ${{ env.ARTIFACTORY_DEV }}/${{ env.ARTIFACTORY_ORGANIZATION_DEV }}/$image:${{ steps.vars.outputs.sha }} &> /dev/null; do sleep 45s; done
           done
           echo "images available"
           # Some special handling is needed for clife as it does not get built for every push / PR, per default
           # only when enterprise/olm is modified.
           i=0
-          until docker manifest inspect quay.io/isovalent-dev/clife-ci:${{ steps.vars.outputs.sha }} &> /dev/null || [[ "${i}" -gt 10 ]]; do sleep 30s; i=$((i + 1)); done
+          until docker manifest inspect ${{ env.ARTIFACTORY_DEV }}/${{ env.ARTIFACTORY_ORGANIZATION_DEV }}/clife-ci:${{ steps.vars.outputs.sha }} &> /dev/null || [[ "${i}" -gt 10 ]]; do sleep 30s; i=$((i + 1)); done
           if [[ "${i}" -gt 10 ]]; then
             echo "CLife rebuild needed"
             echo rebuild_clife='true' >> $GITHUB_OUTPUT
@@ -168,7 +168,7 @@ jobs:
       - name: Build and Push CLife image
         if: ${{ steps.wait_images.outputs.rebuild_clife  == 'true' }}
         env:
-          IMG: "quay.io/isovalent-dev/clife-ci:${{ steps.vars.outputs.sha }}"
+          IMG: "${{ env.ARTIFACTORY_DEV }}/${{ env.ARTIFACTORY_ORGANIZATION_DEV }}/clife-ci:${{ steps.vars.outputs.sha }}"
           CL_TAG: "${{ steps.vars.outputs.sha }}"
         working-directory: ./enterprise/olm
         run: |
@@ -178,7 +178,7 @@ jobs:
     name: Installation and Connectivity Test
     runs-on: ubuntu-24.04
     needs: [images]
-    timeout-minutes: 240
+    timeout-minutes: 360
     steps:
       - name: Collect Workflow Telemetry
         uses: cilium/workflow-telemetry-action@b1a318f80a08acede58027afe1455d037379966f # v2.2.0
@@ -199,42 +199,81 @@ jobs:
 
       - name: Set up job variables
         id: vars
+        env:
+          EXTRA_ARGS: ${{ inputs.extra-args }}
         run: |
-          if [ "${{ github.event_name }}" == 'workflow_dispatch' ]; then
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            sha="${{ inputs.SHA }}"
             OWNER="${{ inputs.PR-number }}"
+          elif [ "${{ github.event_name }}" == 'schedule' ]; then
+            sha="${{ github.sha }}"
+            OWNER="${{ github.ref_name }}"
+            OWNER="${OWNER//[.\/]/-}"
           else
+            sha="${{ github.event.pull_request.head.sha }}"
             OWNER="${{ github.ref_name }}"
             OWNER="${OWNER//[.\/]/-}"
           fi
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            sha="${{ inputs.SHA }}"
-          elif [ "${{ github.event_name }}" == 'schedule' ]; then
-            sha="${{ github.sha }}"
-          else
-            sha="${{ github.event.pull_request.head.sha }}"
+            extra_args_input="${EXTRA_ARGS:-}"
+            if [[ -z "$extra_args_input" || "$extra_args_input" =~ ^[[:space:]]*$ ]]; then
+              extra_args_input='{}'
+            fi
+            if ! extra_args_raw=$(printf '%s' "$extra_args_input" | jq -cer '
+              if type == "string" then
+                if test("^\\s*$") then {} else fromjson end
+              else . end
+              | if type == "object" then . else error("extra-args must be an object") end
+            '); then
+              echo "ERROR: extra-args must be a valid JSON object. Aborting."
+              exit 1
+            fi
+            unknown_keys=$(echo "$extra_args_raw" | jq -r 'keys[] | select(. as $k | ["ocp_version","region","buildCiliumCli"] | index($k) | not)' 2>/dev/null || echo "")
+            if [[ -n "$unknown_keys" ]]; then
+              echo "ERROR: Unknown keys in extra-args: ${unknown_keys}"
+              exit 1
+            fi
+            ocp_version=$(echo "$extra_args_raw" | jq -r '.ocp_version // empty')
+            region=$(echo "$extra_args_raw" | jq -r '.region // empty')
+            build_cilium_cli=$(echo "$extra_args_raw" | jq -r '.buildCiliumCli // empty')
+            if [[ -n "$ocp_version" ]] && [[ ! "$ocp_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-z0-9]+)?$ ]]; then
+              echo "ERROR: Invalid ocp_version format. Expected X.Y.Z or X.Y.Z-suffix, got: ${ocp_version}"
+              exit 1
+            fi
+            if [[ -n "$region" ]] && [[ ! "$region" =~ ^[a-z]{2}-[a-z]+-[0-9]+$ ]]; then
+              echo "ERROR: Invalid region format. Expected 'xx-yyyy-#', got: ${region}"
+              exit 1
+            fi
           fi
-          extra_args=${{ inputs.extra-args }}
-          ocp_version=$(echo $extra_args | jq -r '.ocp_version')
-          if [[ "${ocp_version}" == "null" || "${ocp_version}" == "" ]]; then
-            ocp_version=$(echo ${{ env.ocp_version_multi }} | cut -f1 -d "-")
-          fi
-          region=$(echo $extra_args | jq -r '.region')
-          if [[ "${region}" == "null" || "${region}" == "" ]]; then
-            region="us-east-1"
-          fi
-          zone=$(echo $extra_args | jq -r '.zone')
-          if [[ "${zone}" == "null" || "${zone}" == "" ]]; then
-            zone="${region}a"
-          fi
-          build_cilium_cli=$(echo $extra_args | jq -r '.buildCiliumCli')
+          ocp_version="${ocp_version:-$(echo ${{ env.ocp_version_multi }} | cut -f1 -d "-")}"
+          region="${region:-us-east-1}"
+          # Default to a single AZ to avoid cross-AZ etcd latency issues.
+          rchar=$(echo "abc" | fold -w1 | shuf | head -n 1)
+          azs="${region}${rchar}"
+          build_cilium_cli="${build_cilium_cli:-false}"
           ocp_minor_version=$(echo ${ocp_version} | cut -d '.' -f 1,2)
-          echo "ocp_version=${ocp_version}" | tee -a $GITHUB_OUTPUT
-          echo "ocp_minor_version=${ocp_minor_version}" | tee -a $GITHUB_OUTPUT
-          echo "sha=${sha}" | tee -a $GITHUB_OUTPUT
-          echo "owner=${OWNER}" | tee -a $GITHUB_OUTPUT
-          echo "region=${region}" | tee -a $GITHUB_OUTPUT
-          echo "zone=${zone}" | tee -a $GITHUB_OUTPUT
-          echo "build_cilium_cli=${build_cilium_cli}" | tee -a $GITHUB_OUTPUT
+
+          echo "Input validation passed"
+          echo "ocp_version=${ocp_version}" >> $GITHUB_OUTPUT
+          echo "ocp_minor_version=${ocp_minor_version}" >> $GITHUB_OUTPUT
+          echo "sha=${sha}" >> $GITHUB_OUTPUT
+          echo "owner=${OWNER}" >> $GITHUB_OUTPUT
+          echo "region=${region}" >> $GITHUB_OUTPUT
+          echo "azs=${azs}" >> $GITHUB_OUTPUT
+          echo "build_cilium_cli=${build_cilium_cli}" >> $GITHUB_OUTPUT
+
+      - name: Setup go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        with:
+          cache: false
+          # renovate: datasource=golang-version depName=go
+          go-version: 1.26.3
+
+      - name: Generate installation manifests
+        working-directory: ./enterprise/olm
+        env:
+          IMG: "${{ env.ARTIFACTORY_DEV }}/${{ env.ARTIFACTORY_ORGANIZATION_DEV }}/clife-ci:${{ steps.vars.outputs.sha }}"
+        run: make build-installer
 
       - name: Install kubectl
         run: |
@@ -243,8 +282,9 @@ jobs:
           echo "$(cat sha256sum.txt | grep 'openshift-client-linux-4' | cut -f1 -d ' ') openshift-client-linux.tar.gz" | sha256sum --check
           tar -zxvf openshift-client-linux.tar.gz oc
           sudo install -o root -g root -m 0755 oc /usr/local/bin/kubectl
-          sudo mv oc /usr/local/bin/
+          sudo install -o root -g root -m 0755 oc /usr/local/bin/oc
           kubectl version --client
+          oc version --client
           mkdir -p /home/runner/.kube
           touch /home/runner/.kube/config
 
@@ -253,26 +293,25 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_PR_ASSUME_ROLE }}
           aws-region: ${{ steps.vars.outputs.region }}
+          role-duration-seconds: 5400
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+      - name: Login to Artifactory for Cilium CLI
+        if: ${{ steps.vars.outputs.build_cilium_cli != 'true' }}
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
-          terraform_version: "^1.10.4"
-          terraform_wrapper: false
+          registry: ${{ env.ARTIFACTORY_DEV }}
+          username: ${{ vars.ARTIFACTORY_USERNAME }}
+          password: ${{ secrets.ARTIFACTORY_PASSWORD }}
 
       - name: Install Cilium CLI
         if: ${{ steps.vars.outputs.build_cilium_cli != 'true' }}
-        run: |
-          curl -LO https://github.com/isovalent/cilium-cli-releases/releases/latest/download/cilium-linux-amd64.tar.gz
-          sudo tar xzvfC cilium-linux-amd64.tar.gz /usr/local/bin
-          rm cilium-linux-amd64.tar.gz
-
-      - name: Install Go
-        if: ${{ steps.vars.outputs.build_cilium_cli == 'true' }}
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        uses: cilium/cilium-cli@3ce83aa3b4ea3ce6d97023c4d83c22b73a4ed3b4 # v0.19.2
         with:
-          # renovate: datasource=golang-version depName=go
-          go-version: 1.26.5
+          skip-build: ${{ env.CILIUM_CLI_SKIP_BUILD }}
+          image-repo: ${{ env.CILIUM_CLI_IMAGE_REPO_ARTIFACTORY }}
+          image-tag: ${{ steps.vars.outputs.sha }}
+          repository: ${{ env.CILIUM_CLI_RELEASE_REPO }}
+          release-version: ${{ env.CILIUM_CLI_VERSION }}
 
       - name: Build Cilium CLI CEE
         if: ${{ steps.vars.outputs.build_cilium_cli == 'true' }}
@@ -283,246 +322,422 @@ jobs:
       - name: Checkout the OpenShift CuTE repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
-          repository: isovalent/cute-openshift-aws
+          repository: isovalent/openshift-ci
           token: ${{ secrets.ISOVALENT_BOT_READ_PRIVATE_REPOSITORIES }}
-          path: cute
+          path: openshift-ci
+
+      - name: Install OpenShift installer
+        working-directory: ./openshift-ci/aws-ipi
+        run: |
+          URL=https://mirror.openshift.com/pub/openshift-v4/x86_64/clients/ocp/${{ steps.vars.outputs.ocp_version }}/openshift-install-linux-${{ steps.vars.outputs.ocp_version }}.tar.gz
+          curl -fsSL -o openshift-install.tar.gz ${URL}
+          tar zxvf openshift-install.tar.gz
+          sudo install -o root -g root -m 0755 openshift-install /usr/local/bin/openshift-install
+          rm openshift-install.tar.gz
 
       - name: Generate SSH key
         run: |
           ssh-keygen -b 2048 -t rsa -f /home/runner/.ssh/ci_key -q -N ""
-          cat /home/runner/.ssh/ci_key | base64
 
       - name: Configuration for the OpenShift cluster installation
-        id: cute_config
-        working-directory: ./cute
+        working-directory: ./openshift-ci/aws-ipi
         run: |
-          cute_dir=ocp-$(echo ${{ steps.vars.outputs.ocp_minor_version }} | tr '.' '-')
-          echo dir="${cute_dir}" >> $GITHUB_OUTPUT
-          cd "${cute_dir}"
-          # Generation of the terraform configuration.
+          # Generation of the installation configuration.
           echo "${{ secrets.OPENSHIFT_PULL_SECRET }}" | base64 -d > .pullsecret.json
-          cat > terraform.tfvars << EOF
-          cluster_name="${{ env.clusterName }}"
-          owner="${{ steps.vars.outputs.owner }}"
-          ssh_public_key_path="/home/runner/.ssh/ci_key.pub"
-          region="${{ steps.vars.outputs.region }}"
-          availability_zones = ["${{ steps.vars.outputs.zone }}"]
-          pull_secret_path="${PWD}/.pullsecret.json"
-          base_domain="${{ vars.AWS_BASE_DOMAIN }}"
-          pod_cidr="${{ env.pod_cidr }}"
-          pod_cidr_host_prefix="${{ env.pod_cidr_host_prefix }}"
-          cilium_kpr_enabled="true"
-          cilium_olm_repo_type="clife"
-          cilium_olm_repo="dir:$(pwd)/../.."
-          cilium_olm_repo_branch="${{ steps.vars.outputs.sha }}"
-          cilium_version="${{ steps.vars.outputs.sha }}"
-          cilium_path_to_ciliumconfig_file="clife-ciliumconfig.yaml"
-          openshift_version="${{ steps.vars.outputs.ocp_version }}"
-          masters_source_dest_check = false
-          worker_instance_type="m5.xlarge"
-          workers_count=4
-          workers_source_dest_check=false
-          EOF
-          cat terraform.tfvars
-          cp ../../enterprise/olm/config/samples/openshift_ci_ciliumconfig_ilb.yaml clife-ciliumconfig.yaml
 
-      # replace git SSH by HTTPS and use a private access token so that `terraform get`
-      # can download modules from private repositories.
-      - name: Git config for terraform
-        run: |
-          git config --global url."https://oauth2:${{ secrets.ISOVALENT_BOT_READ_PRIVATE_REPOSITORIES }}@github.com".insteadOf ssh://git@github.com
+          # Add Artifactory credentials to pull secret (resolves auth issue)
+          ARTIFACTORY_AUTH=$(echo -n "${{ vars.ARTIFACTORY_USERNAME }}:${{ secrets.ARTIFACTORY_PASSWORD }}" | base64 -w0)
+          jq --arg auth "$ARTIFACTORY_AUTH" \
+            --arg registry "${{ env.ARTIFACTORY_DEV }}" \
+            '.auths[$registry] = {"auth": $auth}' \
+            .pullsecret.json > .pullsecret.tmp.json
+          mv .pullsecret.tmp.json .pullsecret.json
+
+          # exclude 0 from the random range to avoid conflicts with the pod CIDR 10.0.0.0/16
+          range=$(shuf -i 1-255 -n 1)
+          cat > setup.conf << EOF
+          CLUSTER_NAME="${{ env.clusterName }}"
+          OWNER="${{ steps.vars.outputs.owner }}"
+          REGION="${{ steps.vars.outputs.region }}"
+          AZS="${{ steps.vars.outputs.azs }}"
+          PULL_SECRET_PATH="${PWD}/.pullsecret.json"
+          BASE_DOMAIN="${{ vars.AWS_BASE_DOMAIN }}"
+          POD_IPV4_CIDR="${{ env.pod_cidr }}"
+          POD_IPV4_HOST_PREFIX="${{ env.pod_cidr_host_prefix }}"
+          KPR_ENABLED="true"
+          MACHINE_IPV4_CIDR="10.${range}.0.0/16"
+          MANIFESTS_DIR="${{ github.workspace }}/enterprise/olm/dist/manifests"
+          CREDENTIALS_MODE="Manual"
+          OPEN_PORTS='[{"source": "machine", "ports": "179"},{"source": "pod", "ports": "80"},{"source": "pod", "ports": "8080"},{"source": "pod", "ports": "8081"},{"source": "machine", "ports": "80"},{"source": "machine", "ports": "8080"},{"source": "machine", "ports": "8081"},{"source": "machine", "ports": "4000"}]'
+          EOF
+          cat setup.conf
+
+          # provision.sh does not expose worker count as a setup.conf option.
+          # Set four workers so the ILB topology has two T1 and two T2 nodes.
+          yq -i '.compute[0].replicas = 4' templates/install-config.yaml
+          yq '.compute[0]' templates/install-config.yaml
+
+          # Bootstrap with the same KPR CiliumConfig as the working enterprise OpenShift CI.
+          # The ILB-specific CiliumConfig is applied after the cluster is stable.
+          cp ../../enterprise/olm/config/samples/openshift_ci_ciliumconfig_kpr.yaml ${{ github.workspace }}/enterprise/olm/dist/manifests/ciliumconfig.yaml
+
+          # Install ILB-related CRDs during bootstrap so CLIFE discovers them at startup.
+          for crd in \
+            pkg/k8s/apis/isovalent.com/client/crds/v1/isovalentbgpadvertisements.yaml \
+            pkg/k8s/apis/isovalent.com/client/crds/v1/isovalentbgpclusterconfigs.yaml \
+            pkg/k8s/apis/isovalent.com/client/crds/v1/isovalentbgpnodeconfigoverrides.yaml \
+            pkg/k8s/apis/isovalent.com/client/crds/v1/isovalentbgpnodeconfigs.yaml \
+            pkg/k8s/apis/isovalent.com/client/crds/v1/isovalentbgppeerconfigs.yaml \
+            pkg/k8s/apis/isovalent.com/client/crds/v1/isovalentbgppolicies.yaml \
+            pkg/k8s/apis/isovalent.com/client/crds/v1alpha1/isovalentbfdnodeconfigoverrides.yaml \
+            pkg/k8s/apis/isovalent.com/client/crds/v1alpha1/isovalentbfdnodeconfigs.yaml \
+            pkg/k8s/apis/isovalent.com/client/crds/v1alpha1/isovalentbfdprofiles.yaml \
+            pkg/k8s/apis/isovalent.com/client/crds/v1alpha1/isovalentbgpvrfconfigs.yaml \
+            pkg/k8s/apis/isovalent.com/client/crds/v1alpha1/lbbackendpools.yaml \
+            pkg/k8s/apis/isovalent.com/client/crds/v1alpha1/lbdeployments.yaml \
+            pkg/k8s/apis/isovalent.com/client/crds/v1alpha1/lbk8sbackendclusters.yaml \
+            pkg/k8s/apis/isovalent.com/client/crds/v1alpha1/lbservices.yaml \
+            pkg/k8s/apis/isovalent.com/client/crds/v1alpha1/lbvips.yaml; do
+            cp "${{ github.workspace }}/${crd}" "${{ github.workspace }}/enterprise/olm/dist/manifests/"
+          done
 
       - name: Provision the OpenShift cluster
-        id: cluster
-        timeout-minutes: 60
-        working-directory: "./cute/${{ steps.cute_config.outputs.dir }}"
+        id: provisioning
+        timeout-minutes: 120
+        working-directory: "./openshift-ci/aws-ipi"
         run: |
-          make apply AUTO_APPROVE=true
+          # Disable source/dest check on instances as they come up (needed for DSR+IPIP).
+          # OpenShift IPI tags instances with kubernetes.io/cluster/<infraID>, where
+          # infraID = <clusterName>-<random>. We read it from metadata.json once
+          # openshift-install has generated it.
+          (
+            infra_id=""
+            while [ -z "$infra_id" ] || [ "$infra_id" = "null" ]; do
+              infra_id=$(jq -r '.infraID' .workdir/${{ env.clusterName }}/metadata.json 2>/dev/null) || true
+              [ -n "$infra_id" ] && [ "$infra_id" != "null" ] && break
+              sleep 5
+            done
+            echo "Background loop: discovered infraID=${infra_id}"
+            while true; do
+              instance_ids=$(aws ec2 describe-instances \
+                --region ${{ steps.vars.outputs.region }} \
+                --filters "Name=tag:kubernetes.io/cluster/${infra_id},Values=owned" \
+                          "Name=instance-state-name,Values=running" \
+                --query 'Reservations[*].Instances[*].InstanceId' \
+                --output text 2>/dev/null) || true
+              for id in $instance_ids; do
+                aws ec2 modify-instance-attribute \
+                  --region ${{ steps.vars.outputs.region }} \
+                  --instance-id "$id" \
+                  --no-source-dest-check 2>/dev/null || true
+              done
+              sleep 10
+            done
+          ) &
+          SRC_DST_CHECK_PID=$!
+
+          set +e
+          ./scripts/provision.sh 2>&1 | tee provision.log
+          provision_exit=${PIPESTATUS[0]}
+          set -e
+
+          # If provision.sh failed (likely the internal ~30-45m bootstrap timeout),
+          # retry the wait. The infrastructure is already up — we just need more time
+          # for the control plane to stabilize after the bootstrap→production transition.
+          if [ $provision_exit -ne 0 ]; then
+            if grep -Eq 'failed during pre-provisioning|LimitExceeded|Cannot exceed quota|AccessDenied|UnauthorizedOperation|AuthFailure' provision.log; then
+              echo "::error::provision.sh failed before bootstrap; not retrying bootstrap/install wait."
+              kill $SRC_DST_CHECK_PID 2>/dev/null || true
+              wait $SRC_DST_CHECK_PID 2>/dev/null || true
+              exit $provision_exit
+            fi
+
+            echo "::warning::provision.sh failed (exit $provision_exit). Retrying bootstrap/install wait..."
+            work_dir=".workdir/${{ env.clusterName }}"
+
+            if openshift-install wait-for bootstrap-complete --dir "${work_dir}" --log-level=debug 2>&1; then
+              echo "Bootstrap completed on retry. Waiting for install-complete..."
+              if openshift-install wait-for install-complete --dir "${work_dir}" --log-level=debug 2>&1; then
+                echo "Install completed on retry."
+                provision_exit=0
+                # Run post-install steps that provision.sh would have done.
+                export KUBECONFIG="${work_dir}/auth/kubeconfig"
+                source setup.conf
+                if [ -z "${OPEN_PORTS+x}" ]; then
+                  ./scripts/open-ports.sh 2>/dev/null || true
+                else
+                  echo "Opening ports based on OPEN_PORTS configuration..."
+                  echo "${OPEN_PORTS}" | jq -c '.[]' | while read -r item; do
+                    field() {
+                      echo "$item" | jq -r "${1}"
+                    }
+                    CIDR_SOURCE=$(field '.source') OPEN_PORTS=$(field '.ports') ./scripts/open-ports.sh 2>/dev/null || true
+                  done
+                fi
+              fi
+            else
+              echo "Bootstrap still not complete after retry. Collecting diagnostics..."
+              openshift-install gather bootstrap --dir "${work_dir}" --log-level=debug 2>/dev/null || true
+            fi
+          fi
+
+          kill $SRC_DST_CHECK_PID 2>/dev/null || true
+          wait $SRC_DST_CHECK_PID 2>/dev/null || true
+          exit $provision_exit
 
       - name: Kubeconfig Setup
-        if: always() && steps.cluster.outcome != 'skipped'
-        id: kubeconfig
-        working-directory: "./cute/${{ steps.cute_config.outputs.dir }}"
+        if: always() && steps.provisioning.outcome != 'skipped'
+        working-directory: "./openshift-ci/aws-ipi"
         run: |
-          eval "$(make kubeconfig | grep KUBECONFIG)"
-          [[ ! "$KUBECONFIG" =~ ^/.* ]] && KUBECONFIG="$(pwd)/$KUBECONFIG"
-          echo "base64 encoded kubeconfig:"
-          cat $KUBECONFIG | base64 # useful for troubleshooting
+          source .workdir/current.properties
+          export KUBECONFIG=${PWD}/.workdir/${CLUSTER_NAME}/auth/kubeconfig
           # required by the Cilium CLI container
           cp $KUBECONFIG /home/runner/.kube/config
 
       - name: Cluster state
-        if: always() && steps.cluster.outcome != 'skipped'
+        if: ${{ failure() && steps.provisioning.outcome != 'skipped' }}
         run: |
-          function retry {
-            local retries=$1
-            shift
-            local count=0
-            until "$@"; do
-              exit=$?
-              wait=$((2 ** count))
-              count=$((count + 1))
-              if [ $count -lt "${retries}" ]; then
-                echo "Retry $count/$retries exited $exit, retrying in $wait seconds..."
-                sleep $wait
-              else
-                echo "Retry $count/$retries exited $exit, no more retries left."
-                return $exit
-              fi
+          echo "=== ClusterVersion status ==="
+          oc get clusterversion version -o yaml 2>/dev/null || true
+          echo ""
+          echo "=== Cluster operators ==="
+          kubectl get co || true
+          echo ""
+          echo "=== Nodes ==="
+          kubectl get nodes -o wide || true
+          echo ""
+          echo "=== All pods ==="
+          kubectl get pods -A -o wide || true
+          echo ""
+          echo "=== Events (last 100, sorted by time) ==="
+          kubectl get events -A --sort-by=.lastTimestamp 2>/dev/null | tail -100 || true
+          echo ""
+          echo "=== Cilium resources ==="
+          kubectl get ciliumconfig -o yaml || true
+          kubectl get events -n cilium || true
+          kubectl get pods -n cilium -o yaml || true
+          echo ""
+          echo "=== Machine API resources ==="
+          kubectl get machines,machinesets,machinehealthchecks -n openshift-machine-api -o wide 2>/dev/null || true
+          kubectl get machines,machinesets,machinehealthchecks -n openshift-machine-api -o yaml 2>/dev/null || true
+          kubectl get events -n openshift-machine-api --sort-by=.lastTimestamp 2>/dev/null || true
+          echo ""
+          echo "=== Machine API logs ==="
+          kubectl logs -n openshift-machine-api deployment/machine-api-operator --all-containers=true --tail=200 2>/dev/null || true
+          kubectl logs -n openshift-machine-api deployment/machine-api-controllers --all-containers=true --tail=200 2>/dev/null || true
+          echo ""
+          echo "=== Cilium component logs ==="
+          kubectl logs -n cilium deployment/clife-controller-manager --tail=200 || true
+          kubectl logs -n cilium daemonset/cilium --all-containers=true --tail=200 || true
+          echo ""
+          echo "=== CrashLoopBackOff operator logs ==="
+          for ns in openshift-etcd-operator openshift-kube-apiserver-operator openshift-kube-controller-manager-operator \
+                    openshift-kube-scheduler-operator openshift-config-operator openshift-service-ca-operator \
+                    openshift-authentication-operator openshift-controller-manager-operator; do
+            pods=$(kubectl get pods -n "$ns" --no-headers -o custom-columns=":metadata.name" 2>/dev/null) || continue
+            for pod in $pods; do
+              echo "=== $ns/$pod (last 200 lines) ==="
+              kubectl logs -n "$ns" "$pod" --tail=200 2>/dev/null || true
             done
-            return 0
+          done
+
+      - name: Bootstrap log bundle
+        if: ${{ failure() && steps.provisioning.outcome != 'skipped' }}
+        working-directory: "./openshift-ci/aws-ipi"
+        run: |
+          # Extract the bootstrap log bundle collected by openshift-install.
+          # Available on disk even when the API server is down.
+          bundle=$(find .workdir -name 'log-bundle-*.tar.gz' 2>/dev/null | head -1)
+          if [ -z "$bundle" ]; then
+            echo "No bootstrap log bundle found"
+            exit 0
+          fi
+          echo "Extracting $bundle"
+          tmpdir=$(mktemp -d)
+          tar xzf "$bundle" -C "$tmpdir" 2>/dev/null || true
+          # Print ALL bootstrap container and journal logs.
+          # CVO logs are printed IN FULL — the UpdateError detail that identifies
+          # the blocking manifest scrolls off with any tail-based capture.
+          # Other logs get 200 lines.
+          for f in $(find "$tmpdir" -name '*.log' 2>/dev/null | sort); do
+            relpath=${f#"${tmpdir}"/}
+            if echo "$relpath" | grep -qi 'cluster-version-operator'; then
+              echo "=== $relpath (FULL) ==="
+              cat "$f"
+            else
+              echo "=== $relpath (last 200 lines) ==="
+              tail -200 "$f"
+            fi
+            echo ""
+          done
+          rm -rf "$tmpdir"
+
+      - name: Source/dest check verification
+        if: always() && steps.provisioning.outcome != 'skipped'
+        working-directory: "./openshift-ci/aws-ipi"
+        run: |
+          infra_id=$(jq -r '.infraID' .workdir/${{ env.clusterName }}/metadata.json 2>/dev/null) || true
+          if [ -z "$infra_id" ] || [ "$infra_id" = "null" ]; then
+            echo "WARNING: Could not read infraID from metadata.json"
+            exit 0
+          fi
+          echo "Verifying source/dest check is disabled on all instances (infraID=${infra_id}):"
+          aws ec2 describe-instances --region ${{ steps.vars.outputs.region }} \
+            --filters "Name=tag:kubernetes.io/cluster/${infra_id},Values=owned" \
+                      "Name=instance-state-name,Values=running" \
+            --query 'Reservations[*].Instances[*].[InstanceId,SourceDestCheck,PrivateIpAddress]' \
+            --no-cli-pager \
+            --output table || true
+
+      - name: Allow ILB test traffic
+        if: ${{ !cancelled() && steps.provisioning.outcome == 'success' }}
+        working-directory: "./openshift-ci/aws-ipi"
+        run: |
+          infra_id=$(jq -r '.infraID' .workdir/${{ env.clusterName }}/metadata.json 2>/dev/null) || true
+          if [ -z "$infra_id" ] || [ "$infra_id" = "null" ]; then
+            echo "Could not read infraID from metadata.json"
+            exit 1
+          fi
+
+          instances_json="$(aws ec2 describe-instances \
+            --region ${{ steps.vars.outputs.region }} \
+            --filters "Name=tag:kubernetes.io/cluster/${infra_id},Values=owned" \
+                      "Name=instance-state-name,Values=running" \
+            --output json)"
+
+          security_groups="$(jq -r '.Reservations[].Instances[].SecurityGroups[].GroupId' <<<"${instances_json}" | sort -u)"
+          if [ -z "${security_groups}" ]; then
+            echo "Could not find security groups for cluster instances"
+            exit 1
+          fi
+
+          echo "Allowing ILB test traffic within cluster security groups:"
+          printf '%s\n' ${security_groups}
+
+          authorize_ingress() {
+            local target_sg="$1"
+            local source_sg="$2"
+            local proto="$3"
+            local port="${4:-}"
+            local permission
+            local output
+            local rule
+
+            if [ -n "${port}" ]; then
+              permission="$(jq -n \
+                --arg proto "${proto}" \
+                --argjson port "${port}" \
+                --arg source_sg "${source_sg}" \
+                '[{
+                  IpProtocol: $proto,
+                  FromPort: $port,
+                  ToPort: $port,
+                  UserIdGroupPairs: [{GroupId: $source_sg}]
+                }]')"
+              rule="${proto}/${port}"
+            else
+              permission="$(jq -n \
+                --arg proto "${proto}" \
+                --arg source_sg "${source_sg}" \
+                '[{
+                  IpProtocol: $proto,
+                  UserIdGroupPairs: [{GroupId: $source_sg}]
+                }]')"
+              rule="${proto}"
+            fi
+
+            if output="$(aws ec2 authorize-security-group-ingress \
+              --region ${{ steps.vars.outputs.region }} \
+              --group-id "${target_sg}" \
+              --ip-permissions "${permission}" 2>&1)"; then
+              echo "Authorized ${rule} from ${source_sg} to ${target_sg}"
+              return
+            fi
+
+            if grep -q 'InvalidPermission.Duplicate' <<<"${output}"; then
+              echo "Already authorized ${rule} from ${source_sg} to ${target_sg}"
+              return
+            fi
+
+            echo "${output}"
+            exit 1
           }
 
-          retry 3 kubectl get pods -A -o wide
-          retry 3 kubectl get nodes
-          retry 3 kubectl get co
-          retry 3 kubectl get ciliumconfig -o yaml
-          retry 3 kubectl get events -n cilium
-          retry 3 kubectl get pods -n cilium -o yaml
-          retry 3 kubectl logs -n cilium deployment/clife-controller-manager
-          retry 3 kubectl logs -n cilium daemonset/cilium --all-containers=true
-
-      - name: Read environment props
-        id: aws-env
-        run: |
-          # Read worker nodes security group IDs
-          # The following schellcheck disabled because AWS CLI --query requires single quotes.
-          # shellcheck disable=SC2016
-          workersSGId=$(aws ec2 describe-security-groups --region ${{ steps.vars.outputs.region }} \
-                                                         --query 'SecurityGroups[?starts_with(GroupName, `${{ env.clusterName }}`) == `true` && ends_with(GroupName, `workers`) == `true`]|[].GroupId' \
-                                                         --no-cli-pager \
-                                                         --output text)
-          # Read SSH key pair name
-          # The following schellcheck disabled because AWS CLI --query requires single quotes.
-          # shellcheck disable=SC2016
-          keyPairName=$(aws ec2 describe-key-pairs --region ${{ steps.vars.outputs.region }} \
-                                                   --query 'KeyPairs[?starts_with(KeyName, `${{ env.clusterName }}`) == `true`]|[].[KeyName]' \
-                                                   --no-cli-pager \
-                                                   --output text)
-          # Read private subnet ID
-          privateSubnetId=$(aws ec2 describe-subnets --region ${{ steps.vars.outputs.region }} \
-                                                     --filters 'Name=tag:Name,Values=${{ env.clusterName }}*private*' \
-                                                     --query 'Subnets[*].SubnetId' \
-                                                     --no-cli-pager \
-                                                     --output text)
-          # Read all security group IDs
-          # The following schellcheck disabled because AWS CLI --query requires single quotes.
-          # shellcheck disable=SC2016
-          allSecurityGroupIds=$(aws ec2 describe-security-groups --region ${{ steps.vars.outputs.region }} \
-                                                                 --query 'SecurityGroups[?starts_with(GroupName, `${{ env.clusterName }}`) == `true`]|[].GroupId' \
-                                                                 --no-cli-pager \
-                                                                 --output text)
-          echo "workersSGId=${workersSGId}" | tee -a $GITHUB_OUTPUT
-          echo "keyPairName=${keyPairName}" | tee -a $GITHUB_OUTPUT
-          echo "privateSubnetId=${privateSubnetId}" | tee -a $GITHUB_OUTPUT
-          echo "allSecurityGroupIds=${allSecurityGroupIds}" | tee -a $GITHUB_OUTPUT
-
-      - name: Test VM pre-install script
-        run: |
-          cat > test-vm-setup.sh << EOF
-          #!/bin/bash
-
-          # install docker
-          sudo apt-get update
-          sudo apt-get install -y ca-certificates curl unzip
-          sudo install -m 0755 -d /etc/apt/keyrings
-          sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-          sudo chmod a+r /etc/apt/keyrings/docker.asc
-          echo \
-            "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
-            $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}") stable" | \
-            sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-          sudo apt-get update
-          sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-          sudo usermod -aG docker ubuntu
-          newgrp docker
-
-          # install kubectl
-          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-          chmod +x kubectl
-          sudo mv kubectl /usr/bin
-
-          # install Cilium CLI
-          curl -LO https://github.com/isovalent/cilium-cli-releases/releases/latest/download/cilium-linux-amd64.tar.gz
-          sudo tar xzvfC cilium-linux-amd64.tar.gz /usr/local/bin
-          rm cilium-linux-amd64.tar.gz
-          EOF
-
-      - name: Provision test VM
-        id: test-vm
-        run: |
-          output=$(aws ec2 run-instances --region ${{ steps.vars.outputs.region }} \
-                                         --image-id ami-020cba7c55df1f615 \
-                                         --user-data file://./test-vm-setup.sh \
-                                         --key-name ${{ steps.aws-env.outputs.keyPairName }} \
-                                         --instance-type t3.micro \
-                                         --subnet-id ${{ steps.aws-env.outputs.privateSubnetId }} \
-                                         --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=${{ env.clusterName }}-test-vm}]' \
-                                         --security-group-ids ${{ steps.aws-env.outputs.allSecurityGroupIds }} \
-                                         --no-cli-pager)
-          instanceId=$(echo "${output}" | jq -r '.Instances[].InstanceId')
-          echo "id=${instanceId}" | tee -a $GITHUB_OUTPUT
-
-      - name: Allow ILB test CIDR
-        run: |
-          aws ec2 authorize-security-group-ingress --region ${{ steps.vars.outputs.region }} \
-                                                   --group-id ${{ steps.aws-env.outputs.workersSGId }} \
-                                                   --protocol -1 \
-                                                   --port -1 \
-                                                   --cidr 100.64.0.0/16 \
-                                                   --no-cli-pager
-
-      - name: Provision AWS endpoint
-        id: aws-endpoint
-        timeout-minutes: 15
-        run: |
-          endpointID=$(aws ec2 create-instance-connect-endpoint --region ${{ steps.vars.outputs.region }} \
-                                                                --security-group-ids ${{ steps.aws-env.outputs.allSecurityGroupIds }} \
-                                                                --subnet-id ${{ steps.aws-env.outputs.privateSubnetId }} \
-                                                                --no-cli-pager \
-                                                                --output json | \
-                       jq .InstanceConnectEndpoint.InstanceConnectEndpointId -r)
-          while true
-          do
-            status=$(aws ec2 describe-instance-connect-endpoints --region ${{ steps.vars.outputs.region }} \
-                                                                 --instance-connect-endpoint-ids $endpointID \
-                                                                 --query InstanceConnectEndpoints[*].State \
-                                                                 --no-cli-pager \
-                                                                 --output text || true)
-            if [ "${status}" == "create-complete" ]
-            then
-              echo "Endpoint is ready!"
-              break
-            fi
-            echo "Endpoint is not ready yet: ${status} ..."
-            sleep 10
+          for target_sg in ${security_groups}; do
+            for source_sg in ${security_groups}; do
+              # The external runner and Instance Connect endpoint use these same
+              # security groups. The ILB suite also allocates backend ports dynamically.
+              authorize_ingress "${target_sg}" "${source_sg}" -1
+            done
           done
-          echo "id=${endpointID}" | tee -a $GITHUB_OUTPUT
 
       - name: Wait for Cluster operators to be ready
-        if: ${{ steps.cluster.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.provisioning.outcome == 'success' }}
         id: wait-for-co
-        timeout-minutes: 15
         run: |
-          set +e
-          while true; do
-            if ! co_status=$(kubectl get co -o jsonpath="{range .items[*]}{.status.conditions[?(@.type=='Available')].status}{'\n'}{end}"); then
-              sleep 30s
-              continue
-            fi
-            if echo "$co_status" | grep False; then
-              sleep 30s
-              continue
-            fi
-            break
+          oc adm wait-for-stable-cluster --timeout=45m0s --minimum-stable-period=1m
+
+      - name: Cluster operators not ready
+        if: ${{ !cancelled() && steps.provisioning.outcome != 'skipped' && steps.wait-for-co.outcome == 'failure' }}
+        run: |
+          echo "=== ClusterVersion Progressing condition ==="
+          oc get clusterversion version -o jsonpath='{.status.conditions[?(@.type=="Progressing")].message}' 2>/dev/null || true
+          echo ""
+          echo ""
+          echo "=== ClusterVersion full status ==="
+          oc get clusterversion version -o yaml 2>/dev/null || true
+          echo ""
+          echo "=== Cluster operators ==="
+          kubectl get co -o yaml || true
+          echo ""
+          echo "=== Pods not Running/Completed ==="
+          kubectl get pods -A --field-selector 'status.phase!=Running,status.phase!=Succeeded' -o wide 2>/dev/null || true
+          echo ""
+          echo "=== Cilium resources ==="
+          kubectl get events -n cilium || true
+          kubectl get pods -n cilium -o yaml || true
+          kubectl logs -n cilium deployment/clife-controller-manager --tail=500 || true
+          kubectl logs -n cilium daemonset/cilium --all-containers=true --tail=200 || true
+          echo ""
+          echo "=== CrashLoopBackOff operator logs ==="
+          for ns in $(kubectl get pods -A --no-headers 2>/dev/null | awk '/CrashLoopBackOff|Error/{print $1}' | sort -u); do
+            for pod in $(kubectl get pods -n "$ns" --no-headers 2>/dev/null | awk '/CrashLoopBackOff|Error/{print $1}'); do
+              echo "=== $ns/$pod ==="
+              kubectl logs -n "$ns" "$pod" --tail=100 2>/dev/null || true
+            done
           done
-          set -e
+          echo ""
+          echo "=== ContainerCreating pod events ==="
+          for pod_info in $(kubectl get pods -A --no-headers 2>/dev/null | awk '/ContainerCreating/{print $1"/"$2}'); do
+            ns=${pod_info%%/*}
+            pod=${pod_info#*/}
+            echo "--- $ns/$pod ---"
+            kubectl describe pod -n "$ns" "$pod" 2>/dev/null | tail -20 || true
+          done
+
+      - name: Retrieve cluster info
+        if: ${{ !cancelled() && steps.wait-for-co.outcome == 'success' }}
+        id: cluster-info
+        run: |
+          api_server="$(kubectl config view --minify | yq -r '.clusters[0].cluster.server')"
+          echo "k8s_service_host=$(echo $api_server | awk -F '/' '{print $3}' | awk -F ':' '{print $1}')" >> $GITHUB_OUTPUT
+          echo "k8s_service_port=$(echo $api_server | awk -F '/' '{print $3}' | awk -F ':' '{print $2}')" >> $GITHUB_OUTPUT
+
+      - name: Verify OpenShift kube-proxy removed
+        if: ${{ !cancelled() && steps.wait-for-co.outcome == 'success' }}
+        run: |
+          count="$(kubectl get pods -A -l app=kube-proxy | wc -l)"
+          if [[ $count -gt 0 ]]
+          then
+            echo "OpenShift kube-proxy was not removed!"
+            exit 1
+          fi
 
       - name: Disable OpenShift ingress router
+        if: ${{ !cancelled() && steps.wait-for-co.outcome == 'success' }}
         timeout-minutes: 10
         run: |
-          # The OpenShift HA ingress router uses TCP port 80 which might cause the following error for the ILB E2E tests:
-          # "Error adding/updating listener(s) <listener-name>: cannot bind '<node-ip>:80': Address already in use"
+          # Ingress router binds port 80, which conflicts with ILB E2E tests
           kubectl patch -n openshift-ingress-operator ingresscontroller default \
                         --type merge \
                         --patch '{"spec":{"replicas":0}}'
@@ -536,59 +751,22 @@ jobs:
             sleep 10s
           done
 
-      - name: Cluster operators not ready
-        if: ${{ steps.cluster.outcome != 'skipped' && steps.wait-for-co.outcome == 'failure' }}
-        run: |
-          kubectl get co -o yaml
-          kubectl get events -n cilium
-          kubectl get pods -n cilium -o yaml
-          kubectl logs -n cilium deployment/clife-controller-manager
-          kubectl logs -n cilium daemonset/cilium --all-containers=true
-
-      - name: Retrieve cluster info
-        id: cluster-info
-        run: |
-          api_server="$(kubectl config view --minify | yq -r '.clusters[0].cluster.server')"
-          echo "k8s_service_host=$(echo $api_server | awk -F '/' '{print $3}' | awk -F ':' '{print $1}')" >> $GITHUB_OUTPUT
-          echo "k8s_service_port=$(echo $api_server | awk -F '/' '{print $3}' | awk -F ':' '{print $2}')" >> $GITHUB_OUTPUT
-
-      - name: Verify OpenShift kube-proxy removed
-        run: |
-          count="$(kubectl get pods -A -l app=kube-proxy | wc -l)"
-          if [[ $count -gt 0 ]]
-          then
-            echo "OpenShift kube-proxy was not removed!"
-            exit 1
-          fi
-
       - name: Display Cilium status
+        if: ${{ !cancelled() && steps.wait-for-co.outcome == 'success' }}
         run: |
           cilium status -n cilium --wait --wait-duration=10m
 
       - name: Label ILB nodes
+        if: ${{ !cancelled() && steps.wait-for-co.outcome == 'success' }}
         run: |
-          function retry {
-            local retries=$1
-            shift
-            local count=0
-            until "$@"; do
-              exit=$?
-              wait=$((2 ** count))
-              count=$((count + 1))
-              if [ $count -lt "${retries}" ]; then
-                echo "Retry $count/$retries exited $exit, retrying in $wait seconds..."
-                sleep $wait
-              else
-                echo "Retry $count/$retries exited $exit, no more retries left."
-                return $exit
-              fi
-            done
-            return 0
-          }
+          mapfile -t nodes < <(kubectl get nodes -l node-role.kubernetes.io/worker --no-headers -o custom-columns=":metadata.name")
+          if [[ ${#nodes[@]} -lt 4 ]]; then
+            echo "Expected at least four worker nodes, found ${#nodes[@]}"
+            exit 1
+          fi
 
-          nodes=$(kubectl get nodes -l node-role.kubernetes.io/worker --no-headers -o custom-columns=":metadata.name")
           i=1
-          for node in $nodes
+          for node in "${nodes[@]}"
           do
             tier=1
             if [[ $i -gt 2 ]]
@@ -596,44 +774,360 @@ jobs:
               tier=2
             fi
             echo "Labeling ${node} as tier: ${tier}"
-            retry 3 kubectl label node $node service.cilium.io/node=t$tier
-            ((i++))
+            kubectl label node "${node}" service.cilium.io/node="t${tier}" --overwrite
+            i=$((i + 1))
           done
 
-      - name: Wait for Cilium status to be ready
+      - name: Apply ILB CiliumConfig
+        if: ${{ !cancelled() && steps.wait-for-co.outcome == 'success' }}
         run: |
-          cilium status -n cilium --wait --wait-duration=10m
+          for crd in \
+            isovalentbgpadvertisements.isovalent.com \
+            isovalentbgpclusterconfigs.isovalent.com \
+            isovalentbgpnodeconfigoverrides.isovalent.com \
+            isovalentbgpnodeconfigs.isovalent.com \
+            isovalentbgppeerconfigs.isovalent.com \
+            isovalentbgppolicies.isovalent.com \
+            isovalentbfdnodeconfigoverrides.isovalent.com \
+            isovalentbfdnodeconfigs.isovalent.com \
+            isovalentbfdprofiles.isovalent.com \
+            isovalentbgpvrfconfigs.isovalent.com \
+            lbbackendpools.isovalent.com \
+            lbdeployments.isovalent.com \
+            lbk8sbackendclusters.isovalent.com \
+            lbservices.isovalent.com \
+            lbvips.isovalent.com; do
+            kubectl wait --for condition=Established "crd/${crd}" --timeout=2m
+          done
+          kubectl rollout restart -n cilium deployment/clife-controller-manager
+          kubectl rollout status -n cilium deployment/clife-controller-manager --timeout=5m
 
-      - name: Display ILB status
+          export POD_CIDR="${{ env.pod_cidr }}"
+          export POD_CIDR_HOST_PREFIX="${{ env.pod_cidr_host_prefix }}"
+          export KUBERNETES_SERVICE_HOST="${{ steps.cluster-info.outputs.k8s_service_host }}"
+          export KUBERNETES_SERVICE_PORT="${{ steps.cluster-info.outputs.k8s_service_port }}"
+          cilium_ds_generation="$(kubectl -n cilium get daemonset/cilium -o jsonpath='{.metadata.generation}')"
+          envoy_ds_generation="$(kubectl -n cilium get daemonset/cilium-envoy -o jsonpath='{.metadata.generation}' 2>/dev/null || true)"
+          # shellcheck disable=SC2016 # single quotes are intentional for envsubst
+          envsubst '${POD_CIDR} ${POD_CIDR_HOST_PREFIX} ${KUBERNETES_SERVICE_HOST} ${KUBERNETES_SERVICE_PORT}' < enterprise/olm/config/samples/openshift_ci_ciliumconfig_ilb.yaml > /tmp/ciliumconfig-ilb.yaml
+          kubectl replace -f /tmp/ciliumconfig-ilb.yaml
+
+          wait_for_rollout_generation() {
+            resource="$1"
+            previous_generation="$2"
+            if [ -z "${previous_generation}" ]; then
+              return 0
+            fi
+
+            echo "Waiting for ${resource} to pick up the ILB CiliumConfig"
+            for _ in {1..60}; do
+              current_generation="$(kubectl -n cilium get "${resource}" -o jsonpath='{.metadata.generation}' 2>/dev/null || true)"
+              if [ -n "${current_generation}" ] && [ "${current_generation}" != "${previous_generation}" ]; then
+                kubectl -n cilium rollout status "${resource}" --timeout=15m
+                return 0
+              fi
+              sleep 10s
+            done
+
+            echo "${resource} generation did not change after applying the ILB CiliumConfig"
+            kubectl -n cilium get "${resource}" -o yaml || true
+            exit 1
+          }
+
+          wait_for_rollout_generation daemonset/cilium "${cilium_ds_generation}"
+          wait_for_rollout_generation daemonset/cilium-envoy "${envoy_ds_generation}"
+
+      - name: Wait for Cilium and ILB status to be ready
+        if: ${{ !cancelled() && steps.wait-for-co.outcome == 'success' }}
         run: |
+          cilium status -n cilium --wait --wait-duration=20m
+
+          for i in {1..60}; do
+            unhealthy_pods=()
+            pods="$(kubectl -n cilium get pods -l app.kubernetes.io/name=cilium-agent -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}')"
+            if [ -z "${pods}" ]; then
+              echo "No Cilium agent pods found"
+              exit 1
+            fi
+
+            for pod in ${pods}; do
+              version="$(kubectl -n cilium exec "${pod}" -c cilium-agent -- cilium version -o 'jsonpath={$.Daemon.Version}' 2>/dev/null || true)"
+              if [ -z "${version}" ]; then
+                unhealthy_pods+=("${pod}")
+              fi
+            done
+
+            if [ "${#unhealthy_pods[@]}" -eq 0 ]; then
+              echo "All Cilium agents report a daemon version"
+              break
+            fi
+
+            if [ "${i}" -eq 60 ]; then
+              echo "Cilium agents did not all report a daemon version: ${unhealthy_pods[*]}"
+              kubectl -n cilium get pods -l app.kubernetes.io/name=cilium-agent -o wide
+              exit 1
+            fi
+
+            echo "Waiting for Cilium daemon versions from: ${unhealthy_pods[*]}"
+            sleep 10s
+          done
+
+      - name: Wait for ILB status
+        if: ${{ !cancelled() && steps.wait-for-co.outcome == 'success' }}
+        run: |
+          for i in {1..30}; do
+            if cilium lb status -n cilium; then
+              exit 0
+            fi
+            echo "Waiting for ILB status to become readable (${i}/30)"
+            sleep 10s
+          done
+          echo "ILB status did not become readable"
           cilium lb status -n cilium
 
+      - name: Read environment props
+        if: ${{ !cancelled() && steps.wait-for-co.outcome == 'success' }}
+        id: aws-env
+        run: |
+          infra_id=$(jq -r '.infraID' ./openshift-ci/aws-ipi/.workdir/${{ env.clusterName }}/metadata.json)
+          echo "Using infraID=${infra_id} for AWS tag filters"
+          privateSubnetId=$(aws ec2 describe-subnets --region ${{ steps.vars.outputs.region }} \
+                                                     --filters "Name=tag:kubernetes.io/cluster/${infra_id},Values=owned" \
+                                                               "Name=tag:kubernetes.io/role/internal-elb,Values=*" \
+                                                     --query 'Subnets[0].SubnetId' \
+                                                     --no-cli-pager \
+                                                     --output text)
+          allSecurityGroupIds=$(aws ec2 describe-security-groups --region ${{ steps.vars.outputs.region }} \
+                                                                 --filters "Name=tag:kubernetes.io/cluster/${infra_id},Values=owned" \
+                                                                 --query 'SecurityGroups[*].GroupId' \
+                                                                 --no-cli-pager \
+                                                                 --output text)
+          workerInstanceIds=$(kubectl get nodes -l node-role.kubernetes.io/worker -o jsonpath='{range .items[*]}{.spec.providerID}{"\n"}{end}' | awk -F/ '{print $NF}' | xargs)
+          workersSGId=""
+          if [ -n "${workerInstanceIds}" ]; then
+            workersSGId=$(aws ec2 describe-instances --region ${{ steps.vars.outputs.region }} \
+                                                     --instance-ids ${workerInstanceIds} \
+                                                     --query 'Reservations[*].Instances[*].SecurityGroups[*].GroupId' \
+                                                     --no-cli-pager \
+                                                     --output text | tr '\t' '\n' | sort -u | xargs)
+          fi
+          if [ -z "${workersSGId}" ]; then
+            echo "::warning::Could not identify worker security groups; falling back to all cluster security groups."
+            workersSGId=$(echo "${allSecurityGroupIds}" | tr '\t' '\n' | sort -u | xargs)
+          fi
+          allSecurityGroupIds=$(echo "${allSecurityGroupIds}" | tr '\t' '\n' | sort -u | xargs)
+          if [ -z "${privateSubnetId}" ] || [ "${privateSubnetId}" = "None" ] || [ -z "${allSecurityGroupIds}" ]; then
+            echo "Could not identify the private subnet or cluster security groups"
+            exit 1
+          fi
+          echo "infraID=${infra_id}" | tee -a "$GITHUB_OUTPUT"
+          echo "workersSGId=${workersSGId}" | tee -a "$GITHUB_OUTPUT"
+          echo "privateSubnetId=${privateSubnetId}" | tee -a "$GITHUB_OUTPUT"
+          echo "allSecurityGroupIds=${allSecurityGroupIds}" | tee -a "$GITHUB_OUTPUT"
+
+      - name: Allow ILB test CIDR
+        if: ${{ !cancelled() && steps.aws-env.outcome == 'success' }}
+        run: |
+          for sg in ${{ steps.aws-env.outputs.workersSGId }}; do
+            output=$(aws ec2 authorize-security-group-ingress --region ${{ steps.vars.outputs.region }} \
+                                                               --group-id "${sg}" \
+                                                               --protocol -1 \
+                                                               --cidr 100.64.0.0/16 \
+                                                               --no-cli-pager 2>&1) || {
+              if grep -q 'InvalidPermission.Duplicate' <<<"${output}"; then
+                echo "ILB test CIDR is already authorized on ${sg}"
+              else
+                echo "${output}"
+                exit 1
+              fi
+            }
+          done
+
+      - name: Test VM pre-install script
+        if: ${{ !cancelled() && steps.aws-env.outcome == 'success' }}
+        run: |
+          cat > test-vm-setup.sh << 'VMEOF'
+          #!/bin/bash
+          set -euxo pipefail
+
+          export DEBIAN_FRONTEND=noninteractive
+          sudo apt-get -o Acquire::Retries=5 update
+          sudo apt-get install -y ca-certificates curl unzip
+          sudo install -m 0755 -d /etc/apt/keyrings
+          sudo curl -fsSL --retry 5 https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+          sudo chmod a+r /etc/apt/keyrings/docker.asc
+          echo \
+            "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu \
+            $(. /etc/os-release && echo "${UBUNTU_CODENAME:-$VERSION_CODENAME}") stable" | \
+            sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+          sudo apt-get -o Acquire::Retries=5 update
+          sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+          sudo systemctl enable --now docker
+          sudo usermod -aG docker ubuntu
+          VMEOF
+          echo "mkdir -p /home/ubuntu/.ssh && chmod 700 /home/ubuntu/.ssh" >> test-vm-setup.sh
+          echo "echo '$(cat /home/runner/.ssh/ci_key.pub)' >> /home/ubuntu/.ssh/authorized_keys" >> test-vm-setup.sh
+          echo "chmod 600 /home/ubuntu/.ssh/authorized_keys && chown -R ubuntu:ubuntu /home/ubuntu/.ssh" >> test-vm-setup.sh
+
+      - name: Provision test VM
+        if: ${{ !cancelled() && steps.aws-env.outcome == 'success' }}
+        id: test-vm
+        run: |
+          ami_id=$(aws ec2 describe-images --region ${{ steps.vars.outputs.region }} \
+                                           --owners 099720109477 \
+                                           --filters "Name=name,Values=ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*" \
+                                                     "Name=state,Values=available" \
+                                           --query 'sort_by(Images, &CreationDate)[-1].ImageId' \
+                                           --no-cli-pager \
+                                           --output text)
+          echo "Using AMI: ${ami_id}"
+          stack_name="ilb-${{ env.clusterName }}-test-vm"
+          echo "stack=${stack_name}" | tee -a "$GITHUB_OUTPUT"
+
+          {
+            cat << EOF
+          AWSTemplateFormatVersion: '2010-09-09'
+          Description: ILB OpenShift CI external test VM.
+          Resources:
+            TestVMLaunchTemplate:
+              Type: AWS::EC2::LaunchTemplate
+              Properties:
+                LaunchTemplateName: ${stack_name}
+                LaunchTemplateData:
+                  ImageId: ${ami_id}
+                  InstanceType: t3.micro
+                  NetworkInterfaces:
+                    - DeviceIndex: 0
+                      SubnetId: ${{ steps.aws-env.outputs.privateSubnetId }}
+                      Groups:
+          EOF
+            printf '%s\n' ${{ steps.aws-env.outputs.allSecurityGroupIds }} | sed 's/^/              - /'
+            cat << EOF
+                  TagSpecifications:
+                    - ResourceType: instance
+                      Tags:
+                        - Key: Name
+                          Value: ${{ env.clusterName }}-test-vm
+                        - Key: kubernetes.io/cluster/${{ steps.aws-env.outputs.infraID }}
+                          Value: owned
+                        - Key: svic_osquery_supported
+                          Value: "no"
+                    - ResourceType: volume
+                      Tags:
+                        - Key: Name
+                          Value: ${{ env.clusterName }}-test-vm
+                        - Key: kubernetes.io/cluster/${{ steps.aws-env.outputs.infraID }}
+                          Value: owned
+                        - Key: svic_osquery_supported
+                          Value: "no"
+                  UserData:
+                    Fn::Base64: |
+          EOF
+            sed 's/^/            /' test-vm-setup.sh
+            cat << EOF
+            TestVM:
+              Type: AWS::EC2::Instance
+              Properties:
+                LaunchTemplate:
+                  LaunchTemplateId: !Ref TestVMLaunchTemplate
+                  Version: !GetAtt TestVMLaunchTemplate.LatestVersionNumber
+          Outputs:
+            InstanceId:
+              Value: !Ref TestVM
+          EOF
+          } > test-vm-stack.yaml
+
+          aws cloudformation create-stack --region ${{ steps.vars.outputs.region }} \
+                                          --stack-name "${stack_name}" \
+                                          --template-body file://test-vm-stack.yaml \
+                                          --tags Key=Name,Value=${{ env.clusterName }}-test-vm \
+                                                 Key=kubernetes.io/cluster/${{ steps.aws-env.outputs.infraID }},Value=owned \
+                                                 Key=svic_osquery_supported,Value=no \
+                                          --no-cli-pager
+          if ! aws cloudformation wait stack-create-complete --region ${{ steps.vars.outputs.region }} \
+                                                              --stack-name "${stack_name}" \
+                                                              --no-cli-pager; then
+            aws cloudformation describe-stack-events --region ${{ steps.vars.outputs.region }} \
+                                                     --stack-name "${stack_name}" \
+                                                     --no-cli-pager || true
+            exit 1
+          fi
+          # shellcheck disable=SC2016 # Backticks are JMESPath string literals.
+          instanceId=$(aws cloudformation describe-stacks --region ${{ steps.vars.outputs.region }} \
+                                                          --stack-name "${stack_name}" \
+                                                          --query 'Stacks[0].Outputs[?OutputKey==`InstanceId`].OutputValue | [0]' \
+                                                          --no-cli-pager \
+                                                          --output text)
+          echo "id=${instanceId}" | tee -a "$GITHUB_OUTPUT"
+
+      - name: Provision AWS endpoint
+        if: ${{ !cancelled() && steps.test-vm.outcome == 'success' && steps.test-vm.outputs.id != '' }}
+        id: aws-endpoint
+        timeout-minutes: 15
+        run: |
+          endpointID=$(aws ec2 create-instance-connect-endpoint --region ${{ steps.vars.outputs.region }} \
+                                                                --security-group-ids ${{ steps.aws-env.outputs.allSecurityGroupIds }} \
+                                                                --subnet-id ${{ steps.aws-env.outputs.privateSubnetId }} \
+                                                                --tag-specifications 'ResourceType=instance-connect-endpoint,Tags=[{Key=Name,Value=${{ env.clusterName }}-test-endpoint},{Key=svic_osquery_supported,Value=no}]' \
+                                                                --no-cli-pager \
+                                                                --output json | \
+                       jq -r .InstanceConnectEndpoint.InstanceConnectEndpointId)
+          echo "id=${endpointID}" | tee -a "$GITHUB_OUTPUT"
+          while true; do
+            status=$(aws ec2 describe-instance-connect-endpoints --region ${{ steps.vars.outputs.region }} \
+                                                                 --instance-connect-endpoint-ids "${endpointID}" \
+                                                                 --query 'InstanceConnectEndpoints[*].State' \
+                                                                 --no-cli-pager \
+                                                                 --output text || true)
+            if [ "${status}" = "create-complete" ]; then
+              echo "Endpoint is ready"
+              break
+            fi
+            if [ "${status}" = "create-failed" ] || [ "${status}" = "delete-complete" ]; then
+              echo "Endpoint entered unexpected state: ${status}"
+              exit 1
+            fi
+            echo "Endpoint is not ready yet: ${status}"
+            sleep 10
+          done
+
       - name: Open tunnel to test VM
+        if: ${{ !cancelled() && steps.aws-endpoint.outcome == 'success' && steps.test-vm.outputs.id != '' }}
         id: aws-tunnel
         run: |
           aws ec2-instance-connect open-tunnel --region ${{ steps.vars.outputs.region }} \
                                                --instance-id ${{ steps.test-vm.outputs.id }} \
                                                --local-port ${{ env.test_vm_tunnel_port }} &
           pid=$!
-          echo "pid=${pid}" >> $GITHUB_OUTPUT
+          echo "pid=${pid}" >> "$GITHUB_OUTPUT"
+          for i in {1..60}; do
+            if ssh -i ~/.ssh/ci_key \
+                   -p ${{ env.test_vm_tunnel_port }} \
+                   -o StrictHostKeyChecking=no \
+                   -o ConnectTimeout=10 \
+                   ubuntu@localhost 'cloud-init status --wait'; then
+              exit 0
+            fi
+            echo "Waiting for SSH and cloud-init on test VM (${i}/60)"
+            sleep 10
+          done
+          ssh -i ~/.ssh/ci_key \
+              -p ${{ env.test_vm_tunnel_port }} \
+              -o StrictHostKeyChecking=no \
+              ubuntu@localhost 'sudo tail -200 /var/log/cloud-init-output.log' || true
+          exit 1
 
-      - name: Copy kubeconfig to test VM
-        run: |
-          scp -i ~/.ssh/ci_key \
-              -P ${{ env.test_vm_tunnel_port }} \
-              -o stricthostkeychecking=no \
-              ~/.kube/config ubuntu@localhost:.
-
-      - name: Copy Cilium CLI CEE to test VM
-        if: ${{ steps.vars.outputs.build_cilium_cli == 'true' }}
+      - name: Copy test files to test VM
+        if: ${{ !cancelled() && steps.aws-tunnel.outcome == 'success' }}
         run: |
           zip -j cilium.zip /usr/local/bin/cilium
           scp -i ~/.ssh/ci_key \
               -P ${{ env.test_vm_tunnel_port }} \
-              -o stricthostkeychecking=no \
-              cilium.zip ubuntu@localhost:.
+              -o StrictHostKeyChecking=no \
+              ~/.kube/config cilium.zip ubuntu@localhost:.
 
       - name: Run ILB tests
+        if: ${{ !cancelled() && steps.aws-tunnel.outcome == 'success' }}
         uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
         env:
           KUBECONFIG: "/home/ubuntu/config"
@@ -645,37 +1139,44 @@ jobs:
           command_timeout: 60m
           envs: KUBECONFIG
           script: |
-            if [[ "${{ steps.vars.outputs.build_cilium_cli }}" == "true" ]]
-            then
-              unzip cilium.zip
-              sudo mv cilium /usr/local/bin
-            fi
+            set -e
+            unzip -o cilium.zip
+            sudo install -m 0755 cilium /usr/local/bin/cilium
+            docker version
+            docker run --rm --entrypoint sh quay.io/isovalent-dev/lb-frr-client:v0.0.17 \
+              -lc 'command -v vtysh && vtysh --help >/dev/null'
             cilium version
-            cilium lb status -n cilium
+            cilium lb status -n cilium || true
             cilium lb test -n cilium \
-                           --mode=single-node \
-                           --sysdump-on-failure \
-                           --sysdump-output-filename ilb-sysdump \
-                           --verbose
+              --mode=single-node \
+              --app-image=quay.io/isovalent-dev/lb-healthcheck-app:v0.0.14 \
+              --client-image=quay.io/isovalent-dev/lb-frr-client:v0.0.17 \
+              --utils-image=docker.io/library/busybox:1.37.0-musl \
+              --coredns-image=docker.io/coredns/coredns:1.11.1 \
+              --nginx-image=docker.io/library/nginx:1.27.2 \
+              --mariadb-image=docker.io/library/mariadb:11.7.2 \
+              --sysdump-on-failure \
+              --sysdump-output-filename ilb-sysdump \
+              --verbose
 
       - name: Download sysdump
-        if: ${{ !success() && steps.cluster.outcome != 'skipped' }}
+        if: ${{ !success() && steps.provisioning.outcome != 'skipped' }}
         shell: bash
-        working-directory: ./cute/${{ steps.cute_config.outputs.dir }}
         run: |
           mkdir -p ./test-results
-          cilium status -n cilium
-          scp -i ~/.ssh/ci_key \
-              -P ${{ env.test_vm_tunnel_port }} \
-              -o stricthostkeychecking=no \
-              ubuntu@localhost:ilb-sysdump.zip ./test-results/ilb-sysdump.zip
+          cilium status -n cilium || true
+          cilium sysdump -n cilium --output-filename ./test-results/cilium-sysdump.dmp || true
+          if [[ -n "${{ steps.aws-tunnel.outputs.pid }}" ]]; then
+            scp -i ~/.ssh/ci_key \
+                -P ${{ env.test_vm_tunnel_port }} \
+                -o StrictHostKeyChecking=no \
+                ubuntu@localhost:ilb-sysdump.zip ./test-results/ilb-sysdump.zip || true
+          fi
 
-      # This is to work around the fact that relative paths in actions/upload-artifact@v3 are rooted
-      # against the workspace, which causes an "Invalid pattern" if the CuTE repo dir is ".".
+      # Workaround: upload-artifact needs absolute paths when the repo dir is "."
       - name: Prepare upload
         if: always() && steps.wait-for-co.outcome != 'skipped'
         id: upload_dir
-        working-directory: "./cute/${{ steps.cute_config.outputs.dir }}"
         run: |
           if test -d ./test-results; then
             echo path="$(realpath ./test-results)" >> $GITHUB_OUTPUT
@@ -692,54 +1193,48 @@ jobs:
           if-no-files-found: ignore
           retention-days: 3
 
-      # refresh credentials
-      - name: Set up AWS CLI credentials
-        if: always() && steps.cluster.outcome != 'skipped'
+      - name: Refresh AWS credentials for cleanup
+        if: always() && steps.provisioning.outcome != 'skipped'
         uses: aws-actions/configure-aws-credentials@517a711dbcd0e402f90c77e7e2f81e849156e31d # v6.2.2
         with:
           role-to-assume: ${{ secrets.AWS_PR_ASSUME_ROLE }}
           aws-region: ${{ steps.vars.outputs.region }}
+          role-duration-seconds: 5400
 
-      # Happens independently of the success or the failure of the provisioning and tests
-      - name: Terminate test VM
-        if: always() && steps.test-vm.outcome != 'skipped'
-        run: |
-          echo "terminating test VM: ${{ steps.test-vm.outputs.id }} ..."
-          aws ec2 terminate-instances --region ${{ steps.vars.outputs.region }} \
-                                      --instance-ids ${{ steps.test-vm.outputs.id }} \
-                                      --no-cli-pager
-
-      # Happens independently of the success or the failure of the provisioning and tests
       - name: Close endpoint tunnel
-        if: always() && steps.aws-tunnel.outcome != 'skipped'
+        if: always() && steps.aws-tunnel.outputs.pid != ''
         run: |
           echo "terminating AWS tunnel process: ${{ steps.aws-tunnel.outputs.pid }} ..."
-          kill -9 ${{ steps.aws-tunnel.outputs.pid }} || true
+          kill "${{ steps.aws-tunnel.outputs.pid }}" || true
 
-      # Happens independently of the success or the failure of the provisioning and tests
       - name: Terminate AWS endpoint
-        if: always() && steps.aws-endpoint.outcome != 'skipped'
+        if: always() && steps.aws-endpoint.outputs.id != ''
         run: |
           echo "terminating AWS endpoint: ${{ steps.aws-endpoint.outputs.id }} ..."
           aws ec2 delete-instance-connect-endpoint --region ${{ steps.vars.outputs.region }} \
                                                    --instance-connect-endpoint-id ${{ steps.aws-endpoint.outputs.id }} \
-                                                   --no-cli-pager
+                                                   --no-cli-pager || true
 
-      # Happens independently of the success or the failure of the provisioning and tests
-      - name: Clean up Cluster
-        if: always() && steps.cluster.outcome != 'skipped'
-        timeout-minutes: 60
-        working-directory: "./cute/${{ steps.cute_config.outputs.dir }}"
+      - name: Terminate test VM
+        if: always() && steps.test-vm.outputs.stack != ''
         run: |
-          echo "killing terraform processes ..."
-          pkill -9 terraform || true
-          if [ -f .terraform.tfstate.lock.info ]; then
-            echo "unlocking terraform state ..."
-            LOCK_ID=$(jq -r '.ID' .terraform.tfstate.lock.info)
-            terraform force-unlock -force "$LOCK_ID" || true
-          fi
-          echo "destroying infra ..."
-          make destroy AUTO_APPROVE=true
+          echo "deleting test VM stack: ${{ steps.test-vm.outputs.stack }} ..."
+          aws cloudformation delete-stack --region ${{ steps.vars.outputs.region }} \
+                                          --stack-name "${{ steps.test-vm.outputs.stack }}" \
+                                          --no-cli-pager || true
+          aws cloudformation wait stack-delete-complete --region ${{ steps.vars.outputs.region }} \
+                                                        --stack-name "${{ steps.test-vm.outputs.stack }}" \
+                                                        --no-cli-pager || true
+
+      - name: Destroy the cluster
+        if: always() && steps.provisioning.outcome != 'skipped'
+        timeout-minutes: 60
+        working-directory: "./openshift-ci/aws-ipi"
+        env:
+          KUBECONFIG: /home/runner/.kube/config
+        run: |
+          echo "destroying cluster ..."
+          scripts/destroy.sh
 
   termination:
     if: ${{ always() }}
