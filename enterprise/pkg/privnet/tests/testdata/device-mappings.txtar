@@ -105,6 +105,11 @@ privnet/maps-dump privnet_devices devices-actual.map
 k8s/delete icpn-1.yaml
 db/cmp privnet-device-mappings device-mappings.v7.table
 
+# Wait for the ID to be released. This prevents a potential source of flakiness
+# because IDs are released out of band, possibly causing the previous ID to be
+# reused if a previously deleted ICPN is immediately recreated.
+!* grep -q 'direct-maggot' privnet-net-ids.wal
+
 # Ensure that the entries are propagated into the corresponding BPF map.
 privnet/maps-dump privnet_devices devices-actual.map
 * cmp devices.v7.map devices-actual.map

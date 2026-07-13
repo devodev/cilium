@@ -32,6 +32,11 @@ db/cmp privnet-subnet-mappings subnet-mappings.v3.table
 privnet/maps-dump privnet_subnets subnets-actual.map
 * cmp subnets.v3.map subnets-actual.map
 
+# Wait for the ID to be released. This prevents a potential source of flakiness
+# because IDs are released out of band, possibly causing the previous ID to be
+# reused if a previously deleted ICPN is immediately recreated.
+!* grep -q 'direct-maggot' privnet-net-ids.wal
+
 # Add it back, and validate that changes are propagated into the tables.
 k8s/add icpn-1.v2.yaml
 db/cmp privnet-subnets subnets.v4.table
