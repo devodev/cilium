@@ -71,7 +71,7 @@ spec:
     cidrv4: 192.168.250.0/24
     cidrv6: fd10:0:250::0/64
   - name: bar
-    cidrv4: 192.168.250.24/32
+    cidrv4: 192.168.255.24/32
 
 -- icpn-blue.v2.yaml --
 apiVersion: isovalent.com/v1alpha1
@@ -92,7 +92,7 @@ spec:
     - destination: 0.0.0.0/0
       gateway: 192.168.250.1
   - name: bar
-    cidrv4: 192.168.250.24/32
+    cidrv4: 192.168.255.24/32
 
 -- icpn-green.v1.yaml --
 apiVersion: isovalent.com/v1alpha1
@@ -251,7 +251,7 @@ nodeName: crayfish
 Node                                       foobar-worker-1                                Status  OK
 
   Network blue-network                Active INB  felidae/cougar                                  OK
-    Subnets   192.168.250.0/24  fd10:0:250::/64  192.168.250.24/32
+    Subnets   192.168.250.0/24  fd10:0:250::/64  192.168.255.24/32
     Routes    No routes defined for network
     Local Endpoints 0                                                              Total Endpoints 5
 
@@ -302,7 +302,7 @@ Node                                       foobar-worker-1                      
         },
         {
           "name": "bar",
-          "cidrv4": "192.168.250.24/32"
+          "cidrv4": "192.168.255.24/32"
         }
       ],
       "endpoints": [
@@ -428,7 +428,7 @@ Node                                       foobar-worker-1                      
 Node                                       foobar-worker-1                                Status  OK
 
   Network blue-network                Active INB  felidae/cougar                                  OK
-    Subnets   192.168.250.0/23  fd10:0:250::/64  192.168.250.24/32
+    Subnets   192.168.250.0/23  fd10:0:250::/64  192.168.255.24/32
     Routes    192.168.252.0/24 via 192.168.250.2  0.0.0.0/0 via 192.168.250.1
     Local Endpoints 0                                                              Total Endpoints 5
 
@@ -489,7 +489,7 @@ Node                                       foobar-worker-1                      
         },
         {
           "name": "bar",
-          "cidrv4": "192.168.250.24/32"
+          "cidrv4": "192.168.255.24/32"
         }
       ],
       "endpoints": [
@@ -623,7 +623,7 @@ Node                                       foobar-worker-1                      
 Node                                       foobar-worker-1                          Status  DEGRADED
 
   Network blue-network                Active INB  felidae/cougar                                  OK
-    Subnets   192.168.250.0/23  fd10:0:250::/64  192.168.250.24/32
+    Subnets   192.168.250.0/23  fd10:0:250::/64  192.168.255.24/32
     Routes    192.168.252.0/24 via 192.168.250.2  0.0.0.0/0 via 192.168.250.1
     Local Endpoints 0                                                              Total Endpoints 5
 
@@ -685,7 +685,7 @@ Node                                       foobar-worker-1                      
         },
         {
           "name": "bar",
-          "cidrv4": "192.168.250.24/32"
+          "cidrv4": "192.168.255.24/32"
         }
       ],
       "endpoints": [
