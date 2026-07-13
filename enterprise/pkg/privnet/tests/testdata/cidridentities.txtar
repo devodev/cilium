@@ -75,6 +75,11 @@ cmp stdout list-identities.v2.txt
 privnet/allocate-identity --nid 16777222 cidr:10.1.0.0/24 reserved:world-ipv4
 privnet/allocate-identity --nid 16777223 cidr:10.2.0.0/24 reserved:world-ipv4
 
+# Additionally pin the 16777219 identity, to ensure determinims regardless of
+# the processing order of the CCG and CNP updates. Otherwise, it may get
+# deallocated, and re-allocated with a different numerical identity.
+privnet/allocate-identity --nid 16777219 reserved:world-ipv4 cidrgroup:io.cilium.policy.cidrgroupname/red-group
+
 # Update CCG and CNP
 k8s/add ccg-red.v3.yaml
 k8s/add cnp-blue.v3.yaml
@@ -91,6 +96,7 @@ privnet/maps-dump privnet_cidr_identity
 * cmp stdout cilium-privnet-cidr-identity.v3.txt
 
 # Release the script test's ownership of identities
+privnet/release-identity 16777219
 privnet/release-identity 16777222
 privnet/release-identity 16777223
 
