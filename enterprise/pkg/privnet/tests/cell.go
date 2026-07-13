@@ -11,7 +11,6 @@
 package tests
 
 import (
-	"log/slog"
 	"net"
 	"path"
 	"testing"
@@ -24,9 +23,6 @@ import (
 	clustermesh "github.com/cilium/cilium/enterprise/pkg/clustermesh/config"
 	"github.com/cilium/cilium/enterprise/pkg/diagnostics"
 	"github.com/cilium/cilium/enterprise/pkg/privnet"
-	"github.com/cilium/cilium/enterprise/pkg/privnet/reconcilers"
-	"github.com/cilium/cilium/enterprise/pkg/privnet/reconcilers/idpool"
-	"github.com/cilium/cilium/enterprise/pkg/privnet/tables"
 	cmtypes "github.com/cilium/cilium/pkg/clustermesh/types"
 	ipsecfake "github.com/cilium/cilium/pkg/datapath/linux/ipsec/fake"
 	ipsec "github.com/cilium/cilium/pkg/datapath/linux/ipsec/types"
@@ -120,13 +116,6 @@ func NewTestHive(t testing.TB) *hive.Hive {
 			})
 		}),
 
-		// Make privnet ID predictable
-		withOverride(idpool.NewIDPool[tables.NetworkName, tables.NetworkID](slog.Default(), 1, tables.NetworkIDMax)),
-		// Make subnet ID predictable
-		withOverride(reconcilers.SubnetIDPoolFactory(func() *idpool.SubnetIDPool {
-			return idpool.NewIDPool[tables.SubnetName, tables.SubnetID](slog.Default(), 1, tables.SubnetIDMax)
-		})),
-
 		ClusterMeshObservers,
 		Health(t.TempDir()),
 
@@ -134,10 +123,4 @@ func NewTestHive(t testing.TB) *hive.Hive {
 
 		privnet.Cell,
 	)
-}
-
-func withOverride[T any](override T) cell.Cell {
-	return cell.DecorateAll(func(T) T {
-		return override
-	})
 }

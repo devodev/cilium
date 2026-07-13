@@ -68,12 +68,21 @@ func NewIDPool[N comparable, I ~uint16](log *slog.Logger, first, max I) *IDPool[
 	}
 }
 
+// Randomize configures whether the network and subnet ID pools use a random initial
+// value, to make sure that we don't incorrectly rely on the fact that the IDs
+// are consistent across nodes. Randomization is enabled by default, and can be
+// disabled for testing purposes, e.g., through an init function.
+var Randomize = true
+
 type NetworkIDPool = IDPool[tables.NetworkName, tables.NetworkID]
 
 func NewPrivnetIDPool(log *slog.Logger, cfg *option.DaemonConfig, lc cell.Lifecycle) *NetworkIDPool {
-	// Use a random initial value, to make sure we don't incorrectly rely
-	// on the fact that network IDs are consistent across nodes
-	pool := NewIDPool[tables.NetworkName, tables.NetworkID](log, tables.NetworkID(rand.Uint64N(uint64(tables.NetworkIDMax))+1), tables.NetworkIDMax)
+	var first tables.NetworkID
+	if Randomize {
+		first = tables.NetworkID(rand.Uint64N(uint64(tables.NetworkIDMax)) + 1)
+	}
+
+	pool := NewIDPool[tables.NetworkName, tables.NetworkID](log, first, tables.NetworkIDMax)
 	lc.Append(
 		cell.Hook{
 			OnStart: func(ctx cell.HookContext) error {
@@ -112,9 +121,12 @@ func NewPrivnetIDPool(log *slog.Logger, cfg *option.DaemonConfig, lc cell.Lifecy
 type SubnetIDPool = IDPool[tables.SubnetName, tables.SubnetID]
 
 func NewSubnetIDPool(log *slog.Logger) *SubnetIDPool {
-	// Use a random initial value, to make sure we don't incorrectly rely
-	// on the fact that subnet IDs are consistent across nodes
-	return NewIDPool[tables.SubnetName, tables.SubnetID](log, tables.SubnetID(rand.Uint64N(uint64(tables.SubnetIDMax))+1), tables.SubnetIDMax)
+	var first tables.SubnetID
+	if Randomize {
+		first = tables.SubnetID(rand.Uint64N(uint64(tables.SubnetIDMax)) + 1)
+	}
+
+	return NewIDPool[tables.SubnetName, tables.SubnetID](log, first, tables.SubnetIDMax)
 }
 
 // Acquire returns a network ID for the provided network name. If a network ID

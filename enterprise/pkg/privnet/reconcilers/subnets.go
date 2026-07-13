@@ -39,12 +39,6 @@ var SubnetsCell = cell.Group(
 	),
 
 	cell.Provide(
-		// Provide function to instantiate new SubnetID IDPools
-		func(log *slog.Logger) SubnetIDPoolFactory {
-			return func() *idpool.SubnetIDPool {
-				return idpool.NewSubnetIDPool(log)
-			}
-		},
 		// Provides the ReadOnly Subnets table.
 		statedb.RWTable[tables.Subnet].ToTable,
 	),
@@ -61,16 +55,13 @@ type Subnets struct {
 
 	cfg config.Config
 
-	idpoolFactory SubnetIDPoolFactory
-	idpools       map[tables.NetworkName]*idpool.SubnetIDPool
+	idpools map[tables.NetworkName]*idpool.SubnetIDPool
 
 	db              *statedb.DB
 	networks        statedb.Table[tables.PrivateNetwork]
 	nodeAttachments statedb.Table[*tables.NodeAttachment]
 	tbl             statedb.RWTable[tables.Subnet]
 }
-
-type SubnetIDPoolFactory func() *idpool.IDPool[tables.SubnetName, tables.SubnetID]
 
 func newSubnets(in struct {
 	cell.In
@@ -79,8 +70,6 @@ func newSubnets(in struct {
 	JobGroup job.Group
 
 	Config config.Config
-
-	IDpoolFactory SubnetIDPoolFactory
 
 	DB              *statedb.DB
 	Networks        statedb.Table[tables.PrivateNetwork]
@@ -93,8 +82,7 @@ func newSubnets(in struct {
 
 		cfg: in.Config,
 
-		idpoolFactory: in.IDpoolFactory,
-		idpools:       map[tables.NetworkName]*idpool.SubnetIDPool{},
+		idpools: map[tables.NetworkName]*idpool.SubnetIDPool{},
 
 		db:              in.DB,
 		networks:        in.Networks,
@@ -340,7 +328,7 @@ func (r *Subnets) deleteSubnets(txn statedb.WriteTxn, privNetName tables.Network
 func (r *Subnets) allocateSubnetID(subnet tables.Subnet) (tables.SubnetID, error) {
 	pool, ok := r.idpools[subnet.Network]
 	if !ok {
-		pool = r.idpoolFactory()
+		pool = idpool.NewSubnetIDPool(r.log)
 		r.idpools[subnet.Network] = pool
 	}
 	id, err := pool.Acquire(subnet.Name)

@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/cilium/cilium/enterprise/pkg/privnet/reconcilers/idpool"
 	"github.com/cilium/cilium/pkg/hive"
 	k8sTestutils "github.com/cilium/cilium/pkg/k8s/testutils"
 	"github.com/cilium/cilium/pkg/k8s/version"
@@ -35,6 +36,11 @@ import (
 )
 
 var debug = flag.Bool("debug", false, "Enable debug logging")
+
+func init() {
+	// Make private network and subnet IDs predictable.
+	idpool.Randomize = false
+}
 
 func TestScript(t *testing.T) {
 	runScriptTests(t, "testdata/*.txtar")

@@ -47,8 +47,7 @@ var PrivateNetworksCell = cell.Group(
 	),
 
 	cell.Provide(
-		// Provide the IDPool via hive, so that it can be overridden for testing
-		// purposes, as we will want stable IDs there.
+		// Provides the Network IDs pool.
 		idpool.NewPrivnetIDPool,
 
 		// Provides the ReadOnly PrivateNetworks table.
