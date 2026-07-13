@@ -65,6 +65,20 @@
   stopUpdatingLabel: 'renovate/stop-updating',
   packageRules: [
     {
+      // Dependency cooldown: skip versions published less than 5 days ago
+      matchUpdateTypes: ['major', 'minor', 'patch'],
+      minimumReleaseAge: '5 days',
+    },
+    {
+      // Docker Hub is the only Docker registry that currently supports release
+      // timestamps, causing updates to be never proposed by Renovate for all
+      // other registries. Hence, let's enable the "timestamp-optional" option,
+      // which unfortunately effectively disables the cooldown period for them.
+      // https://docs.renovatebot.com/key-concepts/minimum-release-age/#which-registries-support-release-timestamps
+      matchDatasources: ['docker'],
+      minimumReleaseAgeBehaviour: 'timestamp-optional',
+    },
+    {
       groupName: 'Cilium CLI Enterprise',
       groupSlug: 'cilium-cli-ee',
       ignoreUnstable: false,
