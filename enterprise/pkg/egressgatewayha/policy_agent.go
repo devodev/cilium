@@ -155,7 +155,7 @@ func (config *AgentPolicyConfig) updateMatchedEndpointIDs(epDataStore map[endpoi
 
 func (config *AgentPolicyConfig) regenerateGatewayConfig(manager *Manager, tx statedb.WriteTxn) {
 	config.gatewayConfig = &gatewayConfig{
-		egressIP:             netip.IPv4Unspecified(),
+		egressIP:             EgressIPNotFoundIPv4,
 		activeGatewayIPs:     []netip.Addr{},
 		activeGatewayIPsByAZ: map[string]azActiveGatewayIPs{},
 		healthyGatewayIPs:    []netip.Addr{},
@@ -471,7 +471,7 @@ func (gwc *gatewayConfig) deriveFromGroupConfig(manager *Manager, logger *slog.L
 //
 // If the AZ resolution fails, this method will fallback to the non AZ-aware list of active gateway IPs
 func (gwc *gatewayConfig) gatewayConfigForEndpoint(manager *Manager, endpoint *endpointMetadata) ([]netip.Addr, netip.Addr, uint32) {
-	egressIP := netip.IPv4Unspecified()
+	egressIP := EgressIPNotFoundIPv4
 	egressIfindex := uint32(0)
 
 	if gwc.localNodeConfiguredAsGateway {

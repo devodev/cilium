@@ -418,7 +418,7 @@ func tryAssertEgressRulesV2(policyMap egressmapha.PolicyMapV2, rules []egressRul
 			return fmt.Errorf("policy egress ifindex %d doesn't match rule egress ifindex %d", policyVal.EgressIfindex, r.egressIfindex)
 		}
 
-		if r.gatewayIP == netip.IPv4Unspecified() {
+		if r.gatewayIP == EgressIPNotFoundIPv4 {
 			if policyVal.Size != 0 {
 				return fmt.Errorf("policy size is %d even though no gateway is set", policyVal.Size)
 			}
