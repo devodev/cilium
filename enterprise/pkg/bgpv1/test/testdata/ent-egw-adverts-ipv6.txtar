@@ -1,0 +1,145 @@
+#! --test-peering-ips=fc00:10:99:107::111,fc00:10:99:107::112
+
+# Tests advertisement of IPv6 Egress Gateway IPs.
+
+# Start the hive
+hive start
+
+# Configure gobgp server
+gobgp/add-server test --router-id=1.2.3.4 65010 fc00:10:99:107::111 1790
+
+# Configure peers on GoBGP
+gobgp/add-peer fc00:10:99:107::112 65001 --families=ipv6/unicast
+
+# Add EGW policy with one egress IP
+bgptest/upsert-egw-policy policy1 bgp=advertise fd00:99:99::100
+
+# Configure BGP on Cilium
+k8s/add cilium-node.yaml bgp-node-config.yaml bgp-peer-config.yaml bgp-advertisement.yaml
+
+# Wait for peering to be established
+gobgp/wait-state fc00:10:99:107::112 ESTABLISHED
+
+# Validate that EGW IP is advertised
+gobgp/routes -o routes.actual ipv6 unicast
+* cmp gobgp-routes-100.expected routes.actual
+
+# Modify egress IP
+bgptest/upsert-egw-policy policy1 bgp=advertise fd00:99:99::101
+
+# Validate that modified EGW IP is advertised
+gobgp/routes -o routes.actual ipv6 unicast
+* cmp gobgp-routes-101.expected routes.actual
+
+# Modify EGW policy labels to not match
+bgptest/upsert-egw-policy policy1 bgp=dont fd00:99:99::101
+
+# Validate that EGW IP is withdrawn
+gobgp/routes -o routes.actual ipv6 unicast
+* cmp gobgp-routes-empty.expected routes.actual
+
+# Modify EGW policy labels to match again, advertise two egress IPs
+bgptest/upsert-egw-policy policy1 bgp=advertise fd00:99:99::100,fd00:99:99::101
+
+# Validate that both EGW IPs are advertised
+gobgp/routes -o routes.actual ipv6 unicast
+* cmp gobgp-routes-100-101.expected routes.actual
+
+# Add one more EGW policy
+bgptest/upsert-egw-policy policy2 bgp=advertise fd00:99:99::102
+
+# Validate that all EGW IPs are advertised
+gobgp/routes -o routes.actual ipv6 unicast
+* cmp gobgp-routes-all.expected routes.actual
+
+# Remove egress IPs of the first policy
+bgptest/upsert-egw-policy policy1 bgp=advertise ''
+
+# Validate that only EGW IP of the second policy is advertised
+gobgp/routes -o routes.actual ipv6 unicast
+* cmp gobgp-routes-102.expected routes.actual
+
+#####
+
+-- cilium-node.yaml --
+apiVersion: cilium.io/v2
+kind: CiliumNode
+metadata:
+  name: test-node
+spec:
+  addresses:
+  - ip: fc00:10:99:107::112
+    type: InternalIP
+  ipam:
+    podCIDRs:
+    - fd00:10:244:107::/64
+
+-- bgp-node-config.yaml --
+apiVersion: isovalent.com/v1
+kind: IsovalentBGPNodeConfig
+metadata:
+  name: test-node
+spec:
+  bgpInstances:
+  - localASN: 65001
+    routerID: 5.6.7.8
+    name: tor-65001
+    peers:
+    - name: gobgp-peer-1
+      peerASN: 65010
+      peerAddress: fc00:10:99:107::111
+      localAddress: fc00:10:99:107::112
+      peerConfigRef:
+        name: gobgp-peer-config
+
+-- bgp-peer-config.yaml --
+apiVersion: isovalent.com/v1
+kind: IsovalentBGPPeerConfig
+metadata:
+  name: gobgp-peer-config
+spec:
+  transport:
+    peerPort: 1790
+  timers:
+    connectRetryTimeSeconds: 1
+  families:
+  - afi: ipv6
+    safi: unicast
+    advertisements:
+      matchLabels:
+        advertise: egw
+
+-- bgp-advertisement.yaml --
+apiVersion: isovalent.com/v1
+kind: IsovalentBGPAdvertisement
+metadata:
+  name: lb-only
+  labels:
+    advertise: egw
+spec:
+  advertisements:
+  - advertisementType: EgressGateway
+    selector:
+      matchExpressions:
+        - { key: bgp, operator: In, values: [ advertise ] }
+
+-- gobgp-routes-100.expected --
+Prefix                NextHop               Attrs
+fd00:99:99::100/128   fc00:10:99:107::112   [{Origin: i} {AsPath: 65001}]
+-- gobgp-routes-101.expected --
+Prefix                NextHop               Attrs
+fd00:99:99::101/128   fc00:10:99:107::112   [{Origin: i} {AsPath: 65001}]
+-- gobgp-routes-102.expected --
+Prefix                NextHop               Attrs
+fd00:99:99::102/128   fc00:10:99:107::112   [{Origin: i} {AsPath: 65001}]
+-- gobgp-routes-100-101.expected --
+Prefix                NextHop               Attrs
+fd00:99:99::100/128   fc00:10:99:107::112   [{Origin: i} {AsPath: 65001}]
+fd00:99:99::101/128   fc00:10:99:107::112   [{Origin: i} {AsPath: 65001}]
+-- gobgp-routes-all.expected --
+Prefix                NextHop               Attrs
+fd00:99:99::100/128   fc00:10:99:107::112   [{Origin: i} {AsPath: 65001}]
+fd00:99:99::101/128   fc00:10:99:107::112   [{Origin: i} {AsPath: 65001}]
+fd00:99:99::102/128   fc00:10:99:107::112   [{Origin: i} {AsPath: 65001}]
+-- gobgp-routes-empty.expected --
+Prefix   NextHop   Attrs
