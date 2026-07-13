@@ -111,7 +111,7 @@ k8s/delete cnp-default.v1.yaml
 
 # Ensure empty BPF map
 privnet/maps-dump privnet_cidr_identity
-empty stdout
+* empty stdout
 
 # Ensure no identities
 privnet/list-identities
