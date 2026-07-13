@@ -53,12 +53,18 @@ func TestHTTPPersistentBackendWithCookie(t T) {
 	// 1. Test persistent backend selection with cookie
 	{
 		testCmd := curlCmd(fmt.Sprintf("--fail --max-time 10 -H 'Content-Type: application/json' --cookie 'session=123' http://%s:80/test1", vipIP))
+		t.Log("Warming up HTTP cookie backend selection until stable: %q...", testCmd)
+		stabilizeHTTPPersistentBackend(t, client, testCmd, 5)
+
 		t.Log("Testing backend selection persistence of 100 requests: %q...", testCmd)
 		testPersistenceWith100Requests(t, client, testCmd)
 	}
 
 	{
 		testCmd := curlCmd(fmt.Sprintf("--fail --max-time 10 -H 'Content-Type: application/json' --cookie 'session=234' http://%s:80/test2", vipIP))
+		t.Log("Warming up HTTP cookie backend selection until stable: %q...", testCmd)
+		stabilizeHTTPPersistentBackend(t, client, testCmd, 5)
+
 		t.Log("Testing backend selection persistence of 100 requests: %q...", testCmd)
 		testPersistenceWith100Requests(t, client, testCmd)
 	}
@@ -136,6 +142,35 @@ func testPersistenceWith100Requests(t T, client *frrContainer, testCmd string) {
 		}
 
 		return fmt.Errorf("condition is not satisfied yet (%d/100)", successCount)
+	}, longTimeout, time.Millisecond*1) // As fast as possible
+}
+
+func stabilizeHTTPPersistentBackend(t T, client *frrContainer, testCmd string, stable int) {
+	streak := 0
+	previousServiceName := ""
+	eventually(t, func() error {
+		stdout, stderr, err := client.Exec(t.Context(), testCmd)
+		if err != nil {
+			return fmt.Errorf("curl failed (cmd: %q, stdout: %q, stderr: %q): %w", testCmd, stdout, stderr, err)
+		}
+
+		resp := toTestAppResponse(t, stdout)
+		if resp.ServiceName == "" {
+			return fmt.Errorf("no service name in response")
+		}
+
+		if resp.ServiceName != previousServiceName {
+			previousServiceName = resp.ServiceName
+			streak = 1
+			return fmt.Errorf("backend not stable yet, now serviced by %s", resp.ServiceName)
+		}
+
+		streak++
+		if streak >= stable {
+			return nil
+		}
+
+		return fmt.Errorf("backend stable for %d/%d responses", streak, stable)
 	}, longTimeout, time.Millisecond*1) // As fast as possible
 }
 
