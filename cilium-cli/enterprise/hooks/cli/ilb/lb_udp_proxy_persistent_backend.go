@@ -70,6 +70,10 @@ func testUDPProxyPersistentBackend(t T, forceDeploymentMode isovalentv1alpha1.LB
 
 	// Do a few attempts, as neither UDP nor nc are reliable.
 	testCmd := fmt.Sprintf("echo -n deadbeef | nc -n -v -u -w 1 %s 80", vipIP)
+
+	t.Log("Warming up UDP flow until backend selection is stable...")
+	stabilizeUDPSessionBackend(t, client, testCmd, 5)
+
 	t.Log("Testing UDP persistent backend with 10 requests: %q...", testCmd)
 	testUDPSessionWithNRequests(t, client, testCmd, 10)
 }
