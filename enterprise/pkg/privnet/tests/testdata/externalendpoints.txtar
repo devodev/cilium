@@ -101,7 +101,7 @@ privnet/maps-dump ext_eps_policy ext-eps-policy.v2.actual.map
 k8s/add noble-wolf.v3.yaml
 
 # Assert noble-wolf endpoint has been re-created
-privnet/epm-get --by cep-name forest/noble-wolf -o ep-noble-wolf.v3.actual.json
+* privnet/epm-get --by cep-name forest/noble-wolf -o ep-noble-wolf.v3.actual.json
 * cmp ep-noble-wolf.v3.expected.json ep-noble-wolf.v3.actual.json
 
 # Assert local workloads, endpoints and mapentries tables
