@@ -229,6 +229,39 @@ func TestExporterConfigParser(t *testing.T) {
 			},
 		},
 		{
+			// Regression test for a nil pointer dereference: when rateLimit is
+			// set but nodeName is omitted (nil), the parser used to dereference
+			// nodeName guarded by the wrong (rateLimit) check and panic. This
+			// matches the default dynamic export config (rateLimit: -1, no
+			// nodeName). See customer-support#1763.
+			name: "rate limit set without node name",
+			config: `
+                flowLogs:
+                  - name: all
+                    filePath: /var/run/cilium/hubble/hubble.log
+                    rateLimit: -1
+            `,
+			want: map[string]exporter.ExporterConfig{
+				"all": &FlowLogConfig{
+					FlowLogConfig: exporter.FlowLogConfig{
+						Name:     "all",
+						FilePath: "/var/run/cilium/hubble/hubble.log",
+					},
+					config: config{
+						FileRotationInterval:         0,
+						FormatVersion:                "v1",
+						NodeName:                     "",
+						RateLimit:                    -1,
+						Aggregations:                 []string{},
+						AggregationIgnoreSourcePort:  true,
+						AggregationRenewTTL:          true,
+						AggregationStateChangeFilter: []string{"new", "error", "closed"},
+						AggregationTTL:               30 * time.Second,
+					},
+				},
+			},
+		},
+		{
 			name: "missing required name",
 			config: `
                 flowLogs:

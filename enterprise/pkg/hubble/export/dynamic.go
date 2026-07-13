@@ -312,7 +312,7 @@ func (c *dynamicConfigFile) ToFlowLogConfigs() []*FlowLogConfig {
 		if fl.RateLimit != nil {
 			config.RateLimit = *fl.RateLimit
 		}
-		if fl.RateLimit != nil {
+		if fl.NodeName != nil {
 			config.NodeName = *fl.NodeName
 		}
 		if fl.Aggregations != nil {
