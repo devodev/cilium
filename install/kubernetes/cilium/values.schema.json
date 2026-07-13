@@ -3888,7 +3888,10 @@
                                 "type": "string"
                               },
                               "nodeName": {
-                                "type": "null"
+                                "type": [
+                                  "null",
+                                  "string"
+                                ]
                               },
                               "rateLimit": {
                                 "type": "integer"
