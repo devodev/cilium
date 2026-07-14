@@ -132,7 +132,10 @@ func testPersistenceWith100Requests(t T, client *frrContainer, testCmd string) {
 			return fmt.Errorf("curl failed (cmd: %q, stdout: %q, stderr: %q): %w", testCmd, stdout, stderr, err)
 		}
 
-		resp := toTestAppResponse(t, stdout)
+		resp, err := toTestAppResponse(stdout)
+		if err != nil {
+			return err
+		}
 		assertPersistentBackend(t, previousServiceName, resp.ServiceName)
 		previousServiceName = resp.ServiceName
 
@@ -154,7 +157,10 @@ func stabilizeHTTPPersistentBackend(t T, client *frrContainer, testCmd string, s
 			return fmt.Errorf("curl failed (cmd: %q, stdout: %q, stderr: %q): %w", testCmd, stdout, stderr, err)
 		}
 
-		resp := toTestAppResponse(t, stdout)
+		resp, err := toTestAppResponse(stdout)
+		if err != nil {
+			return err
+		}
 		if resp.ServiceName == "" {
 			return fmt.Errorf("no service name in response")
 		}

@@ -96,7 +96,10 @@ func testLabelBasedBackend(t T, mode isovalentv1alpha1.LBTCPProxyForceDeployment
 		}
 
 		// Response from the health check server contains instance name (Pod name in this case)
-		appResponse := toTestAppResponse(t, stdout)
+		appResponse, err := toTestAppResponse(stdout)
+		if err != nil {
+			return err
+		}
 
 		for _, pod := range desiredBackends.Items {
 			if appResponse.InstanceName == pod.Name {
@@ -201,7 +204,10 @@ func TestHTTPMultiNamespaceLabelBased(t T) {
 				i+1, testCmd, stdout, stderr, err)
 		}
 
-		resp := toTestAppResponse(t, stdout)
+		resp, err := toTestAppResponse(stdout)
+		if err != nil {
+			t.Failedf("%s", err)
+		}
 		expectedServiceName := fmt.Sprintf("backend-%d", i+1)
 		if resp.ServiceName != expectedServiceName {
 			t.Failedf("unexpected backend service name for backend %d: got %q, expected %q",

@@ -178,7 +178,10 @@ func TestHTTPClientIP(t T) {
 						if err != nil {
 							return fmt.Errorf("curl failed (cmd: %q, stdout: %q, stderr: %q): %w", testCmd, stdout, stderr, err)
 						}
-						resp := toTestAppResponse(t, stdout)
+						resp, err := toTestAppResponse(stdout)
+						if err != nil {
+							return err
+						}
 						t.Log("Response: %v", resp)
 						if useRemoteAddressEnabled() && !strings.Contains(resp.XFF, clients[0].ipv4) {
 							return fmt.Errorf("expected %q not to contain %q", resp.XFF, clients[0].ipv4)

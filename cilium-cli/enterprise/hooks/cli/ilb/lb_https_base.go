@@ -142,7 +142,10 @@ func TestHTTPSRoutes(t T) {
 		}
 
 		t.Log("Check that request is handled by the correct backend")
-		appResponse := toTestAppResponse(t, stdout)
+		appResponse, err := toTestAppResponse(stdout)
+		if err != nil {
+			t.Failedf("%s", err)
+		}
 		if appResponse.ServiceName != testName+"-app"+postfix {
 			t.Failedf("request not handled by the expected backend %s != %s (cmd: %q, stdout: %q, stderr: %q): %s", appResponse.ServiceName, testName+"-app"+postfix, testCmd, stdout, stderr, err)
 		}

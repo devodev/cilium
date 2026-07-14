@@ -189,7 +189,10 @@ func TestHTTPProxyProtocol(t T) {
 							return fmt.Errorf("curl failed (cmd: %q, stdout: %q, stderr: %q): %w", testCmd, stdout, stderr, err)
 						}
 
-						resp := toTestAppResponse(t, stdout)
+						resp, err := toTestAppResponse(stdout)
+						if err != nil {
+							return err
+						}
 						// Unlike XFF, the remote address should be the client IP
 						if !tt.invisible && !strings.Contains(resp.RemoteAddr, tt.clientIP) {
 							return fmt.Errorf("expected response to contain remote address %q, got %q", tt.clientIP, resp.RemoteAddr)

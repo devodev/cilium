@@ -185,7 +185,10 @@ func waitUntil100NewHTTPRequestsDontUseT2Node(t T, client *frrContainer, testCmd
 				return fmt.Errorf("curl failed (cmd: %q, stdout: %q, stderr: %q): %w", testCmd, stdout, stderr, err)
 			}
 
-			resp := toTestAppResponse(t, stdout)
+			resp, err := toTestAppResponse(stdout)
+			if err != nil {
+				return err
+			}
 
 			if strings.Contains(resp.RemoteAddr, t2NodeIP) {
 				return fmt.Errorf("new connection still using unschedulable node as T2 node")
@@ -203,7 +206,10 @@ func checkNewHTTPRequestsUseT2(t T, client *frrContainer, testCmd string, t2Node
 			return fmt.Errorf("curl failed (cmd: %q, stdout: %q, stderr: %q): %w", testCmd, stdout, stderr, err)
 		}
 
-		resp := toTestAppResponse(t, stdout)
+		resp, err := toTestAppResponse(stdout)
+		if err != nil {
+			return err
+		}
 
 		if !strings.Contains(resp.RemoteAddr, t2NodeIP) {
 			return fmt.Errorf("new connection not using node as T2 again")

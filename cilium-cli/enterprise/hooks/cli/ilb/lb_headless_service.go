@@ -155,7 +155,10 @@ func TestHeadlessService(t T) {
 			}
 
 			// Response from the health check server contains instance name (Pod name in this case)
-			appResponse := toTestAppResponse(t, stdout)
+			appResponse, err := toTestAppResponse(stdout)
+			if err != nil {
+				return err
+			}
 
 			for _, pod := range desiredBackends.Items {
 				if appResponse.InstanceName == pod.Name {

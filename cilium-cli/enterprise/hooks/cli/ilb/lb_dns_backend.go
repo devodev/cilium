@@ -182,7 +182,10 @@ func TestDNSBackend(t T) {
 					return fmt.Errorf("curl failed (cmd: %q, stdout: %q, stderr: %q): %w", testCmd, stdout, stderr, err)
 				}
 
-				resp := toTestAppResponse(t, stdout)
+				resp, err := toTestAppResponse(stdout)
+				if err != nil {
+					return err
+				}
 				observedBackends[resp.InstanceName] = struct{}{}
 
 				if len(observedBackends) != nbackends {
