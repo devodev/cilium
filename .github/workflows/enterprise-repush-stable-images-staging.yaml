@@ -19,6 +19,12 @@ jobs:
     timeout-minutes: 30
     permissions: {}
     steps:
+    - name: Checkout context ref (trusted)
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      with:
+        ref: main-ce
+        persist-credentials: false
+        sparse-checkout: .github/actions
     - name: Wait for images
       uses: ./.github/actions/wait-for-images
       with:
@@ -40,6 +46,12 @@ jobs:
           - hubble-relay-ci
           - cilium-cli-ci
     steps:
+    - name: Checkout context ref (trusted)
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      with:
+        ref: main-ce
+        persist-credentials: false
+        sparse-checkout: .github/actions
     - name: Set environment variables
       uses: ./.github/actions/set-env-variables
     - name: Repush ${{ matrix.image }} to staging
