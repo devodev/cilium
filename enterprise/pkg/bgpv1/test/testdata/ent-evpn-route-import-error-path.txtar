@@ -4,10 +4,8 @@ hive start
 db/initialized
 
 # Configure gobgp server. Two servers to test ECMP cases.
-gobgp/add-server server0 --router-id=1.2.3.4 65001 11.100.98.2 1790
-gobgp/add-peer -s server0 11.100.98.1 65001 --families=l2vpn/evpn
-gobgp/add-server server1 --router-id=2.3.4.1 65001 11.100.98.3 1790
-gobgp/add-peer -s server1 11.100.98.1 65001 --families=l2vpn/evpn
+gobgp/add-server server0 server0.toml
+gobgp/add-server server1 server1.toml
 
 # Configure BGP on Cilium
 k8s/add cilium-node.yaml bgp-node-config.yaml bgp-peer-config.yaml
@@ -67,6 +65,38 @@ bgp/routes --no-age loc l2vpn evpn
 rib/list
 * cmp stdout cilium-rib-empty.expected
 
+-- server0.toml --
+[global.config]
+  as = 65001
+  router-id = "1.2.3.4"
+  local-address-list = ["11.100.98.2"]
+  port = 1790
+
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "11.100.98.1"
+    peer-as = 65001
+  [neighbors.transport.config]
+    passive-mode = true
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "l2vpn-evpn"
+-- server1.toml --
+[global.config]
+  as = 65001
+  router-id = "2.3.4.1"
+  local-address-list = ["11.100.98.3"]
+  port = 1790
+
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "11.100.98.1"
+    peer-as = 65001
+  [neighbors.transport.config]
+    passive-mode = true
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "l2vpn-evpn"
 -- cilium-node.yaml --
 apiVersion: cilium.io/v2
 kind: CiliumNode

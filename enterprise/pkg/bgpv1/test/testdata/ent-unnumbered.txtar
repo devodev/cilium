@@ -14,8 +14,7 @@ db/insert devices device.yaml
 db/insert neighbors neighbor.yaml
 
 # Configure gobgp server (bind to :: as GoBGP does not support binding to a LL address with zone)
-gobgp/add-server test --router-id=1.2.3.4 65001 :: 1799
-gobgp/add-peer fe80::a800:ff:fe00:2%centbgptest1 65001
+gobgp/add-server test gobgp-server.toml
 
 # Configure BGP on Cilium
 k8s/add cilium-node.yaml bgp-node-config.yaml bgp-peer-config.yaml bgp-advertisement.yaml
@@ -33,6 +32,25 @@ gobgp/routes ipv6 unicast
 
 #####
 
+-- gobgp-server.toml --
+[global.config]
+  as = 65001
+  router-id = "1.2.3.4"
+  local-address-list = ["::"]
+  port = 1799
+
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "fe80::a800:ff:fe00:2%centbgptest1"
+    peer-as = 65001
+  [neighbors.transport.config]
+    passive-mode = true
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv4-unicast"
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv6-unicast"
 -- device.yaml --
 index: 1
 name: centbgptest2

@@ -8,8 +8,7 @@
 hive start
 
 # Configure gobgp server
-gobgp/add-server test --router-id=1.2.3.4 65001 fc00::bb:cc:dd:101 1790
-gobgp/add-peer fc00::bb:cc:dd:102 65001
+gobgp/add-server test gobgp-server-1.toml
 
 # Configure BGP on Cilium
 k8s/add cilium-node.yaml bgp-node-config.yaml bgp-peer-config.yaml
@@ -59,8 +58,7 @@ gobgp/routes -o routes.actual ipv6 unicast
 
 # Switch to eBGP instance to test eBGP-specific attributes
 gobgp/delete-server test
-gobgp/add-server test --router-id=1.2.3.4 65001 fc00::bb:cc:dd:101 1790
-gobgp/add-peer fc00::bb:cc:dd:102 65000
+gobgp/add-server test gobgp-server-2.toml
 
 # Configure BGP on Cilium
 k8s/update bgp-node-config-ebgp.yaml
@@ -78,6 +76,44 @@ gobgp/routes -o routes.actual ipv6 unicast
 
 #####
 
+-- gobgp-server-1.toml --
+[global.config]
+  as = 65001
+  router-id = "1.2.3.4"
+  local-address-list = ["fc00::bb:cc:dd:101"]
+  port = 1790
+
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "fc00::bb:cc:dd:102"
+    peer-as = 65001
+  [neighbors.transport.config]
+    passive-mode = true
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv4-unicast"
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv6-unicast"
+-- gobgp-server-2.toml --
+[global.config]
+  as = 65001
+  router-id = "1.2.3.4"
+  local-address-list = ["fc00::bb:cc:dd:101"]
+  port = 1790
+
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "fc00::bb:cc:dd:102"
+    peer-as = 65000
+  [neighbors.transport.config]
+    passive-mode = true
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv4-unicast"
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv6-unicast"
 -- cilium-node.yaml --
 apiVersion: cilium.io/v2
 kind: CiliumNode

@@ -4,8 +4,7 @@ hive start
 db/initialized
 
 # Configure gobgp server
-gobgp/add-server server0 --router-id=1.2.3.4 65001 11.100.96.1 1790
-gobgp/add-peer -s server0 11.100.96.1 65001 --families=l2vpn/evpn
+gobgp/add-server server0 gobgp-server.toml
 
 # Configure BGP on Cilium
 k8s/add cilium-node.yaml bgp-node-config.yaml bgp-peer-config.yaml
@@ -39,6 +38,22 @@ bgp/routes -o bgp-locrib-empty.actual --no-age loc l2vpn evpn
 rib/list
 * cmp stdout cilium-rib-empty.expected
 
+-- gobgp-server.toml --
+[global.config]
+  as = 65001
+  router-id = "1.2.3.4"
+  local-address-list = ["11.100.96.1"]
+  port = 1790
+
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "11.100.96.1"
+    peer-as = 65001
+  [neighbors.transport.config]
+    passive-mode = true
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "l2vpn-evpn"
 -- cilium-node.yaml --
 apiVersion: cilium.io/v2
 kind: CiliumNode

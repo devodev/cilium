@@ -4,16 +4,10 @@
 hive start
 
 # Configure GoBGP servers
-gobgp/add-server server0 65000 fc00:10:99:8::1 1790 --router-id 10.99.7.1
-gobgp/add-server server1 65000 fc00:10:99:8::2 1790 --router-id 10.99.7.2
-gobgp/add-server server2 65001 fc00:10:99:8::3 1790 --router-id 10.99.7.3
-gobgp/add-server server3 65001 fc00:10:99:8::4 1790 --router-id 10.99.7.4
-
-# Configure peers on GoBGP
-gobgp/add-peer -s server0 fc00:10:99:8::5 65000
-gobgp/add-peer -s server1 fc00:10:99:8::5 65000
-gobgp/add-peer -s server2 fc00:10:99:8::6 65001
-gobgp/add-peer -s server3 fc00:10:99:8::6 65001
+gobgp/add-server server0 server0.toml
+gobgp/add-server server1 server1.toml
+gobgp/add-server server2 server2.toml
+gobgp/add-server server3 server3.toml
 
 # Advertise routes on GoBGP
 gobgp/advertise-route -s server0 10.0.0.0/24
@@ -69,6 +63,82 @@ bgp/routes in ipv6 unicast --no-age -o bgp-routes-in-ipv6-unicast.actual
 bgp/route-policies -o bgp-policies.actual
 * cmp bgp-policies.expected bgp-policies.actual
 
+-- server0.toml --
+[global.config]
+  as = 65000
+  router-id = "10.99.7.1"
+  local-address-list = ["fc00:10:99:8::1"]
+  port = 1790
+
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "fc00:10:99:8::5"
+    peer-as = 65000
+  [neighbors.transport.config]
+    passive-mode = true
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv4-unicast"
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv6-unicast"
+-- server1.toml --
+[global.config]
+  as = 65000
+  router-id = "10.99.7.2"
+  local-address-list = ["fc00:10:99:8::2"]
+  port = 1790
+
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "fc00:10:99:8::5"
+    peer-as = 65000
+  [neighbors.transport.config]
+    passive-mode = true
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv4-unicast"
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv6-unicast"
+-- server2.toml --
+[global.config]
+  as = 65001
+  router-id = "10.99.7.3"
+  local-address-list = ["fc00:10:99:8::3"]
+  port = 1790
+
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "fc00:10:99:8::6"
+    peer-as = 65001
+  [neighbors.transport.config]
+    passive-mode = true
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv4-unicast"
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv6-unicast"
+-- server3.toml --
+[global.config]
+  as = 65001
+  router-id = "10.99.7.4"
+  local-address-list = ["fc00:10:99:8::4"]
+  port = 1790
+
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "fc00:10:99:8::6"
+    peer-as = 65001
+  [neighbors.transport.config]
+    passive-mode = true
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv4-unicast"
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv6-unicast"
 -- cilium-node.yaml --
 apiVersion: cilium.io/v2
 kind: CiliumNode

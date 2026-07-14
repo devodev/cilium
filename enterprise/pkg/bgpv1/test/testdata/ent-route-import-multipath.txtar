@@ -8,12 +8,9 @@ db/insert devices device.yaml
 db/insert neighbors neighbor.yaml
 
 # Configure gobgp server (bind to :: as GoBGP does not support binding to a LL address with zone)
-gobgp/add-server server0 --router-id=10.0.0.0 65001 :: 1801
-gobgp/add-server server1 --router-id=10.0.0.1 65001 11.100.100.2 179
-gobgp/add-server server2 --router-id=10.0.0.2 65001 fc00:10:100:100::2 179
-gobgp/add-peer -s server0 fe80::a800:ff:fe00:1%centbgptest2 65000
-gobgp/add-peer -s server1 11.100.100.2 65000
-gobgp/add-peer -s server2 fc00:10:100:100::2 65000
+gobgp/add-server server0 server0.toml
+gobgp/add-server server1 server1.toml
+gobgp/add-server server2 server2.toml
 
 # Configure BGP on Cilium
 k8s/add cilium-node.yaml bgp-node-config.yaml bgp-peer-config0.yaml bgp-peer-config1.yaml bgp-peer-config2.yaml bgp-policy.yaml
@@ -55,6 +52,63 @@ gobgp/delete-server server0
 # Ensure all routes are removed
 db/cmp desired-routes desired-routes3.expected
 
+-- server0.toml --
+[global.config]
+  as = 65001
+  router-id = "10.0.0.0"
+  local-address-list = ["::"]
+  port = 1801
+
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "fe80::a800:ff:fe00:1%centbgptest2"
+    peer-as = 65000
+  [neighbors.transport.config]
+    passive-mode = true
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv4-unicast"
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv6-unicast"
+-- server1.toml --
+[global.config]
+  as = 65001
+  router-id = "10.0.0.1"
+  local-address-list = ["11.100.100.2"]
+  port = 179
+
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "11.100.100.2"
+    peer-as = 65000
+  [neighbors.transport.config]
+    passive-mode = true
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv4-unicast"
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv6-unicast"
+-- server2.toml --
+[global.config]
+  as = 65001
+  router-id = "10.0.0.2"
+  local-address-list = ["fc00:10:100:100::2"]
+  port = 179
+
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "fc00:10:100:100::2"
+    peer-as = 65000
+  [neighbors.transport.config]
+    passive-mode = true
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv4-unicast"
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv6-unicast"
 -- device.yaml --
 index: 1
 name: centbgptest1

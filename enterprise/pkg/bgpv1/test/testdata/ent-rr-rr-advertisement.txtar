@@ -16,24 +16,16 @@ hive start
 # The v4/v6 suffixes indicate whether the peer is IPv4 or IPv6. This is for testing
 # both IPv4 and IPv6 route reflection and advertisement and also to make sure that
 # RR works correctly when multiple peers for each type are configured.
-gobgp/add-server client-v4    65010 11.99.102.2       1790 --router-id 1.0.0.2
-gobgp/add-server client-v6    65010 fc00:10:99:102::2 1790 --router-id 1.0.0.3
-gobgp/add-server rr-v4        65010 11.99.102.3       1790 --router-id 1.0.0.4
-gobgp/add-server rr-v6        65010 fc00:10:99:102::3 1790 --router-id 1.0.0.5
-gobgp/add-server external-v4  65011 11.99.102.4       1790 --router-id 1.0.0.6
-gobgp/add-server external-v6  65011 fc00:10:99:102::4 1790 --router-id 1.0.0.7
-gobgp/add-server internal-v4  65010 11.99.102.5       1790 --router-id 1.0.0.8
-gobgp/add-server internal-v6  65010 fc00:10:99:102::5 1790 --router-id 1.0.0.9
-
-# Configure peering
-gobgp/add-peer -s client-v4   11.99.102.1       65010
-gobgp/add-peer -s client-v6   fc00:10:99:102::1 65010
-gobgp/add-peer -s rr-v4       11.99.102.1       65010
-gobgp/add-peer -s rr-v6       fc00:10:99:102::1 65010
-gobgp/add-peer -s external-v4 11.99.102.1       65010
-gobgp/add-peer -s external-v6 fc00:10:99:102::1 65010
-gobgp/add-peer -s internal-v4 11.99.102.1       65010
-gobgp/add-peer -s internal-v6 fc00:10:99:102::1 65010
+# Only external and internal peers negotiate Add-Path receive because the Cilium
+# route-reflector advertises multiple paths only to non-client peers.
+gobgp/add-server client-v4 client-v4.toml
+gobgp/add-server client-v6 client-v6.toml
+gobgp/add-server rr-v4 rr-v4.toml
+gobgp/add-server rr-v6 rr-v6.toml
+gobgp/add-server external-v4 external-v4.toml
+gobgp/add-server external-v6 external-v6.toml
+gobgp/add-server internal-v4 internal-v4.toml
+gobgp/add-server internal-v6 internal-v6.toml
 
 # Configure BGP on Cilium
 k8s/add cilium-node.yaml bgp-node-config.yaml bgp-peer-config.yaml bgp-advertisement.yaml
@@ -94,6 +86,174 @@ gobgp/routes -s internal-v6 -o internal-v6-routes.actual
 
 #####
 
+-- client-v4.toml --
+[global.config]
+  as = 65010
+  router-id = "1.0.0.2"
+  local-address-list = ["11.99.102.2"]
+  port = 1790
+
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "11.99.102.1"
+    peer-as = 65010
+  [neighbors.transport.config]
+    passive-mode = true
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv4-unicast"
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv6-unicast"
+-- client-v6.toml --
+[global.config]
+  as = 65010
+  router-id = "1.0.0.3"
+  local-address-list = ["fc00:10:99:102::2"]
+  port = 1790
+
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "fc00:10:99:102::1"
+    peer-as = 65010
+  [neighbors.transport.config]
+    passive-mode = true
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv4-unicast"
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv6-unicast"
+-- rr-v4.toml --
+[global.config]
+  as = 65010
+  router-id = "1.0.0.4"
+  local-address-list = ["11.99.102.3"]
+  port = 1790
+
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "11.99.102.1"
+    peer-as = 65010
+  [neighbors.transport.config]
+    passive-mode = true
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv4-unicast"
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv6-unicast"
+-- rr-v6.toml --
+[global.config]
+  as = 65010
+  router-id = "1.0.0.5"
+  local-address-list = ["fc00:10:99:102::3"]
+  port = 1790
+
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "fc00:10:99:102::1"
+    peer-as = 65010
+  [neighbors.transport.config]
+    passive-mode = true
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv4-unicast"
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv6-unicast"
+-- external-v4.toml --
+[global.config]
+  as = 65011
+  router-id = "1.0.0.6"
+  local-address-list = ["11.99.102.4"]
+  port = 1790
+
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "11.99.102.1"
+    peer-as = 65010
+  [neighbors.transport.config]
+    passive-mode = true
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv4-unicast"
+    [neighbors.afi-safis.add-paths.config]
+      receive = true
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv6-unicast"
+    [neighbors.afi-safis.add-paths.config]
+      receive = true
+-- external-v6.toml --
+[global.config]
+  as = 65011
+  router-id = "1.0.0.7"
+  local-address-list = ["fc00:10:99:102::4"]
+  port = 1790
+
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "fc00:10:99:102::1"
+    peer-as = 65010
+  [neighbors.transport.config]
+    passive-mode = true
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv4-unicast"
+    [neighbors.afi-safis.add-paths.config]
+      receive = true
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv6-unicast"
+    [neighbors.afi-safis.add-paths.config]
+      receive = true
+-- internal-v4.toml --
+[global.config]
+  as = 65010
+  router-id = "1.0.0.8"
+  local-address-list = ["11.99.102.5"]
+  port = 1790
+
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "11.99.102.1"
+    peer-as = 65010
+  [neighbors.transport.config]
+    passive-mode = true
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv4-unicast"
+    [neighbors.afi-safis.add-paths.config]
+      receive = true
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv6-unicast"
+    [neighbors.afi-safis.add-paths.config]
+      receive = true
+-- internal-v6.toml --
+[global.config]
+  as = 65010
+  router-id = "1.0.0.9"
+  local-address-list = ["fc00:10:99:102::5"]
+  port = 1790
+
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "fc00:10:99:102::1"
+    peer-as = 65010
+  [neighbors.transport.config]
+    passive-mode = true
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv4-unicast"
+    [neighbors.afi-safis.add-paths.config]
+      receive = true
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "ipv6-unicast"
+    [neighbors.afi-safis.add-paths.config]
+      receive = true
 -- cilium-node.yaml --
 apiVersion: cilium.io/v2
 kind: CiliumNode

@@ -7,14 +7,9 @@
 hive start
 
 # Configure gobgp servers
-gobgp/add-server evpn-v4  65001 11.99.103.2       1790
-gobgp/add-server non-evpn 65001 11.99.103.3       1790
-gobgp/add-server evpn-v6  65001 fc00:10:99:103::2 1790 --router-id 1.0.0.2
-
-# Configure peers on GoBGP
-gobgp/add-peer -s evpn-v4   11.99.103.1       65001 --families=l2vpn/evpn
-gobgp/add-peer -s non-evpn  11.99.103.1       65001 --families=l2vpn/evpn
-gobgp/add-peer -s evpn-v6   fc00:10:99:103::1 65001 --families=l2vpn/evpn
+gobgp/add-server evpn-v4 evpn-v4.toml
+gobgp/add-server non-evpn non-evpn.toml
+gobgp/add-server evpn-v6 evpn-v6.toml
 
 # Configure BGP on Cilium
 k8s/add cilium-node.yaml bgp-node-config.yaml bgp-peer-config-evpn.yaml bgp-peer-config-non-evpn.yaml bgp-vrf-config.yaml bgp-advertisement.yaml
@@ -125,6 +120,54 @@ gobgp/routes -s evpn-v6 -o routes.actual l2vpn evpn
 
 #####
 
+-- evpn-v4.toml --
+[global.config]
+  as = 65001
+  router-id = "11.99.103.2"
+  local-address-list = ["11.99.103.2"]
+  port = 1790
+
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "11.99.103.1"
+    peer-as = 65001
+  [neighbors.transport.config]
+    passive-mode = true
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "l2vpn-evpn"
+-- non-evpn.toml --
+[global.config]
+  as = 65001
+  router-id = "11.99.103.3"
+  local-address-list = ["11.99.103.3"]
+  port = 1790
+
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "11.99.103.1"
+    peer-as = 65001
+  [neighbors.transport.config]
+    passive-mode = true
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "l2vpn-evpn"
+-- evpn-v6.toml --
+[global.config]
+  as = 65001
+  router-id = "1.0.0.2"
+  local-address-list = ["fc00:10:99:103::2"]
+  port = 1790
+
+[[neighbors]]
+  [neighbors.config]
+    neighbor-address = "fc00:10:99:103::1"
+    peer-as = 65001
+  [neighbors.transport.config]
+    passive-mode = true
+  [[neighbors.afi-safis]]
+    [neighbors.afi-safis.config]
+      afi-safi-name = "l2vpn-evpn"
 -- cilium-node.yaml --
 apiVersion: cilium.io/v2
 kind: CiliumNode
