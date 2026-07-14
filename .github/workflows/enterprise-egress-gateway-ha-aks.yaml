@@ -165,7 +165,7 @@ jobs:
             --set=ipv4.enabled=true \
             --set=ipv6.enabled=true \
             --set=updateStrategy.rollingUpdate.maxUnavailable=1 \
-            --set=minReadySeconds=15 \
+            --set=minReadySeconds=30 \
             --nodes-without-cilium
           "
 

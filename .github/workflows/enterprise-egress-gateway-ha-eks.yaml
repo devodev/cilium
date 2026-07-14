@@ -154,7 +154,7 @@ jobs:
             --set=ipam.mode=eni \
             --set=eni.awsEnablePrefixDelegation=true \
             --set=updateStrategy.rollingUpdate.maxUnavailable=1 \
-            --set=minReadySeconds=15 \
+            --set=minReadySeconds=30 \
             --nodes-without-cilium
           "
 
