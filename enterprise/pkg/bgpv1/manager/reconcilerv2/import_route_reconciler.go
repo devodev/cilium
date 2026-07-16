@@ -123,7 +123,12 @@ func (r *importRouteReconciler) Reconcile(ctx context.Context, p EnterpriseState
 		return err
 	}
 
-	desiredDsts, v4ErrPaths, v6ErrPaths, err := r.desiredDestinations(ctx, p.UpdatedInstance.Router)
+	tableID := routeReconciler.TableMain
+	if p.UpdatedInstance.VRF.TableID != 0 {
+		tableID = routeReconciler.TableID(p.UpdatedInstance.VRF.TableID)
+	}
+
+	desiredDsts, v4ErrPaths, v6ErrPaths, err := r.desiredDestinations(ctx, tableID, p.UpdatedInstance.Router)
 	if err != nil {
 		return err
 	}
@@ -158,9 +163,17 @@ func (r *importRouteReconciler) Reconcile(ctx context.Context, p EnterpriseState
 }
 
 type destination struct {
-	prefix netip.Prefix
+	destinationKey
 	paths  []*path
 	isIBGP bool
+}
+
+// destinationKey uniquely identifies a route imported by a BGP instance. A
+// prefix can be present in more than one routing table while an instance moves
+// between VRFs, so the table ID is part of the reconciliation key.
+type destinationKey struct {
+	tableID routeReconciler.TableID
+	prefix  netip.Prefix
 }
 
 func (dst *destination) sortPaths() {
@@ -170,6 +183,9 @@ func (dst *destination) sortPaths() {
 }
 
 func (dst *destination) equal(other *destination) bool {
+	if dst.tableID != other.tableID {
+		return false
+	}
 	if dst.prefix != other.prefix {
 		return false
 	}
@@ -191,8 +207,8 @@ type path struct {
 	nexthop netip.Addr
 }
 
-func (r *importRouteReconciler) desiredDestinations(ctx context.Context, router types.EnterpriseRouter) (
-	map[netip.Prefix]*destination,
+func (r *importRouteReconciler) desiredDestinations(ctx context.Context, tableID routeReconciler.TableID, router types.EnterpriseRouter) (
+	map[destinationKey]*destination,
 	map[ErrorPathKey]ErrorPath,
 	map[ErrorPathKey]ErrorPath,
 	error,
@@ -216,7 +232,7 @@ func (r *importRouteReconciler) desiredDestinations(ctx context.Context, router 
 		return nil, nil, nil, err
 	}
 
-	v4Dsts, v4ErrPaths := r.parseRoutes(resv4.Routes, true, global.Global.ASN)
+	v4Dsts, v4ErrPaths := r.parseRoutes(resv4.Routes, true, global.Global.ASN, tableID)
 
 	resv6, err := router.GetRoutesExtended(ctx, &types.GetRoutesExtendedRequest{
 		GetRoutesRequest: ossTypes.GetRoutesRequest{
@@ -232,15 +248,15 @@ func (r *importRouteReconciler) desiredDestinations(ctx context.Context, router 
 		return nil, nil, nil, err
 	}
 
-	v6Dsts, v6ErrPaths := r.parseRoutes(resv6.Routes, false, global.Global.ASN)
+	v6Dsts, v6ErrPaths := r.parseRoutes(resv6.Routes, false, global.Global.ASN, tableID)
 
 	maps.Copy(v4Dsts, v6Dsts)
 
 	return v4Dsts, v4ErrPaths, v6ErrPaths, nil
 }
 
-func (r *importRouteReconciler) parseRoutes(routes []*types.ExtendedRoute, isV4 bool, selfASN uint32) (map[netip.Prefix]*destination, map[ErrorPathKey]ErrorPath) {
-	dsts := map[netip.Prefix]*destination{}
+func (r *importRouteReconciler) parseRoutes(routes []*types.ExtendedRoute, isV4 bool, selfASN uint32, tableID routeReconciler.TableID) (map[destinationKey]*destination, map[ErrorPathKey]ErrorPath) {
+	dsts := map[destinationKey]*destination{}
 	errPaths := map[ErrorPathKey]ErrorPath{}
 
 	for _, route := range routes {
@@ -272,7 +288,10 @@ func (r *importRouteReconciler) parseRoutes(routes []*types.ExtendedRoute, isV4 
 		}
 
 		dst := &destination{
-			prefix: p,
+			destinationKey: destinationKey{
+				tableID: tableID,
+				prefix:  p,
+			},
 			// All best paths should have a same protocol (eBGP
 			// beats iBGP in the best path selection), so we can
 			// check the first one to determine if it's iBGP or
@@ -314,7 +333,7 @@ func (r *importRouteReconciler) parseRoutes(routes []*types.ExtendedRoute, isV4 
 		// Sort paths to have a deterministic order
 		dst.sortPaths()
 
-		dsts[dst.prefix] = dst
+		dsts[dst.destinationKey] = dst
 	}
 
 	return dsts, errPaths
@@ -450,39 +469,36 @@ func (r *importRouteReconciler) parseMPReachNLRINexthop(mpReachNLRIAttr *bgp.Pat
 	}
 }
 
-func (r *importRouteReconciler) currentDestinations(rtxn statedb.ReadTxn, owner *routeReconciler.RouteOwner) (map[netip.Prefix]*destination, error) {
-	dsts := map[netip.Prefix]*destination{}
+func (r *importRouteReconciler) currentDestinations(rtxn statedb.ReadTxn, owner *routeReconciler.RouteOwner) (map[destinationKey]*destination, error) {
+	dsts := map[destinationKey]*destination{}
 
 	// List all routes owned by this BGP instance
 	for rt := range r.desiredRoutetable.Prefix(rtxn, routeReconciler.DesiredRouteIndex.Query(routeReconciler.DesiredRouteKey{Owner: owner})) {
-		if rt.Table != routeReconciler.TableMain {
-			continue
-		}
 		dst, err := r.toDestination(owner, rt)
 		if err != nil {
 			continue
 		}
-		dsts[rt.Prefix] = dst
+		dsts[dst.destinationKey] = dst
 	}
 
 	return dsts, nil
 }
 
-func (r *importRouteReconciler) calculateDiff(desired, current map[netip.Prefix]*destination) ([]*destination, []*destination) {
+func (r *importRouteReconciler) calculateDiff(desired, current map[destinationKey]*destination) ([]*destination, []*destination) {
 	var (
 		toUpsert []*destination
 		toDelete []*destination
 	)
 
-	for prefix, d := range desired {
-		c, exists := current[prefix]
+	for key, d := range desired {
+		c, exists := current[key]
 		if !exists || !d.equal(c) {
 			toUpsert = append(toUpsert, d)
 		}
 	}
 
-	for prefix, c := range current {
-		_, exists := desired[prefix]
+	for key, c := range current {
+		_, exists := desired[key]
 		if !exists {
 			toDelete = append(toDelete, c)
 		}
@@ -500,7 +516,7 @@ func (r *importRouteReconciler) toTableRoute(rtxn statedb.ReadTxn, owner *routeR
 	desiredRoute := routeReconciler.DesiredRoute{
 		Owner:         owner,
 		Prefix:        dst.prefix,
-		Table:         routeReconciler.TableMain,
+		Table:         dst.tableID,
 		AdminDistance: ad,
 		Type:          routeReconciler.RTN_UNICAST,
 	}
@@ -559,9 +575,6 @@ func (r *importRouteReconciler) toDestination(owner *routeReconciler.RouteOwner,
 	if rt.Owner != owner {
 		return nil, fmt.Errorf("owner mismatch: got %v, want %v", rt.Owner, owner)
 	}
-	if rt.Table != routeReconciler.TableMain {
-		return nil, fmt.Errorf("table is not main: %d", rt.Table)
-	}
 	if rt.AdminDistance != AdminDistanceIBGP && rt.AdminDistance != AdminDistanceEBGP {
 		return nil, fmt.Errorf("AD is not IBGP or EBGP: %d", rt.AdminDistance)
 	}
@@ -570,7 +583,10 @@ func (r *importRouteReconciler) toDestination(owner *routeReconciler.RouteOwner,
 	}
 
 	dst := &destination{
-		prefix: rt.Prefix,
+		destinationKey: destinationKey{
+			tableID: rt.Table,
+			prefix:  rt.Prefix,
+		},
 		isIBGP: rt.AdminDistance == AdminDistanceIBGP,
 	}
 	if rt.Nexthop.IsValid() {
