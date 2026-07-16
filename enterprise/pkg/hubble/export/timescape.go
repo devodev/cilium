@@ -12,23 +12,31 @@ package export
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
+	"strings"
 
 	"github.com/cilium/hive/cell"
 	"github.com/cilium/hive/job"
+	timescapeexporter "github.com/isovalent/hubble-timescape/exporter"
 	"github.com/spf13/pflag"
+	"google.golang.org/grpc"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/fieldmaskpb"
 
+	flowpb "github.com/cilium/cilium/api/v1/flow"
 	"github.com/cilium/cilium/enterprise/pkg/hubble/aggregation"
 	"github.com/cilium/cilium/enterprise/pkg/hubble/aggregation/aggregator"
-	"github.com/cilium/cilium/enterprise/pkg/hubble/timescape"
 	"github.com/cilium/cilium/pkg/crypto/certloader"
 	"github.com/cilium/cilium/pkg/dial"
 	"github.com/cilium/cilium/pkg/hubble"
 	v1 "github.com/cilium/cilium/pkg/hubble/api/v1"
-	"github.com/cilium/cilium/pkg/hubble/exporter"
+	hubbleexporter "github.com/cilium/cilium/pkg/hubble/exporter"
 	exportercell "github.com/cilium/cilium/pkg/hubble/exporter/cell"
+	"github.com/cilium/cilium/pkg/hubble/filters"
+	"github.com/cilium/cilium/pkg/hubble/parser/fieldmask"
 	"github.com/cilium/cilium/pkg/logging/logfields"
 	"github.com/cilium/cilium/pkg/promise"
 	"github.com/cilium/cilium/pkg/time"
@@ -36,33 +44,138 @@ import (
 
 type timescapeTLSConfigPromise promise.Promise[*certloader.WatchedClientConfig]
 
-// multiExporter is a composite exporter that sends events to multiple timescape exporters
-type multiExporter struct {
-	exporters []exporter.FlowLogExporter
+type timescapeEventExporter interface {
+	Export(context.Context, timescapeexporter.Event) error
+	Run(context.Context) error
 }
 
-func (m *multiExporter) Export(ctx context.Context, ev *v1.Event) error {
-	for _, exp := range m.exporters {
-		if err := exp.Export(ctx, ev); err != nil {
+type timescapeExportHook func(context.Context, *v1.Event) (bool, error)
+
+type timescapeFlowExporter struct {
+	log          *slog.Logger
+	exporters    []timescapeEventExporter
+	allowFilters filters.FilterFuncs
+	denyFilters  filters.FilterFuncs
+	fieldMask    fieldmask.FieldMask
+	nodeName     string
+	hooks        []timescapeExportHook
+	newFlowEvent func(*flowpb.Flow) timescapeexporter.Event
+}
+
+func newTimescapeFlowExporter(
+	log *slog.Logger,
+	exporters []timescapeEventExporter,
+	allowFilters filters.FilterFuncs,
+	denyFilters filters.FilterFuncs,
+	fieldMask fieldmask.FieldMask,
+	nodeName string,
+	hooks []timescapeExportHook,
+) *timescapeFlowExporter {
+	return &timescapeFlowExporter{
+		log:          log,
+		exporters:    exporters,
+		allowFilters: allowFilters,
+		denyFilters:  denyFilters,
+		fieldMask:    fieldMask,
+		nodeName:     nodeName,
+		hooks:        hooks,
+		newFlowEvent: timescapeexporter.NewFlowEvent,
+	}
+}
+
+func (e *timescapeFlowExporter) Export(ctx context.Context, ev *v1.Event) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if ev == nil || !filters.Apply(e.allowFilters, e.denyFilters, ev) {
+		return nil
+	}
+
+	for _, hook := range e.hooks {
+		stop, err := hook(ctx, ev)
+		if err != nil {
+			e.log.Warn("Timescape export hook failed", logfields.Error, err)
+		}
+		if stop {
+			return nil
+		}
+	}
+
+	flow := ev.GetFlow()
+	if flow == nil {
+		return nil
+	}
+	event := e.newFlowEvent(e.prepareFlow(flow))
+	for _, target := range e.exporters {
+		err := target.Export(ctx, event)
+		if errors.Is(err, timescapeexporter.ErrBufferFull) || errors.Is(err, timescapeexporter.ErrStopped) {
+			continue
+		}
+		if err != nil {
 			return err
 		}
 	}
-
 	return nil
 }
 
-func (m *multiExporter) Stop() error {
-	var errs []error
-	for _, exp := range m.exporters {
-		if err := exp.Stop(); err != nil {
-			errs = append(errs, err)
-		}
-	}
-	if len(errs) > 0 {
-		return fmt.Errorf("failed to stop %d exporters: %v", len(errs), errs)
-	}
+func (*timescapeFlowExporter) Stop() error { return nil }
 
-	return nil
+func (e *timescapeFlowExporter) prepareFlow(flow *flowpb.Flow) *flowpb.Flow {
+	prepared := flow
+	if e.fieldMask.Active() {
+		masked := new(flowpb.Flow)
+		e.fieldMask.Copy(masked.ProtoReflect(), flow.ProtoReflect())
+		// FieldMask.Copy may retain message-valued leaves. Clone the selected
+		// result so neither side can mutate storage owned by the other.
+		prepared = proto.Clone(masked).(*flowpb.Flow)
+	} else if e.nodeName != "" {
+		prepared = proto.Clone(flow).(*flowpb.Flow)
+	}
+	if e.nodeName != "" {
+		prepared.NodeName = e.nodeName
+	}
+	return prepared
+}
+
+var _ hubbleexporter.FlowLogExporter = (*timescapeFlowExporter)(nil)
+
+type timescapeClientConfig struct {
+	batchingConfig             timescapeexporter.BatchingConfig
+	ingestMode                 timescapeexporter.IngestMode
+	maxBufferSize              int
+	reportDroppedFlowsInterval time.Duration
+	resolvers                  []dial.Resolver
+	tlsConfigPromise           timescapeTLSConfigPromise
+}
+
+type timescapeExporterFactory func(*slog.Logger, string, timescapeClientConfig) (timescapeEventExporter, error)
+
+func normalizeTimescapeTarget(target string, resolvers []dial.Resolver) string {
+	if len(resolvers) == 0 {
+		return target
+	}
+	return "passthrough:" + strings.TrimPrefix(target, "passthrough:")
+}
+
+func newTimescapeEventExporter(
+	log *slog.Logger,
+	target string,
+	config timescapeClientConfig,
+) (timescapeEventExporter, error) {
+	options := []timescapeexporter.Option{
+		timescapeexporter.WithIngestMode(config.ingestMode),
+		timescapeexporter.WithMaxBufferSize(config.maxBufferSize),
+		timescapeexporter.WithReportDroppedEventsInterval(config.reportDroppedFlowsInterval),
+		timescapeexporter.WithDialOptions(
+			grpc.WithContextDialer(dial.NewContextDialer(log, config.resolvers...)),
+		),
+	}
+	if config.tlsConfigPromise != nil {
+		options = append(options, timescapeexporter.WithTransportCredentialsProvider(
+			newTimescapeCredentialsProvider(config.tlsConfigPromise),
+		))
+	}
+	return timescapeexporter.NewBatchingExporter(log, target, config.batchingConfig, options...)
 }
 
 var timescapeExporterCell = cell.Module(
@@ -184,6 +297,10 @@ type out struct {
 }
 
 func newHubbleTimescapeExporter(params params) (out, error) {
+	return newHubbleTimescapeExporterWithFactory(params, newTimescapeEventExporter)
+}
+
+func newHubbleTimescapeExporterWithFactory(params params, factory timescapeExporterFactory) (out, error) {
 	if !params.Config.Enabled {
 		params.Logger.Info("The Hubble timescape exporter is disabled")
 		return out{}, nil
@@ -191,7 +308,7 @@ func newHubbleTimescapeExporter(params params) (out, error) {
 
 	builder := &exportercell.FlowLogExporterBuilder{
 		Name: "timescape-exporter",
-		Build: func() (exporter.FlowLogExporter, error) {
+		Build: func() (hubbleexporter.FlowLogExporter, error) {
 			params.Logger.Info("Building the Hubble timescape exporter", logfields.Config, fmt.Sprintf("%+v", params.Config))
 
 			allowList, err := hubble.ParseFlowFilters(params.Config.Allowlist)
@@ -201,6 +318,28 @@ func newHubbleTimescapeExporter(params params) (out, error) {
 			denyList, err := hubble.ParseFlowFilters(params.Config.Denylist)
 			if err != nil {
 				return nil, fmt.Errorf("failed to parse denylist: %w", err)
+			}
+			allowFilters, err := filters.BuildFilterList(context.Background(), allowList, filters.DefaultFilters(params.Logger))
+			if err != nil {
+				return nil, fmt.Errorf("failed to build allowlist filter: %w", err)
+			}
+			denyFilters, err := filters.BuildFilterList(context.Background(), denyList, filters.DefaultFilters(params.Logger))
+			if err != nil {
+				return nil, fmt.Errorf("failed to build denylist filter: %w", err)
+			}
+
+			protoFieldMask, err := fieldmaskpb.New(&flowpb.Flow{}, params.Config.Fieldmask...)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create field mask: %w", err)
+			}
+			flowFieldMask, err := fieldmask.New(protoFieldMask)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create field mask: %w", err)
+			}
+
+			ingestMode, err := timescapeexporter.ParseIngestMode(params.Config.IngestMode)
+			if err != nil {
+				return nil, err
 			}
 
 			var resolvers []dial.Resolver
@@ -213,55 +352,32 @@ func newHubbleTimescapeExporter(params params) (out, error) {
 				}
 			}
 
-			exporterOpts := []timescape.Option{
-				timescape.WithAllowListFilter(params.Logger, allowList),
-				timescape.WithDenyListFilter(params.Logger, denyList),
-				timescape.WithFieldMask(params.Config.Fieldmask),
-				timescape.WithNodeName(params.Config.NodeName),
-				timescape.WithIngestMode(params.Config.IngestMode),
-				timescape.WithBatchSize(params.Config.BatchSize),
-				timescape.WithBatchFlushInterval(params.Config.BatchFlushInterval),
-				timescape.WithMaxBufferSize(params.Config.MaxBufferSize),
-				timescape.WithReportDroppedFlowsInterval(params.Config.ReportDroppedFlowsInterval),
-				timescape.WithTLSConfigPromise(params.TLSConfigPromise),
-				timescape.WithResolvers(resolvers...),
-			}
-
-			// setup aggregator
+			var hooks []timescapeExportHook
+			var flowAggregator *aggregation.EnterpriseAggregator
 			if len(params.Config.Aggregations) > 0 {
-				aggregator, err := newAggregatorFromStreamConfig(params.Config, params.Logger)
+				flowAggregator, err = newAggregatorFromStreamConfig(params.Config, params.Logger)
 				if err != nil {
 					return nil, fmt.Errorf("failed to create enterprise aggregator: %w", err)
 				}
-
-				exporterOpts = append(exporterOpts, timescape.WithOnExportEventFunc(func(ctx context.Context, ev *v1.Event) (bool, error) {
-					return aggregator.OnExportEvent(ctx, ev, nil)
-				}))
-				params.JobGroup.Add(job.OneShot("hubble-timescape-flow-aggregator", func(ctx context.Context, _ cell.Health) error {
-					aggregator.Start(ctx)
-					return nil
-				}))
+				hooks = append(hooks, func(ctx context.Context, ev *v1.Event) (bool, error) {
+					return flowAggregator.OnExportEvent(ctx, ev, nil)
+				})
 			}
 
-			// setup flow metrics reporting
-			//
-			// NOTE: make sure this is always the last exporter option so it remains accurate
-			// when aggregation/rate-limiting is performed
-			metricsHandlerNameLabel := "stream"
-			exporterOpts = append(exporterOpts, timescape.WithOnExportEventFunc(func(ctx context.Context, ev *v1.Event) (bool, error) {
+			// Keep metrics last so aggregation decisions are reflected accurately.
+			hooks = append(hooks, func(ctx context.Context, ev *v1.Event) (bool, error) {
 				flow := ev.GetFlow()
 				if flow == nil {
-					// we only care about flow events
 					return false, nil
 				}
-				err := params.Metrics.UpdateFlowMetrics(ctx, flow, metricsHandlerNameLabel)
+				err := params.Metrics.UpdateFlowMetrics(ctx, flow, "stream")
 				if err != nil {
 					return false, fmt.Errorf("failed to update flow metrics: %w", err)
 				}
 				return false, nil
-			}))
+			})
 
-			targets := params.Config.Targets
+			targets := slices.Clone(params.Config.Targets)
 			if params.Config.Target != "" && !slices.Contains(targets, params.Config.Target) {
 				targets = append(targets, params.Config.Target)
 				params.Logger.Warn("Using deprecated 'target' field. Please migrate to 'targets' for multiple endpoint support")
@@ -271,27 +387,49 @@ func newHubbleTimescapeExporter(params params) (out, error) {
 				return nil, fmt.Errorf("no targets configured for Hubble timescape exporter")
 			}
 
-			var exporters []exporter.FlowLogExporter
-			for i, target := range targets {
-				streamExporter, err := timescape.NewExporter(params.Logger, target, exporterOpts...)
+			clientConfig := timescapeClientConfig{
+				batchingConfig: timescapeexporter.BatchingConfig{
+					BatchSize:     params.Config.BatchSize,
+					FlushInterval: params.Config.BatchFlushInterval,
+				},
+				ingestMode:                 ingestMode,
+				maxBufferSize:              params.Config.MaxBufferSize,
+				reportDroppedFlowsInterval: params.Config.ReportDroppedFlowsInterval,
+				resolvers:                  resolvers,
+				tlsConfigPromise:           params.TLSConfigPromise,
+			}
+			exporters := make([]timescapeEventExporter, 0, len(targets))
+			for _, target := range targets {
+				target = normalizeTimescapeTarget(target, resolvers)
+				streamExporter, err := factory(params.Logger, target, clientConfig)
 				if err != nil {
 					return nil, fmt.Errorf("failed to create Hubble timescape exporter for target %s: %w", target, err)
 				}
+				exporters = append(exporters, streamExporter)
+			}
 
+			if flowAggregator != nil {
+				params.JobGroup.Add(job.OneShot("hubble-timescape-flow-aggregator", func(ctx context.Context, _ cell.Health) error {
+					flowAggregator.Start(ctx)
+					return nil
+				}))
+			}
+			for i, streamExporter := range exporters {
 				exporterName := fmt.Sprintf("hubble-timescape-exporter-%d", i)
 				params.JobGroup.Add(job.OneShot(exporterName, func(ctx context.Context, _ cell.Health) error {
 					return streamExporter.Run(ctx)
 				}))
-
-				exporters = append(exporters, streamExporter)
 			}
 
-			// Return a composite exporter if multiple targets, otherwise return the single exporter.
-			if len(exporters) == 1 {
-				return exporters[0], nil
-			}
-
-			return &multiExporter{exporters: exporters}, nil
+			return newTimescapeFlowExporter(
+				params.Logger,
+				exporters,
+				allowFilters,
+				denyFilters,
+				flowFieldMask,
+				params.Config.NodeName,
+				hooks,
+			), nil
 		},
 	}
 
