@@ -1277,6 +1277,9 @@ github.com/int128/listener
 github.com/isovalent/hubble-timescape/api/k8sevent/v1
 github.com/isovalent/hubble-timescape/api/timescape/v1
 github.com/isovalent/hubble-timescape/api/timescape/v1alpha
+# github.com/isovalent/hubble-timescape/exporter v0.0.0-20260716230037-1c83b6e7ae02
+## explicit; go 1.26.0
+github.com/isovalent/hubble-timescape/exporter
 # github.com/isovalent/ipa v1.19.0
 ## explicit; go 1.24.0
 github.com/isovalent/ipa/common/k8s/type/v1alpha
