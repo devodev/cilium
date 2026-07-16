@@ -16,7 +16,7 @@
 hive start
 
 # Apply resources
-k8s/add vrf-red.yaml vrf-blue.yaml cilium-node.yaml bgp-node-config0.yaml active-peer-config.yaml passive-peer-config.yaml bgp-advertisement0.yaml auth-secret.yaml
+k8s/add vrf-red.yaml vrf-blue.yaml cilium-node.yaml bgp-node-config0.yaml active-peer-config.yaml passive-peer-config.yaml bgp-advertisement0.yaml auth-secret.yaml bgp-policy.yaml
 
 # Assign IP to the red VRF
 * addr/add 10.0.0.1/32 cvrf-1000
@@ -48,6 +48,22 @@ gobgp/routes -s blue-v4 ipv4 unicast -o routes.actual
 * cmp routes-v4.expected routes.actual
 gobgp/routes -s blue-v6 ipv6 unicast -o routes.actual
 * cmp routes-v6.expected routes.actual
+
+# Advertise routes from the gobgp servers to the Cilium BGP instances. The
+# prefixes are completely overlapping. Since VRF is isolated at the BGP and
+# kernel level, they should run without interfering with each other.
+gobgp/add-route -s red-v4 192.168.0.0/24
+gobgp/add-route -s blue-v4 192.168.0.0/24
+gobgp/add-route -s red-v6 2001:db8:192:168::/64
+gobgp/add-route -s blue-v6 2001:db8:192:168::/64
+
+# The advertised routes are imported to the RIB with the correct table ID
+#
+# Note that the IPv6 routes are actually not imported to the Linux FIB as
+# Linux's IPv6 implementation does not allow self-nexthop (IPv4 does). This is
+# not the best, but we accept it as we can at least verify that the routes are
+# imported from BGP Update to the RIB.
+db/cmp desired-routes desired-routes0.expected
 
 # Change the VRF table IDs. The controller recreates the devices
 # (cvrf-1000 -> cvrf-3000, cvrf-2000 -> cvrf-4000) and the BGP instances rebind
@@ -87,6 +103,15 @@ gobgp/routes -s blue-v4 ipv4 unicast -o routes.actual
 * cmp routes-v4.expected routes.actual
 gobgp/routes -s blue-v6 ipv6 unicast -o routes.actual
 * cmp routes-v6.expected routes.actual
+
+# Advertise the same routes again
+gobgp/add-route -s red-v4 192.168.0.0/24
+gobgp/add-route -s blue-v4 192.168.0.0/24
+gobgp/add-route -s red-v6 2001:db8:192:168::/64
+gobgp/add-route -s blue-v6 2001:db8:192:168::/64
+
+# The advertised routes are imported again to the RIB with the correct table ID
+db/cmp desired-routes desired-routes1.expected
 
 #####
 
@@ -397,11 +422,15 @@ spec:
   families:
   - afi: ipv4
     safi: unicast
+    importPolicyRef:
+      name: policy0
     advertisements:
       matchLabels:
         advertise: bgp
   - afi: ipv6
     safi: unicast
+    importPolicyRef:
+      name: policy0
     advertisements:
       matchLabels:
         advertise: bgp
@@ -420,14 +449,38 @@ spec:
   families:
   - afi: ipv4
     safi: unicast
+    importPolicyRef:
+      name: policy0
     advertisements:
       matchLabels:
         advertise: bgp
   - afi: ipv6
     safi: unicast
+    importPolicyRef:
+      name: policy0
     advertisements:
       matchLabels:
         advertise: bgp
+
+-- bgp-policy.yaml --
+apiVersion: isovalent.com/v1
+kind: IsovalentBGPPolicy
+metadata:
+  name: policy0
+spec:
+  import:
+    statements:
+    - conditions:
+        prefixesV4:
+          matchType: Or
+          matches:
+          - prefix: 192.168.0.0/24
+        prefixesV6:
+          matchType: Or
+          matches:
+          - prefix: 2001:db8:192:168::/64
+      actions:
+        routeAction: Accept
 
 -- bgp-advertisement0.yaml --
 apiVersion: isovalent.com/v1
@@ -456,3 +509,15 @@ Prefix          NextHop    Attrs
 -- routes-v6.expected --
 Prefix          NextHop   Attrs
 fd00:244::/64   fd00::1   [{Origin: i} {AsPath: 65001}]
+-- desired-routes0.expected --
+Owner         Table  Prefix                 Selected  Nexthop
+bgp-vrf-blue  2000   192.168.0.0/24         true      10.0.0.1
+bgp-vrf-blue  2000   2001:db8:192:168::/64  true      fd00::1
+bgp-vrf-red   1000   192.168.0.0/24         true      10.0.0.1
+bgp-vrf-red   1000   2001:db8:192:168::/64  true      fd00::1
+-- desired-routes1.expected --
+Owner         Table  Prefix                 Selected  Nexthop
+bgp-vrf-blue  4000   192.168.0.0/24         true      10.0.0.1
+bgp-vrf-blue  4000   2001:db8:192:168::/64  true      fd00::1
+bgp-vrf-red   3000   192.168.0.0/24         true      10.0.0.1
+bgp-vrf-red   3000   2001:db8:192:168::/64  true      fd00::1
