@@ -100,6 +100,13 @@ func (wd *reconcileDiff) registerOrReconcileDiff(existingInstances map[string]*i
 			// Record the errored instance and continue processing
 			// so that we won't block other instances.
 			wd.errored[config.Name] = err
+			if _, ok := existingInstances[config.Name]; ok {
+				// If the instance already exists, we should
+				// withdraw it (e.g. If the referenced VRF
+				// device is deleted after the instance was
+				// created).
+				wd.withdraw = append(wd.withdraw, config.Name)
+			}
 			continue
 		}
 

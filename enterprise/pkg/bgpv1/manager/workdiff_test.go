@@ -140,4 +140,54 @@ func TestReconcileDiff(t *testing.T) {
 		require.Equal(t, []string{"instance-ok"}, rd.withdraw)
 		require.Contains(t, rd.errored, "instance-bad")
 	})
+
+	t.Run("Withdraw with Error", func(t *testing.T) {
+		desired := &v1.IsovalentBGPNodeConfig{
+			Spec: v1.IsovalentBGPNodeSpec{
+				BGPInstances: []v1.IsovalentBGPNodeInstance{
+					{
+						Name:     "instance-ok",
+						LocalASN: ptr.To(int64(65000)),
+						RouterID: ptr.To("10.0.0.1"),
+					},
+					{
+						Name: "instance-bad",
+						// Missing LocalASN, so requiresRecreate
+						// will return an error for this
+						// instance.
+						LocalASN: nil,
+						RouterID: ptr.To("10.0.0.2"),
+					},
+				},
+			},
+		}
+
+		rd := newReconcileDiff(nil, dummyResolver)
+		err := rd.diff(map[string]*instance.EnterpriseBGPInstance{
+			"instance-ok": {
+				Global: types.EnterpriseBGPGlobal{
+					BGPGlobal: ossTypes.BGPGlobal{
+						ASN:        65000,
+						RouterID:   "10.0.0.1",
+						ListenPort: -1,
+					},
+					BindToDevice:  "cvrf-dummy-vrf",
+					BindToIfindex: 123,
+				},
+			},
+			"instance-bad": {
+				Global: types.EnterpriseBGPGlobal{
+					BGPGlobal: ossTypes.BGPGlobal{
+						ASN:        65000,
+						RouterID:   "10.0.0.2",
+						ListenPort: -1,
+					},
+				},
+			},
+		}, desired)
+		require.NoError(t, err, "diff() should not return an error even if one instance fails")
+		require.Equal(t, []string{"instance-ok"}, rd.reconcile)
+		require.Equal(t, []string{"instance-bad"}, rd.withdraw)
+		require.Contains(t, rd.errored, "instance-bad")
+	})
 }
