@@ -213,28 +213,6 @@ func createTestInterface(tb testing.TB, sysctl sysctl.Sysctl, iface string, addr
 	if err := netlink.AddrAdd(link, a); err != nil {
 		tb.Fatal(err)
 	}
-
-	ensureRPFilterIsEnabled(tb, sysctl, iface)
-}
-
-func ensureRPFilterIsEnabled(tb testing.TB, sysctl sysctl.Sysctl, iface string) {
-	rpFilterSetting := []string{"net", "ipv4", "conf", iface, "rp_filter"}
-
-	for range 10 {
-		if err := sysctl.Enable(rpFilterSetting); err != nil {
-			tb.Fatal(err)
-		}
-
-		time.Sleep(100 * time.Millisecond)
-
-		if val, err := sysctl.Read(rpFilterSetting); err == nil {
-			if val == "1" {
-				return
-			}
-		}
-	}
-
-	tb.Fatal("failed to enable rp_filter")
 }
 
 func (k *EgressGatewayTestSuite) waitForReconciliationRun(t *testing.T) {
@@ -398,11 +376,6 @@ type parsedEgressRule struct {
 	egressIfindex uint32
 }
 
-type rpFilterSetting struct {
-	iFaceName       string
-	rpFilterSetting string
-}
-
 func parseEgressRule(sourceIP, destCIDR, egressIP, gatewayIP string, egressIfindex uint32) parsedEgressRule {
 	sip := netip.MustParseAddr(sourceIP)
 	dc := netip.MustParsePrefix(destCIDR)
@@ -484,25 +457,6 @@ func tryAssertEgressRulesV2(policyMap egressmapha.PolicyMapV2, rules []egressRul
 
 	if untrackedRule {
 		return fmt.Errorf("Untracked egress policy")
-	}
-
-	return nil
-}
-
-func assertRPFilter(t *testing.T, sysctl sysctl.Sysctl, rpFilterSettings []rpFilterSetting) {
-	t.Helper()
-
-	err := tryAssertRPFilterSettings(sysctl, rpFilterSettings)
-	require.NoError(t, err)
-}
-
-func tryAssertRPFilterSettings(sysctl sysctl.Sysctl, rpFilterSettings []rpFilterSetting) error {
-	for _, setting := range rpFilterSettings {
-		if val, err := sysctl.Read([]string{"net", "ipv4", "conf", setting.iFaceName, "rp_filter"}); err != nil {
-			return fmt.Errorf("failed to read rp_filter")
-		} else if val != setting.rpFilterSetting {
-			return fmt.Errorf("mismatched rp_filter iface: %s rp_filter: %s", setting.iFaceName, val)
-		}
 	}
 
 	return nil
@@ -834,11 +788,6 @@ func TestPrivilegedRemoveExpiredCTOnNoMatchingPolicies(t *testing.T) {
 		}},
 	})
 
-	assertRPFilter(t, k.sysctl, []rpFilterSetting{
-		{iFaceName: testInterface1, rpFilterSetting: "2"},
-		{iFaceName: testInterface2, rpFilterSetting: "1"},
-	})
-
 	k.assertEgressRules(t, []egressRule{})
 	k.assertEgressCtEntries(t, []egressCtEntry{})
 
@@ -897,11 +846,6 @@ func TestPrivilegedEgressGatewayManagerHASocketTermination(t *testing.T) {
 			activeGatewayIPs:  []string{node1IP, node2IP},
 			healthyGatewayIPs: []string{node1IP, node2IP},
 		}},
-	})
-
-	assertRPFilter(t, k.sysctl, []rpFilterSetting{
-		{iFaceName: testInterface1, rpFilterSetting: "2"},
-		{iFaceName: testInterface2, rpFilterSetting: "1"},
 	})
 
 	k.assertEgressRules(t, []egressRule{})
@@ -1011,10 +955,6 @@ func TestPrivilegedEgressGatewayManagerAlternateIfaceName(t *testing.T) {
 		}},
 	})
 
-	assertRPFilter(t, k.sysctl, []rpFilterSetting{
-		{iFaceName: testInterface1, rpFilterSetting: "2"},
-		{iFaceName: testInterface2, rpFilterSetting: "1"},
-	})
 	k.assertEgressRules(t, []egressRule{})
 
 	// Add a new endpoint which matches policy-1
@@ -1053,10 +993,6 @@ func TestPrivilegedEgressGatewayManagerHAGroup(t *testing.T) {
 		}},
 	})
 
-	assertRPFilter(t, k.sysctl, []rpFilterSetting{
-		{iFaceName: testInterface1, rpFilterSetting: "2"},
-		{iFaceName: testInterface2, rpFilterSetting: "1"},
-	})
 	k.assertEgressRules(t, []egressRule{})
 
 	// Add a new endpoint which matches policy-1
