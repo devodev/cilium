@@ -185,8 +185,8 @@ func (idp *IDPool[N, I]) Release(id I) {
 	idp.mu.Lock()
 	defer idp.mu.Unlock()
 	// Cannot release the reserved network ID.
-	if id != IDReserved {
-		name := idp.used[id]
+	name, ok := idp.used[id]
+	if ok && id != IDReserved {
 		delete(idp.allocations, name)
 		delete(idp.used, id)
 

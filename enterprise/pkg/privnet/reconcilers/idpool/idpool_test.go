@@ -55,6 +55,7 @@ func TestIDPool(t *testing.T) {
 
 	pool.Release(4)
 	pool.Release(0) // No-op
+	pool.Release(4) // No-op, as already released
 	pool.Release(2)
 	require.Equal(t, 3, pool.Allocated())
 
