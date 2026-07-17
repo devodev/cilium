@@ -57,14 +57,9 @@ func NewIDPool[N comparable, I ~uint16](log *slog.Logger, first, max I) *IDPool[
 		mu:   lock.Mutex{},
 		next: first,
 		max:  max,
-		allocations: map[N]idAllocation[I]{
-			*new(N): {
-				id: IDReserved,
-			},
-		},
-		used: map[I]N{
-			IDReserved: *new(N),
-		},
+
+		allocations: make(map[N]idAllocation[I]),
+		used:        make(map[I]N),
 	}
 }
 
@@ -144,7 +139,7 @@ func (idp *IDPool[N, I]) Acquire(name N) (I, error) {
 		return alloc.id, nil
 	}
 
-	if len(idp.used) == int(idp.max)+1 {
+	if len(idp.used) == int(idp.max) {
 		return IDReserved, errors.New("ID pool exhausted")
 	}
 
@@ -154,7 +149,7 @@ func (idp *IDPool[N, I]) Acquire(name N) (I, error) {
 
 	cur := idp.next
 	_, allocated := idp.used[cur]
-	for allocated {
+	for allocated || cur == IDReserved {
 		cur = advance(cur)
 		_, allocated = idp.used[cur]
 	}
@@ -184,9 +179,9 @@ func (idp *IDPool[N, I]) Acquire(name N) (I, error) {
 func (idp *IDPool[N, I]) Release(id I) {
 	idp.mu.Lock()
 	defer idp.mu.Unlock()
-	// Cannot release the reserved network ID.
+
 	name, ok := idp.used[id]
-	if ok && id != IDReserved {
+	if ok {
 		delete(idp.allocations, name)
 		delete(idp.used, id)
 
@@ -204,7 +199,7 @@ func (idp *IDPool[N, I]) Release(id I) {
 func (idp *IDPool[N, I]) Allocated() int {
 	idp.mu.Lock()
 	defer idp.mu.Unlock()
-	return len(idp.allocations) - 1 // don't count the reserved ID as an allocation
+	return len(idp.allocations)
 }
 
 // allocationWALEntry is the representation of a single alloction on disk
@@ -262,11 +257,14 @@ func (idp *IDPool[N, I]) restore(path string) error {
 		if err != nil {
 			return err
 		}
-		idp.allocations[allocation.Name] = idAllocation[I]{
-			id:       allocation.ID,
-			restored: allocation.ID != IDReserved,
+
+		if allocation.ID != IDReserved {
+			idp.allocations[allocation.Name] = idAllocation[I]{
+				id:       allocation.ID,
+				restored: true,
+			}
+			idp.used[allocation.ID] = allocation.Name
 		}
-		idp.used[allocation.ID] = allocation.Name
 	}
 
 	return nil

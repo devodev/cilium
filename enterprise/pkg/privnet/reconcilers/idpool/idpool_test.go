@@ -65,6 +65,14 @@ func TestIDPool(t *testing.T) {
 	// No more IDs should be available
 	acquireAssertError()
 
+	// The zero value can correctly acquire and release an ID
+	pool.Release(2)
+	actual, err := pool.Acquire("")
+	require.NoError(t, err, "acquire unexpectedly failed")
+	require.Equal(t, tables.NetworkID(2), actual)
+	pool.Release(actual)
+	acquireAssertValue(2)
+
 	// Checking the boundaries
 	pool = NewIDPool[tables.NetworkName, tables.NetworkID](log, 0, 5)
 	acquireAssertValue(1)
@@ -84,7 +92,7 @@ func TestIDPool(t *testing.T) {
 
 	// Checking re requesting the ID
 	pool = NewIDPool[tables.NetworkName, tables.NetworkID](log, 0, 5)
-	actual, err := pool.Acquire("foobar")
+	actual, err = pool.Acquire("foobar")
 	require.NoError(t, err, "acquire unexpectedly failed")
 	require.Equal(t, tables.NetworkID(1), actual)
 
