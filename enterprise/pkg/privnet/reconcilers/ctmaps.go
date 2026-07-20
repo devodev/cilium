@@ -132,6 +132,7 @@ func newCTMaps(in struct {
 		factory: in.Factory,
 		tcPath:  cmp.Or(string(in.TCPath), bpf.TCGlobalsPath()),
 		ctMaps:  make(map[tables.NetworkID]*ctMap),
+		global:  in.Global,
 
 		tcp4:    in.TCP4,
 		tcp4Ops: in.TCP4.Ops(),
