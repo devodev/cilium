@@ -43,9 +43,10 @@ func TestMissingAuthSecretCondition(t *testing.T) {
 	}
 
 	tests := []struct {
-		name          string
-		peerConfig    *v1.IsovalentBGPPeerConfig
-		expectedState meta_v1.ConditionStatus
+		name           string
+		peerConfig     *v1.IsovalentBGPPeerConfig
+		expectedState  meta_v1.ConditionStatus
+		expectedReason string
 	}{
 		{
 			name: "MissingAuthSecret False",
@@ -57,7 +58,8 @@ func TestMissingAuthSecretCondition(t *testing.T) {
 					AuthSecretRef: &secretName,
 				},
 			},
-			expectedState: meta_v1.ConditionFalse,
+			expectedState:  meta_v1.ConditionFalse,
+			expectedReason: "AuthSecretValidated",
 		},
 		{
 			name: "MissingAuthSecret False nil AuthSecretRef",
@@ -67,7 +69,8 @@ func TestMissingAuthSecretCondition(t *testing.T) {
 				},
 				Spec: v1.IsovalentBGPPeerConfigSpec{},
 			},
-			expectedState: meta_v1.ConditionFalse,
+			expectedState:  meta_v1.ConditionFalse,
+			expectedReason: "AuthSecretNotConfigured",
 		},
 		{
 			name: "MissingAuthSecret True",
@@ -79,7 +82,8 @@ func TestMissingAuthSecretCondition(t *testing.T) {
 					AuthSecretRef: ptr.To(secretName + "foo"),
 				},
 			},
-			expectedState: meta_v1.ConditionTrue,
+			expectedState:  meta_v1.ConditionTrue,
+			expectedReason: "AuthSecretMissing",
 		},
 	}
 
@@ -123,6 +127,7 @@ func TestMissingAuthSecretCondition(t *testing.T) {
 					return
 				}
 				assert.Equal(ct, tt.expectedState, cond.Status, "Unexpected condition status")
+				assert.Equal(ct, tt.expectedReason, cond.Reason, "Unexpected condition reason")
 			}, time.Second*3, time.Millisecond*100)
 		})
 	}
@@ -138,10 +143,11 @@ func TestMissingBFDProfileCondition(t *testing.T) {
 	}
 
 	tests := []struct {
-		name          string
-		peerConfig    *v1.IsovalentBGPPeerConfig
-		expectedState meta_v1.ConditionStatus
-		enableBFD     bool
+		name           string
+		peerConfig     *v1.IsovalentBGPPeerConfig
+		expectedState  meta_v1.ConditionStatus
+		expectedReason string
+		enableBFD      bool
 	}{
 		{
 			name: "MissingBFDProfile False",
@@ -153,8 +159,9 @@ func TestMissingBFDProfileCondition(t *testing.T) {
 					BFDProfileRef: &bfdProfile.Name,
 				},
 			},
-			expectedState: meta_v1.ConditionFalse,
-			enableBFD:     true,
+			expectedState:  meta_v1.ConditionFalse,
+			expectedReason: "BFDProfileValidated",
+			enableBFD:      true,
 		},
 		{
 			name: "MissingBFDProfile False nil BFDProfileRef",
@@ -164,8 +171,9 @@ func TestMissingBFDProfileCondition(t *testing.T) {
 				},
 				Spec: v1.IsovalentBGPPeerConfigSpec{},
 			},
-			expectedState: meta_v1.ConditionFalse,
-			enableBFD:     true,
+			expectedState:  meta_v1.ConditionFalse,
+			expectedReason: "BFDProfileNotConfigured",
+			enableBFD:      true,
 		},
 		{
 			name: "MissingBFDProfile True",
@@ -177,8 +185,9 @@ func TestMissingBFDProfileCondition(t *testing.T) {
 					BFDProfileRef: ptr.To(bfdProfile.Name + "foo"),
 				},
 			},
-			expectedState: meta_v1.ConditionTrue,
-			enableBFD:     true,
+			expectedState:  meta_v1.ConditionTrue,
+			expectedReason: "BFDProfileMissing",
+			enableBFD:      true,
 		},
 		{
 			name: "MissingBFDProfile False disable BFD",
@@ -193,8 +202,9 @@ func TestMissingBFDProfileCondition(t *testing.T) {
 					BFDProfileRef: ptr.To(bfdProfile.Name + "foo"),
 				},
 			},
-			expectedState: meta_v1.ConditionFalse,
-			enableBFD:     false,
+			expectedState:  meta_v1.ConditionFalse,
+			expectedReason: "BFDProfileNotConfigured",
+			enableBFD:      false,
 		},
 	}
 
@@ -242,6 +252,7 @@ func TestMissingBFDProfileCondition(t *testing.T) {
 					return
 				}
 				assert.Equal(ct, tt.expectedState, cond.Status, "Unexpected condition status")
+				assert.Equal(ct, tt.expectedReason, cond.Reason, "Unexpected condition reason")
 			}, time.Second*3, time.Millisecond*100)
 		})
 	}

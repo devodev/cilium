@@ -321,6 +321,7 @@ func TestClusterConfigConditions(t *testing.T) {
 		name                    string
 		clusterConfig           *v1.IsovalentBGPClusterConfig
 		expectedConditionStatus map[string]meta_v1.ConditionStatus
+		expectedConditionReason map[string]string
 	}{
 		{
 			name: "NoMatchingNode False",
@@ -339,6 +340,9 @@ func TestClusterConfigConditions(t *testing.T) {
 			expectedConditionStatus: map[string]meta_v1.ConditionStatus{
 				v1.BGPClusterConfigConditionNoMatchingNode: meta_v1.ConditionFalse,
 			},
+			expectedConditionReason: map[string]string{
+				v1.BGPClusterConfigConditionNoMatchingNode: "ClusterConfigValidated",
+			},
 		},
 		{
 			name: "NoMatchingNode False Nil Selector",
@@ -352,6 +356,9 @@ func TestClusterConfigConditions(t *testing.T) {
 			},
 			expectedConditionStatus: map[string]meta_v1.ConditionStatus{
 				v1.BGPClusterConfigConditionNoMatchingNode: meta_v1.ConditionFalse,
+			},
+			expectedConditionReason: map[string]string{
+				v1.BGPClusterConfigConditionNoMatchingNode: "ClusterConfigValidated",
 			},
 		},
 		{
@@ -370,6 +377,9 @@ func TestClusterConfigConditions(t *testing.T) {
 			},
 			expectedConditionStatus: map[string]meta_v1.ConditionStatus{
 				v1.BGPClusterConfigConditionNoMatchingNode: meta_v1.ConditionTrue,
+			},
+			expectedConditionReason: map[string]string{
+				v1.BGPClusterConfigConditionNoMatchingNode: "ClusterConfigConflict",
 			},
 		},
 		{
@@ -397,6 +407,9 @@ func TestClusterConfigConditions(t *testing.T) {
 			expectedConditionStatus: map[string]meta_v1.ConditionStatus{
 				v1.BGPClusterConfigConditionMissingPeerConfigs: meta_v1.ConditionFalse,
 			},
+			expectedConditionReason: map[string]string{
+				v1.BGPClusterConfigConditionMissingPeerConfigs: "PeerConfigsResolved",
+			},
 		},
 		{
 			name: "MissingPeerConfig False nil PeerConfigRef",
@@ -419,6 +432,9 @@ func TestClusterConfigConditions(t *testing.T) {
 			},
 			expectedConditionStatus: map[string]meta_v1.ConditionStatus{
 				v1.BGPClusterConfigConditionMissingPeerConfigs: meta_v1.ConditionFalse,
+			},
+			expectedConditionReason: map[string]string{
+				v1.BGPClusterConfigConditionMissingPeerConfigs: "PeerConfigsResolved",
 			},
 		},
 		{
@@ -446,6 +462,9 @@ func TestClusterConfigConditions(t *testing.T) {
 			expectedConditionStatus: map[string]meta_v1.ConditionStatus{
 				v1.BGPClusterConfigConditionMissingPeerConfigs: meta_v1.ConditionTrue,
 			},
+			expectedConditionReason: map[string]string{
+				v1.BGPClusterConfigConditionMissingPeerConfigs: "PeerConfigsMissing",
+			},
 		},
 		{
 			name: "MissingVRF and MissingVRFConfig False",
@@ -469,6 +488,10 @@ func TestClusterConfigConditions(t *testing.T) {
 			expectedConditionStatus: map[string]meta_v1.ConditionStatus{
 				v1.BGPClusterConfigConditionMissingVRFs:       meta_v1.ConditionFalse,
 				v1.BGPClusterConfigConditionMissingVRFConfigs: meta_v1.ConditionFalse,
+			},
+			expectedConditionReason: map[string]string{
+				v1.BGPClusterConfigConditionMissingVRFs:       "VRFResolved",
+				v1.BGPClusterConfigConditionMissingVRFConfigs: "BGPVRFConfigResolved",
 			},
 		},
 		{
@@ -494,6 +517,10 @@ func TestClusterConfigConditions(t *testing.T) {
 				v1.BGPClusterConfigConditionMissingVRFs:       meta_v1.ConditionTrue,
 				v1.BGPClusterConfigConditionMissingVRFConfigs: meta_v1.ConditionFalse,
 			},
+			expectedConditionReason: map[string]string{
+				v1.BGPClusterConfigConditionMissingVRFs:       "VRFMissing",
+				v1.BGPClusterConfigConditionMissingVRFConfigs: "BGPVRFConfigResolved",
+			},
 		},
 		{
 			name: "MissingVRF True, MissingVRFConfig True",
@@ -517,6 +544,10 @@ func TestClusterConfigConditions(t *testing.T) {
 			expectedConditionStatus: map[string]meta_v1.ConditionStatus{
 				v1.BGPClusterConfigConditionMissingVRFs:       meta_v1.ConditionTrue,
 				v1.BGPClusterConfigConditionMissingVRFConfigs: meta_v1.ConditionTrue,
+			},
+			expectedConditionReason: map[string]string{
+				v1.BGPClusterConfigConditionMissingVRFs:       "VRFMissing",
+				v1.BGPClusterConfigConditionMissingVRFConfigs: "BGPVRFConfigMissing",
 			},
 		},
 	}
@@ -801,6 +832,9 @@ func TestConflictingClusterConfigCondition(t *testing.T) {
 					}
 
 					if len(config.conflictingClusterConfigs) == 0 {
+						if !assert.Equal(ct, "ClusterConfigValidated", cond.Reason, "Expected reason to be ClusterConfigValidated") {
+							return
+						}
 						if !assert.Equal(ct, meta_v1.ConditionFalse, cond.Status, "Expected condition to be false") {
 							return
 						}
@@ -824,6 +858,9 @@ func TestConflictingClusterConfigCondition(t *testing.T) {
 						return
 					}
 
+					if !assert.Equal(ct, "ClusterConfigConflict", cond.Reason, "Expected reason to be ClusterConfigConflict") {
+						return
+					}
 					if !assert.ElementsMatch(
 						t,
 						strings.Split(string(match[1]), " "),

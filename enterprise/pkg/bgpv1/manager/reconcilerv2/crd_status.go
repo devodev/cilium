@@ -285,12 +285,14 @@ func (r *StatusReconciler) updateErrorConditions() error {
 		Type:               v1.BGPInstanceConditionReconcileError,
 		Status:             metav1.ConditionFalse,
 		ObservedGeneration: bgpNodeConfig.GetGeneration(),
-		Reason:             "BGPReconcileError",
+		Message:            "",
+		Reason:             "ReconcileSucceeded",
 	}
 
 	if len(instanceErrors) > 0 {
 		cond.Status = metav1.ConditionTrue
 		cond.Message = message.String()
+		cond.Reason = "ReconcileFailed"
 	}
 
 	if updated := meta.SetStatusCondition(&r.desiredStatus.Conditions, cond); updated {
