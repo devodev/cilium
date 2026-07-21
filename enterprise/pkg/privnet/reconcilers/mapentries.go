@@ -408,7 +408,7 @@ func (m *MapEntries) handleEndpointChange(txn statedb.WriteTxn, ep tables.Endpoi
 	}
 
 	// Skip any further logic if the to-be-upserted entry is already present
-	desired := activeEp.ToMapEntry(sctx.SubnetSpec, m.cfg.IsLocallyConnected(), m.shouldL2Announce(txn, ep))
+	desired := activeEp.ToMapEntry(sctx.SubnetSpec, m.cfg.IsLocallyConnected(), m.shouldL2Announce(txn, *activeEp))
 	if found && current.Equal(desired) {
 		return nil
 	}

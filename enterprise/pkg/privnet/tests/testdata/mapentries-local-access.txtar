@@ -21,6 +21,24 @@ k8s/add direct-maggot-other-ep.yaml
 privnet/epm-create ep-speedy-cheetah.json
 db/cmp privnet-mapentries mapentries.v2.table
 
+# test 2-bis: add a remote endpoint that shadows the local one, the L2Ann flag should be unset
+k8s/add direct-maggot-other-ep-bis.yaml
+db/cmp --grep '^E ' privnet-mapentries mapentries.v2-bis.table
+
+# test 2-ter: delete the local endpoint, the L2Ann flag should not change; this
+# is a regression test for incorrect L2Ann flapping on local endpoint deletion.
+# We additionally create one more endpoint to wait for reconciliation, and avoid
+# the need for explicit sleeps.
+privnet/epm-delete bar/speedy-cheetah
+privnet/epm-create ep-advanced-mongoose.json
+db/cmp --grep '^E ' privnet-mapentries mapentries.v2-ter.table
+
+# Restore the setup from test 2
+privnet/epm-delete bar/advanced-mongoose
+privnet/epm-create ep-speedy-cheetah.json
+k8s/delete direct-maggot-other-ep-bis.yaml
+db/cmp privnet-mapentries mapentries.v2.table
+
 # test 3: update ifindex of eth1 ( devices table has index as key, changing it requires del/add)
 db/delete devices device.eth1.yaml
 replace 'index: 10' 'index: 11' device.eth1.yaml
@@ -142,6 +160,24 @@ spec:
   }
 }
 
+-- ep-advanced-mongoose.json --
+{
+  "ID": 16,
+  "addressing": {
+    "ipv4": "10.244.5.110",
+    "ipv6": "fd00:10:244:5::25"
+  },
+  "k8s-pod-name": "advanced-mongoose",
+  "k8s-namespace": "bar",
+  "mac": "00:50:56:ad:11:22",
+  "properties": {
+    "isovalent-privnet-network": "direct-maggot",
+    "isovalent-privnet-activated-at": "2025-09-17T12:42:00.000000Z",
+    "isovalent-privnet-ipv4-addr": "192.168.250.20",
+    "isovalent-privnet-ipv6-addr": "fd10:0:250::20"
+  }
+}
+
 -- direct-maggot-other-ep.yaml --
 apiVersion: isovalent.com/v1alpha1
 kind: PrivateNetworkEndpointSlice
@@ -162,6 +198,27 @@ endpoints:
     mac: 00:50:56:ad:11:97
     network: direct-maggot
 nodeName: cricket
+
+-- direct-maggot-other-ep-bis.yaml --
+apiVersion: isovalent.com/v1alpha1
+kind: PrivateNetworkEndpointSlice
+metadata:
+  namespace: default
+  name: direct-maggot-other-ep-bis
+endpoints:
+- activatedAt: "2025-09-17T12:51:01.000000Z"
+  endpoint:
+    addressing:
+      ipv4: 10.244.5.109
+      ipv6: fd10:0:250::24
+    name: speedy-cheetah-bis
+  interface:
+    addressing:
+      ipv4: 192.168.250.10
+      ipv6: fd10:0:250::10
+    mac: 00:50:56:ad:11:03
+    network: direct-maggot
+nodeName: alpaca
 
 -- subnets.v1.table --
 Network          Name      ID    CIDRv4             CIDRv6             Routes   Interface
@@ -211,6 +268,22 @@ D      united-firefly   subnet1   192.168.251.0/24   0.0.0.0             30     
 P      united-firefly   subnet1   10.10.251.0/24     0.0.0.0             N/A       No
 D      united-firefly   subnet2   10.10.251.0/24     0.0.0.0             30        No
 P      united-firefly   subnet2   192.168.251.0/24   0.0.0.0             N/A       No
+
+-- mapentries.v2-bis.table --
+Type   Network          Subnet    CIDR               Nexthop             IfIndex   L2Ann
+E      direct-maggot    subnet1   192.168.250.10/32  10.244.5.109        10        No
+E      direct-maggot    subnet1   192.168.250.4/32   10.244.5.108        10        No
+E      direct-maggot    subnet1   fd10:0:250::10/128 fd10:0:250::24      10        No
+E      direct-maggot    subnet1   fd10:0:250::4/128  fd10:0:250::23      10        No
+
+-- mapentries.v2-ter.table --
+Type   Network          Subnet    CIDR               Nexthop             IfIndex   L2Ann
+E      direct-maggot    subnet1   192.168.250.10/32  10.244.5.109        10        No
+E      direct-maggot    subnet1   192.168.250.20/32  10.244.5.110        10        Yes
+E      direct-maggot    subnet1   192.168.250.4/32   10.244.5.108        10        No
+E      direct-maggot    subnet1   fd10:0:250::10/128 fd10:0:250::24      10        No
+E      direct-maggot    subnet1   fd10:0:250::20/128 fd00:10:244:5::25   10        Yes
+E      direct-maggot    subnet1   fd10:0:250::4/128  fd10:0:250::23      10        No
 
 -- subnets.v3.table --
 Network          Name      ID    CIDRv4             CIDRv6             Routes   Interface
