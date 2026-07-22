@@ -198,6 +198,14 @@ evpn_encap_and_redirect6(struct __ctx_buff *ctx, __u16 net_id, __u32 sec_label,
 	struct ethhdr *eth;
 	int ret;
 
+	/* Put a guard here to avoid reachability analyzer to mark the map
+	 * reference below to be reachable. Guarding at the caller side is not
+	 * enough as this is a global function which is always considered
+	 * reachable.
+	 */
+	if (!CONFIG(evpn_enable))
+		return CTX_ACT_OK;
+
 	if (!dst_ip || !trace)
 		return DROP_INVALID;
 
