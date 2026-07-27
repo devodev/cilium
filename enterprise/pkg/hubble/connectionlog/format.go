@@ -12,11 +12,11 @@ package connectionlog
 
 import (
 	typeV1 "github.com/isovalent/ipa/common/k8s/type/v1alpha"
+	netV1 "github.com/isovalent/ipa/common/net/v1alpha"
 	commonV1 "github.com/isovalent/ipa/common/v1alpha"
 	graphV1 "github.com/isovalent/ipa/graph/v1alpha"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	flowpb "github.com/cilium/cilium/api/v1/flow"
 	"github.com/cilium/cilium/pkg/identity"
 	"github.com/cilium/cilium/pkg/time"
 	"github.com/cilium/cilium/pkg/version"
@@ -36,8 +36,8 @@ func init() {
 }
 
 // flowstatToConnection convert a flowstats val into a graphV1 Connection.
-func flowstatToConnection(v flowstatval) *graphV1.Connection {
-	src, dst := flowToVertices(v)
+func flowstatToConnection(k flowstatkey, v flowstatval) *graphV1.Connection {
+	src, dst := flowToVertices(k, v)
 	if src == nil || dst == nil {
 		return nil
 	}
@@ -51,27 +51,18 @@ func flowstatToConnection(v flowstatval) *graphV1.Connection {
 
 // flowToVertices extract a pair of graphV1 Vertices source and destination
 // from a flowstatval.
-func flowToVertices(v flowstatval) (src, dst *graphV1.Vertex) {
-	// return the empty string when the given slice is empty, or the first
-	// element otherwise.
-	first := func(xs []string) string {
-		if len(xs) == 0 {
-			return ""
-		}
-		return xs[0]
-	}
-
+func flowToVertices(k flowstatkey, v flowstatval) (src, dst *graphV1.Vertex) {
 	src = endpointToVertex(
-		v.flow.GetSource(),
-		v.flow.GetNodeName(),
-		v.flow.GetIP().GetSource(),
-		first(v.flow.GetSourceNames()),
+		v.source,
+		k.srcIP,
+		k.srcPort,
+		k.ipProtocol,
 	)
 	dst = endpointToVertex(
-		v.flow.GetDestination(),
-		v.flow.GetNodeName(),
-		v.flow.GetIP().GetDestination(),
-		first(v.flow.GetDestinationNames()),
+		v.destination,
+		k.dstIP,
+		k.dstPort,
+		k.ipProtocol,
 	)
 	return
 }
@@ -94,8 +85,8 @@ func flowstatvalEdge(v flowstatval) *graphV1.Edge {
 }
 
 // may return nil if the given endpoint should be ignored.
-func endpointToVertex(ep *flowpb.Endpoint, node, addr, name string) *graphV1.Vertex {
-	id := identity.NumericIdentity(ep.GetIdentity())
+func endpointToVertex(ep endpointMetadata, addr string, port uint32, protocol netV1.IPProtocol) *graphV1.Vertex {
+	id := identity.NumericIdentity(ep.identity)
 	// Handle world specifically since it has a dedicated type representation
 	// at the in the graphV1 API.
 	switch id {
@@ -104,10 +95,11 @@ func endpointToVertex(ep *flowpb.Endpoint, node, addr, name string) *graphV1.Ver
 		identity.ReservedIdentityWorldIPv6:
 		return &graphV1.Vertex{
 			Family: &graphV1.Vertex_WorldEntity{
-				// NOTE: no port info, we don't aggregate at that level yet.
 				WorldEntity: &graphV1.VertexFamilyWorldEntity{
-					DnsName: name,
-					Ip:      addr,
+					DnsName:    ep.dnsName,
+					Ip:         addr,
+					Port:       port,
+					IpProtocol: protocol,
 				},
 			},
 		}
@@ -120,10 +112,12 @@ func endpointToVertex(ep *flowpb.Endpoint, node, addr, name string) *graphV1.Ver
 		// ResourceKind nor NodeName and ContainerName as the info are
 		// missing from Hubble flows. endpointManager could provide
 		// them but at an additional overhead cost.
-		ClusterName: ep.GetClusterName(),
-		Namespace:   ep.GetNamespace(),
-		PodName:     ep.GetPodName(),
+		ClusterName: ep.clusterName,
+		Namespace:   ep.namespace,
+		PodName:     ep.podName,
 		Ip:          addr,
+		Port:        port,
+		IpProtocol:  protocol,
 	}
 
 	// NOTE: world identites have already been handled earlier.
@@ -134,9 +128,9 @@ func endpointToVertex(ep *flowpb.Endpoint, node, addr, name string) *graphV1.Ver
 	// connLogger level.
 	case identity.ReservedIdentityHost:
 		// the only case where we're sure to know the node name.
-		k8s.NodeName = node
+		k8s.NodeName = ep.nodeName
 	default: // non-reserved identity handling.
-		if ep.GetPodName() == "" {
+		if ep.podName == "" {
 			// Not a Pod, maybe a health-check etc. not filtered by the
 			// connLogger. Ignore it since we cannot represent it meaningfully
 			// in the graphV1 API.
@@ -145,6 +139,7 @@ func endpointToVertex(ep *flowpb.Endpoint, node, addr, name string) *graphV1.Ver
 		}
 		// NOTE: should we try ep.GetWorkloads() and adapt k8s.WorkloadKind
 		// accordingly?
+		k8s.ResourceName = ep.podName
 		k8s.WorkloadKind = typeV1.WorkloadKind_WORKLOAD_KIND_POD
 		k8s.ResourceKind = typeV1.ResourceKind_RESOURCE_KIND_WORKLOAD
 	}

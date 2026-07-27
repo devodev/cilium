@@ -130,8 +130,8 @@ func (e *connLogExporter) tick(now time.Time) error {
 	e.lastTick = now
 
 	connections := make([]*graphV1.Connection, 0, len(store))
-	for _, v := range store {
-		c := flowstatToConnection(v)
+	for k, v := range store {
+		c := flowstatToConnection(k, v)
 		if c != nil {
 			connections = append(connections, c)
 		}

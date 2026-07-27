@@ -11,6 +11,8 @@
 package connectionlog
 
 import (
+	netV1 "github.com/isovalent/ipa/common/net/v1alpha"
+
 	flowpb "github.com/cilium/cilium/api/v1/flow"
 	"github.com/cilium/cilium/pkg/lock"
 )
@@ -18,31 +20,148 @@ import (
 // flowstatkey defines how Hubble flows are aggregated into different
 // connections.
 type flowstatkey struct {
-	srcIP, dstIP string
-	srcID, dstID uint32
+	srcIP, dstIP     string
+	srcID, dstID     uint32
+	srcPort, dstPort uint32
+	ipProtocol       netV1.IPProtocol
 }
 
-// flowstatval hold statistics from a "connection edge" (in the IPA graphV1 API
-// sense, not necessarily a 1:1 mapping to a networking connection). It include
-// a sample Hubble flow as a shortcut to hold the necessary info to build the
-// connection's graphV1 vertices.
+// endpointMetadata holds the endpoint information needed to build a graphV1
+// vertex. Keeping this separate from a sample Flow prevents a later, less
+// enriched observation from erasing information collected earlier in the
+// export window.
+type endpointMetadata struct {
+	identity    uint32
+	clusterName string
+	namespace   string
+	podName     string
+	nodeName    string
+	dnsName     string
+}
+
+func endpointMetadataFromFlow(ep *flowpb.Endpoint, nodeName, dnsName string) endpointMetadata {
+	return endpointMetadata{
+		identity:    ep.GetIdentity(),
+		clusterName: ep.GetClusterName(),
+		namespace:   ep.GetNamespace(),
+		podName:     ep.GetPodName(),
+		nodeName:    nodeName,
+		dnsName:     dnsName,
+	}
+}
+
+func (m *endpointMetadata) merge(other endpointMetadata) {
+	if m.identity == 0 {
+		m.identity = other.identity
+	}
+	if m.clusterName == "" {
+		m.clusterName = other.clusterName
+	}
+	if m.namespace == "" {
+		m.namespace = other.namespace
+	}
+	if m.podName == "" {
+		m.podName = other.podName
+	}
+	if m.nodeName == "" {
+		m.nodeName = other.nodeName
+	}
+	if m.dnsName == "" {
+		m.dnsName = other.dnsName
+	}
+}
+
+// flowObservation is the initiator-oriented view of a Hubble flow used by the
+// ConnectionLog aggregator.
+type flowObservation struct {
+	key         flowstatkey
+	source      endpointMetadata
+	destination endpointMetadata
+}
+
+func flowObservationFromFlow(flow *flowpb.Flow) flowObservation {
+	srcPort, dstPort, protocol := l4Tuple(flow.GetL4())
+	source := endpointMetadataFromFlow(
+		flow.GetSource(),
+		flow.GetNodeName(),
+		firstName(flow.GetSourceNames()),
+	)
+	destination := endpointMetadataFromFlow(
+		flow.GetDestination(),
+		flow.GetNodeName(),
+		firstName(flow.GetDestinationNames()),
+	)
+	obs := flowObservation{
+		key: flowstatkey{
+			srcIP:      flow.GetIP().GetSource(),
+			dstIP:      flow.GetIP().GetDestination(),
+			srcID:      source.identity,
+			dstID:      destination.identity,
+			srcPort:    srcPort,
+			dstPort:    dstPort,
+			ipProtocol: protocol,
+		},
+		source:      source,
+		destination: destination,
+	}
+	if isReply(flow) {
+		obs.key.srcIP, obs.key.dstIP = obs.key.dstIP, obs.key.srcIP
+		obs.key.srcID, obs.key.dstID = obs.key.dstID, obs.key.srcID
+		obs.key.srcPort, obs.key.dstPort = obs.key.dstPort, obs.key.srcPort
+		obs.source, obs.destination = obs.destination, obs.source
+	}
+	return obs
+}
+
+func l4Tuple(l4 *flowpb.Layer4) (srcPort, dstPort uint32, protocol netV1.IPProtocol) {
+	switch l4 := l4.GetProtocol().(type) {
+	case *flowpb.Layer4_TCP:
+		return l4.TCP.GetSourcePort(), l4.TCP.GetDestinationPort(), netV1.IPProtocol_IP_PROTOCOL_TCP
+	case *flowpb.Layer4_UDP:
+		return l4.UDP.GetSourcePort(), l4.UDP.GetDestinationPort(), netV1.IPProtocol_IP_PROTOCOL_UDP
+	case *flowpb.Layer4_SCTP:
+		return l4.SCTP.GetSourcePort(), l4.SCTP.GetDestinationPort(), netV1.IPProtocol_IP_PROTOCOL_SCTP
+	case *flowpb.Layer4_ICMPv4:
+		return 0, 0, netV1.IPProtocol_IP_PROTOCOL_ICMP
+	case *flowpb.Layer4_ICMPv6:
+		return 0, 0, netV1.IPProtocol_IP_PROTOCOL_ICMPV6
+	case *flowpb.Layer4_IGMP:
+		return 0, 0, netV1.IPProtocol_IP_PROTOCOL_IGMP
+	default:
+		return 0, 0, netV1.IPProtocol_IP_PROTOCOL_UNSPECIFIED
+	}
+}
+
+func isReply(flow *flowpb.Flow) bool {
+	if reply := flow.GetIsReply(); reply != nil {
+		return reply.GetValue()
+	}
+	if flow.GetReply() {
+		return true
+	}
+	switch flow.GetSockXlatePoint() {
+	case flowpb.SocketTranslationPoint_SOCK_XLATE_POINT_PRE_DIRECTION_REV,
+		flowpb.SocketTranslationPoint_SOCK_XLATE_POINT_POST_DIRECTION_REV:
+		return true
+	default:
+		return false
+	}
+}
+
+func firstName(names []string) string {
+	if len(names) == 0 {
+		return ""
+	}
+	return names[0]
+}
+
+// flowstatval holds statistics from a "connection edge" (in the IPA graphV1
+// API sense, not necessarily a 1:1 mapping to a networking connection).
 type flowstatval struct {
-	// flow is a sample Hubble flow from which we can extract the endpoints and
-	// networking layers information to build source and destination
-	// graphV1.Vertex at export time.
-	flow *flowpb.Flow
+	source      endpointMetadata
+	destination endpointMetadata
 	// the following values match distinct flowpb.Verdict and are mapped as a
 	// graphV1.EdgeTypeRoutingTelemetry message at export time.
-	//
-	// Not sure how useful are socketlb related flows as they describe a
-	// translation from a service ip to a backend pod ip but there is no way to
-	// express that in graphV1. Ideally, we would keep track of a pod -> svc ->
-	// backend chain and report the connection with both the svc and backend as
-	// destination.
-	//
-	// policy verdict events are translated into hubble flows a
-	// verdict=forwarded, we probably want to either handle them specifically
-	// or ignore them completely.
 	forwarded  uint64
 	dropped    uint64
 	errored    uint64 // only generated from accesslog (proxy)
@@ -50,6 +169,30 @@ type flowstatval struct {
 	redirected uint64 // only generated from policy verdict
 	traced     uint64 // only generated by socketlb
 	translated uint64 // only generated by socketlb
+}
+
+func (v *flowstatval) add(obs flowObservation, verdict flowpb.Verdict) bool {
+	switch verdict {
+	case flowpb.Verdict_FORWARDED:
+		v.forwarded++
+	case flowpb.Verdict_DROPPED:
+		v.dropped++
+	case flowpb.Verdict_ERROR:
+		v.errored++
+	case flowpb.Verdict_AUDIT:
+		v.audited++
+	case flowpb.Verdict_REDIRECTED:
+		v.redirected++
+	case flowpb.Verdict_TRACED:
+		v.traced++
+	case flowpb.Verdict_TRANSLATED:
+		v.translated++
+	default:
+		return false
+	}
+	v.source.merge(obs.source)
+	v.destination.merge(obs.destination)
+	return true
 }
 
 type connLogDB struct {
@@ -68,36 +211,20 @@ func newConnLogDB() *connLogDB {
 func (db *connLogDB) add(flow *flowpb.Flow) {
 	// NOTE: add() is the "hot codepath" of the Hubble ConnLogger as it is
 	// called for every Hubble flow, so keep it fast.
-	k := flowstatkey{
-		srcIP: flow.GetIP().GetSource(),
-		dstIP: flow.GetIP().GetDestination(),
-		srcID: flow.GetSource().GetIdentity(),
-		dstID: flow.GetDestination().GetIdentity(),
+	verdict := flow.GetVerdict()
+	if verdict == flowpb.Verdict_VERDICT_UNKNOWN {
+		return
 	}
+	obs := flowObservationFromFlow(flow)
 
 	db.mu.Lock()
 	defer db.mu.Unlock()
 
-	v := db.store[k]
-	// ignoring flowpb.Verdict_VERDICT_UNKNOWN
-	switch flow.GetVerdict() {
-	case flowpb.Verdict_FORWARDED:
-		v.forwarded += 1
-	case flowpb.Verdict_DROPPED:
-		v.dropped += 1
-	case flowpb.Verdict_ERROR:
-		v.errored += 1
-	case flowpb.Verdict_AUDIT:
-		v.audited += 1
-	case flowpb.Verdict_REDIRECTED:
-		v.redirected += 1
-	case flowpb.Verdict_TRACED:
-		v.traced += 1
-	case flowpb.Verdict_TRANSLATED:
-		v.translated += 1
+	v := db.store[obs.key]
+	if !v.add(obs, verdict) {
+		return
 	}
-	v.flow = flow
-	db.store[k] = v
+	db.store[obs.key] = v
 }
 
 // reset returns the current map store and reset it. It is safe to call add()
